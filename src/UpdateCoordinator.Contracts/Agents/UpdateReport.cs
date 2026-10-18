@@ -95,7 +95,8 @@ public sealed record AvailableUpdate : UpdateInfo
 /// </summary>
 /// <param name="Version">Changes whenever the releases of the client change; announced in the heartbeat.</param>
 /// <param name="Releases">Released updates with earliest installation time.</param>
-public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases);
+/// <param name="MaintenanceWindows">Effective maintenance windows (server, group or system default); null lets the agent use its local configuration.</param>
+public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, IReadOnlyList<MaintenanceWindow>? MaintenanceWindows = null);
 
 /// <summary>
 /// A released update and the earliest time it may be installed.

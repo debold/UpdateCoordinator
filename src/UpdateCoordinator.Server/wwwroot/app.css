@@ -18,3 +18,11 @@ table { border-collapse: collapse; width: 100%; background: #fff; }
 th, td { border-bottom: 1px solid #e5e7eb; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
 .tile.urgent { border-color: #f59e0b; background: #fffbeb; color: inherit; text-decoration: none; }
 .actions { display: flex; gap: 0.5rem; }
+textarea { display: block; width: 100%; max-width: 40rem; margin-top: 0.25rem; font-family: Consolas, monospace; }
+select { display: block; margin-top: 0.25rem; padding: 0.3rem; }
+label.inline { display: inline-flex; gap: 0.3rem; margin-right: 1rem; }
+label.inline input { min-width: 0; display: inline; }
+.facts { display: grid; grid-template-columns: 14rem 1fr; gap: 0.3rem 1rem; }
+.facts dt { font-weight: 600; }
+.facts pre { margin: 0; }
+fieldset { border: 1px solid #e5e7eb; margin: 0.75rem 0; }

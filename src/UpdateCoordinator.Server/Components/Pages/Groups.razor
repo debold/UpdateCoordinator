@@ -1,0 +1,103 @@
+@page "/administration/groups"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@using UpdateCoordinator.Server.Assignment
+@inject ServerDbContext Db
+@inject AssignmentAdministration Administration
+
+<PageTitle>Groups</PageTitle>
+
+<h1>Groups</h1>
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<p>Groups bundle servers, e.g. domain controllers, and may have their own maintenance windows (one per line, e.g. "Mon-Fri 19:00-05:00"). Without windows, members use the system default.</p>
+
+<form method="post" @formname="groups" @onsubmit="HandleAsync">
+    <AntiforgeryToken />
+    <table>
+        <thead>
+            <tr><th>Name</th><th>Description</th><th>Members</th><th>Maintenance windows</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var group in _groups)
+            {
+                <tr>
+                    <td>@group.Name</td>
+                    <td>@group.Description</td>
+                    <td>@_members.GetValueOrDefault(group.Id)</td>
+                    <td><textarea name="Windows_@group.Id" rows="2">@MaintenanceWindowFormat.Format(MaintenanceWindowFormat.FromJson(group.MaintenanceWindowsJson) ?? [])</textarea></td>
+                    <td class="actions">
+                        <button type="submit" name="Action" value="save:@group.Id">Save windows</button>
+                        <button type="submit" name="Action" value="delete:@group.Id">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>New group</h2>
+    <label>Name <input name="NewName" maxlength="64" /></label>
+    <label>Description <input name="NewDescription" maxlength="256" /></label>
+    <label>Maintenance windows <textarea name="NewWindows" rows="2"></textarea></label>
+    <button type="submit" name="Action" value="create">Create group</button>
+</form>
+
+@code {
+    [SupplyParameterFromForm(FormName = "groups")]
+    private string? Action { get; set; }
+
+    [SupplyParameterFromForm(FormName = "groups")]
+    private string? NewName { get; set; }
+
+    [SupplyParameterFromForm(FormName = "groups")]
+    private string? NewDescription { get; set; }
+
+    [SupplyParameterFromForm(FormName = "groups")]
+    private string? NewWindows { get; set; }
+
+    [CascadingParameter]
+    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    private List<GroupEntity> _groups = [];
+    private Dictionary<int, int> _members = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task HandleAsync()
+    {
+        var actor = await GetActorAsync();
+        var parts = Action?.Split(':', 2) ?? [];
+        AssignmentAdministration.Outcome outcome;
+        string success;
+        if (parts is ["create"])
+        {
+            outcome = await Administration.CreateGroupAsync(NewName?.Trim(), NewDescription, NewWindows, actor, CancellationToken.None);
+            success = "The group was created.";
+        }
+        else if (parts is ["save", var saveId] && int.TryParse(saveId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var groupId))
+        {
+            var windows = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form[$"Windows_{groupId}"].ToString() : null;
+            outcome = await Administration.SetGroupWindowsAsync(groupId, windows, actor, CancellationToken.None);
+            success = "The maintenance windows were saved.";
+        }
+        else if (parts is ["delete", var deleteId] && int.TryParse(deleteId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var deleteGroupId))
+        {
+            outcome = await Administration.DeleteGroupAsync(deleteGroupId, actor, CancellationToken.None);
+            success = "The group was deleted.";
+        }
+        else
+        {
+            outcome = new AssignmentAdministration.Outcome("Invalid request.");
+            success = string.Empty;
+        }
+
+        ShowResult(outcome.Error, success);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        _members = await Db.ClientGroups.AsNoTracking().GroupBy(m => m.GroupId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count);
+    }
+}

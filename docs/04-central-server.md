@@ -76,6 +76,8 @@ The entire release logic (rates, wait times, transition) applies **per concrete 
 
 Grouping uses the same logic. In addition, predefined standard rules for automatic **role detection** are shipped (see `05-agent-design.md`).
 
+Implemented (2026-10-18): the rings `Pilot`, `Test`, `Production` and `Default` are fixed. An assignment rule has a priority, a target (ring or group) and up to three conditions that must all match: detected role, DNS domain and host name pattern (`*` and `?`). Ring: manual assignment, else the matching ring rule with the lowest priority number, else `Default`. Groups: every matching group rule adds the group; manual memberships are kept independently. Assignment is recalculated on registration, after every inventory, after every administrative change and on start. Conditions on AD attributes and AD group memberships are not implemented yet.
+
 **Derived flow on first registration** (from the registration flow in `03-communication-protocol.md`, not yet explicitly confirmed): since the inventory (including detected roles) is available before approval, group and ring rules can apply immediately on approval without first landing in the default ring.
 
 ### Group coordination (leases)
@@ -86,7 +88,9 @@ Grouping uses the same logic. In addition, predefined standard rules for automat
 
 ## 4. Maintenance windows
 
-Three levels following the same pattern: **system default** (proposal: Mon–Fri 19:00–05:00, Sat/Sun all day) → **group level** → **individual server**.
+Three levels following the same pattern: **system default** (Mon–Fri 19:00–05:00, Sat/Sun all day, changeable in the dashboard) → **group level** → **individual server**.
+
+Implemented (2026-10-18): the most specific level with windows wins. Server windows replace everything else; otherwise the windows of all groups of the server apply together (union); otherwise the system default. The central server stores the resulting effective windows per client and delivers them with the release list; a change increases the release version so the agent fetches it. Windows are entered as text, one per line, e.g. `Mon-Fri 19:00-05:00` or `Sat,Sun 00:00-24:00`, at most 14 per level.
 
 ## 5. Agent updates (agent rollout)
 

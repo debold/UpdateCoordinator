@@ -12,7 +12,7 @@ namespace UpdateCoordinator.Agent.Tests;
 
 public sealed class MaintenanceWindowTests
 {
-    private static readonly IReadOnlyList<MaintenanceWindowRule> Default = InstallationOptions.DefaultWindows;
+    private static readonly IReadOnlyList<MaintenanceWindow> Default = MaintenanceWindow.SystemDefault;
 
     [Theory]
     [InlineData("2026-10-19T19:00:00", true)] // Monday evening, start of window
@@ -32,7 +32,7 @@ public sealed class MaintenanceWindowTests
     [Fact]
     public void CustomWindowWithinDay()
     {
-        var windows = new[] { new MaintenanceWindowRule { Days = [DayOfWeek.Wednesday], Start = TimeSpan.FromHours(2), End = TimeSpan.FromHours(4) } };
+        var windows = new[] { new MaintenanceWindow { Days = [DayOfWeek.Wednesday], Start = TimeSpan.FromHours(2), End = TimeSpan.FromHours(4) } };
 
         Assert.True(InstallationPlanner.IsInWindow(windows, new DateTime(2026, 10, 21, 3, 0, 0)));
         Assert.False(InstallationPlanner.IsInWindow(windows, new DateTime(2026, 10, 21, 4, 0, 0)));
@@ -54,7 +54,7 @@ public sealed class InstallationOptionsTests
         var options = new InstallationOptions();
 
         Assert.Empty(Validate(options));
-        Assert.Same(InstallationOptions.DefaultWindows, options.EffectiveWindows);
+        Assert.Same(MaintenanceWindow.SystemDefault, options.LocalWindows);
     }
 
     [Theory]
@@ -234,6 +234,30 @@ public sealed class InstallationRunnerTests
         await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
 
         Assert.Empty(_installer.Batches);
+    }
+
+    [Fact]
+    public async Task CentralWindows_TakePrecedenceOverLocalWindows()
+    {
+        // Saturday noon is inside the local default, but the central window only allows Wednesday noon.
+        _releases.Current = new ReleaseList(1, [_release], [new MaintenanceWindow { Days = [DayOfWeek.Wednesday], Start = TimeSpan.FromHours(11), End = TimeSpan.FromHours(13) }]);
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Empty(_installer.Batches);
+
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Single(_installer.Batches);
+    }
+
+    [Fact]
+    public async Task EmptyCentralWindows_FallBackToLocalWindows()
+    {
+        _releases.Current = new ReleaseList(1, [_release], []);
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_installer.Batches);
     }
 
     [Fact]

@@ -117,6 +117,46 @@ public sealed class ReleaseResponseTests
         await Assert.ThrowsAsync<InvalidDataException>(() => client.GetReleasesAsync(Identity, TestContext.Current.CancellationToken));
     }
 
+    [Theory]
+    [InlineData("[{\"days\":[],\"start\":\"01:00:00\",\"end\":\"02:00:00\"}]")]
+    [InlineData("[{\"days\":[9],\"start\":\"01:00:00\",\"end\":\"02:00:00\"}]")]
+    [InlineData("[{\"days\":[1,1],\"start\":\"01:00:00\",\"end\":\"02:00:00\"}]")]
+    [InlineData("[{\"days\":[1],\"start\":\"01:00:00\",\"end\":\"00:00:00\"}]")]
+    [InlineData("[null]")]
+    public async Task InvalidMaintenanceWindows_AreRejected(string windows)
+    {
+        var client = Create(HttpStatusCode.OK, $"{{\"version\":1,\"releases\":[],\"maintenanceWindows\":{windows}}}");
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.GetReleasesAsync(Identity, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task MalformedWindowTime_IsRejected()
+    {
+        var client = Create(HttpStatusCode.OK, "{\"version\":1,\"releases\":[],\"maintenanceWindows\":[{\"days\":[1],\"start\":\"25:00:00\",\"end\":\"02:00:00\"}]}");
+
+        await Assert.ThrowsAsync<System.Text.Json.JsonException>(() => client.GetReleasesAsync(Identity, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task TooManyMaintenanceWindows_AreRejected()
+    {
+        var windows = string.Join(',', Enumerable.Repeat("{\"days\":[1],\"start\":\"01:00:00\",\"end\":\"02:00:00\"}", MaintenanceWindow.MaxWindows + 1));
+        var client = Create(HttpStatusCode.OK, $"{{\"version\":1,\"releases\":[],\"maintenanceWindows\":[{windows}]}}");
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.GetReleasesAsync(Identity, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ValidMaintenanceWindows_AreAccepted()
+    {
+        var client = Create(HttpStatusCode.OK, "{\"version\":1,\"releases\":[],\"maintenanceWindows\":[{\"days\":[0,6],\"start\":\"00:00:00\",\"end\":\"1.00:00:00\"}]}");
+
+        var result = await client.GetReleasesAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal([DayOfWeek.Sunday, DayOfWeek.Saturday], Assert.Single(result!.MaintenanceWindows!).Days);
+    }
+
     [Fact]
     public async Task TooManyReleases_AreRejected()
     {

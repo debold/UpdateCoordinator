@@ -1,0 +1,134 @@
+@page "/servers/{Id:guid}"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using UpdateCoordinator.Server.Assignment
+@using UpdateCoordinator.Server.Components.Shared
+@inject ServerDbContext Db
+@inject AssignmentAdministration Administration
+
+<PageTitle>Server</PageTitle>
+
+@if (_client is null)
+{
+    <h1>Server not found</h1>
+}
+else
+{
+    <h1>@_client.HostName</h1>
+    <StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+    <dl class="facts">
+        <dt>State</dt><dd>@_client.State</dd>
+        <dt>Domain</dt><dd>@(_client.DomainName ?? "–")</dd>
+        <dt>Operating system</dt><dd>@(_client.OsProductName ?? "–") (@_client.OsVersion)</dd>
+        <dt>Agent version</dt><dd>@_client.AgentVersion</dd>
+        <dt>Roles</dt><dd>@(_client.Roles.Count > 0 ? string.Join(", ", _client.Roles) : "–")</dd>
+        <dt>Ring</dt><dd>@RingName(_client.RingId) @(_client.ManualRingId is null ? "(automatic)" : "(manual)")</dd>
+        <dt>Groups</dt><dd>@(_memberships.Count > 0 ? string.Join(", ", _memberships.Select(m => $"{GroupName(m.GroupId)}{(m.Manual ? " (manual)" : "")}")) : "–")</dd>
+        <dt>Effective maintenance windows</dt><dd><pre>@MaintenanceWindowFormat.Format(MaintenanceWindowFormat.FromJson(_client.EffectiveWindowsJson) ?? [])</pre></dd>
+        <dt>Reboot pending</dt><dd>@(_client.RebootPending ? "yes" : "no")</dd>
+        <dt>Last heartbeat (UTC)</dt><dd>@_client.LastHeartbeatAtUtc?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)</dd>
+    </dl>
+
+    <AuthorizeView Policy="@AdminRoles.Policies.Administer">
+        <h2>Assignment</h2>
+        <form method="post" @formname="assignment" @onsubmit="SaveAsync">
+            <AntiforgeryToken />
+            <label>
+                Ring
+                <select name="Ring">
+                    <option value="" selected="@(_client.ManualRingId is null)">Automatic (rules, else default ring)</option>
+                    @foreach (var ring in _rings)
+                    {
+                        <option value="@ring.Id" selected="@(_client.ManualRingId == ring.Id)">@ring.Name</option>
+                    }
+                </select>
+            </label>
+            <fieldset>
+                <legend>Manual groups (rule-based groups are added automatically)</legend>
+                @foreach (var group in _groups)
+                {
+                    <label class="inline"><input type="checkbox" name="Groups" value="@group.Id" checked="@_memberships.Any(m => m.GroupId == group.Id && m.Manual)" /> @group.Name</label>
+                }
+            </fieldset>
+            <label>
+                Server specific maintenance windows (one per line, e.g. "Mon-Fri 19:00-05:00"; empty = inherit from groups or system default)
+                <textarea name="Windows" rows="4">@MaintenanceWindowFormat.Format(MaintenanceWindowFormat.FromJson(_client.MaintenanceWindowsJson) ?? [])</textarea>
+            </label>
+            <button type="submit">Save</button>
+        </form>
+    </AuthorizeView>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    [SupplyParameterFromForm(FormName = "assignment")]
+    private string? Ring { get; set; }
+
+    [SupplyParameterFromForm(FormName = "assignment")]
+    private string[]? Groups { get; set; }
+
+    [SupplyParameterFromForm(FormName = "assignment")]
+    private string? Windows { get; set; }
+
+    private ClientEntity? _client;
+    private List<RingEntity> _rings = [];
+    private List<GroupEntity> _groups = [];
+    private List<ClientGroupEntity> _memberships = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task SaveAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators can change the assignment.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        int? ring = null;
+        if (!string.IsNullOrEmpty(Ring))
+        {
+            if (!int.TryParse(Ring, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            {
+                ShowResult("Invalid ring.", string.Empty);
+                await LoadAsync();
+                return;
+            }
+
+            ring = parsed;
+        }
+
+        var groups = new List<int>();
+        foreach (var value in Groups ?? [])
+        {
+            if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var group))
+            {
+                ShowResult("Invalid group.", string.Empty);
+                await LoadAsync();
+                return;
+            }
+
+            groups.Add(group);
+        }
+
+        var outcome = await Administration.SetClientAssignmentAsync(Id, ring, groups, Windows, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The assignment was saved.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _client = await Db.Clients.AsNoTracking().SingleOrDefaultAsync(c => c.Id == Id);
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        _memberships = await Db.ClientGroups.AsNoTracking().Where(m => m.ClientId == Id).ToListAsync();
+    }
+
+    private string RingName(int? id) => _rings.FirstOrDefault(r => r.Id == id)?.Name ?? "–";
+
+    private string GroupName(int id) => _groups.FirstOrDefault(g => g.Id == id)?.Name ?? "?";
+}

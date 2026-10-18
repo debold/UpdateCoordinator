@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 
 using UpdateCoordinator.Contracts.Agents;
+using UpdateCoordinator.Server.Assignment;
 using UpdateCoordinator.Server.Data;
 
 namespace UpdateCoordinator.Server.Agents;
@@ -57,7 +58,7 @@ internal sealed partial class UpdateReportService(ServerDbContext db, UpdateCata
 
     public async Task<ReleaseList> GetReleasesAsync(Guid clientId, CancellationToken cancellationToken)
     {
-        var version = await db.Clients.Where(c => c.Id == clientId).Select(c => c.ReleasesVersion).SingleAsync(cancellationToken).ConfigureAwait(false);
+        var client = await db.Clients.Where(c => c.Id == clientId).Select(c => new { c.ReleasesVersion, c.EffectiveWindowsJson }).SingleAsync(cancellationToken).ConfigureAwait(false);
         var releases = await db.Releases
             .Where(r => r.ClientId == clientId)
             .OrderBy(r => r.EarliestInstallAtUtc)
@@ -66,8 +67,9 @@ internal sealed partial class UpdateReportService(ServerDbContext db, UpdateCata
             .ConfigureAwait(false);
 
         return new ReleaseList(
-            version,
-            [.. releases.Select(r => new Release(r.UpdateId, r.Revision, new DateTimeOffset(DateTime.SpecifyKind(r.EarliestInstallAtUtc, DateTimeKind.Utc))))]);
+            client.ReleasesVersion,
+            [.. releases.Select(r => new Release(r.UpdateId, r.Revision, new DateTimeOffset(DateTime.SpecifyKind(r.EarliestInstallAtUtc, DateTimeKind.Utc))))],
+            MaintenanceWindowFormat.FromJson(client.EffectiveWindowsJson));
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Client {ClientId}: pre-flight check failed ({Checks}).")]

@@ -180,7 +180,7 @@ Details in `docs/03-communication-protocol.md`, section 3.2.
 }
 ```
 
-`End` not after `Start` means the window runs over midnight; an all-day window uses `"Start": "00:00:00", "End": "1.00:00:00"`.
+`End` not after `Start` means the window runs over midnight; an all-day window uses `"Start": "00:00:00", "End": "1.00:00:00"`. These local windows are only a fallback: as soon as the central server delivers windows with the release list (always for approved servers, see section 11), the central windows apply.
 - Error codes of failed installations are translated into plain English text on the central server (log and, later, dashboard).
 
 ## 9. Web administration (dashboard)
@@ -214,3 +214,26 @@ Only if both checks pass is the server approved, recorded in the audit log as ac
 |---|---|---|
 | `Approval:AutoApproveDomains` | empty (off) | DNS domains whose verified members are approved automatically |
 | `Approval:CheckInterval` | `00:01:00` | how often pending servers are checked (10 s to 1 h) |
+
+## 11. Rings, groups and maintenance windows
+
+**Rings:** every server is in exactly one of the fixed rings `Pilot`, `Test`, `Production` and `Default` (deployed last). New servers land in `Default` until a rule or an administrator assigns another ring.
+
+**Groups:** Administration → Groups (role `Admin`). A group bundles servers, e.g. domain controllers, and may have its own maintenance windows.
+
+**Assignment rules:** Administration → Assignment rules (role `Admin`). A rule has a priority, a target (a ring or a group) and up to three conditions, all of which must match: detected role (e.g. `DomainController`), DNS domain and host name pattern (`*` any characters, `?` one character, case-insensitive).
+
+- Ring: a manual ring on the server wins; otherwise the matching ring rule with the lowest priority number; otherwise `Default`.
+- Groups: every matching group rule adds its group; manual memberships set on the server stay until they are removed there.
+- Assignment is recalculated when a server registers, after every inventory, after every change in the administration and when the central server starts.
+
+**Maintenance windows:** Administration → Maintenance windows sets the system default; groups and single servers (server detail page) can override it. One window per line in local server time of the server:
+
+```
+Mon-Fri 19:00-05:00
+Sat,Sun 00:00-24:00
+```
+
+A window whose end is not after its start runs over midnight. At most 14 windows per level. The most specific level wins: server windows, otherwise the windows of all groups of the server together, otherwise the system default. The effective windows are shown on the server detail page and delivered to the agent with the release list; agents pick up a change with the next heartbeat.
+
+Every change is recorded in the audit log.

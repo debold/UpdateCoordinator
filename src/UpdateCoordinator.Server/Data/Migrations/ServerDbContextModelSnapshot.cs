@@ -209,6 +209,38 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.AssignmentRuleEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Domain")
+                        .HasMaxLength(253)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("HostNamePattern")
+                        .HasMaxLength(63)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Target")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TargetId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AssignmentRules", (string)null);
+                });
+
             modelBuilder.Entity("UpdateCoordinator.Server.Data.AuditEntryEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -288,6 +320,10 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasMaxLength(253)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("EffectiveWindowsJson")
+                        .HasMaxLength(8192)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("HostName")
                         .IsRequired()
                         .HasMaxLength(63)
@@ -309,6 +345,13 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool?>("LastSearchSucceeded")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MaintenanceWindowsJson")
+                        .HasMaxLength(4096)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ManualRingId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("OsDisplayVersion")
@@ -341,6 +384,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<long>("ReleasesVersion")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("RingId")
+                        .HasColumnType("INTEGER");
+
                     b.PrimitiveCollection<string>("Roles")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -364,7 +410,29 @@ namespace UpdateCoordinator.Server.Data.Migrations
 
                     b.HasIndex("HostName");
 
+                    b.HasIndex("ManualRingId");
+
+                    b.HasIndex("RingId");
+
                     b.ToTable("Clients", (string)null);
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientGroupEntity", b =>
+                {
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("GroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Manual")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ClientId", "GroupId");
+
+                    b.HasIndex("GroupId");
+
+                    b.ToTable("ClientGroups", (string)null);
                 });
 
             modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientUpdateEntity", b =>
@@ -386,6 +454,33 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.HasIndex("UpdateId", "Revision");
 
                     b.ToTable("ClientUpdates", (string)null);
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.GroupEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MaintenanceWindowsJson")
+                        .HasMaxLength(4096)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Groups", (string)null);
                 });
 
             modelBuilder.Entity("UpdateCoordinator.Server.Data.InstallationEntity", b =>
@@ -458,6 +553,73 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.HasIndex("UpdateId", "Revision");
 
                     b.ToTable("Releases", (string)null);
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.RingEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Rings", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            IsDefault = false,
+                            Name = "Pilot",
+                            Order = 1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            IsDefault = false,
+                            Name = "Test",
+                            Order = 2
+                        },
+                        new
+                        {
+                            Id = 3,
+                            IsDefault = false,
+                            Name = "Production",
+                            Order = 3
+                        },
+                        new
+                        {
+                            Id = 4,
+                            IsDefault = true,
+                            Name = "Default",
+                            Order = 4
+                        });
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.SettingEntity", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(8192)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("Settings", (string)null);
                 });
 
             modelBuilder.Entity("UpdateCoordinator.Server.Data.TrustBindingEntity", b =>
@@ -592,6 +754,16 @@ namespace UpdateCoordinator.Server.Data.Migrations
 
             modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientEntity", b =>
                 {
+                    b.HasOne("UpdateCoordinator.Server.Data.RingEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ManualRingId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("UpdateCoordinator.Server.Data.RingEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RingId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.OwnsMany("UpdateCoordinator.Server.Data.HealthCheckEntry", "HealthChecks", b1 =>
                         {
                             b1.Property<Guid>("ClientEntityId");
@@ -619,6 +791,21 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         });
 
                     b.Navigation("HealthChecks");
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientGroupEntity", b =>
+                {
+                    b.HasOne("UpdateCoordinator.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UpdateCoordinator.Server.Data.GroupEntity", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientUpdateEntity", b =>

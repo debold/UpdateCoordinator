@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 
 using UpdateCoordinator.Server.Approval;
+using UpdateCoordinator.Server.Assignment;
 using UpdateCoordinator.Server.Data;
 
 namespace UpdateCoordinator.Server.Administration;
@@ -66,6 +67,8 @@ internal static class DashboardServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddScoped<ClientApprovalService>();
+        services.AddScoped<AssignmentService>();
+        services.AddScoped<AssignmentAdministration>();
         services.AddSingleton<IDirectoryLookup, LdapDirectoryLookup>();
         services.AddSingleton<IDnsLookup, SystemDnsLookup>();
         services.AddScoped<RuleBasedApprover>();
@@ -73,7 +76,7 @@ internal static class DashboardServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Creates the roles and opens the one-time setup if no account exists yet.</summary>
+    /// <summary>Creates the roles, opens the one-time setup if no account exists yet and recalculates assignments.</summary>
     public static async Task InitializeDashboardAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
     {
         await using var scope = services.CreateAsyncScope();
@@ -81,5 +84,8 @@ internal static class DashboardServiceCollectionExtensions
         await scope.ServiceProvider.GetRequiredService<SetupService>()
             .InitializeAsync(scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>(), cancellationToken)
             .ConfigureAwait(false);
+
+        // Brings ring, groups and effective windows of existing clients up to date (e.g. after an upgrade).
+        await scope.ServiceProvider.GetRequiredService<AssignmentService>().RecalculateAsync(null, cancellationToken).ConfigureAwait(false);
     }
 }

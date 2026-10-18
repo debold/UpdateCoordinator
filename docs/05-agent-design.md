@@ -71,7 +71,7 @@ Configurable per server whether to search directly against Windows Update or aga
 
 ### Implementation (step B, 2026-10-18)
 
-- **Maintenance windows:** the system default (Mon–Fri 19:00–05:00, Sat/Sun all day) in local server time, or the windows configured in `Installation:Windows`. Group and server specific windows follow with the ring logic.
+- **Maintenance windows:** the effective windows delivered by the central server with the release list (system default, group or server level, see `04-central-server.md` section 4) in local server time. Only if the central server delivered no windows does the agent use its local fallback: the windows configured in `Installation:Windows`, otherwise the system default (Mon–Fri 19:00–05:00, Sat/Sun all day).
 - **Batch:** inside a window, a batch starts as soon as at least one release is due (earliest installation time reached) and the update is still missing according to the last search. Releases due within `Installation:PullForwardTolerance` (default 30 minutes) join the batch. Nothing is installed early if nothing is due.
 - **No retry loop:** an attempted update is not tried again before `Installation:RetryDelay` (default 6 hours) has passed; attempts survive service restarts.
 - **Health first:** a failed pre-flight check prevents the installation; the global pause announced in the heartbeat stops new installations.

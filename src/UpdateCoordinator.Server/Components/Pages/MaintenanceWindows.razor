@@ -1,0 +1,41 @@
+@page "/administration/maintenance"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@using UpdateCoordinator.Server.Assignment
+@inject AssignmentService Assignment
+@inject AssignmentAdministration Administration
+
+<PageTitle>Maintenance windows</PageTitle>
+
+<h1>Maintenance windows</h1>
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<p>
+    The system default applies to every server without own windows and without group windows.
+    One window per line in local server time, e.g. "Mon-Fri 19:00-05:00" (over midnight) or "Sat,Sun 00:00-24:00".
+</p>
+
+<form method="post" @formname="maintenance" @onsubmit="SaveAsync">
+    <AntiforgeryToken />
+    <label>System default <textarea name="Windows" rows="5">@_current</textarea></label>
+    <button type="submit">Save</button>
+</form>
+
+@code {
+    [SupplyParameterFromForm(FormName = "maintenance")]
+    private string? Windows { get; set; }
+
+    private string _current = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task SaveAsync()
+    {
+        var outcome = await Administration.SetSystemWindowsAsync(Windows, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The system default was saved and is delivered to the agents.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() =>
+        _current = MaintenanceWindowFormat.Format(await Assignment.GetSystemWindowsAsync(CancellationToken.None));
+}

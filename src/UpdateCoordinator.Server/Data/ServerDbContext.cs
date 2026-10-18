@@ -22,6 +22,16 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<AuditEntryEntity> AuditEntries => Set<AuditEntryEntity>();
 
+    public DbSet<RingEntity> Rings => Set<RingEntity>();
+
+    public DbSet<GroupEntity> Groups => Set<GroupEntity>();
+
+    public DbSet<ClientGroupEntity> ClientGroups => Set<ClientGroupEntity>();
+
+    public DbSet<AssignmentRuleEntity> AssignmentRules => Set<AssignmentRuleEntity>();
+
+    public DbSet<SettingEntity> Settings => Set<SettingEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -37,6 +47,45 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         audit.Property(a => a.PreviousHash).HasMaxLength(32).IsRequired();
         audit.Property(a => a.Hash).HasMaxLength(32).IsRequired();
         audit.HasIndex(a => a.AtUtc);
+
+        var ring = modelBuilder.Entity<RingEntity>();
+        ring.ToTable("Rings");
+        ring.HasKey(r => r.Id);
+        ring.Property(r => r.Id).ValueGeneratedNever();
+        ring.Property(r => r.Name).HasMaxLength(64).IsRequired();
+        ring.HasData(
+            new RingEntity { Id = RingEntity.PilotId, Name = "Pilot", Order = 1 },
+            new RingEntity { Id = RingEntity.TestId, Name = "Test", Order = 2 },
+            new RingEntity { Id = RingEntity.ProductionId, Name = "Production", Order = 3 },
+            new RingEntity { Id = RingEntity.DefaultId, Name = "Default", Order = 4, IsDefault = true });
+
+        var group = modelBuilder.Entity<GroupEntity>();
+        group.ToTable("Groups");
+        group.HasKey(g => g.Id);
+        group.Property(g => g.Name).HasMaxLength(64).IsRequired();
+        group.Property(g => g.Description).HasMaxLength(256);
+        group.Property(g => g.MaintenanceWindowsJson).HasMaxLength(4096);
+        group.HasIndex(g => g.Name).IsUnique();
+
+        var membership = modelBuilder.Entity<ClientGroupEntity>();
+        membership.ToTable("ClientGroups");
+        membership.HasKey(m => new { m.ClientId, m.GroupId });
+        membership.HasOne<ClientEntity>().WithMany().HasForeignKey(m => m.ClientId).OnDelete(DeleteBehavior.Cascade);
+        membership.HasOne<GroupEntity>().WithMany().HasForeignKey(m => m.GroupId).OnDelete(DeleteBehavior.Cascade);
+
+        var rule = modelBuilder.Entity<AssignmentRuleEntity>();
+        rule.ToTable("AssignmentRules");
+        rule.HasKey(r => r.Id);
+        rule.Property(r => r.Target).HasConversion<int>();
+        rule.Property(r => r.Role).HasMaxLength(64);
+        rule.Property(r => r.Domain).HasMaxLength(253);
+        rule.Property(r => r.HostNamePattern).HasMaxLength(63);
+
+        var setting = modelBuilder.Entity<SettingEntity>();
+        setting.ToTable("Settings");
+        setting.HasKey(s => s.Key);
+        setting.Property(s => s.Key).HasMaxLength(128);
+        setting.Property(s => s.Value).HasMaxLength(8192).IsRequired();
 
         var client = modelBuilder.Entity<ClientEntity>();
         client.ToTable("Clients");
@@ -54,6 +103,10 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         client.Property(c => c.OsDisplayVersion).HasMaxLength(16);
         client.Property(c => c.WsusServer).HasMaxLength(255);
         client.OwnsMany(c => c.HealthChecks, health => health.ToJson());
+        client.Property(c => c.MaintenanceWindowsJson).HasMaxLength(4096);
+        client.Property(c => c.EffectiveWindowsJson).HasMaxLength(8192);
+        client.HasOne<RingEntity>().WithMany().HasForeignKey(c => c.RingId).OnDelete(DeleteBehavior.SetNull);
+        client.HasOne<RingEntity>().WithMany().HasForeignKey(c => c.ManualRingId).OnDelete(DeleteBehavior.SetNull);
         client.HasIndex(c => c.HostName);
 
         var binding = modelBuilder.Entity<TrustBindingEntity>();

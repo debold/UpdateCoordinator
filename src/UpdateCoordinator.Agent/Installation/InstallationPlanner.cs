@@ -8,7 +8,7 @@ namespace UpdateCoordinator.Agent.Installation;
 internal static class InstallationPlanner
 {
     /// <summary>True if <paramref name="localTime"/> lies in one of the windows (local server time).</summary>
-    public static bool IsInWindow(IReadOnlyList<MaintenanceWindowRule> windows, DateTime localTime)
+    public static bool IsInWindow(IReadOnlyList<MaintenanceWindow> windows, DateTime localTime)
     {
         var time = localTime.TimeOfDay;
         var today = localTime.DayOfWeek;

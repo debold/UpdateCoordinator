@@ -80,7 +80,8 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
             || body.Version < 0
             || body.Releases is null
             || body.Releases.Count > MaxReleases
-            || body.Releases.Any(r => r is null || r.UpdateId == Guid.Empty || r.Revision < 0))
+            || body.Releases.Any(r => r is null || r.UpdateId == Guid.Empty || r.Revision < 0)
+            || (body.MaintenanceWindows is { } windows && (windows.Count > MaintenanceWindow.MaxWindows || windows.Any(w => !IsValid(w)))))
         {
             throw new InvalidDataException("The central server returned an invalid release list.");
         }
@@ -93,6 +94,10 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
         using var response = await PostAuthenticatedAsync(ApiRoutes.AgentInstallReport, identity, report, cancellationToken).ConfigureAwait(false);
         return response is not null;
     }
+
+    private static bool IsValid(MaintenanceWindow? window) =>
+        window is { Days: not null }
+        && System.ComponentModel.DataAnnotations.Validator.TryValidateObject(window, new System.ComponentModel.DataAnnotations.ValidationContext(window), null, validateAllProperties: true);
 
     /// <summary>Upper bound for releases accepted from the server.</summary>
     private const int MaxReleases = 5_000;

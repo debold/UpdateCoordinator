@@ -63,4 +63,18 @@ internal sealed class ClientEntity
 
     /// <summary>Reboot needed according to the latest installation run (the agent never reboots on its own).</summary>
     public bool RebootPending { get; set; }
+
+    // Assignment (docs/04-central-server.md, section 3).
+
+    /// <summary>Effective ring: manual override, matching ring rule or the default ring.</summary>
+    public int? RingId { get; set; }
+
+    /// <summary>Manual ring override; null means automatic assignment.</summary>
+    public int? ManualRingId { get; set; }
+
+    /// <summary>Server specific maintenance windows as JSON; null uses the windows of its groups or the system default.</summary>
+    public string? MaintenanceWindowsJson { get; set; }
+
+    /// <summary>Effective maintenance windows delivered to the agent (JSON).</summary>
+    public string? EffectiveWindowsJson { get; set; }
 }

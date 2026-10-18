@@ -1,0 +1,52 @@
+@page "/servers"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inject ServerDbContext Db
+
+<PageTitle>Servers</PageTitle>
+
+<h1>Servers</h1>
+
+<table>
+    <thead>
+        <tr><th>Server</th><th>Domain</th><th>State</th><th>Ring</th><th>Groups</th><th>OS version</th><th>Last heartbeat (UTC)</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var row in _rows)
+        {
+            <tr>
+                <td><a href="/servers/@row.Id">@row.HostName</a></td>
+                <td>@row.DomainName</td>
+                <td>@row.State</td>
+                <td>@row.Ring@(row.Manual ? " (manual)" : "")</td>
+                <td>@string.Join(", ", row.Groups)</td>
+                <td>@row.OsVersion</td>
+                <td>@row.LastHeartbeat</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private sealed record Row(Guid Id, string HostName, string? DomainName, string State, string Ring, bool Manual, IReadOnlyList<string> Groups, string OsVersion, string LastHeartbeat);
+
+    private List<Row> _rows = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var rings = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.Name);
+        var groups = await Db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, g => g.Name);
+        var memberships = await Db.ClientGroups.AsNoTracking().ToListAsync();
+        var clients = await Db.Clients.AsNoTracking().OrderBy(c => c.HostName).Take(2000).ToListAsync();
+
+        _rows = [.. clients.Select(c => new Row(
+            c.Id,
+            c.HostName,
+            c.DomainName,
+            c.State.ToString(),
+            c.RingId is { } ring && rings.TryGetValue(ring, out var name) ? name : "–",
+            c.ManualRingId is not null,
+            [.. memberships.Where(m => m.ClientId == c.Id && groups.ContainsKey(m.GroupId)).Select(m => groups[m.GroupId]).Order()],
+            c.OsVersion,
+            c.LastHeartbeatAtUtc?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–"))];
+    }
+}

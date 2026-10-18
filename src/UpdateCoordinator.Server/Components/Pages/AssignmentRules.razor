@@ -1,0 +1,134 @@
+@page "/administration/rules"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@using UpdateCoordinator.Server.Assignment
+@inject ServerDbContext Db
+@inject AssignmentAdministration Administration
+
+<PageTitle>Assignment rules</PageTitle>
+
+<h1>Assignment rules</h1>
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<p>
+    Ring: a manual assignment on the server wins; otherwise the matching ring rule with the lowest priority number; otherwise the default ring.
+    Groups: every matching group rule applies, in addition to manual memberships. All conditions of a rule must match.
+</p>
+
+<form method="post" @formname="rules" @onsubmit="HandleAsync">
+    <AntiforgeryToken />
+    <table>
+        <thead>
+            <tr><th>Priority</th><th>Assigns</th><th>Role</th><th>Domain</th><th>Host name pattern</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var rule in _rules)
+            {
+                <tr>
+                    <td>@rule.Priority</td>
+                    <td>@TargetName(rule)</td>
+                    <td>@rule.Role</td>
+                    <td>@rule.Domain</td>
+                    <td>@rule.HostNamePattern</td>
+                    <td><button type="submit" name="Action" value="delete:@rule.Id">Delete</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>New rule</h2>
+    <label>Priority <input name="Priority" type="number" min="0" max="10000" value="100" /></label>
+    <label>
+        Assigns
+        <select name="Target">
+            @foreach (var ring in _rings)
+            {
+                <option value="ring:@ring.Id">Ring @ring.Name</option>
+            }
+            @foreach (var group in _groups)
+            {
+                <option value="group:@group.Id">Group @group.Name</option>
+            }
+        </select>
+    </label>
+    <label>Role (e.g. DomainController) <input name="Role" maxlength="64" /></label>
+    <label>Domain <input name="Domain" maxlength="253" /></label>
+    <label>Host name pattern (* and ? allowed) <input name="HostNamePattern" maxlength="63" /></label>
+    <button type="submit" name="Action" value="create">Create rule</button>
+</form>
+
+@code {
+    [SupplyParameterFromForm(FormName = "rules")]
+    private string? Action { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rules")]
+    private string? Priority { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rules")]
+    private string? Target { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rules")]
+    private string? Role { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rules")]
+    private string? Domain { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rules")]
+    private string? HostNamePattern { get; set; }
+
+    private List<AssignmentRuleEntity> _rules = [];
+    private List<RingEntity> _rings = [];
+    private List<GroupEntity> _groups = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task HandleAsync()
+    {
+        var actor = await GetActorAsync();
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        AssignmentAdministration.Outcome outcome;
+        string success;
+
+        if (Action == "create")
+        {
+            var target = Target?.Split(':', 2) ?? [];
+            if (!int.TryParse(Priority, System.Globalization.NumberStyles.None, invariant, out var priority)
+                || target is not [("ring" or "group"), var id]
+                || !int.TryParse(id, System.Globalization.NumberStyles.None, invariant, out var targetId))
+            {
+                outcome = new AssignmentAdministration.Outcome("Invalid priority or target.");
+                success = string.Empty;
+            }
+            else
+            {
+                var assignmentTarget = target[0] == "ring" ? AssignmentTarget.Ring : AssignmentTarget.Group;
+                outcome = await Administration.CreateRuleAsync(priority, assignmentTarget, targetId, Role, Domain, HostNamePattern, actor, CancellationToken.None);
+                success = "The rule was created.";
+            }
+        }
+        else if (Action?.Split(':', 2) is ["delete", var deleteId] && int.TryParse(deleteId, System.Globalization.NumberStyles.None, invariant, out var ruleId))
+        {
+            outcome = await Administration.DeleteRuleAsync(ruleId, actor, CancellationToken.None);
+            success = "The rule was deleted.";
+        }
+        else
+        {
+            outcome = new AssignmentAdministration.Outcome("Invalid request.");
+            success = string.Empty;
+        }
+
+        ShowResult(outcome.Error, success);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _rules = await Db.AssignmentRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync();
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+    }
+
+    private string TargetName(AssignmentRuleEntity rule) => rule.Target == AssignmentTarget.Ring
+        ? $"Ring {_rings.FirstOrDefault(r => r.Id == rule.TargetId)?.Name}"
+        : $"Group {_groups.FirstOrDefault(g => g.Id == rule.TargetId)?.Name}";
+}

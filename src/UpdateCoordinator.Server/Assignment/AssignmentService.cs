@@ -1,0 +1,102 @@
+using System.Text.RegularExpressions;
+
+using Microsoft.EntityFrameworkCore;
+
+using UpdateCoordinator.Contracts.Agents;
+using UpdateCoordinator.Server.Data;
+
+namespace UpdateCoordinator.Server.Assignment;
+
+/// <summary>
+/// Calculates ring, rule-based groups and effective maintenance windows of clients
+/// (docs/04-central-server.md, sections 3 and 4):
+/// ring = manual override, else first matching ring rule, else the default ring;
+/// windows = server override, else the windows of its groups, else the system default.
+/// A change of the effective windows bumps the release version, so the agent fetches them.
+/// </summary>
+internal sealed class AssignmentService(ServerDbContext db)
+{
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>Recalculates one client, or all clients if <paramref name="clientId"/> is null. Saves the changes.</summary>
+    public async Task RecalculateAsync(Guid? clientId, CancellationToken cancellationToken)
+    {
+        var rules = await db.AssignmentRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var groups = await db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, cancellationToken).ConfigureAwait(false);
+        var systemWindows = await GetSystemWindowsAsync(cancellationToken).ConfigureAwait(false);
+
+        var clients = await db.Clients
+            .Where(c => clientId == null || c.Id == clientId)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var ids = clients.Select(c => c.Id).ToList();
+        var memberships = await db.ClientGroups.Where(m => ids.Contains(m.ClientId)).ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        foreach (var client in clients)
+        {
+            client.RingId = client.ManualRingId
+                ?? rules.FirstOrDefault(r => r.Target == AssignmentTarget.Ring && Matches(r, client))?.TargetId
+                ?? RingEntity.DefaultId;
+
+            // Rule-based memberships are recalculated; manual memberships stay untouched.
+            var mine = memberships.Where(m => m.ClientId == client.Id).ToList();
+            var ruleGroups = rules
+                .Where(r => r.Target == AssignmentTarget.Group && groups.ContainsKey(r.TargetId) && Matches(r, client))
+                .Select(r => r.TargetId)
+                .ToHashSet();
+            db.ClientGroups.RemoveRange(mine.Where(m => !m.Manual && !ruleGroups.Contains(m.GroupId)));
+            db.ClientGroups.AddRange(ruleGroups
+                .Where(g => !mine.Any(m => m.GroupId == g))
+                .Select(g => new ClientGroupEntity { ClientId = client.Id, GroupId = g, Manual = false }));
+
+            var groupIds = mine.Where(m => m.Manual).Select(m => m.GroupId).Concat(ruleGroups).Distinct().Order();
+            var windows = MaintenanceWindowFormat.FromJson(client.MaintenanceWindowsJson)
+                ?? Union(groupIds.Select(g => groups.TryGetValue(g, out var group) ? MaintenanceWindowFormat.FromJson(group.MaintenanceWindowsJson) : null))
+                ?? systemWindows;
+
+            var json = MaintenanceWindowFormat.ToJson(windows);
+            if (json != client.EffectiveWindowsJson)
+            {
+                client.EffectiveWindowsJson = json;
+                client.ReleasesVersion++;
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<MaintenanceWindow>> GetSystemWindowsAsync(CancellationToken cancellationToken)
+    {
+        var stored = await db.Settings.AsNoTracking()
+            .Where(s => s.Key == SettingEntity.SystemMaintenanceWindows)
+            .Select(s => s.Value)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return MaintenanceWindowFormat.FromJson(stored) ?? MaintenanceWindow.SystemDefault;
+    }
+
+    internal static bool Matches(AssignmentRuleEntity rule, ClientEntity client)
+    {
+        if (rule.Role is null && rule.Domain is null && rule.HostNamePattern is null)
+        {
+            return false;
+        }
+
+        return (rule.Role is null || client.Roles.Contains(rule.Role, StringComparer.OrdinalIgnoreCase))
+            && (rule.Domain is null || string.Equals(rule.Domain, client.DomainName, StringComparison.OrdinalIgnoreCase))
+            && (rule.HostNamePattern is null || WildcardMatches(rule.HostNamePattern, client.HostName));
+    }
+
+    /// <summary>Wildcard match with * and ?; every other character is literal.</summary>
+    internal static bool WildcardMatches(string pattern, string value)
+    {
+        var regex = "^" + Regex.Escape(pattern).Replace(@"\*", ".*", StringComparison.Ordinal).Replace(@"\?", ".", StringComparison.Ordinal) + "$";
+        return Regex.IsMatch(value, regex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout);
+    }
+
+    private static List<MaintenanceWindow>? Union(IEnumerable<IReadOnlyList<MaintenanceWindow>?> lists)
+    {
+        var windows = lists.Where(l => l is not null).SelectMany(l => l!).Take(MaintenanceWindow.MaxWindows).ToList();
+        return windows.Count > 0 ? windows : null;
+    }
+}

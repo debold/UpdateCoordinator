@@ -95,7 +95,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         var missing = _updates.LastMissingUpdates;
         if (!options.Enabled
             || missing is null
-            || !InstallationPlanner.IsInWindow(options.EffectiveWindows, _timeProvider.GetLocalNow().DateTime))
+            || !InstallationPlanner.IsInWindow(_releases.Current.MaintenanceWindows is { Count: > 0 } central ? central : options.LocalWindows, _timeProvider.GetLocalNow().DateTime))
         {
             return [];
         }

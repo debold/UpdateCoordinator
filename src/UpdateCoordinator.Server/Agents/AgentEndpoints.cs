@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 
 using UpdateCoordinator.Contracts;
 using UpdateCoordinator.Contracts.Agents;
+using UpdateCoordinator.Server.Assignment;
 using UpdateCoordinator.Server.Data;
 
 namespace UpdateCoordinator.Server.Agents;
@@ -99,6 +100,7 @@ internal static class AgentEndpoints
         HttpContext httpContext,
         ServerDbContext db,
         TimeProvider timeProvider,
+        AssignmentService assignment,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
@@ -118,6 +120,7 @@ internal static class AgentEndpoints
 
         db.Clients.Add(client);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await assignment.RecalculateAsync(client.Id, cancellationToken).ConfigureAwait(false);
 
         var logger = loggerFactory.CreateLogger(LogCategory);
         AgentLog.Registered(logger, client.Id, client.HostName);

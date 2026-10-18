@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 
 using UpdateCoordinator.Contracts.Agents;
+using UpdateCoordinator.Server.Assignment;
 using UpdateCoordinator.Server.Data;
 
 namespace UpdateCoordinator.Server.Agents;
@@ -8,7 +9,7 @@ namespace UpdateCoordinator.Server.Agents;
 /// <summary>
 /// Stores an agent inventory: client attributes, the installed updates of the client and new catalog entries.
 /// </summary>
-internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog catalog, TimeProvider timeProvider, ILogger<InventoryService> logger)
+internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog catalog, AssignmentService assignment, TimeProvider timeProvider, ILogger<InventoryService> logger)
 {
     /// <summary>Returns false if the client no longer exists.</summary>
     public async Task<bool> StoreAsync(Guid clientId, InventoryRequest inventory, CancellationToken cancellationToken)
@@ -42,6 +43,9 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+        // Roles, domain and host name feed the assignment rules.
+        await assignment.RecalculateAsync(clientId, cancellationToken).ConfigureAwait(false);
         return true;
     }
 

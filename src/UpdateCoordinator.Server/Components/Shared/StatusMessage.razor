@@ -1,0 +1,12 @@
+@if (Text is not null)
+{
+    <p class="@(IsError ? "error" : "notice")" role="@(IsError ? "alert" : "status")">@Text</p>
+}
+
+@code {
+    [Parameter]
+    public string? Text { get; set; }
+
+    [Parameter]
+    public bool IsError { get; set; }
+}

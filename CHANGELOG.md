@@ -22,6 +22,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Fetches the released updates when the release version announced in the heartbeat changes.
 - Installation of released updates inside maintenance windows (default Mon–Fri 19:00–05:00, Sat/Sun all day, configurable): batches with pull-forward tolerance, no retry loop (retry delay), health check first, global pause respected, one WUA download/install cycle per batch. **The agent never reboots**; a needed reboot is reported.
 - Install reports are buffered on disk and delivered when the central server is reachable again.
+- Uses the maintenance windows delivered by the central server; local `Installation:Windows` is only the fallback. Invalid central windows are rejected.
 
 ### Central server
 
@@ -44,6 +45,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Append-only audit log with SHA-256 hash chain; the database rejects changes and deletions, the audit page verifies the chain.
 - Strict security headers (content security policy without scripts, no framing), antiforgery protection, local-only return URLs after sign-in.
 - Approval of new servers: page "Pending approvals" (Operator) to approve or reject, each decision audited and possible only once; optional rule-based approval for configured domains, verified by the central server itself (enabled computer account in Active Directory via LDAP, source IP address matches DNS).
+- Rings (Pilot, Test, Production, Default), groups and assignment rules (role, domain, host name pattern; priority; manual overrides per server), recalculated on registration, inventory, administrative changes and start.
+- Maintenance windows on three levels (system default, group, server) maintained in the dashboard; the effective windows are delivered with the release list and increase its version when they change.
+- Dashboard pages: Servers and server detail (Reader), Groups, Assignment rules and Maintenance windows (Admin); every change audited.
 - Windows Update error codes are translated into plain English text centrally.
 
 ### Shared
