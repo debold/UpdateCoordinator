@@ -1,31 +1,63 @@
 @page "/administration/maintenance"
 @attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
 @inherits DashboardPageBase
+@using UpdateCoordinator.Contracts.Agents
 @using UpdateCoordinator.Server.Assignment
 @inject AssignmentService Assignment
 @inject AssignmentAdministration Administration
 
 <PageTitle>Maintenance windows</PageTitle>
 
-<h1>Maintenance windows</h1>
+<h1>Maintenance windows and reboots</h1>
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-<p>
-    The system default applies to every server without own windows and without group windows.
-    One window per line in local server time, e.g. "Mon-Fri 19:00-05:00" (over midnight) or "Sat,Sun 00:00-24:00".
-</p>
+<section class="card">
+    <h2>Maintenance windows</h2>
+    <p>
+        The system default applies to every server without own windows and without group windows.
+        One window per line in local server time, e.g. "Mon-Fri 19:00-05:00" (over midnight) or "Sat,Sun 00:00-24:00".
+    </p>
 
-<form method="post" @formname="maintenance" @onsubmit="SaveAsync">
-    <AntiforgeryToken />
-    <label>System default <textarea name="Windows" rows="5">@_current</textarea></label>
-    <button type="submit">Save</button>
-</form>
+    <form method="post" @formname="maintenance" @onsubmit="SaveAsync">
+        <AntiforgeryToken />
+        <label>System default <textarea name="Windows" rows="5">@_current</textarea></label>
+        <button type="submit">Save</button>
+    </form>
+</section>
+
+<section class="card">
+    <h2>Reboots</h2>
+    <p>
+        Agents never restart a server unless its effective policy allows it: the server's own policy, otherwise the policy of its groups
+        (if one group says "Never", it wins), otherwise this system default. With "inside the maintenance window" the agent restarts only
+        while a window is open for at least 30 more minutes, warns signed-in users 5 minutes ahead and restarts at most once per 6 hours.
+        A server can always forbid reboots locally with the registry value AllowReboot = 0.
+    </p>
+
+    <form method="post" @formname="reboot" @onsubmit="SaveRebootAsync">
+        <AntiforgeryToken />
+        <label>
+            System default
+            <select name="Reboot">
+                @foreach (var policy in Enum.GetValues<RebootPolicy>())
+                {
+                    <option value="@policy" selected="@(policy == _reboot)">@RebootPolicyText.Label(policy)</option>
+                }
+            </select>
+        </label>
+        <button type="submit">Save</button>
+    </form>
+</section>
 
 @code {
     [SupplyParameterFromForm(FormName = "maintenance")]
     private string? Windows { get; set; }
 
+    [SupplyParameterFromForm(FormName = "reboot")]
+    private string? Reboot { get; set; }
+
     private string _current = string.Empty;
+    private RebootPolicy _reboot;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -36,6 +68,18 @@
         await LoadAsync();
     }
 
-    private async Task LoadAsync() =>
+    private async Task SaveRebootAsync()
+    {
+        var outcome = RebootPolicyText.TryParse(Reboot, out var policy) && policy is { } value
+            ? await Administration.SetSystemRebootPolicyAsync(value, await GetActorAsync(), CancellationToken.None)
+            : new Outcome("The reboot policy is invalid.");
+        ShowResult(outcome.Error, "The reboot policy was saved and is delivered to the agents.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         _current = MaintenanceWindowFormat.Format(await Assignment.GetSystemWindowsAsync(CancellationToken.None));
+        _reboot = await Assignment.GetSystemRebootPolicyAsync(CancellationToken.None);
+    }
 }

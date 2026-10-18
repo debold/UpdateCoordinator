@@ -1,7 +1,7 @@
 # Admin Documentation
 
 > Guide and information on setup and communication paths. Updated with every feature.
-> Status: register, heartbeat, trust anchor, inventory, update search, installation (without reboots), web administration (accounts, roles, audit log) and approval of new servers. Installers and the dashboard follow with later features.
+> Status: register, heartbeat, trust anchor, inventory, update search, installation with optional reboots inside maintenance windows, web administration (accounts, roles, audit log) and approval of new servers. Installers and the dashboard follow with later features.
 
 ## 1. Components in operation
 
@@ -167,7 +167,7 @@ Details in `docs/03-communication-protocol.md`, section 3.2.
 ## 8. Installations
 
 - Agents install only updates released to them by the central server, only inside a maintenance window, only if the pre-flight check passes and never during a global pause.
-- **The agent never reboots the server.** If an update needs a reboot, the agent reports it and the central server marks the server as "reboot pending". Reboot handling follows with the dashboard.
+- **Reboots** are off by default: the agent reports a pending reboot and the server shows "reboot pending". An administrator allows reboots inside the maintenance window per system default (Administration → Maintenance windows), group (Groups) or server (server detail); among several groups "Never" wins. The agent then restarts only while a window is open for at least 30 more minutes, warns signed-in users 5 minutes ahead and requests at most one restart per 6 hours. A local veto always wins: set the string or DWORD value `AllowReboot` = `0` under `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` (OR THE INSTALLER KEY); ONLY `1`/`TRUE` ALLOWS. THE DEVELOPMENT CONFIGURATION OF THE AGENT FORBIDS REBOOTS.
 - Example for custom maintenance windows in the agent's `appsettings.json` (Wednesday 22:00 to Thursday 04:00):
 
 ```json

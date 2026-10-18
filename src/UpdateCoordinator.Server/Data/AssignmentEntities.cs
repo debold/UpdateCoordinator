@@ -36,6 +36,9 @@ internal sealed class GroupEntity
 
     /// <summary>Maintenance windows of the group as JSON; null uses the system default.</summary>
     public string? MaintenanceWindowsJson { get; set; }
+
+    /// <summary>Reboot policy of the group; null leaves it to other groups or the system default.</summary>
+    public UpdateCoordinator.Contracts.Agents.RebootPolicy? RebootPolicy { get; set; }
 }
 
 /// <summary>
@@ -86,6 +89,8 @@ internal sealed class AssignmentRuleEntity
 internal sealed class SettingEntity
 {
     public const string SystemMaintenanceWindows = "MaintenanceWindows.SystemDefault";
+
+    public const string SystemRebootPolicy = "Reboot.SystemDefault";
 
     public required string Key { get; set; }
 

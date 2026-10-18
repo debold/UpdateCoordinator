@@ -138,6 +138,9 @@ internal static class AgentEndpoints
         var clientId = httpContext.User.GetClientId();
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
+        // The agent clock is not trusted: a boot time in the future or before 2000 is ignored.
+        DateTime? lastBoot = request.LastBootAt is { } boot && boot.UtcDateTime <= now.AddHours(1) && boot.Year >= 2000 ? boot.UtcDateTime : null;
+
         // Single parameterized UPDATE; no read-modify-write round trip on every heartbeat.
         var updated = await db.Clients
             .Where(c => c.Id == clientId)
@@ -145,7 +148,9 @@ internal static class AgentEndpoints
                 setters => setters
                     .SetProperty(c => c.LastHeartbeatAtUtc, now)
                     .SetProperty(c => c.AgentVersion, request.AgentVersion)
-                    .SetProperty(c => c.OsVersion, c => request.OsVersion ?? c.OsVersion),
+                    .SetProperty(c => c.OsVersion, c => request.OsVersion ?? c.OsVersion)
+                    .SetProperty(c => c.RebootPending, request.RebootPending)
+                    .SetProperty(c => c.LastBootAtUtc, c => lastBoot ?? c.LastBootAtUtc),
                 cancellationToken)
             .ConfigureAwait(false);
 

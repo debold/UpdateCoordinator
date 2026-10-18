@@ -28,6 +28,9 @@ internal sealed class InstallationOptions : IValidatableObject
 {
     public const string SectionName = "Installation";
 
+    /// <summary>Local veto: false forbids reboots on this server whatever the central server allows (registry value AllowReboot).</summary>
+    public bool AllowReboot { get; set; } = true;
+
     /// <summary>False disables installations completely (search and reporting continue).</summary>
     public bool Enabled { get; set; } = true;
 

@@ -61,8 +61,11 @@ internal sealed class ClientEntity
 
     public DateTime? LastInstallAtUtc { get; set; }
 
-    /// <summary>Reboot needed according to the latest installation run (the agent never reboots on its own).</summary>
+    /// <summary>Reboot pending according to the last heartbeat (Windows registry) or installation run.</summary>
     public bool RebootPending { get; set; }
+
+    /// <summary>Last start of the operating system reported by the agent.</summary>
+    public DateTime? LastBootAtUtc { get; set; }
 
     // Assignment (docs/04-central-server.md, section 3).
 
@@ -77,4 +80,10 @@ internal sealed class ClientEntity
 
     /// <summary>Effective maintenance windows delivered to the agent (JSON).</summary>
     public string? EffectiveWindowsJson { get; set; }
+
+    /// <summary>Server specific reboot policy; null uses the policy of its groups or the system default.</summary>
+    public UpdateCoordinator.Contracts.Agents.RebootPolicy? RebootPolicy { get; set; }
+
+    /// <summary>Effective reboot policy delivered to the agent.</summary>
+    public UpdateCoordinator.Contracts.Agents.RebootPolicy EffectiveRebootPolicy { get; set; }
 }

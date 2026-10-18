@@ -320,6 +320,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasMaxLength(253)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("EffectiveRebootPolicy")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("EffectiveWindowsJson")
                         .HasMaxLength(8192)
                         .HasColumnType("TEXT");
@@ -330,6 +333,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("InventoryAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastBootAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("LastHeartbeatAtUtc")
@@ -372,6 +378,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("RebootPending")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RebootPolicy")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("RegisteredAtUtc")
@@ -490,6 +499,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("RebootPolicy")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

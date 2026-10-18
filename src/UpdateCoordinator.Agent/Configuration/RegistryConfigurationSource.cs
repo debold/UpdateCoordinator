@@ -47,8 +47,32 @@ internal sealed class RegistryConfigurationProvider(RegistryConfigurationSource 
                     data[configurationKey] = value.Trim();
                 }
             }
+
+            ReadRebootVeto(key, present, data);
         }
 
         Data = data;
     }
+
+    /// <summary>
+    /// AllowReboot is a safety veto: as string or DWORD, only "1"/"true" (or 1) allows reboots; any other present value
+    /// forbids them, so a typo never enables a reboot.
+    /// </summary>
+    private static void ReadRebootVeto(RegistryKey key, HashSet<string> present, Dictionary<string, string?> data)
+    {
+        if (!present.Contains(AllowRebootValueName))
+        {
+            return;
+        }
+
+        var allowed = key.GetValue(AllowRebootValueName) switch
+        {
+            int number => number == 1,
+            string text => text.Trim() is "1" || string.Equals(text.Trim(), "true", StringComparison.OrdinalIgnoreCase),
+            _ => false,
+        };
+        data["Installation:AllowReboot"] = allowed ? "true" : "false";
+    }
+
+    internal const string AllowRebootValueName = "AllowReboot";
 }

@@ -10,7 +10,7 @@ namespace UpdateCoordinator.Server.Assignment;
 /// Calculates ring, rule-based groups and effective maintenance windows of clients
 /// (docs/04-central-server.md, sections 3 and 4):
 /// ring = manual override, else first matching ring rule, else the fallback ring Production;
-/// windows = server override, else the windows of its groups, else the system default.
+/// windows = server override, else the windows of its groups, else the system default; reboot policy likewise.
 /// A change of the effective windows bumps the release version, so the agent fetches them; releases follow the ring.
 /// </summary>
 internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner releases)
@@ -21,6 +21,7 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
         var rules = await db.AssignmentRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
         var groups = await db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, cancellationToken).ConfigureAwait(false);
         var systemWindows = await GetSystemWindowsAsync(cancellationToken).ConfigureAwait(false);
+        var systemReboot = await GetSystemRebootPolicyAsync(cancellationToken).ConfigureAwait(false);
 
         var clients = await db.Clients
             .Where(c => clientId == null || c.Id == clientId)
@@ -51,10 +52,17 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
                 ?? Union(groupIds.Select(g => groups.TryGetValue(g, out var group) ? MaintenanceWindowFormat.FromJson(group.MaintenanceWindowsJson) : null))
                 ?? systemWindows;
 
+            // Reboots: the server setting wins; among groups the most restrictive one (Never) wins; else the system default.
+            var groupPolicies = groupIds.Select(g => groups.TryGetValue(g, out var group) ? group.RebootPolicy : null).Where(p => p is not null).ToList();
+            var reboot = client.RebootPolicy
+                ?? (groupPolicies.Count == 0 ? (RebootPolicy?)null : groupPolicies.Contains(RebootPolicy.Never) ? RebootPolicy.Never : RebootPolicy.InsideMaintenanceWindow)
+                ?? systemReboot;
+
             var json = MaintenanceWindowFormat.ToJson(windows);
-            if (json != client.EffectiveWindowsJson)
+            if (json != client.EffectiveWindowsJson || reboot != client.EffectiveRebootPolicy)
             {
                 client.EffectiveWindowsJson = json;
+                client.EffectiveRebootPolicy = reboot;
                 client.ReleasesVersion++;
             }
         }
@@ -73,6 +81,17 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         return MaintenanceWindowFormat.FromJson(stored) ?? MaintenanceWindow.SystemDefault;
+    }
+
+    /// <summary>System default reboot policy; Never unless an administrator changed it.</summary>
+    public async Task<RebootPolicy> GetSystemRebootPolicyAsync(CancellationToken cancellationToken)
+    {
+        var stored = await db.Settings.AsNoTracking()
+            .Where(s => s.Key == SettingEntity.SystemRebootPolicy)
+            .Select(s => s.Value)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return Enum.TryParse<RebootPolicy>(stored, out var policy) && Enum.IsDefined(policy) ? policy : RebootPolicy.Never;
     }
 
     internal static bool Matches(AssignmentRuleEntity rule, ClientEntity client)

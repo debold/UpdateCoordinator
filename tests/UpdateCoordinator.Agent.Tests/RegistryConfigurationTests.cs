@@ -138,6 +138,52 @@ public sealed class RegistryConfigurationTests : IDisposable
 
     private IConfigurationRoot Build() => new ConfigurationBuilder().AddAgentRegistry(Registry.CurrentUser, _prefix).Build();
 
+
+    [Theory]
+    [InlineData("1", "true")]
+    [InlineData("true", "true")]
+    [InlineData(" TRUE ", "true")]
+    [InlineData("0", "false")]
+    [InlineData("false", "false")]
+    [InlineData("yes", "false")]
+    [InlineData("", "false")]
+    public void AllowReboot_String_OnlyExplicitYesAllows(string value, string expected)
+    {
+        Write(AgentRegistry.PolicyKeyPath, "AllowReboot", value);
+
+        Assert.Equal(expected, Build()["Installation:AllowReboot"]);
+    }
+
+    [Theory]
+    [InlineData(1, "true")]
+    [InlineData(0, "false")]
+    [InlineData(2, "false")]
+    public void AllowReboot_Dword_IsAccepted(int value, string expected)
+    {
+        using (var key = Registry.CurrentUser.CreateSubKey(_prefix + AgentRegistry.PolicyKeyPath))
+        {
+            key.SetValue("AllowReboot", value, RegistryValueKind.DWord);
+        }
+
+        Assert.Equal(expected, Build()["Installation:AllowReboot"]);
+    }
+
+    [Fact]
+    public void AllowReboot_Binary_ForbidsReboots()
+    {
+        using (var key = Registry.CurrentUser.CreateSubKey(_prefix + AgentRegistry.InstallerKeyPath))
+        {
+            key.SetValue("AllowReboot", new byte[] { 1 }, RegistryValueKind.Binary);
+        }
+
+        Assert.Equal("false", Build()["Installation:AllowReboot"]);
+    }
+
+    [Fact]
+    public void AllowReboot_Missing_LeavesTheDefault()
+    {
+        Assert.Null(Build()["Installation:AllowReboot"]);
+    }
     private void Write(string keyPath, string name, string value)
     {
         using var key = Registry.CurrentUser.CreateSubKey(_prefix + keyPath);

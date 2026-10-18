@@ -5,9 +5,10 @@ namespace UpdateCoordinator.Agent.Installation;
 
 /// <summary>
 /// Install reports not yet delivered and the last attempt per update. Persisted so that no result is lost
-/// when the central server is unreachable and no update is retried in a loop after a service restart.
+/// when the central server is unreachable, no update is retried in a loop after a service restart and a restart is not
+/// requested again right after the server came back.
 /// </summary>
-internal sealed record InstallationState(List<InstallReport> Outbox, List<InstallAttempt> Attempts)
+internal sealed record InstallationState(List<InstallReport> Outbox, List<InstallAttempt> Attempts, DateTimeOffset? LastRebootRequestAt = null)
 {
     public static InstallationState Empty => new([], []);
 }

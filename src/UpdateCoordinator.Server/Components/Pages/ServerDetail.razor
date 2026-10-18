@@ -33,6 +33,8 @@ else
         <dt>Groups</dt><dd>@(_memberships.Count > 0 ? string.Join(", ", _memberships.Select(m => $"{GroupName(m.GroupId)}{(m.Manual ? " (manual)" : "")}")) : "–")</dd>
         <dt>Effective maintenance windows</dt><dd><pre>@MaintenanceWindowFormat.Format(MaintenanceWindowFormat.FromJson(_client.EffectiveWindowsJson) ?? [])</pre></dd>
         <dt>Reboot pending</dt><dd>@(_client.RebootPending ? "yes" : "no")</dd>
+        <dt>Reboots</dt><dd>@RebootPolicyText.Label(_client.EffectiveRebootPolicy)@(_client.RebootPolicy is null ? " (inherited)" : " (server setting)")</dd>
+        <dt>Last boot (UTC)</dt><dd>@Format(_client.LastBootAtUtc)</dd>
         <dt>Last heartbeat (UTC)</dt><dd>@_client.LastHeartbeatAtUtc?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)</dd>
     </dl>
 
@@ -106,7 +108,7 @@ else
                             <td><a href="/updates/@installation.UpdateId/@installation.Revision">@title</a></td>
                             <td>@installation.Source</td>
                             <td>@ResultText(installation)</td>
-                            <td>@(installation.RebootRequired ? "Required" : "No")</td>
+                            <td>@RebootText(installation)</td>
                         </tr>
                     }
                 </tbody>
@@ -139,6 +141,16 @@ else
                 Server specific maintenance windows (one per line, e.g. "Mon-Fri 19:00-05:00"; empty = inherit from groups or system default)
                 <textarea name="Windows" rows="4">@MaintenanceWindowFormat.Format(MaintenanceWindowFormat.FromJson(_client.MaintenanceWindowsJson) ?? [])</textarea>
             </label>
+            <label>
+                Reboots
+                <select name="Reboot">
+                    <option value="" selected="@(_client.RebootPolicy is null)">Inherit from groups or system default</option>
+                    @foreach (var policy in Enum.GetValues<UpdateCoordinator.Contracts.Agents.RebootPolicy>())
+                    {
+                        <option value="@policy" selected="@(_client.RebootPolicy == policy)">@RebootPolicyText.Label(policy)</option>
+                    }
+                </select>
+            </label>
             <button type="submit">Save</button>
         </form>
     </AuthorizeView>
@@ -156,6 +168,9 @@ else
 
     [SupplyParameterFromForm(FormName = "assignment")]
     private string? Windows { get; set; }
+
+    [SupplyParameterFromForm(FormName = "assignment")]
+    private string? Reboot { get; set; }
 
     private ClientEntity? _client;
     private List<RingEntity> _rings = [];
@@ -199,7 +214,15 @@ else
             groups.Add(group);
         }
 
-        var outcome = await Administration.SetClientAssignmentAsync(Id, ring, groups, Windows, await GetActorAsync(), CancellationToken.None);
+        var actor = await GetActorAsync();
+        var outcome = RebootPolicyText.TryParse(Reboot, out var reboot)
+            ? await Administration.SetClientAssignmentAsync(Id, ring, groups, Windows, actor, CancellationToken.None)
+            : new Outcome("The reboot policy is invalid.");
+        if (outcome.Succeeded)
+        {
+            outcome = await Administration.SetClientRebootPolicyAsync(Id, reboot, actor, CancellationToken.None);
+        }
+
         ShowResult(outcome.Error, "The assignment was saved.");
         await LoadAsync();
     }
@@ -253,6 +276,10 @@ else
         installation.ResultCode is (int)UpdateCoordinator.Contracts.Agents.InstallResultCode.Succeeded or (int)UpdateCoordinator.Contracts.Agents.InstallResultCode.SucceededWithErrors
             ? ((UpdateCoordinator.Contracts.Agents.InstallResultCode)installation.ResultCode).ToString()
             : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(UpdateCoordinator.Contracts.Agents.InstallResultCode)installation.ResultCode}, 0x{installation.HResult:X8}: {UpdateCoordinator.Server.Agents.HResultCatalog.Describe(installation.HResult)}");
+
+    private string RebootText(InstallationEntity installation) => !installation.RebootRequired
+        ? "No"
+        : _client?.LastBootAtUtc is { } boot && boot > installation.FinishedAtUtc ? $"Required, restarted {Format(boot)}" : "Required, pending";
 
     private static string Format(DateTime? value) =>
         value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";

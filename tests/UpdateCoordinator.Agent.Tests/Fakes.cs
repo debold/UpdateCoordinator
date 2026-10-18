@@ -17,6 +17,10 @@ internal sealed class FakeEnvironment : IAgentEnvironment
     public string OsVersion => "10.0.20348.2700";
 
     public string AgentVersion => "1.2.3";
+
+    public bool RebootPending { get; set; }
+
+    public DateTimeOffset LastBootAt { get; set; } = new(2026, 10, 1, 6, 0, 0, TimeSpan.Zero);
 }
 
 internal sealed class InMemoryIdentityStore : IAgentIdentityStore
@@ -186,5 +190,18 @@ internal sealed class FakeInstallationRunner : IInstallationRunner
     {
         Runs++;
         return Task.FromResult(Accept);
+    }
+}
+
+internal sealed class FakeRestart : UpdateCoordinator.Agent.Installation.ISystemRestart
+{
+    public List<TimeSpan> Requests { get; } = [];
+
+    public bool Accept { get; set; } = true;
+
+    public bool Schedule(TimeSpan warning)
+    {
+        Requests.Add(warning);
+        return Accept;
     }
 }

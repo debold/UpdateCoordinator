@@ -86,7 +86,17 @@ internal sealed partial class AgentWorker(
 
         var trustReset = trust.ResetNotReported;
         var response = await client
-            .HeartbeatAsync(identity, new HeartbeatRequest { AgentVersion = environment.AgentVersion, TrustReset = trustReset, OsVersion = environment.OsVersion }, cancellationToken)
+            .HeartbeatAsync(
+                identity,
+                new HeartbeatRequest
+                {
+                    AgentVersion = environment.AgentVersion,
+                    TrustReset = trustReset,
+                    OsVersion = environment.OsVersion,
+                    RebootPending = environment.RebootPending,
+                    LastBootAt = environment.LastBootAt,
+                },
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (response is null)

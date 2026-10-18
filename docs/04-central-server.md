@@ -103,6 +103,7 @@ Implemented (2026-10-18): the rings `Pilot`, `Test` and `Production` are fixed. 
 Three levels following the same pattern: **system default** (Mon–Fri 19:00–05:00, Sat/Sun all day, changeable in the dashboard) → **group level** → **individual server**.
 
 Implemented (2026-10-18): the most specific level with windows wins. Server windows replace everything else; otherwise the windows of all groups of the server apply together (union); otherwise the system default. The central server stores the resulting effective windows per client and delivers them with the release list; a change increases the release version so the agent fetches it. Windows are entered as text, one per line, e.g. `Mon-Fri 19:00-05:00` or `Sat,Sun 00:00-24:00`, at most 14 per level.
+Reboot policy (implemented 2026-10-18) follows the same three levels: server setting, otherwise the groups of the server (if any group says "Never", it wins), otherwise the system default ("Never" unless changed). The effective policy is delivered with the release list; a change increases the release version.
 
 ## 5. Agent updates (agent rollout)
 

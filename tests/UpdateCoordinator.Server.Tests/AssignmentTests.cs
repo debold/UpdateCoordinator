@@ -383,7 +383,7 @@ public sealed class AssignmentPageTests
         {
         }
 
-        using var response = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["Windows"] = "Mon 25:00-01:00" });
+        using var response = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "maintenance", ["Windows"] = "Mon 25:00-01:00" });
 
         Assert.Contains("Invalid window", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }

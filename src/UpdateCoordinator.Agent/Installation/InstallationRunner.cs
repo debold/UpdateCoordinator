@@ -33,6 +33,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     private readonly ICentralServerClient _client;
     private readonly IInstallationStateStore _store;
     private readonly IAgentEnvironment _environment;
+    private readonly ISystemRestart _restart;
     private readonly IOptions<InstallationOptions> _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<InstallationRunner> _logger;
@@ -47,6 +48,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         ICentralServerClient client,
         IInstallationStateStore store,
         IAgentEnvironment environment,
+        ISystemRestart restart,
         IOptions<InstallationOptions> options,
         TimeProvider timeProvider,
         ILogger<InstallationRunner> logger)
@@ -59,6 +61,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         _client = client;
         _store = store;
         _environment = environment;
+        _restart = restart;
         _options = options;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -73,20 +76,60 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         }
 
         var batch = PlanBatch();
-        if (batch.Count == 0)
+        if (batch.Count > 0)
         {
-            return true;
+            // Never install on a server that fails its health check.
+            if (_preFlight.Run().Any(check => check.Status == HealthStatus.Failed))
+            {
+                LogSkippedUnhealthy();
+            }
+            else
+            {
+                await InstallAsync(batch, cancellationToken).ConfigureAwait(false);
+                if (!await FlushOutboxAsync(identity, cancellationToken).ConfigureAwait(false))
+                {
+                    return false;
+                }
+            }
         }
 
-        // Never install on a server that fails its health check.
-        if (_preFlight.Run().Any(check => check.Status == HealthStatus.Failed))
+        RebootIfAllowed();
+        return true;
+    }
+
+    /// <summary>Maintenance windows from the central server, or the local ones while it sends none.</summary>
+    private IReadOnlyList<MaintenanceWindow> EffectiveWindows =>
+        _releases.Current.MaintenanceWindows is { Count: > 0 } central ? central : _options.Value.LocalWindows;
+
+    /// <summary>
+    /// Restarts the server when a reboot is pending and the central policy, the local veto, the global pause and the
+    /// maintenance window allow it (see <see cref="RebootPlanner"/>). Every request is recorded, so it is not repeated
+    /// within the cooldown even if Windows refused it.
+    /// </summary>
+    internal RebootDecision RebootIfAllowed()
+    {
+        var now = _timeProvider.GetUtcNow();
+        var decision = RebootPlanner.Decide(
+            _releases.Current.RebootPolicy ?? RebootPolicy.Never,
+            _options.Value,
+            _releases.InstallationsPaused,
+            _environment.RebootPending,
+            EffectiveWindows,
+            _timeProvider.GetLocalNow().DateTime,
+            _state.LastRebootRequestAt,
+            now);
+        if (decision != RebootDecision.Reboot)
         {
-            LogSkippedUnhealthy();
-            return true;
+            return decision;
         }
 
-        await InstallAsync(batch, cancellationToken).ConfigureAwait(false);
-        return await FlushOutboxAsync(identity, cancellationToken).ConfigureAwait(false);
+        Save(_state with { LastRebootRequestAt = now });
+        if (_restart.Schedule(RebootPlanner.WarningPeriod))
+        {
+            LogRebootScheduled(RebootPlanner.WarningPeriod);
+        }
+
+        return decision;
     }
 
     internal IReadOnlyList<Release> PlanBatch()
@@ -95,7 +138,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         var missing = _updates.LastMissingUpdates;
         if (!options.Enabled
             || missing is null
-            || !InstallationPlanner.IsInWindow(_releases.Current.MaintenanceWindows is { Count: > 0 } central ? central : options.LocalWindows, _timeProvider.GetLocalNow().DateTime))
+            || !InstallationPlanner.IsInWindow(EffectiveWindows, _timeProvider.GetLocalNow().DateTime))
         {
             return [];
         }
@@ -162,9 +205,12 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     [LoggerMessage(Level = LogLevel.Information, Message = "Installing {Count} released updates.")]
     private partial void LogInstalling(int count);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Installation finished: {Succeeded} succeeded, {Failed} not successful, reboot required: {RebootRequired}. The agent does not reboot on its own.")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Installation finished: {Succeeded} succeeded, {Failed} not successful, reboot required: {RebootRequired}.")]
     private partial void LogInstalled(int succeeded, int failed, bool rebootRequired);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Due updates are not installed because the health check failed.")]
     private partial void LogSkippedUnhealthy();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A reboot is pending and allowed in this maintenance window: the server restarts in {Warning}.")]
+    private partial void LogRebootScheduled(TimeSpan warning);
 }

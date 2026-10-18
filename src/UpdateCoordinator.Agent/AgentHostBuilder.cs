@@ -70,6 +70,7 @@ internal static class AgentHostBuilder
         services.AddSingleton<IInstallationStateStore>(provider => new ProtectedInstallationStateStore(
             ProtectedInstallationStateStore.DefaultPath,
             provider.GetRequiredService<ILogger<ProtectedInstallationStateStore>>()));
+        services.AddSingleton<ISystemRestart, ShutdownToolRestart>();
         services.AddSingleton<IInstallationRunner, InstallationRunner>();
         services.AddSingleton<IAgentIdentityStore>(provider => new DpapiAgentIdentityStore(
             DpapiAgentIdentityStore.DefaultPath,

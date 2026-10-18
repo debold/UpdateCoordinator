@@ -9,7 +9,7 @@ using UpdateCoordinator.Server.Data;
 namespace UpdateCoordinator.Server.Assignment;
 
 /// <summary>
-/// Administrative changes to groups, assignment rules and maintenance windows. Every change is validated,
+/// Administrative changes to groups, assignment rules, maintenance windows and reboot policies. Every change is validated,
 /// written to the audit log and followed by a recalculation of the affected clients.
 /// </summary>
 internal sealed partial class AssignmentAdministration(ServerDbContext db, AssignmentService assignment, AuditLog audit)
@@ -218,6 +218,70 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var details = $"ring {(manualRingId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "automatic")}, groups {string.Join(",", groups)}, windows {(windows.Count > 0 ? MaintenanceWindowFormat.Format(windows) : "inherited")}";
         return await CompleteAsync(actor, "Client.AssignmentChanged", $"{client.HostName} ({clientId:D})", details, clientId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<Outcome> SetSystemRebootPolicyAsync(RebootPolicy policy, string actor, CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(policy))
+        {
+            return new Outcome("The reboot policy is invalid.");
+        }
+
+        var setting = await db.Settings.SingleOrDefaultAsync(s => s.Key == SettingEntity.SystemRebootPolicy, cancellationToken).ConfigureAwait(false);
+        if (setting is null)
+        {
+            db.Settings.Add(new SettingEntity { Key = SettingEntity.SystemRebootPolicy, Value = policy.ToString() });
+        }
+        else
+        {
+            setting.Value = policy.ToString();
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return await CompleteAsync(actor, "Reboot.SystemDefaultChanged", "system default", policy.ToString(), null, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Sets the reboot policy of a group; null leaves it to other groups or the system default.</summary>
+    public async Task<Outcome> SetGroupRebootPolicyAsync(int groupId, RebootPolicy? policy, string actor, CancellationToken cancellationToken)
+    {
+        if (policy is { } value && !Enum.IsDefined(value))
+        {
+            return new Outcome("The reboot policy is invalid.");
+        }
+
+        var group = await db.Groups.SingleOrDefaultAsync(g => g.Id == groupId, cancellationToken).ConfigureAwait(false);
+        if (group is null)
+        {
+            return new Outcome("The group no longer exists.");
+        }
+
+        group.RebootPolicy = policy;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return await CompleteAsync(actor, "Group.RebootPolicyChanged", group.Name, policy?.ToString() ?? "inherited", null, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Sets the reboot policy of a server; null uses its groups or the system default.</summary>
+    public async Task<Outcome> SetClientRebootPolicyAsync(Guid clientId, RebootPolicy? policy, string actor, CancellationToken cancellationToken)
+    {
+        if (policy is { } value && !Enum.IsDefined(value))
+        {
+            return new Outcome("The reboot policy is invalid.");
+        }
+
+        var client = await db.Clients.SingleOrDefaultAsync(c => c.Id == clientId, cancellationToken).ConfigureAwait(false);
+        if (client is null)
+        {
+            return new Outcome("The server no longer exists.");
+        }
+
+        if (client.RebootPolicy == policy)
+        {
+            return Outcome.Ok;
+        }
+
+        client.RebootPolicy = policy;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return await CompleteAsync(actor, "Client.RebootPolicyChanged", $"{client.HostName} ({clientId:D})", policy?.ToString() ?? "inherited", clientId, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<Outcome> CompleteAsync(string actor, string action, string? target, string? details, Guid? clientId, CancellationToken cancellationToken)

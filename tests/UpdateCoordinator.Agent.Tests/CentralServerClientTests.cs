@@ -147,6 +147,27 @@ public sealed class ReleaseResponseTests
         await Assert.ThrowsAsync<InvalidDataException>(() => client.GetReleasesAsync(Identity, TestContext.Current.CancellationToken));
     }
 
+    [Theory]
+    [InlineData("\"InsideMaintenanceWindow\"", RebootPolicy.InsideMaintenanceWindow)]
+    [InlineData("\"Never\"", RebootPolicy.Never)]
+    public async Task RebootPolicy_IsAccepted(string json, RebootPolicy expected)
+    {
+        var client = Create(HttpStatusCode.OK, $"{{\"version\":1,\"releases\":[],\"rebootPolicy\":{json}}}");
+
+        Assert.Equal(expected, (await client.GetReleasesAsync(Identity, TestContext.Current.CancellationToken))!.RebootPolicy);
+    }
+
+    [Theory]
+    [InlineData("7")]
+    [InlineData("\"Always\"")]
+    [InlineData("\"7\"")]
+    public async Task UnknownRebootPolicy_IsRejected(string json)
+    {
+        var client = Create(HttpStatusCode.OK, $"{{\"version\":1,\"releases\":[],\"rebootPolicy\":{json}}}");
+
+        await Assert.ThrowsAnyAsync<Exception>(() => client.GetReleasesAsync(Identity, TestContext.Current.CancellationToken));
+    }
+
     [Fact]
     public async Task ValidMaintenanceWindows_AreAccepted()
     {

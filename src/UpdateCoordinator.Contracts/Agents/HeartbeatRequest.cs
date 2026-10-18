@@ -19,4 +19,10 @@ public sealed record HeartbeatRequest
     [StringLength(23, MinimumLength = 3)]
     [RegularExpression(ValidationPatterns.OsVersion)]
     public string? OsVersion { get; init; }
+
+    /// <summary>True if Windows reports a pending reboot (component servicing or Windows Update), whatever caused it.</summary>
+    public bool RebootPending { get; init; }
+
+    /// <summary>Last start of the operating system; lets the central server see that a reboot happened.</summary>
+    public DateTimeOffset? LastBootAt { get; init; }
 }

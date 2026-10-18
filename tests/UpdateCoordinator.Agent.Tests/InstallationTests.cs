@@ -200,6 +200,8 @@ public sealed class InstallationRunnerTests
     private readonly InMemoryInstallationStore _store = new();
     private readonly FakeSystemProbe _probe = new();
     private readonly FakeDiskSpace _disk = new();
+    private readonly FakeEnvironment _environment = new();
+    private readonly FakeRestart _restart = new();
     private readonly Release _release;
 
     public InstallationRunnerTests()
@@ -343,6 +345,72 @@ public sealed class InstallationRunnerTests
         Assert.Equal(InstallationRunner.MaxOutbox, _store.State.Outbox.Count);
     }
 
+    [Fact]
+    public async Task PendingRebootAllowedByPolicy_RestartsOnceWithWarning()
+    {
+        _releases.Current = new ReleaseList(1, [], null, RebootPolicy.InsideMaintenanceWindow);
+        _environment.RebootPending = true;
+        var runner = Create();
+
+        Assert.True(await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken));
+        Assert.True(await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken));
+
+        Assert.Equal([RebootPlanner.WarningPeriod], _restart.Requests);
+        Assert.Equal(_time.GetUtcNow(), _store.State.LastRebootRequestAt);
+    }
+
+    [Fact]
+    public async Task RestartRequest_SurvivesServiceRestart()
+    {
+        _releases.Current = new ReleaseList(1, [], null, RebootPolicy.InsideMaintenanceWindow);
+        _environment.RebootPending = true;
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        // A new runner (service restart) loads the state and does not request again within the cooldown.
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_restart.Requests);
+    }
+
+    [Fact]
+    public async Task RefusedRestart_IsNotRepeatedInALoop()
+    {
+        _releases.Current = new ReleaseList(1, [], null, RebootPolicy.InsideMaintenanceWindow);
+        _environment.RebootPending = true;
+        _restart.Accept = false;
+        var runner = Create();
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_restart.Requests);
+    }
+
+    [Fact]
+    public async Task WithoutPolicyOrWithLocalVeto_NeverRestarts()
+    {
+        _environment.RebootPending = true;
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        _releases.Current = new ReleaseList(1, [], null, RebootPolicy.InsideMaintenanceWindow);
+        await Create(new InstallationOptions { AllowReboot = false }).RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Empty(_restart.Requests);
+    }
+
+    [Fact]
+    public async Task InstallationNeedingReboot_RestartsInTheSameCycle()
+    {
+        _releases.Current = new ReleaseList(1, [_release], null, RebootPolicy.InsideMaintenanceWindow);
+        _environment.RebootPending = true;
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_installer.Batches);
+        Assert.Single(_client.InstallReports);
+        Assert.Single(_restart.Requests);
+    }
+
     private static InstallReport Report() => new()
     {
         RunId = Guid.NewGuid(),
@@ -362,7 +430,8 @@ public sealed class InstallationRunnerTests
             preFlight,
             _client,
             _store,
-            new FakeEnvironment(),
+            _environment,
+            _restart,
             Microsoft.Extensions.Options.Options.Create(options ?? new InstallationOptions()),
             _time,
             NullLogger<InstallationRunner>.Instance);
