@@ -25,7 +25,7 @@ There is **no pre-shared secret, no token and no certificate on the client side*
 - The agent stores both locally (protected with DPAPI for the service account) and sends them with every further message as **HTTP Basic authentication** (`clientGuid:clientSecret`) over HTTPS.
 - The central server stores only a SHA-256 hash of the secret and compares in constant time. Unknown GUID and wrong secret produce the same answer (`401`), so GUIDs cannot be probed.
 - If the central server answers `401` (client deleted or database restored without it), the agent discards its identity and registers again. The new entry needs a new approval, so no trust is gained this way.
-- The GUID identifies the client uniquely **across renames and domain rejoins**. Host name, domain and SID are only attributes: changes are logged but do not trigger a new approval.
+- The GUID identifies the client uniquely **across renames and domain rejoins**. Host name and domain are only attributes: changes are logged but do not trigger a new approval.
 - The approval (see 4.1) refers to the GUID.
 - **Clone detection (draft):** if the same GUID reports from two sources at the same time (e.g. a cloned VM), the central server flags a clone suspicion and blocks the GUID until an admin resolves it.
 - **Reinstallation (draft):** the GUID is lost with the operating system and the server registers again. If the name matches, the central server suggests taking over the old entry including its history.
@@ -72,13 +72,13 @@ The central server could encode the fingerprint of its trust anchor in the same 
 The approval mechanism is the **only mechanism** that decides on onboarding new agents. There is no secret, no token and no certificate on the client side. The client sends a **Register**, and approval happens
 
 - **manually** by the admin (showing IP, name and basic information with approve/reject), or
-- **rule-based**, e.g. the client is a domain member and the reported SID matches the SID in AD.
+- **rule-based**, e.g. the client is a domain member: the central server itself looks up the computer object in AD (by host name in the reported domain) and checks that the request comes from the IP address registered in DNS for it. Self-reported values such as a SID are not trusted; the agent therefore does not report a SID at all (decided 2026-10-18).
 
 ### 4.2 Flow
 
 1. The agent sends **Register** (it knows it has never been connected). The central server issues the **client GUID and client secret** (see 3.1) and returns them. The client starts in state `Pending`.
 2. Optionally it sends its **inventory** right afterwards.
-3. The central server also accepts and stores inventory from **unapproved** clients, but returns **no control information** (no minimum version, no released updates) until the client is approved. Reason: only this way are the full inventory data (role, domain membership, SID) available for the approval decision, in particular the rule-based one.
+3. The central server also accepts and stores inventory from **unapproved** clients, but returns **no control information** (no minimum version, no released updates) until the client is approved. Reason: only this way are the full inventory data (role, domain membership) available for the approval decision, in particular the rule-based one.
 4. After approval, ring and group assignment follows (see `04-central-server.md`).
 
 Register and inventory are deliberately **separate message types**, so the logic is not implemented twice.
@@ -108,7 +108,7 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 | Inventory | `POST /api/v1/agents/inventory` | Basic (GUID + secret) | `204` stored, `400` invalid input, `401` unknown credentials, `403` state not allowed, `413` larger than 4 MB |
 | Trust binding | `GET /api/v1/trust/binding` | none (public, signed) | `200` binding (see 3.2), `503` no binding yet |
 
-The inventory contains host name, domain, computer account SID, operating system (product name, edition, display version, version with UBR), detected roles, the configured update source and up to 5,000 installed updates (update ID, revision, KB, title, classification). `installedUpdates: null` means "could not be read": the central server keeps the previous list. The heartbeat additionally carries the current OS version including UBR.
+The inventory contains host name, domain, operating system (product name, edition, display version, version with UBR), detected roles, the configured update source and up to 5,000 installed updates (update ID, revision, KB, title, classification). `installedUpdates: null` means "could not be read": the central server keeps the previous list. The heartbeat additionally carries the current OS version including UBR.
 
 The protocol version is part of the route (`/api/v1/...`). An incompatible change introduces a new version, and the central server serves both during a transition period. All input is validated against the shared contracts (`UpdateCoordinator.Contracts`); error answers use RFC 9457 problem details.
 

@@ -23,11 +23,6 @@ public sealed record InventoryRequest
     [RegularExpression(ValidationPatterns.DomainName)]
     public string? DomainName { get; init; }
 
-    /// <summary>SID of the computer account in Active Directory; null for workgroup servers or when the domain is unreachable.</summary>
-    [StringLength(80)]
-    [RegularExpression(ValidationPatterns.ComputerSid)]
-    public string? ComputerSid { get; init; }
-
     [Required]
     public required OperatingSystemInfo OperatingSystem { get; init; }
 

@@ -41,7 +41,6 @@ public sealed class InventoryIntegrationTests(ServerFactory factory) : IClassFix
         var options = Options.Create(new InventoryOptions());
         var collector = new InventoryCollector(
             probe,
-            new ComputerSidReader(NullLogger<ComputerSidReader>.Instance),
             new WuaInstalledUpdateSource(NullLogger<WuaInstalledUpdateSource>.Instance),
             new RoleDetector(probe, options),
             new AgentEnvironment(probe));

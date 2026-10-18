@@ -11,13 +11,6 @@ namespace UpdateCoordinator.Server.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "ComputerSid",
-                table: "Clients",
-                type: "TEXT",
-                maxLength: 80,
-                nullable: true);
-
             migrationBuilder.AddColumn<DateTime>(
                 name: "InventoryAtUtc",
                 table: "Clients",
@@ -109,11 +102,6 @@ namespace UpdateCoordinator.Server.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_Clients_ComputerSid",
-                table: "Clients",
-                column: "ComputerSid");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_ClientUpdates_UpdateId_Revision",
                 table: "ClientUpdates",
                 columns: new[] { "UpdateId", "Revision" });
@@ -132,14 +120,6 @@ namespace UpdateCoordinator.Server.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "Updates");
-
-            migrationBuilder.DropIndex(
-                name: "IX_Clients_ComputerSid",
-                table: "Clients");
-
-            migrationBuilder.DropColumn(
-                name: "ComputerSid",
-                table: "Clients");
 
             migrationBuilder.DropColumn(
                 name: "InventoryAtUtc",

@@ -26,7 +26,7 @@
 
 | Entity | Main contents |
 |---|---|
-| **Server/client** | **Client GUID** (issued centrally, unchanged across renames and domain rejoins), registration state (pending/approved/deleted/blocked on clone suspicion), name, IP, domain membership, SID, OS version, build/UBR (updated on every sync), agent version, detected roles, ring, groups, update source (WU/WSUS), heartbeat time |
+| **Server/client** | **Client GUID** (issued centrally, unchanged across renames and domain rejoins), registration state (pending/approved/deleted/blocked on clone suspicion), name, IP, domain membership, OS version, build/UBR (updated on every sync), agent version, detected roles, ring, groups, update source (WU/WSUS), heartbeat time |
 | **Update (catalog)** | Unique update ID with revision, KB, title, category/type (e.g. security, feature), aggregated from agent reports |
 | **Ring** | Name, order, transition rules, default ring (deployed last) |
 | **Ring update state** | Per update **and** ring: feedback rate, success rate, minimum/maximum wait time, transition state, release gate |
@@ -38,7 +38,7 @@
 | **Lease** | Per coordinated group: holder, expiry, result |
 | **User** | Local accounts, role |
 | **Audit log** | Immutable, separate from regular reporting |
-| **Approval rule (registration)** | Rules for rule-based approval of new agents (e.g. domain member + SID match with AD), state of pending manual approvals |
+| **Approval rule (registration)** | Rules for rule-based approval of new agents (e.g. domain member, verified by the central server against AD and DNS), state of pending manual approvals |
 | **Agent release** | Version, rollout ring membership, minimum version |
 
 ## 3. Ring logic

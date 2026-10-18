@@ -18,7 +18,6 @@ public sealed class InventoryTests(ServerFactory factory) : IClassFixture<Server
     {
         HostName = host,
         DomainName = "example.local",
-        ComputerSid = "S-1-5-21-1004336348-1177238915-682003330-1104",
         OperatingSystem = new OperatingSystemInfo
         {
             ProductName = "Windows Server 2022 Standard",
@@ -134,8 +133,6 @@ public sealed class InventoryTests(ServerFactory factory) : IClassFixture<Server
     private static readonly InventoryRequest[] InvalidInventories =
     [
         ValidInventory() with { HostName = "bad_name" },
-        ValidInventory() with { ComputerSid = "S-1-5-32-544" },
-        ValidInventory() with { ComputerSid = "'; DROP TABLE Clients;--" },
         ValidInventory() with { Roles = ["Role With Space"] },
         ValidInventory() with { Roles = [""] },
         ValidInventory() with { Roles = [.. Enumerable.Range(0, InventoryRequest.MaxRoles + 1).Select(i => $"Role{i}")] },

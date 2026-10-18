@@ -11,7 +11,7 @@ using UpdateCoordinator.Server.Data;
 namespace UpdateCoordinator.Server.Data.Migrations
 {
     [DbContext(typeof(ServerDbContext))]
-    [Migration("20261018120845_Inventory")]
+    [Migration("20261018123529_Inventory")]
     partial class Inventory
     {
         /// <inheritdoc />
@@ -28,10 +28,6 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<string>("AgentVersion")
                         .IsRequired()
                         .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ComputerSid")
-                        .HasMaxLength(80)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("DomainName")
@@ -93,8 +89,6 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ComputerSid");
 
                     b.HasIndex("HostName");
 

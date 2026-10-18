@@ -17,7 +17,7 @@
 | Agent | Central server | HTTPS, `GET /api/v1/trust/binding` | first contact, after a certificate change or a local trust reset | verifies the identity of the central server (trust anchor); nothing is sent |
 | Agent | Central server | HTTPS, `POST /api/v1/agents/register` | once, on first start | registration; returns client GUID and client secret |
 | Agent | Central server | HTTPS, `POST /api/v1/agents/heartbeat` | every 10 s (configurable); with back-off up to 5 min while unreachable | liveness, registration state, later polling of the action queue |
-| Agent | Central server | HTTPS, `POST /api/v1/agents/inventory` | after registration, on start, when changed, at least daily | OS, domain, SID, roles, update source, installed updates |
+| Agent | Central server | HTTPS, `POST /api/v1/agents/inventory` | after registration, on start, when changed, at least daily | OS, domain, roles, update source, installed updates |
 | Admin browser | Central server | HTTPS | on demand | dashboard and administration (later feature) |
 | Monitoring | Central server | HTTPS `GET /health` | as needed | liveness check, no authentication, no payload |
 
@@ -72,7 +72,7 @@ Registry values are read when the agent service starts. The product name in the 
 | `CentralServer:HeartbeatInterval` | `00:00:10` | interval between heartbeats (1 s to 10 min) |
 | `CentralServer:MaxBackoff` | `00:05:00` | longest wait between attempts while the central server is unreachable |
 
-| `Inventory:CollectInterval` | `01:00:00` | how often the inventory is collected (5 min to 1 day) |
+| `Inventory:CollectInterval` | `06:00:00` | how often the inventory is collected (5 min to 1 day) |
 | `Inventory:MaxSendInterval` | `1.00:00:00` | the inventory is sent at least this often, otherwise only when it changed (1 h to 7 days) |
 | `Inventory:RoleRules` | none | additional role rules (see below) |
 

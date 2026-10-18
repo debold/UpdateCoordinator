@@ -27,10 +27,6 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ComputerSid")
-                        .HasMaxLength(80)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("DomainName")
                         .HasMaxLength(253)
                         .HasColumnType("TEXT");
@@ -90,8 +86,6 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ComputerSid");
 
                     b.HasIndex("HostName");
 

@@ -44,7 +44,6 @@ internal static class AgentHostBuilder
             .Bind(configuration.GetSection(InventoryOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        services.AddSingleton<IComputerSidReader, ComputerSidReader>();
         services.AddSingleton<IInstalledUpdateSource, WuaInstalledUpdateSource>();
         services.AddSingleton<RoleDetector>();
         services.AddSingleton<InventoryCollector>();

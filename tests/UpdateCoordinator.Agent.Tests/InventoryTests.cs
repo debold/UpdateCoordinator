@@ -21,13 +21,6 @@ internal sealed class FakeInstalledUpdates : IInstalledUpdateSource
     }
 }
 
-internal sealed class FakeSidReader : IComputerSidReader
-{
-    public string? Sid { get; set; } = "S-1-5-21-1004336348-1177238915-682003330-1104";
-
-    public string? GetComputerSid(string? domainName) => domainName is null ? null : Sid;
-}
-
 public sealed class InventoryCollectorTests
 {
     private readonly FakeSystemProbe _probe = new();
@@ -45,7 +38,6 @@ public sealed class InventoryCollectorTests
 
         Assert.Equal("SRV01", inventory.HostName);
         Assert.Equal("example.local", inventory.DomainName);
-        Assert.StartsWith("S-1-5-21-", inventory.ComputerSid, StringComparison.Ordinal);
         Assert.Equal("Windows Server 2022 Standard", inventory.OperatingSystem.ProductName);
         Assert.Equal("ServerStandard", inventory.OperatingSystem.EditionId);
         Assert.Equal("21H2", inventory.OperatingSystem.DisplayVersion);
@@ -170,7 +162,7 @@ public sealed class InventoryCollectorTests
     {
         var environment = new FakeEnvironment();
         var roles = new RoleDetector(_probe, Options.Create(new InventoryOptions()));
-        return new InventoryCollector(_probe, new FakeSidReader(), _updates, roles, environment).CollectAsync(TestContext.Current.CancellationToken);
+        return new InventoryCollector(_probe, _updates, roles, environment).CollectAsync(TestContext.Current.CancellationToken);
     }
 }
 
@@ -313,7 +305,7 @@ public sealed class InventoryReporterTests
     {
         var probe = new FakeSystemProbe();
         var options = Options.Create(new InventoryOptions());
-        var collector = new InventoryCollector(probe, new FakeSidReader(), _updates, new RoleDetector(probe, options), new FakeEnvironment());
+        var collector = new InventoryCollector(probe, _updates, new RoleDetector(probe, options), new FakeEnvironment());
         return new InventoryReporter(collector, new InventoryScheduler(options, _time), _client, NullLogger<InventoryReporter>.Instance);
     }
 }

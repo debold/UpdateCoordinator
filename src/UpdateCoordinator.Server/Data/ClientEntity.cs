@@ -31,8 +31,6 @@ internal sealed class ClientEntity
 
     // Inventory (see docs/05-agent-design.md, section 2); empty until the first inventory arrives.
 
-    public string? ComputerSid { get; set; }
-
     public string? OsProductName { get; set; }
 
     public string? OsEditionId { get; set; }

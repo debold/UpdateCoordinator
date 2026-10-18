@@ -10,7 +10,6 @@ namespace UpdateCoordinator.Agent.Inventory;
 /// </summary>
 internal sealed partial class InventoryCollector(
     ISystemProbe probe,
-    IComputerSidReader sidReader,
     IInstalledUpdateSource updates,
     RoleDetector roles,
     IAgentEnvironment environment)
@@ -25,7 +24,6 @@ internal sealed partial class InventoryCollector(
         {
             HostName = environment.HostName,
             DomainName = environment.DomainName,
-            ComputerSid = sidReader.GetComputerSid(environment.DomainName),
             OperatingSystem = ReadOperatingSystem(),
             Roles = roles.Detect(),
             UpdateSource = ReadUpdateSource(),

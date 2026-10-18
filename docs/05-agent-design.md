@@ -37,12 +37,12 @@ The inventory contains detected server roles so automatic group rules can apply.
 
 **Extensible without code changes:** additional rules come from configuration (`Inventory:RoleRules`). A configured rule with a new name adds a role; a rule with the name of a built-in role adds conditions to it. Invalid rules stop the agent at startup with a clear error.
 
-In addition the agent reports domain membership and the SID of its computer account in AD (basis of rule-based approval, see `03-communication-protocol.md`).
+In addition the agent reports its domain membership. It deliberately reports no SID: a self-reported value cannot be trusted, so the central server verifies domain membership itself against AD and DNS (see `03-communication-protocol.md`, 4.1).
 
 ### Collection and sending
 
 - Installed updates are read through the WUA API (`IUpdateSearcher`, search `IsInstalled=1 and IsHidden=0`, `Online = false`, so only the local cache is used and no internet access is needed). The API is accessed late-bound through the COM support of .NET; every COM object is released explicitly. If the API is not available, the inventory is sent without the update list.
-- The inventory is collected after registration, on service start and then every `Inventory:CollectInterval` (default 1 hour). It is only sent if it changed or `Inventory:MaxSendInterval` (default 1 day) has passed. A failed send is retried with the next cycle.
+- The inventory is collected after registration, on service start and then every `Inventory:CollectInterval` (default 6 hours). It is only sent if it changed or `Inventory:MaxSendInterval` (default 1 day) has passed. A failed send is retried with the next cycle.
 - Values are shaped to the contract before sending (control characters removed, lengths truncated, invalid entries dropped), so a single odd value never blocks the whole inventory; the central server validates again.
 
 ## 3. Cycle (fixed pipeline)

@@ -25,7 +25,6 @@ internal sealed partial class InventoryService(ServerDbContext db, TimeProvider 
         LogIdentityChanges(client, inventory);
         client.HostName = inventory.HostName;
         client.DomainName = inventory.DomainName;
-        client.ComputerSid = inventory.ComputerSid;
         client.OsProductName = inventory.OperatingSystem.ProductName;
         client.OsEditionId = inventory.OperatingSystem.EditionId;
         client.OsDisplayVersion = inventory.OperatingSystem.DisplayVersion;
@@ -83,7 +82,7 @@ internal sealed partial class InventoryService(ServerDbContext db, TimeProvider 
         }));
     }
 
-    /// <summary>Host name, domain and SID are attributes of the GUID: changes are logged but need no new approval (docs/03, 3.1).</summary>
+    /// <summary>Host name and domain are attributes of the GUID: changes are logged but need no new approval (docs/03, 3.1).</summary>
     private void LogIdentityChanges(ClientEntity client, InventoryRequest inventory)
     {
         if (!string.Equals(client.HostName, inventory.HostName, StringComparison.OrdinalIgnoreCase))
@@ -94,11 +93,6 @@ internal sealed partial class InventoryService(ServerDbContext db, TimeProvider 
         if (!string.Equals(client.DomainName, inventory.DomainName, StringComparison.OrdinalIgnoreCase))
         {
             LogAttributeChanged(client.Id, "domain", client.DomainName, inventory.DomainName);
-        }
-
-        if (client.ComputerSid is not null && !string.Equals(client.ComputerSid, inventory.ComputerSid, StringComparison.OrdinalIgnoreCase))
-        {
-            LogAttributeChanged(client.Id, "computer SID", client.ComputerSid, inventory.ComputerSid);
         }
     }
 

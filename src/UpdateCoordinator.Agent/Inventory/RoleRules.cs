@@ -53,7 +53,7 @@ internal sealed partial class InventoryOptions : IValidatableObject
 
     /// <summary>How often the inventory is collected; it is only sent if it changed or <see cref="MaxSendInterval"/> passed.</summary>
     [Range(typeof(TimeSpan), "00:05:00", "1.00:00:00")]
-    public TimeSpan CollectInterval { get; set; } = TimeSpan.FromHours(1);
+    public TimeSpan CollectInterval { get; set; } = TimeSpan.FromHours(6);
 
     /// <summary>The inventory is sent at least this often, even without changes.</summary>
     [Range(typeof(TimeSpan), "01:00:00", "7.00:00:00")]
