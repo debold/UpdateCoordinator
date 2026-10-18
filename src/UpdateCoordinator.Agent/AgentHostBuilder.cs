@@ -7,6 +7,7 @@ using UpdateCoordinator.Agent.Configuration;
 using UpdateCoordinator.Agent.Identity;
 using UpdateCoordinator.Agent.Inventory;
 using UpdateCoordinator.Agent.Trust;
+using UpdateCoordinator.Agent.Updates;
 using UpdateCoordinator.Common;
 using UpdateCoordinator.Common.Logging;
 
@@ -49,6 +50,16 @@ internal static class AgentHostBuilder
         services.AddSingleton<InventoryCollector>();
         services.AddSingleton<InventoryScheduler>();
         services.AddSingleton<IInventoryReporter, InventoryReporter>();
+
+        services.AddOptions<UpdateOptions>()
+            .Bind(configuration.GetSection(UpdateOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<IDiskSpace, DiskSpace>();
+        services.AddSingleton<PreFlightCheck>();
+        services.AddSingleton<IAvailableUpdateSearch, WuaAvailableUpdateSearch>();
+        services.AddSingleton<IUpdateReporter, UpdateReporter>();
+        services.AddSingleton<IReleaseSync, ReleaseSync>();
         services.AddSingleton<IAgentIdentityStore>(provider => new DpapiAgentIdentityStore(
             DpapiAgentIdentityStore.DefaultPath,
             provider.GetRequiredService<ILogger<DpapiAgentIdentityStore>>()));

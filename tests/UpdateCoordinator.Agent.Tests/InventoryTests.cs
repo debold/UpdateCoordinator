@@ -4,17 +4,18 @@ using Microsoft.Extensions.Time.Testing;
 
 using UpdateCoordinator.Agent.Identity;
 using UpdateCoordinator.Agent.Inventory;
+using UpdateCoordinator.Agent.Wua;
 using UpdateCoordinator.Contracts.Agents;
 
 namespace UpdateCoordinator.Agent.Tests;
 
 internal sealed class FakeInstalledUpdates : IInstalledUpdateSource
 {
-    public IReadOnlyList<RawInstalledUpdate>? Updates { get; set; } = [];
+    public IReadOnlyList<WuaUpdate>? Updates { get; set; } = [];
 
     public int Calls { get; private set; }
 
-    public Task<IReadOnlyList<RawInstalledUpdate>?> GetInstalledUpdatesAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<WuaUpdate>?> GetInstalledUpdatesAsync(CancellationToken cancellationToken)
     {
         Calls++;
         return Task.FromResult(Updates);
@@ -100,7 +101,7 @@ public sealed class InventoryCollectorTests
     {
         var id = Guid.NewGuid();
 
-        var update = Assert.Single(InventoryCollector.Normalize([new RawInstalledUpdate(id.ToString(), 3, ["5034129"], "2024-01 Cumulative Update", "Security Updates")]));
+        var update = Assert.Single(WireFormat.ToInstalledUpdates([new WuaUpdate(id.ToString(), 3, ["5034129"], "2024-01 Cumulative Update", "Security Updates")]));
 
         Assert.Equal(id, update.UpdateId);
         Assert.Equal(3, update.Revision);
@@ -115,7 +116,7 @@ public sealed class InventoryCollectorTests
     [InlineData("12345678901", null)]
     public void Normalize_AcceptsOnlyNumericKb(string raw, string? expected)
     {
-        var update = Assert.Single(InventoryCollector.Normalize([new RawInstalledUpdate(Guid.NewGuid().ToString(), 1, [raw], "Title", null)]));
+        var update = Assert.Single(WireFormat.ToInstalledUpdates([new WuaUpdate(Guid.NewGuid().ToString(), 1, [raw], "Title", null)]));
 
         Assert.Equal(expected, update.KbArticle);
     }
@@ -124,7 +125,7 @@ public sealed class InventoryCollectorTests
     public void Normalize_DropsInvalidAndDuplicateEntries()
     {
         var id = Guid.NewGuid().ToString();
-        var raw = new List<RawInstalledUpdate>
+        var raw = new List<WuaUpdate>
         {
             new("not-a-guid", 1, [], "Broken", null),
             new(Guid.NewGuid().ToString(), -1, [], "Negative revision", null),
@@ -133,7 +134,7 @@ public sealed class InventoryCollectorTests
             new(id, 2, [], "Newer revision", null),
         };
 
-        var normalized = InventoryCollector.Normalize(raw);
+        var normalized = WireFormat.ToInstalledUpdates(raw);
 
         Assert.Equal(2, normalized.Count);
         Assert.All(normalized, u => Assert.Equal(Guid.Parse(id), u.UpdateId));
@@ -142,7 +143,7 @@ public sealed class InventoryCollectorTests
     [Fact]
     public void Normalize_SanitizesTitles()
     {
-        var update = Assert.Single(InventoryCollector.Normalize([new RawInstalledUpdate(Guid.NewGuid().ToString(), 1, [], "Bad\u0000Title" + new string('x', 600), null)]));
+        var update = Assert.Single(WireFormat.ToInstalledUpdates([new WuaUpdate(Guid.NewGuid().ToString(), 1, [], "Bad\u0000Title" + new string('x', 600), null)]));
 
         Assert.DoesNotContain('\u0000', update.Title);
         Assert.Equal(512, update.Title.Length);
@@ -152,10 +153,10 @@ public sealed class InventoryCollectorTests
     public void Normalize_CapsNumberOfUpdates()
     {
         var raw = Enumerable.Range(0, InventoryRequest.MaxInstalledUpdates + 10)
-            .Select(_ => new RawInstalledUpdate(Guid.NewGuid().ToString(), 1, [], "Title", null))
+            .Select(_ => new WuaUpdate(Guid.NewGuid().ToString(), 1, [], "Title", null))
             .ToList();
 
-        Assert.Equal(InventoryRequest.MaxInstalledUpdates, InventoryCollector.Normalize(raw).Count);
+        Assert.Equal(InventoryRequest.MaxInstalledUpdates, WireFormat.ToInstalledUpdates(raw).Count);
     }
 
     private Task<InventoryRequest> CollectAsync()

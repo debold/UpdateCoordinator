@@ -17,6 +17,8 @@ public sealed class AgentWorkerTests
     private readonly FakeTimeProvider _time = new();
     private readonly FakeServerTrust _trust = new();
     private readonly FakeInventoryReporter _inventory = new();
+    private readonly FakeReleaseSync _releases = new();
+    private readonly FakeUpdateReporter _updates = new();
 
     [Fact]
     public async Task RunCycle_WithoutIdentity_RegistersStoresIdentityAndSendsHeartbeat()
@@ -157,6 +159,41 @@ public sealed class AgentWorkerTests
     }
 
     [Fact]
+    public async Task RunCycle_ForPendingClient_SkipsUpdateRun()
+    {
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, _updates.Runs);
+    }
+
+    [Fact]
+    public async Task RunCycle_ForApprovedClient_RunsUpdatesAndSyncsReleases()
+    {
+        _client.OnHeartbeat = _ => new HeartbeatResponse(RegistrationState.Approved, 7);
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, _updates.Runs);
+        Assert.Equal([7L], _releases.AnnouncedVersions);
+    }
+
+    [Fact]
+    public async Task RunCycle_WhenUpdateReportIsRejected_ForgetsIdentity()
+    {
+        _store.Identity = new AgentIdentity(Guid.NewGuid(), "stored-secret");
+        _client.OnHeartbeat = _ => new HeartbeatResponse(RegistrationState.Approved, 1);
+        _updates.Accept = false;
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(_store.Identity);
+    }
+
+    [Fact]
     public async Task Execute_StopsCleanly()
     {
         using var worker = CreateWorker();
@@ -175,6 +212,8 @@ public sealed class AgentWorkerTests
         new FakeEnvironment(),
         _trust,
         _inventory,
+        _releases,
+        _updates,
         Options.Create(new CentralServerOptions
         {
             BaseAddress = new Uri("https://central.example.local/"),

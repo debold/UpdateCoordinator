@@ -47,7 +47,9 @@ internal static class ServerServiceCollectionExtensions
         services.AddSingleton<TrustAnchor>();
         services.AddSingleton<ITlsCertificateProvider, StoreTlsCertificateProvider>();
         services.AddScoped<TrustBindingService>();
+        services.AddScoped<UpdateCatalog>();
         services.AddScoped<InventoryService>();
+        services.AddScoped<UpdateReportService>();
 
         // Kestrel presents the certificate the trust binding was signed for.
         services.AddOptions<KestrelServerOptions>()

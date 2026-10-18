@@ -12,6 +12,10 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<ClientUpdateEntity> ClientUpdates => Set<ClientUpdateEntity>();
 
+    public DbSet<ClientAvailableUpdateEntity> ClientAvailableUpdates => Set<ClientAvailableUpdateEntity>();
+
+    public DbSet<ReleaseEntity> Releases => Set<ReleaseEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var client = modelBuilder.Entity<ClientEntity>();
@@ -29,6 +33,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         client.Property(c => c.OsEditionId).HasMaxLength(64);
         client.Property(c => c.OsDisplayVersion).HasMaxLength(16);
         client.Property(c => c.WsusServer).HasMaxLength(255);
+        client.OwnsMany(c => c.HealthChecks, health => health.ToJson());
         client.HasIndex(c => c.HostName);
 
         var binding = modelBuilder.Entity<TrustBindingEntity>();
@@ -44,6 +49,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         update.Property(u => u.KbArticle).HasMaxLength(10);
         update.Property(u => u.Title).HasMaxLength(512).IsRequired();
         update.Property(u => u.Classification).HasMaxLength(64);
+        update.Property(u => u.MsrcSeverity).HasMaxLength(32);
         update.HasIndex(u => u.KbArticle);
 
         var clientUpdate = modelBuilder.Entity<ClientUpdateEntity>();
@@ -51,5 +57,17 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         clientUpdate.HasKey(cu => new { cu.ClientId, cu.UpdateId, cu.Revision });
         clientUpdate.HasOne<ClientEntity>().WithMany().HasForeignKey(cu => cu.ClientId).OnDelete(DeleteBehavior.Cascade);
         clientUpdate.HasOne<UpdateEntity>().WithMany().HasForeignKey(cu => new { cu.UpdateId, cu.Revision }).OnDelete(DeleteBehavior.Restrict);
+
+        var available = modelBuilder.Entity<ClientAvailableUpdateEntity>();
+        available.ToTable("ClientAvailableUpdates");
+        available.HasKey(a => new { a.ClientId, a.UpdateId, a.Revision });
+        available.HasOne<ClientEntity>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Cascade);
+        available.HasOne<UpdateEntity>().WithMany().HasForeignKey(a => new { a.UpdateId, a.Revision }).OnDelete(DeleteBehavior.Restrict);
+
+        var release = modelBuilder.Entity<ReleaseEntity>();
+        release.ToTable("Releases");
+        release.HasKey(r => new { r.ClientId, r.UpdateId, r.Revision });
+        release.HasOne<ClientEntity>().WithMany().HasForeignKey(r => r.ClientId).OnDelete(DeleteBehavior.Cascade);
+        release.HasOne<UpdateEntity>().WithMany().HasForeignKey(r => new { r.UpdateId, r.Revision }).OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -1,6 +1,8 @@
 namespace UpdateCoordinator.Contracts.Agents;
 
 /// <summary>
-/// Answer to a heartbeat. Control information is added only for approved clients in later features.
+/// Answer to a heartbeat. Control information is only included for approved clients.
 /// </summary>
-public sealed record HeartbeatResponse(RegistrationState State);
+/// <param name="State">Registration state of the client.</param>
+/// <param name="ReleasesVersion">Version of the release list; the agent fetches the list when it changes. Null unless approved.</param>
+public sealed record HeartbeatResponse(RegistrationState State, long? ReleasesVersion = null);

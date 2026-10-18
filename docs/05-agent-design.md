@@ -52,6 +52,13 @@ In addition the agent reports its domain membership. It deliberately reports no 
 3. **Reporting** to the central server
 4. **Installation** (only for updates released by the central server)
 
+### Implementation (step A, 2026-10-18)
+
+- The update run (pre-flight check, search, report) starts every `Updates:SearchInterval` (default 4 hours) and only on approved clients. A run counts only once its report was delivered; otherwise the next cycle tries again.
+- Pre-flight checks: `DiskSpace` (free space on the system drive below `Updates:MinFreeDiskSpaceMegabytes`, default 4096, is `Failed`; unknown is `Warning`), `UpdateService` (Windows Update service missing or disabled is `Failed`), `UpdateSource` (WSUS by policy is `Warning`). A `Failed` check skips the search.
+- Search: WUA `IsInstalled=0 and IsHidden=0 and Type='Software'`, online, against the configured source (`Updates:Source`: `System` = as configured on the server, `WindowsUpdate` = always Windows Update directly). The same COM access and the same value shaping are used as for the inventory. A failed search is reported with its WUA error code.
+- Releases: the agent keeps the release list of the central server in memory and fetches it when the version announced in the heartbeat changes; without approval the list is empty.
+
 ### Pre-flight health check
 
 Before every update run: internet connectivity or reachability of the update source, success of the update search, sufficient free disk space and further prerequisite checks. A detected **WSUS configuration** is reported as a **warning** (WSUS is not desired).

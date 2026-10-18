@@ -17,6 +17,27 @@ namespace UpdateCoordinator.Server.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
 
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientAvailableUpdateEntity", b =>
+                {
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ReportedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ClientId", "UpdateId", "Revision");
+
+                    b.HasIndex("UpdateId", "Revision");
+
+                    b.ToTable("ClientAvailableUpdates", (string)null);
+                });
+
             modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -42,6 +63,15 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<DateTime?>("LastHeartbeatAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("LastSearchAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LastSearchHResult")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("LastSearchSucceeded")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("OsDisplayVersion")
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
@@ -65,6 +95,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<string>("RegisteredFromAddress")
                         .HasMaxLength(45)
                         .HasColumnType("TEXT");
+
+                    b.Property<long>("ReleasesVersion")
+                        .HasColumnType("INTEGER");
 
                     b.PrimitiveCollection<string>("Roles")
                         .IsRequired()
@@ -113,6 +146,30 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.ToTable("ClientUpdates", (string)null);
                 });
 
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.ReleaseEntity", b =>
+                {
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("EarliestInstallAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ClientId", "UpdateId", "Revision");
+
+                    b.HasIndex("UpdateId", "Revision");
+
+                    b.ToTable("Releases", (string)null);
+                });
+
             modelBuilder.Entity("UpdateCoordinator.Server.Data.TrustBindingEntity", b =>
                 {
                     b.Property<long>("Serial")
@@ -155,6 +212,16 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("MaxDownloadSizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MsrcSeverity")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RebootBehavior")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(512)
@@ -167,7 +234,68 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.ToTable("Updates", (string)null);
                 });
 
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientAvailableUpdateEntity", b =>
+                {
+                    b.HasOne("UpdateCoordinator.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UpdateCoordinator.Server.Data.UpdateEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UpdateId", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientEntity", b =>
+                {
+                    b.OwnsMany("UpdateCoordinator.Server.Data.HealthCheckEntry", "HealthChecks", b1 =>
+                        {
+                            b1.Property<Guid>("ClientEntityId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAddOrUpdate();
+
+                            b1.Property<string>("Detail");
+
+                            b1.Property<string>("Name")
+                                .IsRequired();
+
+                            b1.Property<int>("Status");
+
+                            b1.HasKey("ClientEntityId", "__synthesizedOrdinal");
+
+                            b1.ToTable("Clients");
+
+                            b1
+                                .ToJson("HealthChecks")
+                                .HasColumnType("TEXT");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ClientEntityId");
+                        });
+
+                    b.Navigation("HealthChecks");
+                });
+
             modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientUpdateEntity", b =>
+                {
+                    b.HasOne("UpdateCoordinator.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UpdateCoordinator.Server.Data.UpdateEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UpdateId", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.ReleaseEntity", b =>
                 {
                     b.HasOne("UpdateCoordinator.Server.Data.ClientEntity", null)
                         .WithMany()

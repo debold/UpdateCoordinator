@@ -8,7 +8,7 @@ namespace UpdateCoordinator.Server.Agents;
 /// <summary>
 /// Stores an agent inventory: client attributes, the installed updates of the client and new catalog entries.
 /// </summary>
-internal sealed partial class InventoryService(ServerDbContext db, TimeProvider timeProvider, ILogger<InventoryService> logger)
+internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog catalog, TimeProvider timeProvider, ILogger<InventoryService> logger)
 {
     /// <summary>Returns false if the client no longer exists.</summary>
     public async Task<bool> StoreAsync(Guid clientId, InventoryRequest inventory, CancellationToken cancellationToken)
@@ -49,28 +49,7 @@ internal sealed partial class InventoryService(ServerDbContext db, TimeProvider 
     {
         var reported = installed.DistinctBy(u => (u.UpdateId, u.Revision)).ToList();
 
-        // Add catalog entries that are not known yet (the catalog is built from agent reports).
-        var ids = reported.Select(u => u.UpdateId).Distinct().ToList();
-        var known = (await db.Updates
-                .Where(u => ids.Contains(u.UpdateId))
-                .Select(u => new { u.UpdateId, u.Revision })
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false))
-            .Select(u => (u.UpdateId, u.Revision))
-            .ToHashSet();
-
-        db.Updates.AddRange(reported
-            .Where(u => !known.Contains((u.UpdateId, u.Revision)))
-            .Select(u => new UpdateEntity
-            {
-                UpdateId = u.UpdateId,
-                Revision = u.Revision,
-                KbArticle = u.KbArticle,
-                Title = u.Title,
-                Classification = u.Classification,
-                FirstSeenAtUtc = now,
-            }));
-        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await catalog.EnsureAsync(reported, now, cancellationToken).ConfigureAwait(false);
 
         await db.ClientUpdates.Where(cu => cu.ClientId == clientId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         db.ClientUpdates.AddRange(reported.Select(u => new ClientUpdateEntity

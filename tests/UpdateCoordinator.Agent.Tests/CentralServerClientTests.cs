@@ -90,11 +90,48 @@ public sealed class CentralServerClientTests
     }
 
     private static CentralServerClient CreateClient(HttpStatusCode status, string json) =>
-        new(new HttpClient(new StaticHandler(status, json)) { BaseAddress = new Uri("https://central.example.local/") });
+        new(new HttpClient(new StaticResponseHandler(status, json)) { BaseAddress = new Uri("https://central.example.local/") });
+}
 
-    private sealed class StaticHandler(HttpStatusCode status, string json) : HttpMessageHandler
+/// <summary>Answers every request with the same status and JSON body.</summary>
+internal sealed class StaticResponseHandler(HttpStatusCode status, string json) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
+}
+
+public sealed class ReleaseResponseTests
+{
+    private static readonly AgentIdentity Identity = new(Guid.NewGuid(), "secret");
+
+    [Theory]
+    [InlineData("{\"version\":-1,\"releases\":[]}")]
+    [InlineData("{\"version\":1,\"releases\":null}")]
+    [InlineData("{\"version\":1,\"releases\":[{\"updateId\":\"00000000-0000-0000-0000-000000000000\",\"revision\":1,\"earliestInstallAt\":\"2026-10-18T00:00:00Z\"}]}")]
+    [InlineData("{\"version\":1,\"releases\":[{\"updateId\":\"6f1f6a5e-2a4b-4e0e-9a59-1c8e1d6c2f10\",\"revision\":-2,\"earliestInstallAt\":\"2026-10-18T00:00:00Z\"}]}")]
+    [InlineData("null")]
+    public async Task InvalidReleaseList_IsRejected(string json)
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
+        var client = Create(HttpStatusCode.OK, json);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.GetReleasesAsync(Identity, TestContext.Current.CancellationToken));
     }
+
+    [Fact]
+    public async Task TooManyReleases_AreRejected()
+    {
+        var items = string.Join(',', Enumerable.Range(0, 5_001).Select(_ => $"{{\"updateId\":\"{Guid.NewGuid()}\",\"revision\":1,\"earliestInstallAt\":\"2026-10-18T00:00:00Z\"}}"));
+        var client = Create(HttpStatusCode.OK, $"{{\"version\":1,\"releases\":[{items}]}}");
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.GetReleasesAsync(Identity, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Unauthorized_ReturnsNull()
+    {
+        Assert.Null(await Create(HttpStatusCode.Unauthorized, "").GetReleasesAsync(Identity, TestContext.Current.CancellationToken));
+    }
+
+    private static CentralServerClient Create(HttpStatusCode status, string json) =>
+        new(new HttpClient(new StaticResponseHandler(status, json)) { BaseAddress = new Uri("https://central.example.local/") });
 }

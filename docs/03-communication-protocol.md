@@ -93,6 +93,8 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 | Inventory | yes | yes |
 | Heartbeat / health check | yes | yes |
 | Unregister | yes | yes |
+| Update report (search result) | no | yes |
+| Release request (fetch released updates) | no | yes |
 | Action request (fetch queue) | no | yes |
 | Action status update (progress) | no | yes |
 | Agent update check | no | yes |
@@ -106,13 +108,17 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 | Register | `POST /api/v1/agents/register` | none (rate limited per IP) | `200` client GUID + secret, `400` invalid input, `403` already registered, `429` rate limit |
 | Heartbeat | `POST /api/v1/agents/heartbeat` | Basic (GUID + secret) | `200` registration state, `400` invalid input, `401` unknown credentials, `403` state not allowed |
 | Inventory | `POST /api/v1/agents/inventory` | Basic (GUID + secret) | `204` stored, `400` invalid input, `401` unknown credentials, `403` state not allowed, `413` larger than 4 MB |
+| Update report | `POST /api/v1/agents/updates` | Basic, approved only | `204` stored, `400` invalid input, `401`, `403` not approved, `413` larger than 4 MB |
+| Releases | `GET /api/v1/agents/releases` | Basic, approved only | `200` release list with version, `401`, `403` not approved |
 | Trust binding | `GET /api/v1/trust/binding` | none (public, signed) | `200` binding (see 3.2), `503` no binding yet |
 
 The inventory contains host name, domain, operating system (product name, edition, display version, version with UBR), detected roles, the configured update source and up to 5,000 installed updates (update ID, revision, KB, title, classification). `installedUpdates: null` means "could not be read": the central server keeps the previous list. The heartbeat additionally carries the current OS version including UBR.
 
 The protocol version is part of the route (`/api/v1/...`). An incompatible change introduces a new version, and the central server serves both during a transition period. All input is validated against the shared contracts (`UpdateCoordinator.Contracts`); error answers use RFC 9457 problem details.
 
-Further foreseeable messages (from the functional requirements, detailed specification still open): update report (search result), install report (per update, see `05-agent-design.md`), live status, history sync, full resync, log upload.
+The update report carries the pre-flight checks (name, status `Ok`/`Warning`/`Failed`, detail), whether the search succeeded, the WUA error code if not, and up to 5,000 available updates (identity as in the inventory plus download size, reboot behavior and MSRC severity). Releases are delivered as a list of update ID, revision and earliest installation time with a version number; the heartbeat of an approved client announces the current version (`releasesVersion`), and the agent fetches the list only when it changed. Update reports and releases are accepted only from approved clients (decided 2026-10-18), so unapproved clients cannot fill the catalog through search results.
+
+Further foreseeable messages (from the functional requirements, detailed specification still open): install report (per update, see `05-agent-design.md`), live status, history sync, full resync, log upload.
 
 ## 6. Unique update identification
 

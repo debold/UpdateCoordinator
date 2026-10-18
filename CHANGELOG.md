@@ -18,6 +18,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Inventory: OS (product, edition, display version, version with UBR), domain, roles, update source (WSUS reported as warning) and installed updates via the WUA API (local cache only, COM objects released explicitly). Collected every 6 hours (configurable), sent on start, on change and at least daily.
 - Role detection by rules: built-in rules for domain controller, Exchange, SQL Server, cluster node and Hyper-V; additional rules via `Inventory:RoleRules` without code changes.
 - Heartbeat carries the current OS version including UBR.
+- Update run on approved agents every 4 hours (configurable): pre-flight checks (disk space, Windows Update service, WSUS warning), online search for available updates via the WUA API and report to the central server; search failures are reported with their error code.
+- Fetches the released updates when the release version announced in the heartbeat changes.
 
 ### Central server
 
@@ -32,6 +34,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - HTTPS only (default port 8443); TLS certificate from the Windows certificate store via `Trust:CertificateThumbprint`.
 - Logs local trust resets reported by agents.
 - `POST /api/v1/agents/inventory` (also before approval): stores client attributes, roles and installed updates, builds the update catalog from agent reports, logs changes of host name and domain; at most 5,000 updates and 4 MB per request.
+- `POST /api/v1/agents/updates` and `GET /api/v1/agents/releases` (approved clients only): stores pre-flight checks, last search result and available updates per client, extends the catalog with download size, reboot behavior and severity; delivers releases with a version that the heartbeat announces.
+- Enum values in agent messages are validated (undefined numeric values are rejected).
 
 ### Shared
 

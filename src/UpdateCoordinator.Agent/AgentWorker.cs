@@ -7,6 +7,7 @@ using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Identity;
 using UpdateCoordinator.Agent.Inventory;
 using UpdateCoordinator.Agent.Trust;
+using UpdateCoordinator.Agent.Updates;
 using UpdateCoordinator.Contracts.Agents;
 
 namespace UpdateCoordinator.Agent;
@@ -21,6 +22,8 @@ internal sealed partial class AgentWorker(
     IAgentEnvironment environment,
     IServerTrust trust,
     IInventoryReporter inventory,
+    IReleaseSync releases,
+    IUpdateReporter updates,
     IOptions<CentralServerOptions> options,
     TimeProvider timeProvider,
     ILogger<AgentWorker> logger) : BackgroundService
@@ -101,7 +104,13 @@ internal sealed partial class AgentWorker(
             _lastState = response.State;
         }
 
-        if (!await inventory.ReportIfDueAsync(identity, cancellationToken).ConfigureAwait(false))
+        // Each step returns false if the central server no longer accepts the credentials.
+        var accepted = await releases.SyncAsync(identity, response.ReleasesVersion, cancellationToken).ConfigureAwait(false)
+            && await inventory.ReportIfDueAsync(identity, cancellationToken).ConfigureAwait(false)
+            && (response.State != RegistrationState.Approved
+                || await updates.RunIfDueAsync(identity, cancellationToken).ConfigureAwait(false));
+
+        if (!accepted)
         {
             ForgetIdentity(identity);
         }

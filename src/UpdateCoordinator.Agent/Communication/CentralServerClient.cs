@@ -60,14 +60,51 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
         return response is not null;
     }
 
+    public async Task<bool> SendUpdateReportAsync(AgentIdentity identity, UpdateReport report, CancellationToken cancellationToken)
+    {
+        using var response = await PostAuthenticatedAsync(ApiRoutes.AgentUpdateReport, identity, report, cancellationToken).ConfigureAwait(false);
+        return response is not null;
+    }
+
+    public async Task<ReleaseList?> GetReleasesAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Get, new Uri(ApiRoutes.AgentReleases, UriKind.Relative));
+        using var response = await SendAuthenticatedAsync(message, identity, cancellationToken).ConfigureAwait(false);
+        if (response is null)
+        {
+            return null;
+        }
+
+        var body = await response.Content.ReadFromJsonAsync<ReleaseList>(cancellationToken).ConfigureAwait(false);
+        if (body is null
+            || body.Version < 0
+            || body.Releases is null
+            || body.Releases.Count > MaxReleases
+            || body.Releases.Any(r => r is null || r.UpdateId == Guid.Empty || r.Revision < 0))
+        {
+            throw new InvalidDataException("The central server returned an invalid release list.");
+        }
+
+        return body;
+    }
+
+    /// <summary>Upper bound for releases accepted from the server.</summary>
+    private const int MaxReleases = 5_000;
+
     /// <summary>Posts a message with client credentials. Returns null for 401 and throws for every other error status.</summary>
     private async Task<HttpResponseMessage?> PostAuthenticatedAsync<T>(string route, AgentIdentity identity, T body, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(identity);
         using var message = new HttpRequestMessage(HttpMethod.Post, new Uri(route, UriKind.Relative))
         {
             Content = JsonContent.Create(body),
         };
+        return await SendAuthenticatedAsync(message, identity, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Sends a request with client credentials. Returns null for 401 and throws for every other error status.</summary>
+    private async Task<HttpResponseMessage?> SendAuthenticatedAsync(HttpRequestMessage message, AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
         message.Headers.Authorization = AgentCredentials.ToHeader(identity.ClientId, identity.ClientSecret);
 
         var response = await httpClient.SendAsync(message, cancellationToken).ConfigureAwait(false);

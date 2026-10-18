@@ -2,6 +2,7 @@ using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Identity;
 using UpdateCoordinator.Agent.Inventory;
 using UpdateCoordinator.Agent.Trust;
+using UpdateCoordinator.Agent.Updates;
 using UpdateCoordinator.Contracts.Agents;
 
 namespace UpdateCoordinator.Agent.Tests;
@@ -67,6 +68,54 @@ internal sealed class FakeCentralServerClient : ICentralServerClient
     {
         Inventories.Add(request);
         return Task.FromResult(AcceptInventory);
+    }
+
+    public List<UpdateReport> Reports { get; } = [];
+
+    public bool AcceptReports { get; set; } = true;
+
+    public ReleaseList? ReleaseListResult { get; set; } = new(0, []);
+
+    public int ReleaseRequests { get; private set; }
+
+    public Task<bool> SendUpdateReportAsync(AgentIdentity identity, UpdateReport report, CancellationToken cancellationToken)
+    {
+        Reports.Add(report);
+        return Task.FromResult(AcceptReports);
+    }
+
+    public Task<ReleaseList?> GetReleasesAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        ReleaseRequests++;
+        return Task.FromResult(ReleaseListResult);
+    }
+}
+
+internal sealed class FakeUpdateReporter : IUpdateReporter
+{
+    public bool Accept { get; set; } = true;
+
+    public int Runs { get; private set; }
+
+    public Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        Runs++;
+        return Task.FromResult(Accept);
+    }
+}
+
+internal sealed class FakeReleaseSync : IReleaseSync
+{
+    public bool Accept { get; set; } = true;
+
+    public List<long?> AnnouncedVersions { get; } = [];
+
+    public ReleaseList Current { get; } = new(0, []);
+
+    public Task<bool> SyncAsync(AgentIdentity identity, long? announcedVersion, CancellationToken cancellationToken)
+    {
+        AnnouncedVersions.Add(announcedVersion);
+        return Task.FromResult(Accept);
     }
 }
 

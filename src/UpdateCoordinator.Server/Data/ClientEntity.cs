@@ -45,4 +45,17 @@ internal sealed class ClientEntity
     public string? WsusServer { get; set; }
 
     public DateTime? InventoryAtUtc { get; set; }
+
+    // Update runs (see docs/05-agent-design.md, section 3).
+
+    public DateTime? LastSearchAtUtc { get; set; }
+
+    public bool? LastSearchSucceeded { get; set; }
+
+    public int? LastSearchHResult { get; set; }
+
+    public List<HealthCheckEntry> HealthChecks { get; set; } = [];
+
+    /// <summary>Incremented whenever the releases of this client change; announced in the heartbeat.</summary>
+    public long ReleasesVersion { get; set; }
 }

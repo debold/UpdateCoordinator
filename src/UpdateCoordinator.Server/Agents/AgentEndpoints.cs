@@ -35,11 +35,38 @@ internal static class AgentEndpoints
             .WithMetadata(new RequestSizeLimitAttribute(MaxInventoryBytes))
             .WithName("AgentInventory");
 
+        endpoints.MapPost(ApiRoutes.AgentUpdateReport, UpdateReportAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.UpdateReport))
+            .WithMetadata(new RequestSizeLimitAttribute(MaxInventoryBytes))
+            .WithName("AgentUpdateReport");
+
+        endpoints.MapGet(ApiRoutes.AgentReleases, ReleasesAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.ReleaseRequest))
+            .WithName("AgentReleases");
+
         return endpoints;
     }
 
-    /// <summary>Upper bound for an inventory request; 5,000 updates with long titles fit comfortably.</summary>
+    /// <summary>Upper bound for inventory and update report requests; 5,000 updates with long titles fit comfortably.</summary>
     public const long MaxInventoryBytes = 4 * 1024 * 1024;
+
+    internal static async Task<Results<NoContent, UnauthorizedHttpResult>> UpdateReportAsync(
+        UpdateReport request,
+        HttpContext httpContext,
+        UpdateReportService reports,
+        CancellationToken cancellationToken)
+    {
+        var stored = await reports.StoreAsync(httpContext.User.GetClientId(), request, cancellationToken).ConfigureAwait(false);
+        return stored ? TypedResults.NoContent() : TypedResults.Unauthorized();
+    }
+
+    internal static async Task<Ok<ReleaseList>> ReleasesAsync(
+        HttpContext httpContext,
+        UpdateReportService reports,
+        CancellationToken cancellationToken) =>
+        TypedResults.Ok(await reports.GetReleasesAsync(httpContext.User.GetClientId(), cancellationToken).ConfigureAwait(false));
 
     internal static async Task<Results<NoContent, UnauthorizedHttpResult>> InventoryAsync(
         InventoryRequest request,
@@ -116,7 +143,12 @@ internal static class AgentEndpoints
             AgentLog.TrustReset(logger, clientId);
         }
 
-        return TypedResults.Ok(new HeartbeatResponse(httpContext.User.GetRegistrationState()!.Value));
+        // Control information (release list version) only for approved clients (docs/03, 4.2).
+        var state = httpContext.User.GetRegistrationState()!.Value;
+        long? releasesVersion = state == RegistrationState.Approved
+            ? await db.Clients.Where(c => c.Id == clientId).Select(c => c.ReleasesVersion).SingleAsync(cancellationToken).ConfigureAwait(false)
+            : null;
+        return TypedResults.Ok(new HeartbeatResponse(state, releasesVersion));
     }
 }
 

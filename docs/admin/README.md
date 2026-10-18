@@ -1,7 +1,7 @@
 # Admin Documentation
 
 > Guide and information on setup and communication paths. Updated with every feature.
-> Status: register, heartbeat, trust anchor and inventory. Installers and the dashboard follow with later features.
+> Status: register, heartbeat, trust anchor, inventory and update search. Installers and the dashboard follow with later features.
 
 ## 1. Components in operation
 
@@ -18,6 +18,9 @@
 | Agent | Central server | HTTPS, `POST /api/v1/agents/register` | once, on first start | registration; returns client GUID and client secret |
 | Agent | Central server | HTTPS, `POST /api/v1/agents/heartbeat` | every 10 s (configurable); with back-off up to 5 min while unreachable | liveness, registration state, later polling of the action queue |
 | Agent | Central server | HTTPS, `POST /api/v1/agents/inventory` | after registration, on start, when changed, at least daily | OS, domain, roles, update source, installed updates |
+| Agent | Central server | HTTPS, `POST /api/v1/agents/updates` | every 4 h (approved agents) | pre-flight checks and available updates |
+| Agent | Central server | HTTPS, `GET /api/v1/agents/releases` | when the release version in the heartbeat changes (approved agents) | released updates with earliest installation time |
+| Agent | Windows Update (or WSUS) | HTTPS, via the Windows Update Agent API | during the update search | search for available updates; the agent itself contacts no other internet address |
 | Admin browser | Central server | HTTPS | on demand | dashboard and administration (later feature) |
 | Monitoring | Central server | HTTPS `GET /health` | as needed | liveness check, no authentication, no payload |
 
@@ -75,6 +78,9 @@ Registry values are read when the agent service starts. The product name in the 
 | `Inventory:CollectInterval` | `06:00:00` | how often the inventory is collected (5 min to 1 day) |
 | `Inventory:MaxSendInterval` | `1.00:00:00` | the inventory is sent at least this often, otherwise only when it changed (1 h to 7 days) |
 | `Inventory:RoleRules` | none | additional role rules (see below) |
+| `Updates:SearchInterval` | `04:00:00` | how often pre-flight check, update search and report run on approved agents (1 h to 1 day) |
+| `Updates:MinFreeDiskSpaceMegabytes` | `4096` | free space required on the system drive; below it no search or installation runs |
+| `Updates:Source` | `System` | `System`: search where the server is configured (Windows Update, or WSUS by policy); `WindowsUpdate`: always Windows Update directly |
 
 Invalid configuration stops the service at startup with a clear error in the event log instead of running with wrong settings.
 
