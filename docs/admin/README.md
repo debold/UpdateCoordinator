@@ -133,6 +133,8 @@ A new file is started every day and when the size limit is reached. Client secre
 | Central server | `Trust:AnchorPath` | private key of the trust anchor, DPAPI-protected for the service account |
 | Agent | `%ProgramData%\UpdateCoordinator\Agent\identity.dat` | client GUID and client secret, DPAPI-protected for the service account |
 | Agent | `%ProgramData%\UpdateCoordinator\Agent\trust.dat` | pinned trust anchor, accepted certificate key and highest binding serial, DPAPI-protected |
+| Agent | `%ProgramData%\UpdateCoordinator\Agent\installations.dat` | install reports not yet delivered (at most 50) and the last attempt per update, DPAPI-protected |
+| Both | `Logging:File:Directory` | rolling log files |
 | Agent | `%ProgramData%PDATECOORDINATORAGENTINSTALLATIONS.DAT` | INSTALL REPORTS NOT YET DELIVERED AND THE LAST ATTEMPT PER UPDATE, DPAPI-PROTECTED |
 | BOTH | `LOGGING:FILE:DIRECTORY` | ROLLING LOG FILES |
 
