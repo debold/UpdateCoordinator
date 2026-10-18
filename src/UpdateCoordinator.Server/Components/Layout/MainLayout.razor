@@ -1,0 +1,25 @@
+@inherits LayoutComponentBase
+
+<header class="topbar">
+    <span class="brand">UpdateCoordinator</span>
+    <AuthorizeView Policy="@AdminRoles.Policies.Read">
+        <Authorized>
+            <nav>
+                <a href="/">Overview</a>
+                <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
+                    <a href="/administration/audit">Audit log</a>
+                </AuthorizeView>
+            </nav>
+            <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="logout">
+                <AntiforgeryToken />
+                <input type="hidden" name="_handler" value="logout" />
+                <span class="user">@context.User.Identity?.Name</span>
+                <button type="submit">Sign out</button>
+            </form>
+        </Authorized>
+    </AuthorizeView>
+</header>
+
+<main>
+    @Body
+</main>

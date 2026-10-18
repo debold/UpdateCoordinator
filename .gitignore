@@ -494,3 +494,6 @@ $RECYCLE.BIN/
 .env
 .env.*
 secrets.json
+
+# Local one-time setup token of a development central server
+setup-token*.txt

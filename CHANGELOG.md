@@ -40,6 +40,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Enum values in agent messages are validated (undefined numeric values are rejected).
 - `POST /api/v1/agents/installations` (approved clients only): installation history per server and update; only results for updates released to the client are accepted; duplicate runs are stored once; reboot pending flag.
 - Global pause via `Installation:GlobalPause`, announced in the heartbeat.
+- Web administration (Blazor, static server rendering, no scripts): local accounts with the roles Reader, Operator and Admin (ASP.NET Core Identity, 12+ character passwords, lockout after 5 failures), one-time browser setup of the first administrator with a token readable only by local administrators, sign-in and sign-out, overview page.
+- Append-only audit log with SHA-256 hash chain; the database rejects changes and deletions, the audit page verifies the chain.
+- Strict security headers (content security policy without scripts, no framing), antiforgery protection, local-only return URLs after sign-in.
 - Windows Update error codes are translated into plain English text centrally.
 
 ### Shared

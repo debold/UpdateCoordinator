@@ -1,0 +1,28 @@
+@page "/"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@using UpdateCoordinator.Contracts.Agents
+@inject ServerDbContext Db
+
+<PageTitle>Overview</PageTitle>
+
+<h1>Overview</h1>
+
+<section class="tiles">
+    @foreach (var (state, count) in _counts)
+    {
+        <div class="tile"><span class="value">@count</span><span class="label">@state</span></div>
+    }
+</section>
+
+@code {
+    private List<(string State, int Count)> _counts = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var grouped = await Db.Clients.AsNoTracking()
+            .GroupBy(c => c.State)
+            .Select(g => new { State = g.Key, Count = g.Count() })
+            .ToListAsync();
+        _counts = [.. Enum.GetValues<RegistrationState>().Select(state => (state.ToString(), grouped.FirstOrDefault(g => g.State == state)?.Count ?? 0))];
+    }
+}

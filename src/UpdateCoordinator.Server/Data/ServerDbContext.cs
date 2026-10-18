@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace UpdateCoordinator.Server.Data;
 
-internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options) : DbContext(options)
+internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options) : IdentityDbContext<IdentityUser>(options)
 {
     public DbSet<ClientEntity> Clients => Set<ClientEntity>();
 
@@ -18,8 +20,24 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<InstallationEntity> Installations => Set<InstallationEntity>();
 
+    public DbSet<AuditEntryEntity> AuditEntries => Set<AuditEntryEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Identity tables (accounts, roles) of the web administration.
+        base.OnModelCreating(modelBuilder);
+
+        var audit = modelBuilder.Entity<AuditEntryEntity>();
+        audit.ToTable("AuditEntries");
+        audit.HasKey(a => a.Id);
+        audit.Property(a => a.Actor).HasMaxLength(256).IsRequired();
+        audit.Property(a => a.Action).HasMaxLength(64).IsRequired();
+        audit.Property(a => a.Target).HasMaxLength(256);
+        audit.Property(a => a.Details).HasMaxLength(2048);
+        audit.Property(a => a.PreviousHash).HasMaxLength(32).IsRequired();
+        audit.Property(a => a.Hash).HasMaxLength(32).IsRequired();
+        audit.HasIndex(a => a.AtUtc);
+
         var client = modelBuilder.Entity<ClientEntity>();
         client.ToTable("Clients");
         client.HasKey(c => c.Id);

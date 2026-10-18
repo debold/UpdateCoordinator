@@ -1,0 +1,87 @@
+@page "/setup"
+@inject SetupService SetupFlow
+@inject UserManager<IdentityUser> Users
+@inject RoleManager<IdentityRole> Roles
+@inject AuditLog Audit
+@inject NavigationManager Navigation
+
+<PageTitle>Setup</PageTitle>
+
+<h1>Create the first administrator</h1>
+
+@if (!SetupFlow.IsAvailable)
+{
+    <p>The setup has already been completed. <a href="@DashboardServiceCollectionExtensions.LoginPath">Sign in</a></p>
+}
+else
+{
+    <p>Enter the one-time setup token. It is stored on the central server in the file named in the service log and can only be read by local administrators.</p>
+
+    @if (_errors.Count > 0)
+    {
+        <ul class="error" role="alert">
+            @foreach (var error in _errors)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    }
+
+    <EditForm Model="Input" method="post" OnValidSubmit="CompleteAsync" FormName="setup">
+        <DataAnnotationsValidator />
+        <label>Setup token <InputText @bind-Value="Input!.Token" autocomplete="off" /></label>
+        <label>User name <InputText @bind-Value="Input!.UserName" autocomplete="username" /></label>
+        <label>Password (at least 12 characters) <InputText type="password" @bind-Value="Input!.Password" autocomplete="new-password" /></label>
+        <label>Repeat password <InputText type="password" @bind-Value="Input!.ConfirmPassword" autocomplete="new-password" /></label>
+        <ValidationSummary />
+        <button type="submit">Create administrator</button>
+    </EditForm>
+}
+
+@code {
+    [SupplyParameterFromForm]
+    private SetupInput? Input { get; set; }
+
+    protected override void OnInitialized() => Input ??= new();
+
+    private List<string> _errors = [];
+
+    private async Task CompleteAsync()
+    {
+        var (result, errors) = await SetupFlow.CompleteAsync(Input!.Token, Input.UserName, Input.Password, Users, Roles, Audit, CancellationToken.None);
+        switch (result)
+        {
+            case SetupResult.Completed:
+                Navigation.NavigateTo(DashboardServiceCollectionExtensions.LoginPath, forceLoad: true);
+                break;
+            case SetupResult.InvalidToken:
+                _errors = ["The setup token is not valid."];
+                break;
+            case SetupResult.InvalidAccount:
+                _errors = [.. errors];
+                break;
+            default:
+                _errors = ["The setup is no longer available."];
+                break;
+        }
+    }
+
+    private sealed class SetupInput
+    {
+        [Required]
+        [StringLength(128)]
+        public string Token { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(64, MinimumLength = 3)]
+        public string UserName { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(256, MinimumLength = 12)]
+        public string Password { get; set; } = string.Empty;
+
+        [Required]
+        [Compare(nameof(Password), ErrorMessage = "The passwords do not match.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

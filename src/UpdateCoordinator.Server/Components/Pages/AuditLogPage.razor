@@ -1,0 +1,48 @@
+@page "/administration/audit"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inject ServerDbContext Db
+@inject AuditLog Audit
+
+<PageTitle>Audit log</PageTitle>
+
+<h1>Audit log</h1>
+
+@if (_broken is null)
+{
+    <p class="ok">Integrity check passed: the hash chain is intact.</p>
+}
+else
+{
+    <p class="error" role="alert">Integrity check failed at entry @_broken. The audit log was modified outside the application.</p>
+}
+
+<table>
+    <thead>
+        <tr><th>Time (UTC)</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var entry in _entries)
+        {
+            <tr>
+                <td>@entry.AtUtc.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)</td>
+                <td>@entry.Actor</td>
+                <td>@entry.Action</td>
+                <td>@entry.Target</td>
+                <td>@entry.Details</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private const int PageSize = 200;
+
+    private List<AuditEntryEntity> _entries = [];
+    private long? _broken;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _entries = await Db.AuditEntries.AsNoTracking().OrderByDescending(e => e.Id).Take(PageSize).ToListAsync();
+        _broken = await Audit.FindFirstBrokenEntryAsync();
+    }
+}

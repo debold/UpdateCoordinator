@@ -48,6 +48,7 @@ Guidelines (always apply):
 - Work directly on `main` (no feature branches or pull requests) until a requirement justifies it.
 - Central server address: registry value `CentralServerUrl` (policy key before installer key), written by installer option `SERVERURL` or from the installer file name when downloaded from the central server (`docs/03-communication-protocol.md` 3.3).
 - Public repository https://github.com/debold/UpdateCoordinator under the MIT license.
+- Dashboard: Blazor with static server rendering by default (interactive only where it adds real value, e.g. live status), ASP.NET Core Identity with local accounts, first administrator via one-time browser setup with a local token, permissions as sketched in `docs/06-dashboard.md`.
 
 ## Open decisions (do not decide unilaterally)
 

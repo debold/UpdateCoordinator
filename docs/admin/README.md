@@ -1,7 +1,7 @@
 # Admin Documentation
 
 > Guide and information on setup and communication paths. Updated with every feature.
-> Status: register, heartbeat, trust anchor, inventory, update search and installation (without reboots). Installers and the dashboard follow with later features.
+> Status: register, heartbeat, trust anchor, inventory, update search, installation (without reboots) and web administration (accounts, roles, audit log). Installers and the dashboard follow with later features.
 
 ## 1. Components in operation
 
@@ -182,3 +182,17 @@ Details in `docs/03-communication-protocol.md`, section 3.2.
 
 `End` not after `Start` means the window runs over midnight; an all-day window uses `"Start": "00:00:00", "End": "1.00:00:00"`.
 - Error codes of failed installations are translated into plain English text on the central server (log and, later, dashboard).
+
+## 9. Web administration (dashboard)
+
+The dashboard runs on the same HTTPS endpoint as the agent API (default `https://<central server>:8443/`). It uses no scripts and no external resources.
+
+**First start:** as long as no account exists, the central server writes a one-time setup token to `Administration:SetupTokenPath` (default `%ProgramData%\UpdateCoordinator\Server\setup-token.txt`). The file is readable only by SYSTEM, local administrators and the service account; its path is also written to the service log. Open `/setup`, enter the token and create the first administrator. The token file is deleted and the setup is closed for good; a restart with existing accounts never reopens it.
+
+**Accounts and roles:** local accounts with the hierarchical roles `Reader` (read), `Operator` (operational actions) and `Admin` (administration). Passwords need at least 12 characters (passphrases welcome, no composition rules). After 5 failed sign-ins an account is locked for 15 minutes. The session cookie is HTTPS-only, `SameSite=Strict` and expires after 8 hours without activity. Every form is protected against cross-site request forgery.
+
+**Audit log:** sign-ins (successful, failed, locked out), sign-outs and the setup are recorded with time, actor, action, target and details (Administration → Audit log, Admin role). The log is append-only: the database rejects changes and deletions, and each entry carries a SHA-256 hash over its content and the previous entry. The audit page checks the chain on every visit and reports where it was broken if the database file was modified outside the application.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Administration:SetupTokenPath` | `%ProgramData%\UpdateCoordinator\Server\setup-token.txt` | one-time setup token file (only while no account exists) |

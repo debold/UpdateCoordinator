@@ -1,0 +1,68 @@
+@page "/login"
+@inject SignInManager<IdentityUser> SignInManager
+@inject AuditLog Audit
+@inject SetupService Setup
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in</PageTitle>
+
+<h1>Sign in</h1>
+
+@if (Setup.IsAvailable)
+{
+    <p class="notice">No account exists yet. <a href="@DashboardServiceCollectionExtensions.SetupPath">Create the first administrator.</a></p>
+}
+
+@if (_error is not null)
+{
+    <p class="error" role="alert">@_error</p>
+}
+
+<EditForm Model="Input" method="post" OnValidSubmit="SignInAsync" FormName="login">
+    <DataAnnotationsValidator />
+    <label>User name <InputText @bind-Value="Input!.UserName" autocomplete="username" /></label>
+    <label>Password <InputText type="password" @bind-Value="Input!.Password" autocomplete="current-password" /></label>
+    <ValidationSummary />
+    <button type="submit">Sign in</button>
+</EditForm>
+
+@code {
+    [SupplyParameterFromForm]
+    private LoginInput? Input { get; set; }
+
+    protected override void OnInitialized() => Input ??= new();
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private string? _error;
+
+    private async Task SignInAsync()
+    {
+        var result = await SignInManager.PasswordSignInAsync(Input!.UserName, Input.Password, isPersistent: false, lockoutOnFailure: true);
+        if (result.Succeeded)
+        {
+            await Audit.WriteAsync(Input.UserName, "Login.Succeeded");
+            Navigation.NavigateTo(LocalReturnUrl.Sanitize(ReturnUrl), forceLoad: true);
+            return;
+        }
+
+        await Audit.WriteAsync(Input.UserName, result.IsLockedOut ? "Login.LockedOut" : "Login.Failed");
+
+        // Same message for unknown users and wrong passwords, so user names cannot be probed.
+        _error = result.IsLockedOut
+            ? "The account is locked because of too many failed attempts. Try again later."
+            : "Invalid user name or password.";
+    }
+
+    private sealed class LoginInput
+    {
+        [Required]
+        [StringLength(256)]
+        public string UserName { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(256)]
+        public string Password { get; set; } = string.Empty;
+    }
+}

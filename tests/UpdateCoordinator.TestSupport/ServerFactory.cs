@@ -29,6 +29,9 @@ public class ServerFactory : WebApplicationFactory<Program>
     /// <summary>Path of the trust anchor file of this server instance.</summary>
     public string AnchorPath => Path.Combine(_directory, "trust-anchor.key");
 
+    /// <summary>One-time setup token file of this server instance.</summary>
+    public string SetupTokenPath => Path.Combine(_directory, "setup-token.txt");
+
     /// <summary>Folder of the rolling log files of this server instance.</summary>
     public string LogDirectory => Path.Combine(_directory, "Logs");
 
@@ -37,6 +40,7 @@ public class ServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Database:Path", Path.Combine(_directory, "server.db"));
         builder.UseSetting("Trust:AnchorPath", AnchorPath);
         builder.UseSetting("Logging:File:Directory", LogDirectory);
+        builder.UseSetting("Administration:SetupTokenPath", SetupTokenPath);
         builder.UseSetting("Agents:RateLimit:RegisterPermitLimit", RegisterPermitLimit.ToString(CultureInfo.InvariantCulture));
         builder.ConfigureTestServices(services => services.AddSingleton<ITlsCertificateProvider>(_certificates));
     }
@@ -47,6 +51,22 @@ public class ServerFactory : WebApplicationFactory<Program>
         _certificates.Certificate = certificate;
         await using var scope = Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<TrustBindingService>().EnsureCurrentAsync(CancellationToken.None);
+    }
+
+    /// <summary>Creates a dashboard account with one role, bypassing the setup.</summary>
+    public async Task CreateUserAsync(string userName, string password, string role)
+    {
+        StartServer();
+        await using var scope = Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<Microsoft.AspNetCore.Identity.IdentityUser>>();
+        var user = new Microsoft.AspNetCore.Identity.IdentityUser(userName);
+        var created = await users.CreateAsync(user, password);
+        if (!created.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join(" ", created.Errors.Select(e => e.Description)));
+        }
+
+        await users.AddToRoleAsync(user, role);
     }
 
     internal async Task<T> WithDbAsync<T>(Func<ServerDbContext, Task<T>> action)

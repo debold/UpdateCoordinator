@@ -1,0 +1,25 @@
+@page "/logout"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inject SignInManager<IdentityUser> SignInManager
+@inject AuditLog Audit
+@inject NavigationManager Navigation
+
+<PageTitle>Sign out</PageTitle>
+
+<form method="post" @formname="logout" @onsubmit="SignOutAsync">
+    <AntiforgeryToken />
+    <button type="submit">Sign out</button>
+</form>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private async Task SignOutAsync()
+    {
+        var user = AuthenticationState is null ? null : (await AuthenticationState).User.Identity?.Name;
+        await SignInManager.SignOutAsync();
+        await Audit.WriteAsync(user ?? "unknown", "Logout");
+        Navigation.NavigateTo(DashboardServiceCollectionExtensions.LoginPath, forceLoad: true);
+    }
+}
