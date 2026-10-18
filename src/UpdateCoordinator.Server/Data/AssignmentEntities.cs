@@ -1,22 +1,25 @@
 namespace UpdateCoordinator.Server.Data;
 
 /// <summary>
-/// A deployment ring (docs/04-central-server.md, section 3). Rings are fixed: Pilot, Test, Production and the Default ring.
+/// A deployment ring (docs/04-central-server.md, section 3). Rings are fixed: Pilot, Test and Production. Production is the final ring and the fallback for servers without a ring assignment.
 /// </summary>
 internal sealed class RingEntity
 {
     public const int PilotId = 1;
     public const int TestId = 2;
     public const int ProductionId = 3;
-    public const int DefaultId = 4;
+
+    /// <summary>Ring of servers without a manual or rule-based ring assignment.</summary>
+    public const int FallbackId = ProductionId;
 
     public int Id { get; set; }
 
     public required string Name { get; set; }
 
-    /// <summary>Deployment order; lower rings receive updates first. The default ring is deployed last.</summary>
+    /// <summary>Deployment order; lower rings receive updates first. The fallback ring (Production) is deployed last.</summary>
     public int Order { get; set; }
 
+    /// <summary>Marks the fallback ring.</summary>
     public bool IsDefault { get; set; }
 }
 

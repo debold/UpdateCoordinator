@@ -56,8 +56,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         ring.HasData(
             new RingEntity { Id = RingEntity.PilotId, Name = "Pilot", Order = 1 },
             new RingEntity { Id = RingEntity.TestId, Name = "Test", Order = 2 },
-            new RingEntity { Id = RingEntity.ProductionId, Name = "Production", Order = 3 },
-            new RingEntity { Id = RingEntity.DefaultId, Name = "Default", Order = 4, IsDefault = true });
+            new RingEntity { Id = RingEntity.ProductionId, Name = "Production", Order = 3, IsDefault = true });
 
         var group = modelBuilder.Entity<GroupEntity>();
         group.ToTable("Groups");

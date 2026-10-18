@@ -217,13 +217,13 @@ Only if both checks pass is the server approved, recorded in the audit log as ac
 
 ## 11. Rings, groups and maintenance windows
 
-**Rings:** every server is in exactly one of the fixed rings `Pilot`, `Test`, `Production` and `Default` (deployed last). New servers land in `Default` until a rule or an administrator assigns another ring.
+**Rings:** every server is in exactly one of the fixed rings `Pilot`, `Test` and `Production`. Production is deployed last and is also the fallback: new servers land in `Production` until a rule or an administrator assigns another ring.
 
 **Groups:** Administration → Groups (role `Admin`). A group bundles servers, e.g. domain controllers, and may have its own maintenance windows.
 
 **Assignment rules:** Administration → Assignment rules (role `Admin`). A rule has a priority, a target (a ring or a group) and up to three conditions, all of which must match: detected role (e.g. `DomainController`), DNS domain and host name pattern (`*` any characters, `?` one character, case-insensitive).
 
-- Ring: a manual ring on the server wins; otherwise the matching ring rule with the lowest priority number; otherwise `Default`.
+- Ring: a manual ring on the server wins; otherwise the matching ring rule with the lowest priority number; otherwise `Production`.
 - Groups: every matching group rule adds its group; manual memberships set on the server stay until they are removed there.
 - Assignment is recalculated when a server registers, after every inventory, after every change in the administration and when the central server starts.
 

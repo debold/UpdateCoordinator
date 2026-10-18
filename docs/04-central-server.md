@@ -28,7 +28,7 @@
 |---|---|
 | **Server/client** | **Client GUID** (issued centrally, unchanged across renames and domain rejoins), registration state (pending/approved/deleted/blocked on clone suspicion), name, IP, domain membership, OS version, build/UBR (updated on every sync), agent version, detected roles, ring, groups, update source (WU/WSUS), heartbeat time |
 | **Update (catalog)** | Unique update ID with revision, KB, title, category/type (e.g. security, feature), aggregated from agent reports |
-| **Ring** | Name, order, transition rules, default ring (deployed last) |
+| **Ring** | Name, order, transition rules; the final ring (Production) is also the fallback ring |
 | **Ring update state** | Per update **and** ring: feedback rate, success rate, minimum/maximum wait time, transition state, release gate |
 | **Group** | Members (rule-based/manual), coordinated group yes/no (leases), maintenance window |
 | **Assignment rule** | Attribute/AD conditions for ring and group assignment, priority, manual overrides |
@@ -70,15 +70,15 @@ The entire release logic (rates, wait times, transition) applies **per concrete 
 
 ### Ring and group assignment (three levels)
 
-1. **Default ring** as fallback (deployed last).
+1. **Fallback:** servers without an assignment are in the final ring Production (deployed last; decided 2026-10-18, no separate Default ring).
 2. **Rule-based** by attributes (values reported by the client, AD attributes, AD group memberships).
 3. **Manual assignment** of a server or group, overriding the rules.
 
 Grouping uses the same logic. In addition, predefined standard rules for automatic **role detection** are shipped (see `05-agent-design.md`).
 
-Implemented (2026-10-18): the rings `Pilot`, `Test`, `Production` and `Default` are fixed. An assignment rule has a priority, a target (ring or group) and up to three conditions that must all match: detected role, DNS domain and host name pattern (`*` and `?`). Ring: manual assignment, else the matching ring rule with the lowest priority number, else `Default`. Groups: every matching group rule adds the group; manual memberships are kept independently. Assignment is recalculated on registration, after every inventory, after every administrative change and on start. Conditions on AD attributes and AD group memberships are not implemented yet.
+Implemented (2026-10-18): the rings `Pilot`, `Test` and `Production` are fixed. An assignment rule has a priority, a target (ring or group) and up to three conditions that must all match: detected role, DNS domain and host name pattern (`*` and `?`). Ring: manual assignment, else the matching ring rule with the lowest priority number, else `Production`. Groups: every matching group rule adds the group; manual memberships are kept independently. Assignment is recalculated on registration, after every inventory, after every administrative change and on start. Conditions on AD attributes and AD group memberships are not implemented yet.
 
-**Derived flow on first registration** (from the registration flow in `03-communication-protocol.md`, not yet explicitly confirmed): since the inventory (including detected roles) is available before approval, group and ring rules can apply immediately on approval without first landing in the default ring.
+**Derived flow on first registration** (from the registration flow in `03-communication-protocol.md`, not yet explicitly confirmed): since the inventory (including detected roles) is available before approval, group and ring rules can apply immediately on approval without first landing in the fallback ring.
 
 ### Group coordination (leases)
 

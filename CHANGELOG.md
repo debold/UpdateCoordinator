@@ -45,7 +45,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Append-only audit log with SHA-256 hash chain; the database rejects changes and deletions, the audit page verifies the chain.
 - Strict security headers (content security policy without scripts, no framing), antiforgery protection, local-only return URLs after sign-in.
 - Approval of new servers: page "Pending approvals" (Operator) to approve or reject, each decision audited and possible only once; optional rule-based approval for configured domains, verified by the central server itself (enabled computer account in Active Directory via LDAP, source IP address matches DNS).
-- Rings (Pilot, Test, Production, Default), groups and assignment rules (role, domain, host name pattern; priority; manual overrides per server), recalculated on registration, inventory, administrative changes and start.
+- Rings (Pilot, Test, Production; Production is the final and fallback ring), groups and assignment rules (role, domain, host name pattern; priority; manual overrides per server), recalculated on registration, inventory, administrative changes and start.
 - Maintenance windows on three levels (system default, group, server) maintained in the dashboard; the effective windows are delivered with the release list and increase its version when they change.
 - Dashboard pages: Servers and server detail (Reader), Groups, Assignment rules and Maintenance windows (Admin); every change audited.
 - Windows Update error codes are translated into plain English text centrally.

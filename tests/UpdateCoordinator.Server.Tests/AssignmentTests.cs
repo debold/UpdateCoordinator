@@ -92,7 +92,7 @@ public sealed class MaintenanceWindowFormatTests
 public sealed class AssignmentServiceTests
 {
     [Fact]
-    public async Task NewClient_LandsInDefaultRingWithSystemWindows()
+    public async Task NewClient_LandsInProductionWithSystemWindows()
     {
         await using var factory = new ServerFactory();
         using var client = factory.CreateClient();
@@ -100,7 +100,8 @@ public sealed class AssignmentServiceTests
         var credentials = await RegisterTests.RegisterAsync(client);
 
         var stored = await GetAsync(factory, credentials.ClientId);
-        Assert.Equal(RingEntity.DefaultId, stored.RingId);
+        Assert.Equal(RingEntity.ProductionId, stored.RingId);
+        Assert.Equal(["Pilot", "Test", "Production"], await factory.WithDbAsync(db => db.Rings.OrderBy(r => r.Order).Select(r => r.Name).ToListAsync(TestContext.Current.CancellationToken)));
         Assert.Equal(MaintenanceWindowFormat.ToJson(MaintenanceWindow.SystemDefault), stored.EffectiveWindowsJson);
     }
 
@@ -346,7 +347,7 @@ public sealed class AssignmentPageTests
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         Assert.Contains("SRV01", await list.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         Assert.DoesNotContain("formname=\"assignment\"", await detail.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
-        Assert.Equal(RingEntity.DefaultId, await factory.WithDbAsync(db => db.Clients.Where(c => c.Id == credentials.ClientId).Select(c => c.RingId).SingleAsync(TestContext.Current.CancellationToken)));
+        Assert.Equal(RingEntity.FallbackId, await factory.WithDbAsync(db => db.Clients.Where(c => c.Id == credentials.ClientId).Select(c => c.RingId).SingleAsync(TestContext.Current.CancellationToken)));
     }
 
     [Fact]

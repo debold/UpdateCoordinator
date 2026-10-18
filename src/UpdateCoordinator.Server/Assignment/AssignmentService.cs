@@ -10,7 +10,7 @@ namespace UpdateCoordinator.Server.Assignment;
 /// <summary>
 /// Calculates ring, rule-based groups and effective maintenance windows of clients
 /// (docs/04-central-server.md, sections 3 and 4):
-/// ring = manual override, else first matching ring rule, else the default ring;
+/// ring = manual override, else first matching ring rule, else the fallback ring Production;
 /// windows = server override, else the windows of its groups, else the system default.
 /// A change of the effective windows bumps the release version, so the agent fetches them.
 /// </summary>
@@ -36,7 +36,7 @@ internal sealed class AssignmentService(ServerDbContext db)
         {
             client.RingId = client.ManualRingId
                 ?? rules.FirstOrDefault(r => r.Target == AssignmentTarget.Ring && Matches(r, client))?.TargetId
-                ?? RingEntity.DefaultId;
+                ?? RingEntity.FallbackId;
 
             // Rule-based memberships are recalculated; manual memberships stay untouched.
             var mine = memberships.Where(m => m.ClientId == client.Id).ToList();

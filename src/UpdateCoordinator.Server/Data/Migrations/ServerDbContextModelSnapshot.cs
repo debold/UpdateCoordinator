@@ -593,16 +593,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         new
                         {
                             Id = 3,
-                            IsDefault = false,
+                            IsDefault = true,
                             Name = "Production",
                             Order = 3
-                        },
-                        new
-                        {
-                            Id = 4,
-                            IsDefault = true,
-                            Name = "Default",
-                            Order = 4
                         });
                 });
 

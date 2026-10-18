@@ -43,7 +43,7 @@ The overview of pending manual approvals and overrides is deliberately a separat
 
 ### Servers and assignment
 
-- **Ring assignment** in three levels: default ring → rule-based → manual override.
+- **Ring assignment** in three levels: fallback ring Production → rule-based → manual override.
 - **Grouping** with the same logic, with shipped standard rules for role detection (domain controller, Exchange, SQL, cluster, Hyper-V).
 - **Remove server:** soft delete (history is kept) or hard delete (all data is deleted).
 - **Exclusion** of individual servers or groups from the update process, **global pause**.

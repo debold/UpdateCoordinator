@@ -37,7 +37,7 @@ else
             <label>
                 Ring
                 <select name="Ring">
-                    <option value="" selected="@(_client.ManualRingId is null)">Automatic (rules, else default ring)</option>
+                    <option value="" selected="@(_client.ManualRingId is null)">Automatic (rules, else Production)</option>
                     @foreach (var ring in _rings)
                     {
                         <option value="@ring.Id" selected="@(_client.ManualRingId == ring.Id)">@ring.Name</option>

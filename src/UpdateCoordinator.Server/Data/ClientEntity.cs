@@ -66,7 +66,7 @@ internal sealed class ClientEntity
 
     // Assignment (docs/04-central-server.md, section 3).
 
-    /// <summary>Effective ring: manual override, matching ring rule or the default ring.</summary>
+    /// <summary>Effective ring: manual override, matching ring rule or the fallback ring Production.</summary>
     public int? RingId { get; set; }
 
     /// <summary>Manual ring override; null means automatic assignment.</summary>
