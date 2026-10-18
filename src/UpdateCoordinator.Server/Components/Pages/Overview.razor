@@ -1,34 +1,249 @@
 @page "/"
 @attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
 @using UpdateCoordinator.Contracts.Agents
+@using UpdateCoordinator.Server.Agents
+@using UpdateCoordinator.Server.Rollouts
 @inject ServerDbContext Db
+@inject DeploymentStatus Deployment
+@inject ComplianceHistory Compliance
+@inject GlobalPause Pause
+@inject TimeProvider Time
 
 <PageTitle>Overview</PageTitle>
 
-<h1>Overview</h1>
+<div class="page-head">
+    <div>
+        <h1>Overview</h1>
+        <div class="subtitle">As of @Format(_now) UTC</div>
+    </div>
+    <form method="post" @formname="pause" @onsubmit="TogglePauseAsync" class="actions">
+        <AntiforgeryToken />
+        <span class="pill @(_paused ? "fail" : "ok")">@(_paused ? "Global pause: no new installations" : "Installations running")</span>
+        @if (_canOperate)
+        {
+            <button type="submit" name="Pause" value="@(_paused ? "off" : "on")">@(_paused ? "Resume installations" : "Pause all installations")</button>
+        }
+    </form>
+</div>
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-<section class="tiles">
-    @if (_pending > 0)
-    {
-        <a class="tile urgent" href="/approvals"><span class="value">@_pending</span><span class="label">waiting for approval</span></a>
-    }
-    @foreach (var (state, count) in _counts)
-    {
-        <div class="tile"><span class="value">@count</span><span class="label">@state</span></div>
-    }
+<section class="card flush" aria-labelledby="attention-h">
+    <h2 id="attention-h">Needs attention</h2>
+    <div class="attention">
+        @if (_attention.Count == 0)
+        {
+            <div class="empty">Nothing waits for a human decision.</div>
+        }
+        @foreach (var item in _attention)
+        {
+            <div class="item">
+                <span class="pill @item.PillClass">@item.Kind</span>
+                <div class="text">
+                    <div class="title">@item.Title</div>
+                    @if (item.Detail is not null)
+                    {
+                        <div class="sub">@item.Detail</div>
+                    }
+                </div>
+                <a class="btn" href="@item.Link">@item.LinkText</a>
+            </div>
+        }
+    </div>
+</section>
+
+<section class="figures" aria-label="Key figures">
+    <div class="card figure">
+        <div class="label">Agents reporting</div>
+        <div class="value">@_reporting <small>/ @_approved</small></div>
+        <div class="detail">@(_approved - _reporting) without heartbeat for over an hour</div>
+    </div>
+    <div class="card figure">
+        <div class="label">Pending client updates</div>
+        <div class="value">@_pendingUpdates</div>
+        <div class="detail">released and not yet installed, on @_pendingServers servers</div>
+    </div>
+    <div class="card figure">
+        <div class="label">Active warnings</div>
+        <div class="value">@(_wsus + _diskWarnings + _rebootPending)</div>
+        <div class="detail">@_wsus WSUS source · @_diskWarnings low disk · @_rebootPending reboot pending</div>
+    </div>
+    <div class="card figure">
+        <div class="label">Patch compliance</div>
+        <div class="value">@_compliancePercent %</div>
+        <div class="detail">servers with every released update installed</div>
+    </div>
+</section>
+
+<section class="card flush" aria-labelledby="rings-h">
+    <h2 id="rings-h">Deployment by ring</h2>
+    <div class="card-body scroll">
+        <table>
+            <thead><tr><th>Ring</th><th>Servers</th><th>Active updates</th><th>Status (server × update)</th><th>Health</th></tr></thead>
+            <tbody>
+                @foreach (var ring in _rings)
+                {
+                    <tr>
+                        <td><a href="/rings/@ring.Id">@ring.Order · @ring.Name</a></td>
+                        <td>@ring.Servers</td>
+                        <td>@ring.ActiveUpdates</td>
+                        <td><StackedBar Counts="@ring.Counts" /></td>
+                        <td><span class="pill @ring.HealthClass">@ring.Health</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+<Legend />
+
+<section class="card" aria-labelledby="trend-h">
+    <h2 id="trend-h">Patch compliance, last 90 days</h2>
+    <div class="sub">Share of approved servers with every released update installed.</div>
+    <TrendChart Points="@_trend" />
 </section>
 
 @code {
-    private List<(string State, int Count)> _counts = [];
-    private int _pending;
+    private sealed record AttentionItem(string Kind, string PillClass, string Title, string? Detail, string Link, string LinkText);
+
+    private sealed record RingRow(int Id, int Order, string Name, int Servers, int ActiveUpdates, DeploymentCounts Counts, string Health, string HealthClass);
+
+    [SupplyParameterFromForm(FormName = "pause")]
+    private string? PauseRequest { get; set; }
+
+    private DateTime _now;
+    private bool _paused;
+    private bool _canOperate;
+    private List<AttentionItem> _attention = [];
+    private List<RingRow> _rings = [];
+    private List<(DateOnly Day, double Percent)> _trend = [];
+    private int _approved;
+    private int _reporting;
+    private int _pendingUpdates;
+    private int _pendingServers;
+    private int _wsus;
+    private int _diskWarnings;
+    private int _rebootPending;
+    private int _compliancePercent;
 
     protected override async Task OnInitializedAsync()
     {
-        var grouped = await Db.Clients.AsNoTracking()
-            .GroupBy(c => c.State)
-            .Select(g => new { State = g.Key, Count = g.Count() })
-            .ToListAsync();
-        _pending = grouped.FirstOrDefault(g => g.State == RegistrationState.Pending)?.Count ?? 0;
-        _counts = [.. Enum.GetValues<RegistrationState>().Select(state => (state.ToString(), grouped.FirstOrDefault(g => g.State == state)?.Count ?? 0))];
+        _canOperate = await IsAuthorizedAsync(AdminRoles.Policies.Operate);
+        await LoadAsync();
     }
+
+    private async Task TogglePauseAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate))
+        {
+            ShowResult("Only operators and administrators can pause installations.", string.Empty);
+        }
+        else if (Request.Form["Pause"].ToString() is "on" or "off")
+        {
+            var on = Request.Form["Pause"].ToString() == "on";
+            var outcome = await Pause.SetAsync(on, await GetActorAsync(), CancellationToken.None);
+            ShowResult(outcome.Error, on ? "Installations are paused. Agents start no new installations." : "Installations run again.");
+        }
+        else
+        {
+            ShowResult("Invalid request.", string.Empty);
+        }
+
+        await LoadAsync();
+    }
+
+    [CascadingParameter]
+    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    private Microsoft.AspNetCore.Http.HttpRequest Request => HttpContext!.Request;
+
+    private async Task LoadAsync()
+    {
+        _now = Time.GetUtcNow().UtcDateTime;
+        _paused = await Pause.IsActiveAsync(CancellationToken.None);
+
+        var clients = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).ToListAsync();
+        var entries = await Deployment.GetAsync(null, null, null, CancellationToken.None);
+        var failedClients = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
+        var health = clients.ToDictionary(c => c.Id, c => ServerHealth.Evaluate(c, failedClients.Contains(c.Id), _now));
+
+        _approved = clients.Count;
+        _reporting = health.Values.Count(h => h != ServerHealthState.Offline);
+        var released = entries.Where(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful).ToList();
+        _pendingUpdates = released.Count;
+        _pendingServers = released.Select(e => e.ClientId).Distinct().Count();
+        _wsus = clients.Count(c => c.WsusServer is not null);
+        _diskWarnings = clients.Count(c => c.HealthChecks.Any(h => h.Name == "DiskSpace" && h.Status != (int)HealthStatus.Ok));
+        _rebootPending = clients.Count(c => c.RebootPending);
+        _compliancePercent = _approved == 0 ? 100 : (int)Math.Floor(100.0 * clients.Count(c => !released.Any(e => e.ClientId == c.Id)) / _approved);
+
+        await LoadAttentionAsync(health);
+        await LoadRingsAsync(clients, entries);
+        _trend = [.. (await Compliance.GetAsync(90, CancellationToken.None)).Select(s => (s.Day, s.Servers == 0 ? 100.0 : s.Compliant * 100.0 / s.Servers))];
+    }
+
+    private async Task LoadAttentionAsync(Dictionary<Guid, ServerHealthState> health)
+    {
+        _attention = [];
+        var waiting = await Db.RolloutRings.AsNoTracking()
+            .Where(r => r.State == RingRolloutState.Alarm || r.State == RingRolloutState.AwaitingApproval)
+            .Where(r => Db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.State == RolloutState.Active))
+            .OrderByDescending(r => r.State).ThenBy(r => r.StateChangedAtUtc)
+            .Take(50)
+            .ToListAsync();
+        var ids = waiting.Select(r => r.UpdateId).Distinct().ToList();
+        var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync();
+        var rings = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.Name);
+
+        foreach (var ring in waiting)
+        {
+            var title = UpdateText.Title(updates.FirstOrDefault(u => u.UpdateId == ring.UpdateId && u.Revision == ring.Revision), ring.UpdateId);
+            var ringName = rings.GetValueOrDefault(ring.RingId) ?? "?";
+            _attention.Add(ring.State == RingRolloutState.Alarm
+                ? new AttentionItem("Alarm", "fail", $"{title} stopped before ring {ringName}", ring.Reason, "/approvals", "Decide")
+                : new AttentionItem("Release gate", "queue", $"{title} waits for manual release to ring {ringName}", $"Since {Format(ring.StateChangedAtUtc)} UTC", "/approvals", "Decide"));
+        }
+
+        var pending = await Db.Clients.CountAsync(c => c.State == RegistrationState.Pending);
+        if (pending > 0)
+        {
+            _attention.Add(new AttentionItem("Registration", "pend", $"{pending} new servers wait for approval", null, "/approvals", "Review"));
+        }
+
+        AddServers(health, ServerHealthState.Failed, "Failed", "fail", "servers with a failed installation or pre-flight check");
+        AddServers(health, ServerHealthState.Offline, "Offline", "fail", "servers without heartbeat for over an hour");
+    }
+
+    private void AddServers(Dictionary<Guid, ServerHealthState> health, ServerHealthState state, string kind, string pill, string text)
+    {
+        var count = health.Values.Count(h => h == state);
+        if (count > 0)
+        {
+            _attention.Add(new AttentionItem(kind, pill, $"{count} {text}", null, $"/servers?health={state}", "Show servers"));
+        }
+    }
+
+    private async Task LoadRingsAsync(List<ClientEntity> clients, IReadOnlyList<DeploymentEntry> entries)
+    {
+        var rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        var states = await Db.RolloutRings.AsNoTracking()
+            .Where(r => Db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.State == RolloutState.Active))
+            .Select(r => new { r.RingId, r.State })
+            .ToListAsync();
+
+        _rings = [.. rings.Select(ring =>
+        {
+            var counts = DeploymentCounts.Of(entries.Where(e => e.RingId == ring.Id));
+            var mine = states.Where(s => s.RingId == ring.Id).ToList();
+            var (label, cls) = mine.Any(s => s.State == RingRolloutState.Alarm) ? ("Alarm", "fail")
+                : mine.Any(s => s.State == RingRolloutState.AwaitingApproval) ? ("Awaiting approval", "queue")
+                : counts.Failed > 0 ? ("Failures", "fail")
+                : counts.Pending > 0 ? ("Rolling out", "pend")
+                : ("Healthy", "ok");
+            return new RingRow(ring.Id, ring.Order, ring.Name, clients.Count(c => c.RingId == ring.Id), mine.Count(s => s.State == RingRolloutState.Released), counts, label, cls);
+        })];
+    }
+
+    private static string Format(DateTime value) =>
+        value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
 }

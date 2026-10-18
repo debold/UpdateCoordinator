@@ -130,3 +130,13 @@ internal sealed class StartRuleEntity
     /// <summary>Delay between the start of the rollout and the earliest installation in the first ring.</summary>
     public TimeSpan Delay { get; set; }
 }
+
+/// <summary>Patch compliance of one day: approved servers and those with every released update installed.</summary>
+internal sealed class ComplianceSnapshotEntity
+{
+    public DateOnly Day { get; set; }
+
+    public int Servers { get; set; }
+
+    public int Compliant { get; set; }
+}

@@ -1,34 +1,58 @@
 @inherits LayoutComponentBase
+@using UpdateCoordinator.Contracts.Agents
+@inject ServerDbContext Db
 
-<header class="topbar">
-    <span class="brand">UpdateCoordinator</span>
+<div class="shell">
     <AuthorizeView Policy="@AdminRoles.Policies.Read">
         <Authorized>
-            <nav>
+            <nav class="nav" aria-label="Main">
+                <span class="brand">UpdateCoordinator</span>
                 <a href="/">Overview</a>
+                <a href="/rings/@RingEntity.PilotId">Rings</a>
                 <a href="/servers">Servers</a>
                 <a href="/updates">Updates</a>
                 <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
-                    <a href="/approvals">Pending approvals</a>
+                    <a href="/approvals">Pending approvals @if (_waiting > 0) { <span class="pill">@_waiting</span> }</a>
                 </AuthorizeView>
                 <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
+                    <span class="section">Administration</span>
                     <a href="/administration/groups">Groups</a>
-                    <a href="/administration/rules">Rules</a>
+                    <a href="/administration/rules">Assignment rules</a>
                     <a href="/administration/release-rules">Release rules</a>
                     <a href="/administration/maintenance">Maintenance windows</a>
                     <a href="/administration/audit">Audit log</a>
                 </AuthorizeView>
+                <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="account">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="_handler" value="logout" />
+                    Signed in as <span class="user">@context.User.Identity?.Name</span>
+                    <button type="submit">Sign out</button>
+                </form>
             </nav>
-            <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="logout">
-                <AntiforgeryToken />
-                <input type="hidden" name="_handler" value="logout" />
-                <span class="user">@context.User.Identity?.Name</span>
-                <button type="submit">Sign out</button>
-            </form>
         </Authorized>
     </AuthorizeView>
-</header>
 
-<main>
-    @Body
-</main>
+    <main>
+        @Body
+    </main>
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private int _waiting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Count for the navigation badge: servers and ring transitions that wait for a human decision.
+        if (AuthenticationState is not null && (await AuthenticationState).User.Identity?.IsAuthenticated == true)
+        {
+            var servers = await Db.Clients.CountAsync(c => c.State == RegistrationState.Pending);
+            var transitions = await Db.RolloutRings
+                .Where(r => r.State == RingRolloutState.AwaitingApproval || r.State == RingRolloutState.Alarm)
+                .CountAsync(r => Db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.State == RolloutState.Active));
+            _waiting = servers + transitions;
+        }
+    }
+}

@@ -5,6 +5,8 @@
 @using UpdateCoordinator.Server.Components.Shared
 @inject ServerDbContext Db
 @inject AssignmentAdministration Administration
+@inject DeploymentStatus Deployment
+@inject TimeProvider Time
 
 <PageTitle>Server</PageTitle>
 
@@ -14,10 +16,14 @@
 }
 else
 {
-    <h1>@_client.HostName</h1>
+    <div class="crumbs"><a href="/">Overview</a> / <a href="/servers">Servers</a> / @_client.HostName</div>
+    <div class="page-head">
+        <h1>@_client.HostName</h1>
+        <span class="pill @ServerHealth.PillClass(_health)">@ServerHealth.Label(_health)</span>
+    </div>
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-    <dl class="facts">
+    <dl class="facts card">
         <dt>State</dt><dd>@_client.State</dd>
         <dt>Domain</dt><dd>@(_client.DomainName ?? "–")</dd>
         <dt>Operating system</dt><dd>@(_client.OsProductName ?? "–") (@_client.OsVersion)</dd>
@@ -29,6 +35,84 @@ else
         <dt>Reboot pending</dt><dd>@(_client.RebootPending ? "yes" : "no")</dd>
         <dt>Last heartbeat (UTC)</dt><dd>@_client.LastHeartbeatAtUtc?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)</dd>
     </dl>
+
+    <div class="columns">
+        <section class="card narrow" aria-labelledby="checks-h">
+            <h2 id="checks-h">Pre-flight checks @(_client.LastSearchAtUtc is { } searched ? $"· {Format(searched)} UTC" : string.Empty)</h2>
+            @if (_client.HealthChecks.Count == 0)
+            {
+                <p class="sub">No update run reported yet.</p>
+            }
+            else
+            {
+                <table>
+                    <tbody>
+                        @foreach (var check in _client.HealthChecks)
+                        {
+                            <tr>
+                                <td>@check.Name</td>
+                                <td><span class="pill @CheckClass(check.Status)">@((UpdateCoordinator.Contracts.Agents.HealthStatus)check.Status)</span></td>
+                                <td>@check.Detail</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            @if (_client.LastSearchSucceeded == false)
+            {
+                <p class="error">Last update search failed: @string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{_client.LastSearchHResult ?? 0:X8}") @UpdateCoordinator.Server.Agents.HResultCatalog.Describe(_client.LastSearchHResult ?? 0)</p>
+            }
+        </section>
+
+        <section class="card flush wide" aria-labelledby="open-h">
+            <h2 id="open-h">Missing updates</h2>
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>Update</th><th>Status</th><th>Earliest installation (UTC)</th><th>Result</th></tr></thead>
+                    <tbody>
+                        @if (_open.Count == 0)
+                        {
+                            <tr><td colspan="4">The last search reported no missing update.</td></tr>
+                        }
+                        @foreach (var (entry, title) in _open)
+                        {
+                            <tr>
+                                <td>@title</td>
+                                <td><span class="pill @RingDetail.StateClass(entry.State)">@(entry.State == DeploymentState.Queued ? "Not released" : entry.State.ToString())</span></td>
+                                <td>@Format(entry.EarliestInstallAtUtc)</td>
+                                <td>@(entry.HResult is { } hresult ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{hresult:X8}: {UpdateCoordinator.Server.Agents.HResultCatalog.Describe(hresult)}") : null)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <section class="card flush" aria-labelledby="history-h">
+        <h2 id="history-h">Update history</h2>
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Finished (UTC)</th><th>Update</th><th>Source</th><th>Result</th><th>Reboot</th></tr></thead>
+                <tbody>
+                    @if (_history.Count == 0)
+                    {
+                        <tr><td colspan="5">No installation reported yet.</td></tr>
+                    }
+                    @foreach (var (installation, title) in _history)
+                    {
+                        <tr>
+                            <td>@Format(installation.FinishedAtUtc)</td>
+                            <td>@title</td>
+                            <td>@installation.Source</td>
+                            <td>@ResultText(installation)</td>
+                            <td>@(installation.RebootRequired ? "Required" : "No")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
 
     <AuthorizeView Policy="@AdminRoles.Policies.Administer">
         <h2>Assignment</h2>
@@ -126,7 +210,52 @@ else
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         _memberships = await Db.ClientGroups.AsNoTracking().Where(m => m.ClientId == Id).ToListAsync();
+        if (_client is null)
+        {
+            return;
+        }
+
+        var entries = await Deployment.GetAsync(null, Id, null, CancellationToken.None);
+        _health = ServerHealth.Evaluate(_client, entries.Any(e => e.State == DeploymentState.Failed), Time.GetUtcNow().UtcDateTime);
+
+        var installations = await Db.Installations.AsNoTracking()
+            .Where(i => i.ClientId == Id)
+            .OrderByDescending(i => i.FinishedAtUtc).ThenByDescending(i => i.Id)
+            .Take(MaxHistory)
+            .ToListAsync();
+        var available = await Db.ClientAvailableUpdates.AsNoTracking().Where(a => a.ClientId == Id).Select(a => new { a.UpdateId, a.Revision }).ToListAsync();
+        var ids = entries.Select(e => e.UpdateId).Concat(installations.Select(i => i.UpdateId)).Distinct().ToList();
+        var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync();
+        string Title(Guid updateId, int revision) => UpdateText.Title(updates.FirstOrDefault(u => u.UpdateId == updateId && u.Revision == revision), updateId);
+
+        // Missing = reported by the last search, or released and not installed yet.
+        _open = [.. entries
+            .Where(e => available.Any(a => a.UpdateId == e.UpdateId && a.Revision == e.Revision) || (e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful))
+            .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
+            .Select(e => (e, Title(e.UpdateId, e.Revision)))];
+        _history = [.. installations.Select(i => (i, Title(i.UpdateId, i.Revision)))];
     }
+
+    private const int MaxHistory = 200;
+
+    private ServerHealthState _health;
+    private List<(DeploymentEntry Entry, string Title)> _open = [];
+    private List<(InstallationEntity Installation, string Title)> _history = [];
+
+    private static string CheckClass(int status) => status switch
+    {
+        (int)UpdateCoordinator.Contracts.Agents.HealthStatus.Ok => "ok",
+        (int)UpdateCoordinator.Contracts.Agents.HealthStatus.Warning => "queue",
+        _ => "fail",
+    };
+
+    private static string ResultText(InstallationEntity installation) =>
+        installation.ResultCode is (int)UpdateCoordinator.Contracts.Agents.InstallResultCode.Succeeded or (int)UpdateCoordinator.Contracts.Agents.InstallResultCode.SucceededWithErrors
+            ? ((UpdateCoordinator.Contracts.Agents.InstallResultCode)installation.ResultCode).ToString()
+            : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(UpdateCoordinator.Contracts.Agents.InstallResultCode)installation.ResultCode}, 0x{installation.HResult:X8}: {UpdateCoordinator.Server.Agents.HResultCatalog.Describe(installation.HResult)}");
+
+    private static string Format(DateTime? value) =>
+        value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";
 
     private string RingName(int? id) => _rings.FirstOrDefault(r => r.Id == id)?.Name ?? "–";
 

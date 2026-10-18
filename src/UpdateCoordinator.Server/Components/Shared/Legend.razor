@@ -1,0 +1,15 @@
+@using UpdateCoordinator.Server.Rollouts
+<div class="legend @(Vertical ? "vertical" : null)">
+    <span><span class="swatch ok"></span>Successful @if (Counts is not null) { <b>@Counts.Successful</b> }</span>
+    <span><span class="swatch pend"></span>Pending @if (Counts is not null) { <b>@Counts.Pending</b> }</span>
+    <span><span class="swatch queue"></span>Queued @if (Counts is not null) { <b>@Counts.Queued</b> }</span>
+    <span><span class="swatch fail"></span>Failed @if (Counts is not null) { <b>@Counts.Failed</b> }</span>
+</div>
+
+@code {
+    [Parameter]
+    public DeploymentCounts? Counts { get; set; }
+
+    [Parameter]
+    public bool Vertical { get; set; }
+}

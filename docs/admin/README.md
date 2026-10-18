@@ -53,7 +53,7 @@ Both services use the standard .NET configuration: `appsettings.json` next to th
 | `Database:Path` | `%ProgramData%\UpdateCoordinator\Server\server.db` | SQLite database file; the folder is created and the schema migrated on startup |
 | `Agents:RateLimit:RegisterPermitLimit` | `10` | registrations allowed per IP address and window |
 | `Agents:RateLimit:Window` | `00:01:00` | window of the registration rate limit |
-| `Installation:GlobalPause` | `false` | global pause: agents start no new installations (check, search and reporting continue); read at runtime |
+| `Installation:GlobalPause` | `false` | forces the global pause on (agents start no new installations; check, search and reporting continue), independent of the switch on the overview page; read at runtime. Normally the pause is switched in the dashboard. |
 
 ### Agent
 
@@ -262,3 +262,10 @@ Every start, stop, override, approval and rule change is recorded in the audit l
 | Key | Default | Meaning |
 |---|---|---|
 | `Rollout:EvaluationInterval` | `00:01:00` | how often the central server evaluates rollouts (10 s to 1 h) |
+
+## 13. Dashboard pages
+
+- **Overview** (role `Reader`): items that wait for a human decision (alarms, release gates, new servers, servers with failed installations or pre-flight checks, servers without heartbeat for over an hour), key figures, deployment per ring and the patch compliance trend. Operators pause and resume all installations here; the pause is announced to the agents with their next heartbeat and recorded in the audit log.
+- **Rings** (role `Reader`): one page per ring with the state of every server × update pair (successful, pending = released and waiting for the window, queued = missing but not released, failed), the active updates with their rates and the servers of a selected update.
+- **Servers** (role `Reader`): list with health and filters for name or domain, ring and health; the detail page shows pre-flight checks, missing updates with their release state, assignment, maintenance windows and the update history with error codes in plain text.
+- A server counts as **offline** after one hour without heartbeat. **Patch compliance** is the share of approved servers without any released update left to install; the central server stores one value per day for 400 days.

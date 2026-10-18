@@ -1,0 +1,34 @@
+@* Patch compliance over time in percent, one point per day. *@
+@if (Points.Count == 0)
+{
+    <p class="sub">No values yet; the central server records one per day.</p>
+}
+else
+{
+    <svg class="trend" viewBox="0 0 640 200" role="img" aria-label="@Description">
+        @foreach (var percent in new[] { 100, 75, 50, 25, 0 })
+        {
+            <g>
+                <line class="grid" x1="44" y1="@Charts.Number(Y(percent))" x2="630" y2="@Charts.Number(Y(percent))"></line>
+                <text class="axis" x="4" y="@Charts.Number(Y(percent) + 4)">@percent%</text>
+            </g>
+        }
+        <text class="axis" x="44" y="196">@Points[0].Day.ToString("d MMM", System.Globalization.CultureInfo.InvariantCulture)</text>
+        <text class="axis" x="630" y="196" text-anchor="end">@Points[^1].Day.ToString("d MMM", System.Globalization.CultureInfo.InvariantCulture)</text>
+        <polyline class="line" points="@Polyline"></polyline>
+        <circle class="dot" cx="@Charts.Number(X(Points.Count - 1))" cy="@Charts.Number(Y(Points[^1].Percent))" r="4"></circle>
+    </svg>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<(DateOnly Day, double Percent)> Points { get; set; } = [];
+
+    private string Polyline => string.Join(' ', Points.Select((p, i) => $"{Charts.Number(X(i))},{Charts.Number(Y(p.Percent))}"));
+
+    private string Description => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Patch compliance from {Points[0].Percent:0} % to {Points[^1].Percent:0} % over {Points.Count} days");
+
+    private double X(int index) => Points.Count == 1 ? 630 : 44 + (586.0 * index / (Points.Count - 1));
+
+    private static double Y(double percent) => 170 - (150 * percent / 100);
+}

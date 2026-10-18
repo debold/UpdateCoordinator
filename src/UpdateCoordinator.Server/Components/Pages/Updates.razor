@@ -192,9 +192,7 @@
         string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{updateId:D}:{revision}");
 
     private string Title(Guid updateId, int revision) =>
-        _updates.TryGetValue(Key(updateId, revision), out var update)
-            ? $"{(update.KbArticle is null ? string.Empty : $"KB{update.KbArticle} ")}{update.Title}"
-            : updateId.ToString("D");
+        UpdateText.Title(_updates.GetValueOrDefault(Key(updateId, revision)), updateId);
 
     private static string Describe(RolloutRingEntity? state) => state?.State switch
     {

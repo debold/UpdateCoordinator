@@ -1,0 +1,248 @@
+@page "/rings/{RingId:int}"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@using UpdateCoordinator.Server.Agents
+@using UpdateCoordinator.Server.Assignment
+@inject ServerDbContext Db
+@inject DeploymentStatus Deployment
+@inject RolloutService Rollouts
+@inject TimeProvider Time
+
+<PageTitle>Ring @_ring?.Name</PageTitle>
+
+@if (_ring is null)
+{
+    <h1>Ring not found</h1>
+}
+else
+{
+    <div class="crumbs"><a href="/">Overview</a> / Rings</div>
+    <nav class="steps" aria-label="Rings">
+        @for (var i = 0; i < _rings.Count; i++)
+        {
+            var ring = _rings[i];
+            <a class="@(ring.Id == _ring.Id ? "current" : null)" href="/rings/@ring.Id" aria-current="@(ring.Id == _ring.Id ? "page" : null)">@ring.Order · @ring.Name</a>
+            @if (i < _rings.Count - 1)
+            {
+                <span class="arrow" aria-hidden="true">@(_transitions.GetValueOrDefault(ring.Id)?.ManualGate == true ? "→ manual gate →" : "→")</span>
+            }
+        }
+    </nav>
+
+    <div class="page-head">
+        <div>
+            <h1>Ring @_ring.Name</h1>
+            <div class="subtitle">@_servers servers · @TransitionText</div>
+        </div>
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer">
+            <a class="btn" href="/administration/release-rules">Edit release rules</a>
+        </AuthorizeView>
+    </div>
+
+    <div class="columns">
+        <section class="card narrow" aria-labelledby="donut-h">
+            <h2 id="donut-h">Overall ring status</h2>
+            <div class="ring-status">
+                <Donut Counts="@_ringCounts" />
+                <Legend Counts="@_ringCounts" Vertical="true" />
+            </div>
+            <p class="sub">Pending: released, waiting for the server's maintenance window or installing. Queued: reported as missing, not released for this ring yet.</p>
+        </section>
+
+        <section class="wide" aria-labelledby="updates-h">
+            <h2 id="updates-h">Active updates in this ring</h2>
+            @if (_active.Count == 0)
+            {
+                <p class="sub">No update is released for this ring or waiting before it.</p>
+            }
+            <div class="updates">
+                @foreach (var update in _active)
+                {
+                    <a class="update @(update.Key == _selected?.Key ? "selected" : null)" href="/rings/@_ring.Id?update=@update.Key" aria-current="@(update.Key == _selected?.Key ? "true" : null)">
+                        <div class="head">
+                            <span>@update.Title</span>
+                            <span class="pill @update.StateClass">@update.State</span>
+                        </div>
+                        <StackedBar Counts="@update.Counts" />
+                        <div class="meta">
+                            <span>@(update.Classification ?? "Unclassified")</span>
+                            <span>@update.Released</span>
+                            <span>Feedback @Percent(update.Statistics.FeedbackPercent) (@update.Statistics.Reported/@update.Statistics.Targeted)</span>
+                            <span>Success @Percent(update.Statistics.SuccessPercent)</span>
+                            @if (update.Wait is not null)
+                            {
+                                <span>@update.Wait</span>
+                            }
+                        </div>
+                    </a>
+                }
+            </div>
+        </section>
+    </div>
+
+    @if (_selected is not null)
+    {
+        <section class="card flush" aria-labelledby="servers-h">
+            <h2 id="servers-h">Servers for @_selected.Title</h2>
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>Server</th><th>Maintenance windows (server time)</th><th>Earliest installation (UTC)</th><th>Status</th><th>Result</th></tr></thead>
+                    <tbody>
+                        @if (_serverRows.Count == 0)
+                        {
+                            <tr><td colspan="5">No server of this ring reported this update as missing.</td></tr>
+                        }
+                        @foreach (var row in _serverRows)
+                        {
+                            <tr>
+                                <td><a href="/servers/@row.ClientId">@row.HostName</a></td>
+                                <td>@row.Windows</td>
+                                <td>@Format(row.Entry.EarliestInstallAtUtc)</td>
+                                <td><span class="pill @StateClass(row.Entry.State)">@row.Entry.State</span></td>
+                                <td>@ResultText(row.Entry)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private const int MaxServerRows = 500;
+
+    private sealed record ActiveUpdate(string Key, string Title, string? Classification, string State, string StateClass, DeploymentCounts Counts, RingStatistics Statistics, string Released, string? Wait);
+
+    private sealed record ServerRow(Guid ClientId, string HostName, string Windows, DeploymentEntry Entry);
+
+    [Parameter]
+    public int RingId { get; set; }
+
+    /// <summary>Selected update as "{update id}:{revision}".</summary>
+    [SupplyParameterFromQuery(Name = "update")]
+    public string? UpdateKey { get; set; }
+
+    private RingEntity? _ring;
+    private List<RingEntity> _rings = [];
+    private Dictionary<int, RingTransitionEntity> _transitions = [];
+    private int _servers;
+    private DeploymentCounts _ringCounts = DeploymentCounts.Empty;
+    private List<ActiveUpdate> _active = [];
+    private ActiveUpdate? _selected;
+    private List<ServerRow> _serverRows = [];
+
+    private string TransitionText => _transitions.GetValueOrDefault(_ring!.Id) is { } t
+        ? string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"next ring after {t.MinimumWait.TotalDays:0}–{t.MaximumWait.TotalDays:0} days with feedback ≥ {t.MinimumFeedbackPercent} % and success ≥ {t.MinimumSuccessPercent} %{(t.ManualGate ? ", manual gate" : string.Empty)}")
+        : "last ring, deployed last";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        _ring = _rings.FirstOrDefault(r => r.Id == RingId);
+        if (_ring is null)
+        {
+            return;
+        }
+
+        _transitions = await Db.RingTransitions.AsNoTracking().ToDictionaryAsync(t => t.FromRingId);
+        _servers = await Db.Clients.CountAsync(c => c.RingId == RingId && c.State == UpdateCoordinator.Contracts.Agents.RegistrationState.Approved);
+        var entries = await Deployment.GetAsync(RingId, null, null, CancellationToken.None);
+        _ringCounts = DeploymentCounts.Of(entries);
+
+        var states = await Db.RolloutRings.AsNoTracking()
+            .Where(r => r.RingId == RingId && r.State != RingRolloutState.Waiting)
+            .Join(Db.Rollouts.Where(o => o.State == RolloutState.Active), r => new { r.UpdateId, r.Revision }, o => new { o.UpdateId, o.Revision }, (r, _) => r)
+            .OrderByDescending(r => r.StateChangedAtUtc)
+            .Take(100)
+            .ToListAsync();
+        var ids = states.Select(s => s.UpdateId).Distinct().ToList();
+        var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync();
+        var now = Time.GetUtcNow().UtcDateTime;
+
+        _active = [];
+        foreach (var state in states)
+        {
+            var update = updates.FirstOrDefault(u => u.UpdateId == state.UpdateId && u.Revision == state.Revision);
+            var statistics = await Rollouts.GetStatisticsAsync(state.UpdateId, state.Revision, RingId, CancellationToken.None);
+            var counts = DeploymentCounts.Of(entries.Where(e => e.UpdateId == state.UpdateId && e.Revision == state.Revision));
+            var (label, cls) = state.State switch
+            {
+                RingRolloutState.Alarm => ($"Alarm: {state.Reason}", "fail"),
+                RingRolloutState.AwaitingApproval => ("Waiting for manual release", "queue"),
+                _ => counts.Pending > 0 ? ("Rolling out", "pend") : ("Released", "ok"),
+            };
+            var released = state.ReleasedAtUtc is { } at ? $"Released, installs from {Format(at)} UTC" : "Not released yet";
+            _active.Add(new ActiveUpdate(
+                Key(state.UpdateId, state.Revision),
+                UpdateText.Title(update, state.UpdateId),
+                update?.Classification,
+                label,
+                cls,
+                counts,
+                statistics,
+                released,
+                WaitText(state, now)));
+        }
+
+        _selected = _active.FirstOrDefault(a => a.Key == UpdateKey) ?? _active.FirstOrDefault();
+        await LoadServersAsync(entries);
+    }
+
+    private async Task LoadServersAsync(IReadOnlyList<DeploymentEntry> entries)
+    {
+        _serverRows = [];
+        if (_selected is null)
+        {
+            return;
+        }
+
+        var selected = entries.Where(e => Key(e.UpdateId, e.Revision) == _selected.Key).Take(MaxServerRows).ToList();
+        var ids = selected.Select(e => e.ClientId).ToList();
+        var clients = await Db.Clients.AsNoTracking()
+            .Where(c => ids.Contains(c.Id))
+            .Select(c => new { c.Id, c.HostName, c.EffectiveWindowsJson })
+            .ToDictionaryAsync(c => c.Id);
+        _serverRows = [.. selected
+            .Where(e => clients.ContainsKey(e.ClientId))
+            .Select(e => new ServerRow(e.ClientId, clients[e.ClientId].HostName, MaintenanceWindowFormat.Format(MaintenanceWindowFormat.FromJson(clients[e.ClientId].EffectiveWindowsJson) ?? []).Replace("\n", "; ", StringComparison.Ordinal), e))
+            .OrderBy(r => r.Entry.State).ThenBy(r => r.HostName)];
+    }
+
+    private string? WaitText(RolloutRingEntity state, DateTime now)
+    {
+        if (state.State != RingRolloutState.Released || state.ReleasedAtUtc is not { } releasedAt || !_transitions.TryGetValue(RingId, out var rule))
+        {
+            return null;
+        }
+
+        var days = (now - releasedAt).TotalDays;
+        return days < 0
+            ? "Delayed start"
+            : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Day {Math.Floor(days) + 1:0} of {rule.MinimumWait.TotalDays:0}–{rule.MaximumWait.TotalDays:0}");
+    }
+
+    private static string ResultText(DeploymentEntry entry) => entry.State switch
+    {
+        DeploymentState.Successful => $"Installed {Format(entry.LastResultAtUtc)} UTC",
+        DeploymentState.Failed => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{entry.HResult:X8}: {HResultCatalog.Describe(entry.HResult ?? 0)}"),
+        DeploymentState.Pending => "Waiting for the maintenance window",
+        _ => "Not released for this ring",
+    };
+
+    internal static string StateClass(DeploymentState state) => state switch
+    {
+        DeploymentState.Successful => "ok",
+        DeploymentState.Pending => "pend",
+        DeploymentState.Queued => "queue",
+        _ => "fail",
+    };
+
+    private static string Key(Guid updateId, int revision) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{updateId:D}:{revision}");
+
+    private static string Percent(int? value) => value is null ? "n/a" : $"{value} %";
+
+    private static string Format(DateTime? value) =>
+        value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";
+}

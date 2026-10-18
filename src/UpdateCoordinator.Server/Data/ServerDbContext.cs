@@ -40,6 +40,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<StartRuleEntity> StartRules => Set<StartRuleEntity>();
 
+    public DbSet<ComplianceSnapshotEntity> ComplianceSnapshots => Set<ComplianceSnapshotEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -101,6 +103,10 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
         // Default: every update starts automatically and without delay (decided 2026-10-18).
         startRule.HasData(new StartRuleEntity { Id = StartRuleEntity.CatchAllId, Priority = 1000, Mode = StartMode.Automatic, Delay = TimeSpan.Zero });
+
+        var compliance = modelBuilder.Entity<ComplianceSnapshotEntity>();
+        compliance.ToTable("ComplianceSnapshots");
+        compliance.HasKey(s => s.Day);
 
         var rollout = modelBuilder.Entity<RolloutEntity>();
         rollout.ToTable("Rollouts");

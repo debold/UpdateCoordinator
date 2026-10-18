@@ -151,7 +151,7 @@
         _gates = [.. waiting.Select(r =>
         {
             var update = updates.FirstOrDefault(u => u.UpdateId == r.UpdateId && u.Revision == r.Revision);
-            var title = update is null ? r.UpdateId.ToString("D") : $"{(update.KbArticle is null ? string.Empty : $"KB{update.KbArticle} ")}{update.Title}";
+            var title = UpdateCoordinator.Server.Rollouts.UpdateText.Title(update, r.UpdateId);
             return (r, title, rings.GetValueOrDefault(r.RingId) ?? "?");
         })];
     }

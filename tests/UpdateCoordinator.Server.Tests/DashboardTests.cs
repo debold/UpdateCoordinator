@@ -199,7 +199,7 @@ public sealed class LoginTests
         {
         }
 
-        using var logout = await browser.PostFormAsync("/logout", new Dictionary<string, string>(), pageToRead: "/");
+        using var logout = await browser.PostFormAsync("/logout", new Dictionary<string, string> { ["_handler"] = "logout" }, pageToRead: "/");
         using var overview = await browser.GetAsync("/");
 
         Assert.Equal(HttpStatusCode.Redirect, logout.StatusCode);

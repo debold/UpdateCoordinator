@@ -61,7 +61,7 @@ The entire release logic (rates, wait times, transition) applies **per concrete 
 
 - Optional **manual release gate** per ring transition (e.g. mandatory for pilot → production). Notification channel and escalation for an outstanding release are still to be worked out.
 - Release rules (wait times, rates) can additionally be defined **per update type/category** (e.g. security vs. feature).
-- **Global pause:** while active, agents start no new installations. Health check, search and reporting continue normally.
+- **Global pause:** while active, agents start no new installations. Health check, search and reporting continue normally. Implemented: switched by an Operator on the overview page; `Installation:GlobalPause` in the configuration forces it on.
 - **Manual override per update:** bypasses ring logic, rates and wait times and puts the update into the next possible installation window (e.g. critical security updates).
 - **Exclusion** of individual servers or entire groups from the update process, in addition to the global pause.
 - **Blackout/installation time windows** (black/white list) act as a time filter on top of the ring release.

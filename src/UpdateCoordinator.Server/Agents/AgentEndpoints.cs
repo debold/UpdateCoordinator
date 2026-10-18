@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 using UpdateCoordinator.Contracts;
 using UpdateCoordinator.Contracts.Agents;
@@ -133,7 +132,7 @@ internal static class AgentEndpoints
         ServerDbContext db,
         TimeProvider timeProvider,
         ILoggerFactory loggerFactory,
-        IOptionsMonitor<InstallationControlOptions> installation,
+        GlobalPause globalPause,
         CancellationToken cancellationToken)
     {
         var clientId = httpContext.User.GetClientId();
@@ -171,7 +170,7 @@ internal static class AgentEndpoints
         }
 
         var releasesVersion = await db.Clients.Where(c => c.Id == clientId).Select(c => c.ReleasesVersion).SingleAsync(cancellationToken).ConfigureAwait(false);
-        return TypedResults.Ok(new HeartbeatResponse(state, releasesVersion, installation.CurrentValue.GlobalPause));
+        return TypedResults.Ok(new HeartbeatResponse(state, releasesVersion, await globalPause.IsActiveAsync(cancellationToken).ConfigureAwait(false)));
     }
 }
 

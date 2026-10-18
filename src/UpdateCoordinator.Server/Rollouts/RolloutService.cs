@@ -180,7 +180,7 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
     }
 
     internal static string Describe(string? kb, string title, Guid updateId, int revision) =>
-        $"{(kb is null ? string.Empty : $"KB{kb} ")}{title} ({updateId:D}, revision {revision})";
+        $"{UpdateText.Title(kb, title)} ({updateId:D}, revision {revision})";
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Rollout of {UpdateId} revision {Revision} started automatically by start rule {RuleId} (delay {Delay}).")]
     private partial void LogAutoStarted(Guid updateId, int revision, int ruleId, TimeSpan delay);

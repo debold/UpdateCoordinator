@@ -40,7 +40,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - `POST /api/v1/agents/updates` and `GET /api/v1/agents/releases` (approved clients only): stores pre-flight checks, last search result and available updates per client, extends the catalog with download size, reboot behavior and severity; delivers releases with a version that the heartbeat announces.
 - Enum values in agent messages are validated (undefined numeric values are rejected).
 - `POST /api/v1/agents/installations` (approved clients only): installation history per server and update; only results for updates released to the client are accepted; duplicate runs are stored once; reboot pending flag.
-- Global pause via `Installation:GlobalPause`, announced in the heartbeat.
+- Global pause, switched by an operator on the overview page (audited) or forced by `Installation:GlobalPause`, announced in the heartbeat.
 - Web administration (Blazor, static server rendering, no scripts): local accounts with the roles Reader, Operator and Admin (ASP.NET Core Identity, 12+ character passwords, lockout after 5 failures), one-time browser setup of the first administrator with a token readable only by local administrators, sign-in and sign-out, overview page.
 - Append-only audit log with SHA-256 hash chain; the database rejects changes and deletions, the audit page verifies the chain.
 - Strict security headers (content security policy without scripts, no framing), antiforgery protection, local-only return URLs after sign-in.
@@ -51,6 +51,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Ring logic per update: start rules (classification, MSRC severity, title pattern; automatic with optional delay in hours, or manual) decide how a new update enters Pilot, by default every update starts automatically without delay; operators can start queued updates; transitions Pilot → Test → Production by minimum/maximum wait time, feedback rate and success rate (evaluated separately), manual gate (default on before Production), alarm on a poor success rate; gate approval, stop/resume and manual override to all rings; every action audited.
 - Releases are derived from the rollout state: an approved server gets an update released for its ring that it reported as missing, until its inventory reports it installed; ring changes move releases.
 - Dashboard pages: Updates (rollouts per ring and queued updates), ring transitions under Pending approvals, Administration → Release rules.
+- Dashboard redesigned after the mockup (navigation sidebar, cards, charts drawn on the server as SVG, still without scripts; usable at phone width): overview with "Needs attention", key figures, deployment by ring and patch compliance trend (daily snapshot); ring detail page; server list with health and filters; server detail with pre-flight checks, missing updates and update history.
 - Windows Update error codes are translated into plain English text centrally.
 
 ### Shared

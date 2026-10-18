@@ -1,52 +1,145 @@
 @page "/servers"
 @attribute [Authorize(Policy = AdminRoles.Policies.Read)]
 @inject ServerDbContext Db
+@inject DeploymentStatus Deployment
+@inject TimeProvider Time
 
 <PageTitle>Servers</PageTitle>
 
-<h1>Servers</h1>
+<div class="page-head">
+    <div>
+        <h1>Servers</h1>
+        <div class="subtitle">@_rows.Count of @_total servers@(_truncated ? $" (first {MaxRows} shown)" : string.Empty)</div>
+    </div>
+</div>
 
-<table>
-    <thead>
-        <tr><th>Server</th><th>Domain</th><th>State</th><th>Ring</th><th>Groups</th><th>OS version</th><th>Last heartbeat (UTC)</th></tr>
-    </thead>
-    <tbody>
-        @foreach (var row in _rows)
-        {
-            <tr>
-                <td><a href="/servers/@row.Id">@row.HostName</a></td>
-                <td>@row.DomainName</td>
-                <td>@row.State</td>
-                <td>@row.Ring@(row.Manual ? " (manual)" : "")</td>
-                <td>@string.Join(", ", row.Groups)</td>
-                <td>@row.OsVersion</td>
-                <td>@row.LastHeartbeat</td>
-            </tr>
-        }
-    </tbody>
-</table>
+@* GET form: filters are part of the address, so a filtered list can be bookmarked and shared. *@
+<form method="get" class="filters card" role="search">
+    <label>Name or domain <input name="q" value="@Query" maxlength="253" /></label>
+    <label>
+        Ring
+        <select name="ring">
+            <option value="">All rings</option>
+            @foreach (var ring in _rings)
+            {
+                <option value="@ring.Id" selected="@(ring.Id == Ring)">@ring.Name</option>
+            }
+        </select>
+    </label>
+    <label>
+        Health
+        <select name="health">
+            <option value="">Any</option>
+            @foreach (var state in Enum.GetValues<ServerHealthState>())
+            {
+                <option value="@state" selected="@(state == _health)">@ServerHealth.Label(state)</option>
+            }
+        </select>
+    </label>
+    <button type="submit">Filter</button>
+</form>
+
+<div class="card flush scroll">
+    <table>
+        <thead>
+            <tr><th>Server</th><th>Domain</th><th>Health</th><th>Ring</th><th>Groups</th><th>Open updates</th><th>OS version</th><th>Last heartbeat (UTC)</th></tr>
+        </thead>
+        <tbody>
+            @if (_rows.Count == 0)
+            {
+                <tr><td colspan="8">No server matches the filter.</td></tr>
+            }
+            @foreach (var row in _rows)
+            {
+                <tr>
+                    <td><a href="/servers/@row.Id">@row.HostName</a></td>
+                    <td>@row.DomainName</td>
+                    <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span></td>
+                    <td>@row.Ring@(row.Manual ? " (manual)" : "")</td>
+                    <td>@string.Join(", ", row.Groups)</td>
+                    <td>@row.OpenUpdates</td>
+                    <td>@row.OsVersion</td>
+                    <td>@row.LastHeartbeat</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
 
 @code {
-    private sealed record Row(Guid Id, string HostName, string? DomainName, string State, string Ring, bool Manual, IReadOnlyList<string> Groups, string OsVersion, string LastHeartbeat);
+    private const int MaxRows = 2000;
 
+    private sealed record Row(Guid Id, string HostName, string? DomainName, ServerHealthState Health, string Ring, bool Manual, IReadOnlyList<string> Groups, int OpenUpdates, string OsVersion, string LastHeartbeat);
+
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? Query { get; set; }
+
+    [SupplyParameterFromQuery(Name = "ring")]
+    public string? RingFilter { get; set; }
+
+    [SupplyParameterFromQuery(Name = "health")]
+    public string? Health { get; set; }
+
+    private List<RingEntity> _rings = [];
     private List<Row> _rows = [];
+    private ServerHealthState? _health;
 
-    protected override async Task OnInitializedAsync()
+    /// <summary>Ring filter; a value that is not a ring ID is ignored.</summary>
+    private int? Ring => int.TryParse(RingFilter, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) ? id : null;
+    private int _total;
+    private bool _truncated;
+
+    protected override async Task OnParametersSetAsync()
     {
-        var rings = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.Name);
-        var groups = await Db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, g => g.Name);
-        var memberships = await Db.ClientGroups.AsNoTracking().ToListAsync();
-        var clients = await Db.Clients.AsNoTracking().OrderBy(c => c.HostName).Take(2000).ToListAsync();
+        // Unknown filter values are ignored instead of failing the page.
+        _health = Enum.TryParse<ServerHealthState>(Health, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
+        var query = Query?.Trim();
+        if (query is { Length: > 253 })
+        {
+            query = query[..253];
+        }
 
-        _rows = [.. clients.Select(c => new Row(
-            c.Id,
-            c.HostName,
-            c.DomainName,
-            c.State.ToString(),
-            c.RingId is { } ring && rings.TryGetValue(ring, out var name) ? name : "–",
-            c.ManualRingId is not null,
-            [.. memberships.Where(m => m.ClientId == c.Id && groups.ContainsKey(m.GroupId)).Select(m => groups[m.GroupId]).Order()],
-            c.OsVersion,
-            c.LastHeartbeatAtUtc?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–"))];
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        var ringNames = _rings.ToDictionary(r => r.Id, r => r.Name);
+        var groups = await Db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, g => g.Name);
+        _total = await Db.Clients.CountAsync();
+
+        var clientQuery = Db.Clients.AsNoTracking();
+        if (!string.IsNullOrEmpty(query))
+        {
+            // Case-insensitive substring match; the value is a parameter and its LIKE wildcards are escaped.
+            var pattern = "%" + query.Replace(@"\", @"\\", StringComparison.Ordinal).Replace("%", @"\%", StringComparison.Ordinal).Replace("_", @"\_", StringComparison.Ordinal) + "%";
+            clientQuery = clientQuery.Where(c => EF.Functions.Like(c.HostName, pattern, @"\") || (c.DomainName != null && EF.Functions.Like(c.DomainName, pattern, @"\")));
+        }
+
+        if (Ring is { } ringId)
+        {
+            clientQuery = clientQuery.Where(c => c.RingId == ringId);
+        }
+
+        var clients = await clientQuery.OrderBy(c => c.HostName).Take(MaxRows + 1).ToListAsync();
+        _truncated = clients.Count > MaxRows;
+        clients = [.. clients.Take(MaxRows)];
+
+        var ids = clients.Select(c => c.Id).ToList();
+        var memberships = await Db.ClientGroups.AsNoTracking().Where(m => ids.Contains(m.ClientId)).ToListAsync();
+        var entries = await Deployment.GetAsync(null, null, null, CancellationToken.None);
+        var failed = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
+        var open = entries.Where(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful).GroupBy(e => e.ClientId).ToDictionary(g => g.Key, g => g.Count());
+        var now = Time.GetUtcNow().UtcDateTime;
+
+        _rows = [.. clients
+            .Select(c => new Row(
+                c.Id,
+                c.HostName,
+                c.DomainName,
+                ServerHealth.Evaluate(c, failed.Contains(c.Id), now),
+                c.RingId is { } ring && ringNames.TryGetValue(ring, out var name) ? name : "–",
+                c.ManualRingId is not null,
+                [.. memberships.Where(m => m.ClientId == c.Id && groups.ContainsKey(m.GroupId)).Select(m => groups[m.GroupId]).Order()],
+                open.GetValueOrDefault(c.Id),
+                c.OsVersion,
+                c.LastHeartbeatAtUtc?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–"))
+            .Where(r => _health is null || r.Health == _health)];
     }
 }

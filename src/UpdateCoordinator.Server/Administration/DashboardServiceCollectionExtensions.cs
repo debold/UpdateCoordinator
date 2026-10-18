@@ -78,6 +78,8 @@ internal static class DashboardServiceCollectionExtensions
         services.AddScoped<ReleasePlanner>();
         services.AddScoped<RolloutService>();
         services.AddScoped<RolloutAdministration>();
+        services.AddScoped<DeploymentStatus>();
+        services.AddScoped<ComplianceHistory>();
         services.AddHostedService<RolloutWorker>();
         services.AddSingleton<IDirectoryLookup, LdapDirectoryLookup>();
         services.AddSingleton<IDnsLookup, SystemDnsLookup>();

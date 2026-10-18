@@ -21,12 +21,14 @@ The overview of pending manual approvals and overrides is deliberately a separat
 - **Coverage rate** from the AD comparison (target: computer objects via LDAP, filtered to servers; actual: registered/reporting agents) with delta. Requires an AD-joined central server.
 - **Patch compliance trend line** over time (similar to security dashboards).
 - Visibility of updates installed outside our own maintenance.
+Implemented (2026-10-18): "Needs attention" (alarms, release gates, servers waiting for approval, servers with a failed installation or pre-flight check, servers without heartbeat for over an hour), key figures (agents reporting, pending client updates, warnings for WSUS source, disk space and reboot pending, patch compliance), deployment by ring as a stacked bar, the global pause switch (Operator) and the patch compliance trend from a daily snapshot. Not yet: AD coverage, installations outside our own maintenance, agent update failures and leases (they need further agent functions).
 
 ## 3. Ring detail view
 
 - **Per-update view:** several updates (monthly, out-of-band) can be at different stages in the same ring at the same time. For each active update, the planned installation period and its own progress are shown. Since servers in the same ring have different maintenance windows, an update can already be installed on some servers and still pending on others.
 - Feedback and success rate, wait and release status per update (the release logic applies per update).
 - **Overall ring status as a donut chart** across all updates in the ring: successful (green), pending (blue), queued (yellow), failed (red).
+Implemented (2026-10-18): page per ring with the ring sequence and gates, transition rule, donut of all server × update states, active updates with progress, feedback and success rate and wait day, and the server table of the selected update (maintenance windows, earliest installation, status, result with HResult text). States: successful and failed by the last installation result, pending = released without result, queued = reported as missing but not released for the ring.
 
 ## 4. Server detail view
 
@@ -38,6 +40,7 @@ The overview of pending manual approvals and overrides is deliberately a separat
 - **Agent logs for troubleshooting** (rarely needed). Mechanism: request via the action queue, the agent delivers the data. A live retrieval with a direct request to the agent is not planned because of the communication model (the agent always initiates).
 - **Remote actions:** restart client service, immediate update search with report, restart server, ask the agent to check in/look for an agent update. Shows queue state and execution progress per action.
 - **Troubleshooting information** on failed updates (event log excerpt, optionally CBS.log), HResult in plain text.
+Implemented (2026-10-18): health (offline, failed, reboot pending, warning, OK), pre-flight checks, last search error, missing updates with release state, assignment and effective windows, and the update history with plain-text results. The server list filters by name or domain, ring and health. Not yet: live status, remote actions, agent logs, troubleshooting excerpts and the next window as a date (maintenance windows are in server-local time, which the central server does not know yet).
 
 ## 5. Administration
 

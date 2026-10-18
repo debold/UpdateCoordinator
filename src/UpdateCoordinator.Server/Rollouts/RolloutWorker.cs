@@ -15,7 +15,7 @@ internal sealed class RolloutOptions
 }
 
 /// <summary>
-/// Evaluates the ring transitions of all active rollouts periodically. A failed run is logged and retried with the
+/// Evaluates the ring transitions of all active rollouts and records the patch compliance periodically. A failed run is logged and retried with the
 /// next interval; it never stops the service.
 /// </summary>
 internal sealed partial class RolloutWorker(
@@ -55,7 +55,9 @@ internal sealed partial class RolloutWorker(
     internal async Task<int> RunOnceAsync(CancellationToken cancellationToken)
     {
         await using var scope = scopes.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<RolloutService>().AdvanceAsync(cancellationToken).ConfigureAwait(false);
+        var changes = await scope.ServiceProvider.GetRequiredService<RolloutService>().AdvanceAsync(cancellationToken).ConfigureAwait(false);
+        await scope.ServiceProvider.GetRequiredService<ComplianceHistory>().RecordAsync(cancellationToken).ConfigureAwait(false);
+        return changes;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Rollout evaluation failed; retrying with the next interval.")]

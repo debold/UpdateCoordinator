@@ -456,6 +456,22 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.ToTable("ClientUpdates", (string)null);
                 });
 
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.ComplianceSnapshotEntity", b =>
+                {
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Compliant")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Servers")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Day");
+
+                    b.ToTable("ComplianceSnapshots", (string)null);
+                });
+
             modelBuilder.Entity("UpdateCoordinator.Server.Data.GroupEntity", b =>
                 {
                     b.Property<int>("Id")
