@@ -55,3 +55,7 @@ Agent and central server are versioned separately from git tags (`agent/v1.2.3`,
 
 - [CHANGELOG.md](CHANGELOG.md)
 - [Admin documentation](docs/admin/README.md)
+
+## License
+
+[MIT](LICENSE)
