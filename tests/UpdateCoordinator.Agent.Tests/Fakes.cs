@@ -1,5 +1,6 @@
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Trust;
 using UpdateCoordinator.Contracts.Agents;
 
 namespace UpdateCoordinator.Agent.Tests;
@@ -35,6 +36,8 @@ internal sealed class FakeCentralServerClient : ICentralServerClient
 
     public Func<AgentIdentity, HeartbeatResponse?> OnHeartbeat { get; set; } = _ => new HeartbeatResponse(RegistrationState.Pending);
 
+    public Action<HeartbeatRequest> OnHeartbeatRequest { get; set; } = _ => { };
+
     public RegisterRequest? LastRegisterRequest { get; private set; }
 
     public int Registrations => Volatile.Read(ref _registrations);
@@ -51,6 +54,23 @@ internal sealed class FakeCentralServerClient : ICentralServerClient
     public Task<HeartbeatResponse?> HeartbeatAsync(AgentIdentity identity, HeartbeatRequest request, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _heartbeats);
+        OnHeartbeatRequest(request);
         return Task.FromResult(OnHeartbeat(identity));
     }
+}
+
+internal sealed class FakeServerTrust : IServerTrust
+{
+    public bool Trusted { get; set; } = true;
+
+    public bool ResetNotReported { get; set; }
+
+    public int RefreshRequests { get; private set; }
+
+    public Task EnsureTrustedAsync(CancellationToken cancellationToken) =>
+        Trusted ? Task.CompletedTask : throw new UntrustedServerException(TrustDecision.InvalidSignature);
+
+    public void RequestRefresh() => RefreshRequests++;
+
+    public void MarkResetReported() => ResetNotReported = false;
 }

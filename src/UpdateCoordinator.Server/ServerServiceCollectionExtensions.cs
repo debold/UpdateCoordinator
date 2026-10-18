@@ -1,12 +1,14 @@
 using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 using UpdateCoordinator.Server.Agents;
 using UpdateCoordinator.Server.Data;
+using UpdateCoordinator.Server.Trust;
 
 namespace UpdateCoordinator.Server;
 
@@ -38,6 +40,19 @@ internal static class ServerServiceCollectionExtensions
             options.UseSqlite(connection.ToString());
         });
 
+        services.AddOptions<TrustOptions>()
+            .Bind(configuration.GetSection(TrustOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<TrustAnchor>();
+        services.AddSingleton<ITlsCertificateProvider, StoreTlsCertificateProvider>();
+        services.AddScoped<TrustBindingService>();
+
+        // Kestrel presents the certificate the trust binding was signed for.
+        services.AddOptions<KestrelServerOptions>()
+            .Configure<ITlsCertificateProvider>((kestrel, provider) =>
+                kestrel.ConfigureHttpsDefaults(https => https.ServerCertificateSelector = (_, _) => provider.Certificate));
+
         services.AddAuthentication(AgentAuthenticationHandler.SchemeName)
             .AddScheme<AuthenticationSchemeOptions, AgentAuthenticationHandler>(AgentAuthenticationHandler.SchemeName, null);
         services.AddAuthorization();
@@ -66,8 +81,20 @@ internal static class ServerServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Startup work before requests are served: applies pending schema migrations and makes sure
+    /// a trust binding for the current TLS certificate exists.
+    /// </summary>
+    public static async Task InitializeCentralServerAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
+    {
+        await services.MigrateDatabaseAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var scope = services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<TrustBindingService>().EnsureCurrentAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Creates the database directory if needed and applies pending schema migrations.</summary>
-    public static async Task MigrateDatabaseAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
+    private static async Task MigrateDatabaseAsync(this IServiceProvider services, CancellationToken cancellationToken)
     {
         await using var scope = services.CreateAsyncScope();
         var path = scope.ServiceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Path;

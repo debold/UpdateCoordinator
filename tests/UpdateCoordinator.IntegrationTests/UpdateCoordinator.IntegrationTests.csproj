@@ -1,10 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- End-to-end tests: the real agent client against an in-memory central server. -->
-  <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
-  </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\..\src\UpdateCoordinator.Agent\UpdateCoordinator.Agent.csproj" />
     <ProjectReference Include="..\UpdateCoordinator.TestSupport\UpdateCoordinator.TestSupport.csproj" />

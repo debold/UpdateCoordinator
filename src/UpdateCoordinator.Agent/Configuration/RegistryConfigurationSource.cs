@@ -21,6 +21,7 @@ internal sealed class RegistryConfigurationProvider(RegistryConfigurationSource 
     internal static readonly IReadOnlyDictionary<string, string> ValueMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         ["CentralServerUrl"] = "CentralServer:BaseAddress",
+        ["TrustResetToken"] = "Trust:ResetToken",
     };
 
     /// <summary>Upper bound for a single value; longer values are ignored.</summary>

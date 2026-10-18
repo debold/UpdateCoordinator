@@ -6,6 +6,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 {
     public DbSet<ClientEntity> Clients => Set<ClientEntity>();
 
+    public DbSet<TrustBindingEntity> TrustBindings => Set<TrustBindingEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var client = modelBuilder.Entity<ClientEntity>();
@@ -20,5 +22,12 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         client.Property(c => c.AgentVersion).HasMaxLength(128).IsRequired();
         client.Property(c => c.RegisteredFromAddress).HasMaxLength(45);
         client.HasIndex(c => c.HostName);
+
+        var binding = modelBuilder.Entity<TrustBindingEntity>();
+        binding.ToTable("TrustBindings");
+        binding.HasKey(b => b.Serial);
+        binding.Property(b => b.Serial).ValueGeneratedNever();
+        binding.Property(b => b.CertificateSpkiSha256).HasMaxLength(32).IsRequired();
+        binding.Property(b => b.Signature).HasMaxLength(256).IsRequired();
     }
 }

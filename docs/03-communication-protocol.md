@@ -39,8 +39,19 @@ The agent verifies that it is talking to the genuine central server. A certifica
 - **Trust on first use:** the agent stores the public anchor on first contact (protected with DPAPI, like the client GUID).
 - **Certificate binding:** the central server signs the SPKI hash of its currently valid TLS certificate with the anchor and serves this binding on a dedicated endpoint. The binding is self-authenticating and may therefore be fetched over a TLS connection that is not yet verified. The agent accepts a TLS certificate only if a valid binding to its SPKI, signed with the pinned anchor, exists. All other messages are sent only afterwards. Every binding carries an increasing serial number; the agent rejects bindings with a serial number lower than the highest one it has seen, so a retired (possibly compromised) certificate cannot be reused.
 - **Certificate change:** the admin uploads the new certificate in the dashboard and approves it, and the central server signs the new binding. Agents follow automatically on their next contact, regardless of whether key, CA or validity period change. No advance announcement is needed, and offline agents are not locked out.
-- **Local override (registry):** an administrator of the server can force the agent to discard the stored trust and pin again on the next contact (trust on first use). Mechanism: a value under `HKLM\SOFTWARE\Policies\<Product>\Agent` (draft: `TrustResetToken`, string). The agent performs the reset exactly once whenever the value differs from the last processed one, so it also works with GPOs that rewrite values periodically. The reset is written to the Windows event log and reported to the central server, which shows it in the audit log and dashboard. Only local administrators, who control the agent anyway, can write this key.
+- **Local override (registry):** an administrator of the server can force the agent to discard the stored trust and pin again on the next contact (trust on first use). Mechanism: the string value `TrustResetToken` under `HKLM\SOFTWARE\Policies\<Product>\Agent` (or the installer key, see 3.3). The agent performs the reset exactly once whenever the value differs from the last processed one (evaluated at service start), so it also works with GPOs that rewrite values periodically. The reset is written to the Windows event log and reported to the central server with the next heartbeat (`TrustReset: true`), which logs it (later: audit log and dashboard). Only local administrators, who control the agent anyway, can write this key.
 - **Limit:** if the anchor is lost (without backup) or compromised, central re-trust is impossible in principle, because an attacker could otherwise do the same. Only the local override or a reinstallation of the agent remains. Until then the agent sends nothing, reports "central server not trusted" locally and keeps retrying with backoff.
+- **First contact:** trust on first use means an attacker who controls the network at the very first contact could get his own anchor pinned. Mitigations: install agents in a trusted network, and optionally the anchor fingerprint in the download file name (open decision, see 3.3).
+
+**Implementation (2026-10-18):**
+
+| Aspect | Implementation |
+|---|---|
+| Anchor key | ECDSA P-256, created on first start, stored DPAPI-protected (service account) in `Trust:AnchorPath`. An existing but unreadable file stops the server instead of being replaced, because a new anchor would lock out every agent. |
+| Signed data | ASCII `UpdateCoordinator.TrustBinding.v1|<serial>|<hex SHA-256 of the certificate SPKI>`, signature SHA-256 (IEEE P1363). Defined once in `TrustBindingFormat` (contracts). |
+| Binding endpoint | `GET /api/v1/trust/binding`, anonymous, returns anchor public key (SPKI), certificate key hash, serial and signature. |
+| Certificate approval | Until the dashboard exists, the certificate configured in `Trust:CertificateThumbprint` counts as approved. On every start the central server signs a new binding (next serial) if the certificate key changed. Kestrel selects the certificate per handshake. |
+| Agent check | All messages use a TLS handler that accepts only the certificate key of the accepted binding, independent of CA chain and host name. Before the first message, after a reset and after a failed handshake, the agent fetches the binding over a separate connection that sends nothing else, verifies it and stores the result DPAPI-protected (`trust.dat`). |
 
 ### 3.3 Address of the central server
 
@@ -94,6 +105,7 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 |---|---|---|---|
 | Register | `POST /api/v1/agents/register` | none (rate limited per IP) | `200` client GUID + secret, `400` invalid input, `403` already registered, `429` rate limit |
 | Heartbeat | `POST /api/v1/agents/heartbeat` | Basic (GUID + secret) | `200` registration state, `400` invalid input, `401` unknown credentials, `403` state not allowed |
+| Trust binding | `GET /api/v1/trust/binding` | none (public, signed) | `200` binding (see 3.2), `503` no binding yet |
 
 The protocol version is part of the route (`/api/v1/...`). An incompatible change introduces a new version, and the central server serves both during a transition period. All input is validated against the shared contracts (`UpdateCoordinator.Contracts`); error answers use RFC 9457 problem details.
 

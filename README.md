@@ -33,11 +33,11 @@ The build treats warnings as errors, enforces code style and the security rules 
 
 ## Running locally
 
-1. Trust the ASP.NET Core development certificate once: `dotnet dev-certs https --trust`
-2. Start the central server: `dotnet run --project src/UpdateCoordinator.Server` (listens on https://localhost:7190, database `server.dev.db` in the project folder)
+1. Create the ASP.NET Core development certificate once: `dotnet dev-certs https` (it does not need to be trusted: the agent trusts the central server through its trust anchor)
+2. Start the central server: `dotnet run --project src/UpdateCoordinator.Server` (listens on https://localhost:7190; database `server.dev.db` and trust anchor `trust-anchor.dev.key` in the project folder)
 3. Start the agent in a second terminal: `dotnet run --project src/UpdateCoordinator.Agent` (development settings point to the local central server)
 
-The agent registers, stores its identity under `%ProgramData%\UpdateCoordinator\Agent` and sends a heartbeat every 10 seconds. EF Core migrations are created with the local tool (`dotnet tool restore` once): `dotnet ef migrations add <Name> --project src/UpdateCoordinator.Server --output-dir Data/Migrations`.
+The agent pins the trust anchor of the central server, registers, stores its identity and trust state under `%ProgramData%\UpdateCoordinator\Agent` and sends a heartbeat every 10 seconds. EF Core migrations are created with the local tool (`dotnet tool restore` once): `dotnet ef migrations add <Name> --project src/UpdateCoordinator.Server --output-dir Data/Migrations`.
 
 ## Versioning
 

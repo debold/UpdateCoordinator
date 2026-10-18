@@ -12,7 +12,7 @@
 ### Backup
 
 - Controlled by the central server service itself: the service detects a moment without database access and creates a consistent file-based image (e.g. ZIP) of the database, configuration/settings and other relevant data.
-- The backup contains the private **trust anchor** of the central server (see `03-communication-protocol.md` 3.2). Without it, all agents lose trust after a restore. It must therefore not be stored in plain text in the backup (encryption method still to be defined).
+- The backup contains the private **trust anchor** of the central server (file `Trust:AnchorPath`, default `%ProgramData%\UpdateCoordinator\Server\trust-anchor.key`, see `03-communication-protocol.md` 3.2). It is DPAPI-protected for the service account, so a restore must happen under the same account or the key must be re-encrypted. Without it, all agents lose trust after a restore. It must therefore not be stored in plain text in the backup (encryption method still to be defined).
 - No automatic external transfer needed. The servers are backed up externally anyway and include the local image.
 - Litestream was deliberately rejected (disaster recovery only with manual failover, no real HA).
 

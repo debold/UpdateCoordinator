@@ -66,6 +66,7 @@ internal static class AgentEndpoints
         HttpContext httpContext,
         ServerDbContext db,
         TimeProvider timeProvider,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         var clientId = httpContext.User.GetClientId();
@@ -87,6 +88,13 @@ internal static class AgentEndpoints
             return TypedResults.Unauthorized();
         }
 
+        if (request.TrustReset)
+        {
+            // Security-relevant: will go to the audit log once it exists.
+            var logger = loggerFactory.CreateLogger(LogCategory);
+            AgentLog.TrustReset(logger, clientId);
+        }
+
         return TypedResults.Ok(new HeartbeatResponse(httpContext.User.GetRegistrationState()!.Value));
     }
 }
@@ -95,4 +103,7 @@ internal static partial class AgentLog
 {
     [LoggerMessage(Level = LogLevel.Information, Message = "Agent {ClientId} registered from host {HostName}; waiting for approval.")]
     public static partial void Registered(ILogger logger, Guid clientId, string hostName);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Agent {ClientId} reset its trust in the central server locally (registry override).")]
+    public static partial void TrustReset(ILogger logger, Guid clientId);
 }

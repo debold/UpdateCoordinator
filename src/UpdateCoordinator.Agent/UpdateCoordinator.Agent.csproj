@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <PropertyGroup>
-    <!-- Windows only (WUA API, DPAPI); supported from Windows Server 2016. -->
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Supported from Windows Server 2016 (target framework set in Directory.Build.props). -->
     <!-- Version from git tags agent/vX.Y.Z (see docs/01-architecture.md). -->
     <MinVerTagPrefix>agent/v</MinVerTagPrefix>
   </PropertyGroup>
@@ -13,10 +12,10 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\UpdateCoordinator.Common\UpdateCoordinator.Common.csproj" />
     <ProjectReference Include="..\UpdateCoordinator.Contracts\UpdateCoordinator.Contracts.csproj" />
   </ItemGroup>
 

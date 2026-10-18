@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Trust;
 using UpdateCoordinator.Contracts.Agents;
 
 namespace UpdateCoordinator.Agent.Tests;
@@ -14,6 +15,7 @@ public sealed class AgentWorkerTests
     private readonly FakeCentralServerClient _client = new();
     private readonly InMemoryIdentityStore _store = new();
     private readonly FakeTimeProvider _time = new();
+    private readonly FakeServerTrust _trust = new();
 
     [Fact]
     public async Task RunCycle_WithoutIdentity_RegistersStoresIdentityAndSendsHeartbeat()
@@ -80,6 +82,45 @@ public sealed class AgentWorkerTests
     }
 
     [Fact]
+    public async Task RunCycle_WhenServerIsNotTrusted_SendsNothing()
+    {
+        _trust.Trusted = false;
+        using var worker = CreateWorker();
+
+        await Assert.ThrowsAsync<UntrustedServerException>(() => worker.RunCycleAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(0, _client.Registrations);
+        Assert.Equal(0, _client.Heartbeats);
+    }
+
+    [Fact]
+    public async Task RunCycle_AfterLocalTrustReset_ReportsResetOnce()
+    {
+        _trust.ResetNotReported = true;
+        var reported = new List<bool>();
+        _client.OnHeartbeatRequest = request => reported.Add(request.TrustReset);
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal([true, false], reported);
+    }
+
+    [Fact]
+    public async Task Execute_WhenTlsHandshakeFails_RequestsTrustRefresh()
+    {
+        _client.OnHeartbeat = _ => throw new HttpRequestException("handshake", new System.Security.Authentication.AuthenticationException("certificate rejected"));
+        using var worker = CreateWorker();
+
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await WaitUntilAsync(() => _trust.RefreshRequests >= 1);
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(worker.ExecuteTask!.IsFaulted);
+    }
+
+    [Fact]
     public async Task Execute_StopsCleanly()
     {
         using var worker = CreateWorker();
@@ -96,6 +137,7 @@ public sealed class AgentWorkerTests
         _client,
         _store,
         new FakeEnvironment(),
+        _trust,
         Options.Create(new CentralServerOptions
         {
             BaseAddress = new Uri("https://central.example.local/"),

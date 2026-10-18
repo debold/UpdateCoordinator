@@ -1,7 +1,8 @@
 <Project>
   <!-- Shared settings for all projects (see docs/02-guidelines.md). -->
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- Agent and central server are Windows services; only the wire contracts stay platform neutral. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

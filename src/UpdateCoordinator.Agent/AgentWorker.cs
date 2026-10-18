@@ -1,9 +1,11 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Authentication;
 
 using Microsoft.Extensions.Options;
 
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Trust;
 using UpdateCoordinator.Contracts.Agents;
 
 namespace UpdateCoordinator.Agent;
@@ -16,6 +18,7 @@ internal sealed partial class AgentWorker(
     ICentralServerClient client,
     IAgentIdentityStore identityStore,
     IAgentEnvironment environment,
+    IServerTrust trust,
     IOptions<CentralServerOptions> options,
     TimeProvider timeProvider,
     ILogger<AgentWorker> logger) : BackgroundService
@@ -43,6 +46,12 @@ internal sealed partial class AgentWorker(
             }
             catch (Exception ex) when (IsRecoverable(ex))
             {
+                if (IsTlsFailure(ex))
+                {
+                    // The server presented a certificate we do not accept: fetch a new binding next time.
+                    trust.RequestRefresh();
+                }
+
                 consecutiveFailures++;
                 delay = Backoff.Compute(consecutiveFailures, settings.HeartbeatInterval, settings.MaxBackoff);
                 LogCycleFailed(ex, consecutiveFailures, delay);
@@ -63,10 +72,14 @@ internal sealed partial class AgentWorker(
 
     internal async Task RunCycleAsync(CancellationToken cancellationToken)
     {
+        // Nothing is sent before the central server has proven its identity.
+        await trust.EnsureTrustedAsync(cancellationToken).ConfigureAwait(false);
+
         var identity = identityStore.Load() ?? await RegisterAsync(cancellationToken).ConfigureAwait(false);
 
+        var trustReset = trust.ResetNotReported;
         var response = await client
-            .HeartbeatAsync(identity, new HeartbeatRequest { AgentVersion = environment.AgentVersion }, cancellationToken)
+            .HeartbeatAsync(identity, new HeartbeatRequest { AgentVersion = environment.AgentVersion, TrustReset = trustReset }, cancellationToken)
             .ConfigureAwait(false);
 
         if (response is null)
@@ -77,6 +90,11 @@ internal sealed partial class AgentWorker(
             identityStore.Delete();
             _lastState = null;
             return;
+        }
+
+        if (trustReset)
+        {
+            trust.MarkResetReported();
         }
 
         if (response.State != _lastState)
@@ -104,6 +122,8 @@ internal sealed partial class AgentWorker(
 
     /// <summary>Every error except fatal runtime conditions is logged and retried; the service must keep running.</summary>
     [SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Guideline: a single error must never stop the service.")]
+    private static bool IsTlsFailure(Exception ex) => ex is HttpRequestException { InnerException: AuthenticationException };
+
     private static bool IsRecoverable(Exception ex) => ex is not (OutOfMemoryException or StackOverflowException or AccessViolationException);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Agent {Version} started.")]

@@ -12,6 +12,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Backs off exponentially (up to 5 minutes, configurable) while the central server is unreachable; timeouts and circuit breaker via `Microsoft.Extensions.Http.Resilience`. No error stops the service.
 - Accepts only HTTPS addresses for the central server and validates every server response.
 - Reads the central server address from the registry value `CentralServerUrl`; the group policy key overrides the installer key and all other configuration sources.
+- Trust anchor: pins the anchor of the central server on first contact and accepts only the TLS certificate bound to it by a signed binding with increasing serial, independent of CA and host name. Sends nothing to an untrusted central server.
+- Local trust reset via registry value `TrustResetToken` (once per change), logged and reported to the central server.
 
 ### Central server
 
@@ -21,6 +23,10 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - SQLite database via EF Core with automatic migrations on startup; client secrets stored only as SHA-256 hashes.
 - Input validation for all agent messages with RFC 9457 problem details for errors.
 - Health endpoint `/health`; OpenAPI description only in the development environment.
+- Trust anchor (ECDSA P-256, DPAPI-protected) created on first start; an unreadable anchor stops the service instead of being replaced.
+- `GET /api/v1/trust/binding`: anchor-signed binding to the current TLS certificate; a new certificate gets the next serial on start.
+- HTTPS only (default port 8443); TLS certificate from the Windows certificate store via `Trust:CertificateThumbprint`.
+- Logs local trust resets reported by agents.
 
 ### Shared
 
@@ -28,6 +34,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Test projects with xUnit v3 on Microsoft.Testing.Platform, including end-to-end tests of the agent client against the in-memory central server.
 - Shared build settings: warnings as errors, .NET analyzers, central package versions, NuGet audit against known vulnerabilities.
 - Versions derived from git tags via MinVer.
+- `UpdateCoordinator.Common`: DPAPI-protected file storage shared by agent and central server.
+- End-to-end tests over a real TLS connection (certificate pinning, certificate change, impostor server).
 
 ### Decided
 

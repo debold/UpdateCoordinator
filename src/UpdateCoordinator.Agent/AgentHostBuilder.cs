@@ -5,6 +5,7 @@ using Microsoft.Win32;
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Configuration;
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Trust;
 
 namespace UpdateCoordinator.Agent;
 
@@ -37,8 +38,17 @@ internal static class AgentHostBuilder
             DpapiAgentIdentityStore.DefaultPath,
             provider.GetRequiredService<ILogger<DpapiAgentIdentityStore>>()));
 
+        services.AddOptions<TrustOptions>().Bind(configuration.GetSection(TrustOptions.SectionName));
+        services.AddSingleton<ITrustStateStore>(provider => new ProtectedTrustStateStore(
+            ProtectedTrustStateStore.DefaultPath,
+            provider.GetRequiredService<ILogger<ProtectedTrustStateStore>>()));
+        services.AddSingleton<ITrustBindingFetcher, TrustBindingFetcher>();
+        services.AddSingleton<ServerTrust>();
+        services.AddSingleton<IServerTrust>(provider => provider.GetRequiredService<ServerTrust>());
+
         services.AddHttpClient<ICentralServerClient, CentralServerClient>((provider, http) =>
                 http.BaseAddress = provider.GetRequiredService<IOptions<CentralServerOptions>>().Value.BaseAddress)
+            .ConfigurePrimaryHttpMessageHandler(provider => provider.GetRequiredService<ServerTrust>().CreateValidatingHandler())
             .AddStandardResilienceHandler(resilience =>
             {
                 // Register is not idempotent and heartbeats repeat anyway, so the main loop handles retries

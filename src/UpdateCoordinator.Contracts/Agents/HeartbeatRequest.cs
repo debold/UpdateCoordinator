@@ -11,4 +11,7 @@ public sealed record HeartbeatRequest
     [StringLength(128, MinimumLength = 5)]
     [RegularExpression(ValidationPatterns.SemanticVersion)]
     public required string AgentVersion { get; init; }
+
+    /// <summary>True if the agent reset its trust in the central server locally (registry override) since the last acknowledged heartbeat.</summary>
+    public bool TrustReset { get; init; }
 }

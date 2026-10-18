@@ -65,6 +65,29 @@ namespace UpdateCoordinator.Server.Data.Migrations
 
                     b.ToTable("Clients", (string)null);
                 });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.TrustBindingEntity", b =>
+                {
+                    b.Property<long>("Serial")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("CertificateSpkiSha256")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("BLOB");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Signature")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("BLOB");
+
+                    b.HasKey("Serial");
+
+                    b.ToTable("TrustBindings", (string)null);
+                });
 #pragma warning restore 612, 618
         }
     }
