@@ -59,6 +59,8 @@ Implemented pages (Admin role): Administration → Maintenance windows (system d
 
 Ring transitions (time-/success-based), rates, minimum/maximum wait times, manual gates, each also per update type/category.
 
+Implemented: Updates page (rollout state per ring, queued updates, start/stop/override for Operators), ring transitions and gates under Pending approvals, Administration → Release rules (Admin) for transition rules and the classifications that start automatically. Rules per update category follow.
+
 ### Registration
 
 Management of the approval rules for new agents (rule-based approval, e.g. domain member, verified by the central server against AD and DNS). Manual approvals run through the "Pending approvals / overrides" item. In addition: display of clone suspicions (same GUID from two sources) and of the central server certificate: uploading and approving a new TLS certificate (signed with the trust anchor, see `03-communication-protocol.md` 3.2), showing which agents already use the current binding, and showing local trust resets via the registry override.

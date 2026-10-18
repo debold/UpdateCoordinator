@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using UpdateCoordinator.Server.Approval;
 using UpdateCoordinator.Server.Assignment;
 using UpdateCoordinator.Server.Data;
+using UpdateCoordinator.Server.Rollouts;
 
 namespace UpdateCoordinator.Server.Administration;
 
@@ -69,6 +70,15 @@ internal static class DashboardServiceCollectionExtensions
         services.AddScoped<ClientApprovalService>();
         services.AddScoped<AssignmentService>();
         services.AddScoped<AssignmentAdministration>();
+
+        services.AddOptions<RolloutOptions>()
+            .Bind(configuration.GetSection(RolloutOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<ReleasePlanner>();
+        services.AddScoped<RolloutService>();
+        services.AddScoped<RolloutAdministration>();
+        services.AddHostedService<RolloutWorker>();
         services.AddSingleton<IDirectoryLookup, LdapDirectoryLookup>();
         services.AddSingleton<IDnsLookup, SystemDnsLookup>();
         services.AddScoped<RuleBasedApprover>();

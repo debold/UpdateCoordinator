@@ -67,7 +67,7 @@
     {
         var actor = await GetActorAsync();
         var parts = Action?.Split(':', 2) ?? [];
-        AssignmentAdministration.Outcome outcome;
+        Outcome outcome;
         string success;
         if (parts is ["create"])
         {
@@ -87,7 +87,7 @@
         }
         else
         {
-            outcome = new AssignmentAdministration.Outcome("Invalid request.");
+            outcome = new Outcome("Invalid request.");
             success = string.Empty;
         }
 

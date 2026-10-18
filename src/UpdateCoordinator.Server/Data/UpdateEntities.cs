@@ -56,7 +56,7 @@ internal sealed class ClientAvailableUpdateEntity
 
 /// <summary>
 /// An update released for a client, with the earliest installation time. Created by the ring logic
-/// (later feature); the client fetches its releases when <see cref="ClientEntity.ReleasesVersion"/> changes.
+/// (<see cref="Rollouts.ReleasePlanner"/>); the client fetches its releases when <see cref="ClientEntity.ReleasesVersion"/> changes.
 /// </summary>
 internal sealed class ReleaseEntity
 {

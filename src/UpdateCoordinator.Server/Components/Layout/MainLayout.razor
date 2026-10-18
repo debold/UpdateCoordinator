@@ -7,12 +7,14 @@
             <nav>
                 <a href="/">Overview</a>
                 <a href="/servers">Servers</a>
+                <a href="/updates">Updates</a>
                 <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
                     <a href="/approvals">Pending approvals</a>
                 </AuthorizeView>
                 <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
                     <a href="/administration/groups">Groups</a>
                     <a href="/administration/rules">Rules</a>
+                    <a href="/administration/release-rules">Release rules</a>
                     <a href="/administration/maintenance">Maintenance windows</a>
                     <a href="/administration/audit">Audit log</a>
                 </AuthorizeView>

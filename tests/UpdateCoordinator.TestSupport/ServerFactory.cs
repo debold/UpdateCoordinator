@@ -42,6 +42,8 @@ public class ServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Logging:File:Directory", LogDirectory);
         builder.UseSetting("Administration:SetupTokenPath", SetupTokenPath);
         builder.UseSetting("Agents:RateLimit:RegisterPermitLimit", RegisterPermitLimit.ToString(CultureInfo.InvariantCulture));
+        // Tests drive the ring logic explicitly; the worker only runs once at start.
+        builder.UseSetting("Rollout:EvaluationInterval", "01:00:00");
         builder.ConfigureTestServices(services => services.AddSingleton<ITlsCertificateProvider>(_certificates));
     }
 

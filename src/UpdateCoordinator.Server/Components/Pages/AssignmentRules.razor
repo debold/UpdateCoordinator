@@ -86,7 +86,7 @@
     {
         var actor = await GetActorAsync();
         var invariant = System.Globalization.CultureInfo.InvariantCulture;
-        AssignmentAdministration.Outcome outcome;
+        Outcome outcome;
         string success;
 
         if (Action == "create")
@@ -96,7 +96,7 @@
                 || target is not [("ring" or "group"), var id]
                 || !int.TryParse(id, System.Globalization.NumberStyles.None, invariant, out var targetId))
             {
-                outcome = new AssignmentAdministration.Outcome("Invalid priority or target.");
+                outcome = new Outcome("Invalid priority or target.");
                 success = string.Empty;
             }
             else
@@ -113,7 +113,7 @@
         }
         else
         {
-            outcome = new AssignmentAdministration.Outcome("Invalid request.");
+            outcome = new Outcome("Invalid request.");
             success = string.Empty;
         }
 

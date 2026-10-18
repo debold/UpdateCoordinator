@@ -599,6 +599,111 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.RingTransitionEntity", b =>
+                {
+                    b.Property<int>("FromRingId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("ManualGate")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<TimeSpan>("MaximumWait")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MinimumFeedbackPercent")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("MinimumSuccessPercent")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<TimeSpan>("MinimumWait")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("FromRingId");
+
+                    b.ToTable("RingTransitions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            FromRingId = 1,
+                            ManualGate = false,
+                            MaximumWait = new TimeSpan(7, 0, 0, 0, 0),
+                            MinimumFeedbackPercent = 80,
+                            MinimumSuccessPercent = 95,
+                            MinimumWait = new TimeSpan(2, 0, 0, 0, 0)
+                        },
+                        new
+                        {
+                            FromRingId = 2,
+                            ManualGate = true,
+                            MaximumWait = new TimeSpan(10, 0, 0, 0, 0),
+                            MinimumFeedbackPercent = 80,
+                            MinimumSuccessPercent = 95,
+                            MinimumWait = new TimeSpan(3, 0, 0, 0, 0)
+                        });
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.RolloutEntity", b =>
+                {
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Override")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StartedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("UpdateId", "Revision");
+
+                    b.ToTable("Rollouts", (string)null);
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.RolloutRingEntity", b =>
+                {
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RingId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReleasedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StateChangedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UpdateId", "Revision", "RingId");
+
+                    b.HasIndex("RingId");
+
+                    b.HasIndex("State");
+
+                    b.ToTable("RolloutRings", (string)null);
+                });
+
             modelBuilder.Entity("UpdateCoordinator.Server.Data.SettingEntity", b =>
                 {
                     b.Property<string>("Key")
@@ -843,6 +948,39 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .WithMany()
                         .HasForeignKey("UpdateId", "Revision")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.RingTransitionEntity", b =>
+                {
+                    b.HasOne("UpdateCoordinator.Server.Data.RingEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FromRingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.RolloutEntity", b =>
+                {
+                    b.HasOne("UpdateCoordinator.Server.Data.UpdateEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UpdateId", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.RolloutRingEntity", b =>
+                {
+                    b.HasOne("UpdateCoordinator.Server.Data.RingEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UpdateCoordinator.Server.Data.RolloutEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UpdateId", "Revision")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

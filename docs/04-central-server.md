@@ -68,6 +68,17 @@ The entire release logic (rates, wait times, transition) applies **per concrete 
 - **Staggering/offset** of installation times within a ring (e.g. so not all domain controllers install at the same time).
 - Optional **random delay** for ungrouped servers.
 
+### Implemented (2026-10-18)
+
+- **Start:** an update enters the first ring (Pilot) either automatically, when an approved server reports it as missing and its classification is in the list for automatic start (default `Security Updates` and `Critical Updates`, changeable by an Admin), or when an Operator starts it. All other updates stay **queued**.
+- **Transitions:** Pilot → Test and Test → Production each have a minimum and maximum wait time, a minimum feedback rate and a minimum success rate, and a manual gate. Defaults: Pilot → Test 2–7 days, Test → Production 3–10 days, each 80 % feedback and 95 % success; the manual gate is on for Test → Production only. Wait times run from the release in the source ring. Only success-based transitions are implemented; fixed start times are not.
+- **Rates** are computed from the servers currently in the source ring: targeted = servers the update was released to or that reported a result; the last result per server counts, so a successful retry replaces a failure. If no server of the ring needs the update, the transition passes after the minimum wait time.
+- **Decision:** rule met → next ring released, or "awaiting approval" with a manual gate; feedback met but success poor, or nothing reported at the maximum wait time, or poor success at the maximum wait time → **alarm**. Gates and alarms are decided by an Operator (approve, release anyway, or stop the rollout); an alarm never clears by itself.
+- **Override** releases the update to every ring at once; **stop** withdraws all releases of the update that are not installed yet; a stopped rollout can be resumed.
+- **Releases:** an approved server gets an update when it is released for its ring and the server reported it as missing; the release stays until the inventory reports the update as installed. A ring change moves the releases. The earliest installation time is the release time of the ring.
+- The central server evaluates rollouts every `Rollout:EvaluationInterval` (default 1 minute).
+- Not yet implemented: rules per update category, exclusions, blackout windows, staggering, random delay, leases.
+
 ### Ring and group assignment (three levels)
 
 1. **Fallback:** servers without an assignment are in the final ring Production (deployed last; decided 2026-10-18, no separate Default ring).

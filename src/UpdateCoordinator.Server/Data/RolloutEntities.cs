@@ -1,0 +1,94 @@
+namespace UpdateCoordinator.Server.Data;
+
+internal enum RolloutState
+{
+    /// <summary>The rollout runs through the rings.</summary>
+    Active = 0,
+
+    /// <summary>Stopped by an operator: nothing is released until it is started again.</summary>
+    Stopped = 1,
+}
+
+/// <summary>
+/// The rollout of one update (ID and revision) through the rings (docs/04-central-server.md, section 3).
+/// An update without a rollout is "queued": known from reports but not released anywhere.
+/// </summary>
+internal sealed class RolloutEntity
+{
+    public Guid UpdateId { get; set; }
+
+    public int Revision { get; set; }
+
+    public RolloutState State { get; set; }
+
+    public DateTime StartedAtUtc { get; set; }
+
+    /// <summary>Account that started the rollout, or "rule" for an automatic start.</summary>
+    public required string StartedBy { get; set; }
+
+    /// <summary>Manual override: released to every ring at once, bypassing rates, wait times and gates.</summary>
+    public bool Override { get; set; }
+}
+
+internal enum RingRolloutState
+{
+    /// <summary>The previous ring has not met the transition rule yet.</summary>
+    Waiting = 0,
+
+    /// <summary>Released for the servers of this ring.</summary>
+    Released = 1,
+
+    /// <summary>The transition rule is met, but the transition has a manual gate.</summary>
+    AwaitingApproval = 2,
+
+    /// <summary>The previous ring has a poor success rate or no feedback at the maximum wait time; a human decides.</summary>
+    Alarm = 3,
+}
+
+/// <summary>
+/// State of one rollout in one ring. Rates, wait times and transitions apply per update and ring.
+/// </summary>
+internal sealed class RolloutRingEntity
+{
+    public Guid UpdateId { get; set; }
+
+    public int Revision { get; set; }
+
+    public int RingId { get; set; }
+
+    public RingRolloutState State { get; set; }
+
+    /// <summary>When the update was released for this ring; starts the wait time for the next transition.</summary>
+    public DateTime? ReleasedAtUtc { get; set; }
+
+    public DateTime StateChangedAtUtc { get; set; }
+
+    /// <summary>Why the ring waits for a human (alarm reason), shown in the dashboard.</summary>
+    public string? Reason { get; set; }
+}
+
+/// <summary>
+/// Rule for the transition from one ring to the next (Pilot → Test, Test → Production).
+/// </summary>
+internal sealed class RingTransitionEntity
+{
+    public const int MaxWaitDays = 90;
+
+    /// <summary>Ring the transition starts from; the target is the next ring by order.</summary>
+    public int FromRingId { get; set; }
+
+    /// <summary>Minimum time between the release in the source ring and the transition.</summary>
+    public TimeSpan MinimumWait { get; set; }
+
+    /// <summary>After this time the rollout proceeds on a good success rate even if the feedback rate was missed.</summary>
+    public TimeSpan MaximumWait { get; set; }
+
+    /// <summary>Share of targeted servers that reported a result, in percent.</summary>
+    public int MinimumFeedbackPercent { get; set; }
+
+    /// <summary>Share of successful results among the received results, in percent.</summary>
+    public int MinimumSuccessPercent { get; set; }
+
+    /// <summary>A human must approve the transition when the rule is met.</summary>
+    public bool ManualGate { get; set; }
+}

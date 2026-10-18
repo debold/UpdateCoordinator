@@ -237,3 +237,28 @@ Sat,Sun 00:00-24:00
 A window whose end is not after its start runs over midnight. At most 14 windows per level. The most specific level wins: server windows, otherwise the windows of all groups of the server together, otherwise the system default. The effective windows are shown on the server detail page and delivered to the agent with the release list; agents pick up a change with the next heartbeat.
 
 Every change is recorded in the audit log.
+
+## 12. Rollouts (ring logic)
+
+Every update runs through the rings Pilot → Test → Production on its own. A server gets an update only when it is released for the server's ring and the server reported it as missing; it installs it only inside its maintenance windows.
+
+**Start:** updates of the classifications listed under Administration → Release rules → Automatic start (default `Security Updates` and `Critical Updates`) start in Pilot as soon as an approved server reports them. All other updates appear as **queued** on the Updates page, where an `Operator` starts them.
+
+**Transitions:** Administration → Release rules (role `Admin`) sets per transition the minimum and maximum wait time (days), the feedback rate (share of targeted servers that reported a result) and the success rate (share of successful results), and whether a manual gate applies.
+
+| Transition | Minimum wait | Maximum wait | Feedback | Success | Manual gate |
+|---|---|---|---|---|---|
+| Pilot → Test | 2 days | 7 days | 80 % | 95 % | off |
+| Test → Production | 3 days | 10 days | 80 % | 95 % | on |
+
+After the minimum wait time the next ring is released when both rates are met. At the maximum wait time a good success rate is enough. A poor success rate, or no result at all at the maximum wait time, raises an **alarm**: nothing rolls on until an operator decides.
+
+**Pending approvals** (role `Operator`) lists updates waiting at a manual gate or stopped by an alarm. Approve (or "release anyway" for an alarm) releases the update for the ring; "Stop rollout" withdraws it.
+
+**Updates** page (role `Reader`, actions `Operator`): state of every rollout per ring, queued updates with the number of servers missing them, and the actions start/resume, stop and "Release to all rings" (manual override, e.g. for a critical security update; servers still install only inside their maintenance windows). Stopping withdraws the update from every server that has not installed it; install results arriving afterwards are ignored.
+
+Every start, stop, override, approval and rule change is recorded in the audit log.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Rollout:EvaluationInterval` | `00:01:00` | how often the central server evaluates rollouts (10 s to 1 h) |

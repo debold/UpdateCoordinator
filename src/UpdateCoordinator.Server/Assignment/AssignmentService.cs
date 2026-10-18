@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 using UpdateCoordinator.Contracts.Agents;
 using UpdateCoordinator.Server.Data;
+using UpdateCoordinator.Server.Rollouts;
 
 namespace UpdateCoordinator.Server.Assignment;
 
@@ -12,9 +13,9 @@ namespace UpdateCoordinator.Server.Assignment;
 /// (docs/04-central-server.md, sections 3 and 4):
 /// ring = manual override, else first matching ring rule, else the fallback ring Production;
 /// windows = server override, else the windows of its groups, else the system default.
-/// A change of the effective windows bumps the release version, so the agent fetches them.
+/// A change of the effective windows bumps the release version, so the agent fetches them; releases follow the ring.
 /// </summary>
-internal sealed class AssignmentService(ServerDbContext db)
+internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner releases)
 {
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(200);
 
@@ -63,6 +64,9 @@ internal sealed class AssignmentService(ServerDbContext db)
         }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // A ring change changes which releases apply to the client.
+        await releases.SyncAsync(clientId, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<MaintenanceWindow>> GetSystemWindowsAsync(CancellationToken cancellationToken)

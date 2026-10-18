@@ -1,0 +1,210 @@
+@page "/updates"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using UpdateCoordinator.Contracts.Agents
+@using UpdateCoordinator.Server.Rollouts
+@inject ServerDbContext Db
+@inject RolloutAdministration Administration
+
+<PageTitle>Updates</PageTitle>
+
+<h1>Updates</h1>
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<p>
+    Each update runs through the rings on its own: released in Pilot first, then in the next ring when the transition rule is met.
+    Servers install a released update only if they reported it as missing, and only inside their maintenance windows.
+</p>
+
+<form method="post" @formname="rollout" @onsubmit="HandleAsync">
+    <AntiforgeryToken />
+
+    <h2>Rollouts</h2>
+    @if (_rollouts.Count == 0)
+    {
+        <p>No rollout yet.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>Update</th><th>Classification</th><th>Started (UTC)</th><th>State</th>
+                    @foreach (var ring in _rings)
+                    {
+                        <th>@ring.Name</th>
+                    }
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var rollout in _rollouts)
+                {
+                    var key = Key(rollout.UpdateId, rollout.Revision);
+                    <tr>
+                        <td>@Title(rollout.UpdateId, rollout.Revision)</td>
+                        <td>@_updates.GetValueOrDefault(key)?.Classification</td>
+                        <td>@Format(rollout.StartedAtUtc) (@rollout.StartedBy)</td>
+                        <td>@(rollout.State == RolloutState.Stopped ? "Stopped" : rollout.Override ? "Override" : "Active")</td>
+                        @foreach (var ring in _rings)
+                        {
+                            var state = _ringStates.GetValueOrDefault((rollout.UpdateId, rollout.Revision, ring.Id));
+                            <td class="ring-state">@Describe(state)</td>
+                        }
+                        <td class="actions">
+                            @if (_canOperate)
+                            {
+                                @if (rollout.State == RolloutState.Active)
+                                {
+                                    <button type="submit" name="Action" value="stop:@key">Stop</button>
+                                }
+                                else
+                                {
+                                    <button type="submit" name="Action" value="start:@key">Resume</button>
+                                }
+
+                                @if (!rollout.Override || rollout.State == RolloutState.Stopped)
+                                {
+                                    <button type="submit" name="Action" value="override:@key">Release to all rings</button>
+                                }
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <h2>Queued</h2>
+    <p>Updates that approved servers reported as missing and that have no rollout yet.</p>
+    @if (_queued.Count == 0)
+    {
+        <p>No queued update.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Update</th><th>Classification</th><th>Severity</th><th>Servers missing it</th><th>First seen (UTC)</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var queued in _queued)
+                {
+                    var key = Key(queued.Update.UpdateId, queued.Update.Revision);
+                    <tr>
+                        <td>@Title(queued.Update.UpdateId, queued.Update.Revision)</td>
+                        <td>@queued.Update.Classification</td>
+                        <td>@queued.Update.MsrcSeverity</td>
+                        <td>@queued.Servers</td>
+                        <td>@Format(queued.Update.FirstSeenAtUtc)</td>
+                        <td class="actions">
+                            @if (_canOperate)
+                            {
+                                <button type="submit" name="Action" value="start:@key">Start rollout</button>
+                                <button type="submit" name="Action" value="override:@key">Release to all rings</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</form>
+
+@code {
+    private const int MaxRows = 500;
+
+    /// <summary>Value of the pressed button: "{action}:{update id}:{revision}".</summary>
+    [SupplyParameterFromForm(FormName = "rollout")]
+    private string? Action { get; set; }
+
+    private bool _canOperate;
+    private List<RingEntity> _rings = [];
+    private List<RolloutEntity> _rollouts = [];
+    private Dictionary<string, UpdateEntity> _updates = [];
+    private Dictionary<(Guid, int, int), RolloutRingEntity> _ringStates = [];
+    private List<(UpdateEntity Update, int Servers)> _queued = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canOperate = await IsAuthorizedAsync(AdminRoles.Policies.Operate);
+        await LoadAsync();
+    }
+
+    private async Task HandleAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate))
+        {
+            ShowResult("Only operators and administrators can change rollouts.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var parts = Action?.Split(':');
+        if (parts is not [var action, var id, var rev]
+            || !Guid.TryParse(id, out var updateId)
+            || !int.TryParse(rev, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var revision))
+        {
+            ShowResult("Invalid request.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var actor = await GetActorAsync();
+        var (outcome, success) = action switch
+        {
+            "start" => (await Administration.StartAsync(updateId, revision, actor, CancellationToken.None), "The rollout runs."),
+            "stop" => (await Administration.StopAsync(updateId, revision, actor, CancellationToken.None), "The rollout was stopped; servers that have not installed the update no longer get it."),
+            "override" => (await Administration.OverrideAsync(updateId, revision, actor, CancellationToken.None), "The update is released to every ring."),
+            _ => (new Outcome("Invalid request."), string.Empty),
+        };
+
+        ShowResult(outcome.Error, success);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        _rollouts = await Db.Rollouts.AsNoTracking().OrderByDescending(r => r.StartedAtUtc).Take(MaxRows).ToListAsync();
+        var rolloutIds = _rollouts.Select(r => r.UpdateId).ToList();
+        _ringStates = (await Db.RolloutRings.AsNoTracking().Where(r => rolloutIds.Contains(r.UpdateId)).ToListAsync())
+            .ToDictionary(r => (r.UpdateId, r.Revision, r.RingId));
+
+        var approved = Db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
+        var missing = await Db.ClientAvailableUpdates.AsNoTracking()
+            .Where(a => approved.Contains(a.ClientId) && !Db.Rollouts.Any(r => r.UpdateId == a.UpdateId && r.Revision == a.Revision))
+            .GroupBy(a => new { a.UpdateId, a.Revision })
+            .Select(g => new { g.Key.UpdateId, g.Key.Revision, Servers = g.Count() })
+            .OrderByDescending(g => g.Servers)
+            .Take(MaxRows)
+            .ToListAsync();
+
+        var ids = rolloutIds.Concat(missing.Select(m => m.UpdateId)).Distinct().ToList();
+        _updates = (await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync())
+            .ToDictionary(u => Key(u.UpdateId, u.Revision));
+        _queued = [.. missing
+            .Where(m => _updates.ContainsKey(Key(m.UpdateId, m.Revision)))
+            .Select(m => (_updates[Key(m.UpdateId, m.Revision)], m.Servers))];
+    }
+
+    private static string Key(Guid updateId, int revision) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{updateId:D}:{revision}");
+
+    private string Title(Guid updateId, int revision) =>
+        _updates.TryGetValue(Key(updateId, revision), out var update)
+            ? $"{(update.KbArticle is null ? string.Empty : $"KB{update.KbArticle} ")}{update.Title}"
+            : updateId.ToString("D");
+
+    private static string Describe(RolloutRingEntity? state) => state?.State switch
+    {
+        RingRolloutState.Released => $"Released {Format(state.ReleasedAtUtc)}",
+        RingRolloutState.AwaitingApproval => "Awaiting approval",
+        RingRolloutState.Alarm => $"Alarm: {state.Reason}",
+        RingRolloutState.Waiting => "Waiting",
+        _ => "–",
+    };
+
+    private static string Format(DateTime? value) =>
+        value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";
+}

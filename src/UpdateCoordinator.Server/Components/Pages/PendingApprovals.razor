@@ -4,6 +4,7 @@
 @using UpdateCoordinator.Server.Approval
 @inject ServerDbContext Db
 @inject ClientApprovalService Approvals
+@inject UpdateCoordinator.Server.Rollouts.RolloutAdministration Rollouts
 @inject NavigationManager Navigation
 
 <PageTitle>Pending approvals</PageTitle>
@@ -52,6 +53,42 @@
     }
 </form>
 
+<h2>Ring transitions</h2>
+
+<p>Updates waiting at a manual gate, or stopped by an alarm because of a poor success rate or missing feedback. Approving releases the update for the ring; stopping withdraws it from servers that have not installed it.</p>
+
+<form method="post" @formname="transition" @onsubmit="DecideTransitionAsync">
+    <AntiforgeryToken />
+    @if (_gates.Count == 0)
+    {
+        <p>No ring transition is waiting.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Update</th><th>Ring</th><th>State</th><th>Since (UTC)</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var gate in _gates)
+                {
+                    var key = $"{gate.Ring.UpdateId:D}:{gate.Ring.Revision}";
+                    <tr>
+                        <td>@gate.Title</td>
+                        <td>@gate.RingName</td>
+                        <td>@(gate.Ring.State == RingRolloutState.Alarm ? $"Alarm: {gate.Ring.Reason}" : "Awaiting approval")</td>
+                        <td>@Format(gate.Ring.StateChangedAtUtc)</td>
+                        <td class="actions">
+                            <button type="submit" name="Transition" value="approve:@key:@gate.Ring.RingId">@(gate.Ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve")</button>
+                            <button type="submit" name="Transition" value="stop:@key:0">Stop rollout</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</form>
+
 @code {
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationState { get; set; }
@@ -60,7 +97,12 @@
     [SupplyParameterFromForm(FormName = "decision")]
     private string? Action { get; set; }
 
+    /// <summary>Value of the pressed transition button: "{approve|stop}:{update id}:{revision}:{ring id}".</summary>
+    [SupplyParameterFromForm(FormName = "transition")]
+    private string? Transition { get; set; }
+
     private List<ClientEntity> _pending = [];
+    private List<(RolloutRingEntity Ring, string Title, string RingName)> _gates = [];
     private string? _message;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
@@ -89,12 +131,51 @@
         await LoadAsync();
     }
 
-    private async Task LoadAsync() =>
+    private async Task LoadAsync()
+    {
         _pending = await Db.Clients.AsNoTracking()
             .Where(c => c.State == RegistrationState.Pending)
             .OrderBy(c => c.RegisteredAtUtc)
             .Take(500)
             .ToListAsync();
+
+        var waiting = await Db.RolloutRings.AsNoTracking()
+            .Where(r => r.State == RingRolloutState.AwaitingApproval || r.State == RingRolloutState.Alarm)
+            .Join(Db.Rollouts.Where(o => o.State == RolloutState.Active), r => new { r.UpdateId, r.Revision }, o => new { o.UpdateId, o.Revision }, (r, _) => r)
+            .OrderBy(r => r.StateChangedAtUtc)
+            .Take(500)
+            .ToListAsync();
+        var ids = waiting.Select(r => r.UpdateId).Distinct().ToList();
+        var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync();
+        var rings = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.Name);
+        _gates = [.. waiting.Select(r =>
+        {
+            var update = updates.FirstOrDefault(u => u.UpdateId == r.UpdateId && u.Revision == r.Revision);
+            var title = update is null ? r.UpdateId.ToString("D") : $"{(update.KbArticle is null ? string.Empty : $"KB{update.KbArticle} ")}{update.Title}";
+            return (r, title, rings.GetValueOrDefault(r.RingId) ?? "?");
+        })];
+    }
+
+    private async Task DecideTransitionAsync()
+    {
+        var parts = Transition?.Split(':');
+        if (parts is not [var action and ("approve" or "stop"), var id, var rev, var ring]
+            || !Guid.TryParse(id, out var updateId)
+            || !int.TryParse(rev, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var revision)
+            || !int.TryParse(ring, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var ringId))
+        {
+            _message = "Invalid request.";
+            await LoadAsync();
+            return;
+        }
+
+        var actor = AuthenticationState is null ? "unknown" : (await AuthenticationState).User.Identity?.Name ?? "unknown";
+        var outcome = action == "approve"
+            ? await Rollouts.ApproveRingAsync(updateId, revision, ringId, actor, CancellationToken.None)
+            : await Rollouts.StopAsync(updateId, revision, actor, CancellationToken.None);
+        _message = outcome.Error ?? (action == "approve" ? "The update was released for the ring." : "The rollout was stopped.");
+        await LoadAsync();
+    }
 
     private static string Format(DateTime? value) =>
         value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";

@@ -32,6 +32,12 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<SettingEntity> Settings => Set<SettingEntity>();
 
+    public DbSet<RolloutEntity> Rollouts => Set<RolloutEntity>();
+
+    public DbSet<RolloutRingEntity> RolloutRings => Set<RolloutRingEntity>();
+
+    public DbSet<RingTransitionEntity> RingTransitions => Set<RingTransitionEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -57,6 +63,47 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
             new RingEntity { Id = RingEntity.PilotId, Name = "Pilot", Order = 1 },
             new RingEntity { Id = RingEntity.TestId, Name = "Test", Order = 2 },
             new RingEntity { Id = RingEntity.ProductionId, Name = "Production", Order = 3, IsDefault = true });
+
+        var transition = modelBuilder.Entity<RingTransitionEntity>();
+        transition.ToTable("RingTransitions");
+        transition.HasKey(t => t.FromRingId);
+        transition.Property(t => t.FromRingId).ValueGeneratedNever();
+        transition.HasOne<RingEntity>().WithMany().HasForeignKey(t => t.FromRingId).OnDelete(DeleteBehavior.Cascade);
+        transition.HasData(
+            new RingTransitionEntity
+            {
+                FromRingId = RingEntity.PilotId,
+                MinimumWait = TimeSpan.FromDays(2),
+                MaximumWait = TimeSpan.FromDays(7),
+                MinimumFeedbackPercent = 80,
+                MinimumSuccessPercent = 95,
+                ManualGate = false,
+            },
+            new RingTransitionEntity
+            {
+                FromRingId = RingEntity.TestId,
+                MinimumWait = TimeSpan.FromDays(3),
+                MaximumWait = TimeSpan.FromDays(10),
+                MinimumFeedbackPercent = 80,
+                MinimumSuccessPercent = 95,
+                ManualGate = true,
+            });
+
+        var rollout = modelBuilder.Entity<RolloutEntity>();
+        rollout.ToTable("Rollouts");
+        rollout.HasKey(r => new { r.UpdateId, r.Revision });
+        rollout.Property(r => r.State).HasConversion<int>();
+        rollout.Property(r => r.StartedBy).HasMaxLength(256).IsRequired();
+        rollout.HasOne<UpdateEntity>().WithMany().HasForeignKey(r => new { r.UpdateId, r.Revision }).OnDelete(DeleteBehavior.Restrict);
+
+        var rolloutRing = modelBuilder.Entity<RolloutRingEntity>();
+        rolloutRing.ToTable("RolloutRings");
+        rolloutRing.HasKey(r => new { r.UpdateId, r.Revision, r.RingId });
+        rolloutRing.Property(r => r.State).HasConversion<int>();
+        rolloutRing.Property(r => r.Reason).HasMaxLength(256);
+        rolloutRing.HasIndex(r => r.State);
+        rolloutRing.HasOne<RolloutEntity>().WithMany().HasForeignKey(r => new { r.UpdateId, r.Revision }).OnDelete(DeleteBehavior.Cascade);
+        rolloutRing.HasOne<RingEntity>().WithMany().HasForeignKey(r => r.RingId).OnDelete(DeleteBehavior.Cascade);
 
         var group = modelBuilder.Entity<GroupEntity>();
         group.ToTable("Groups");

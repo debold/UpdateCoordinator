@@ -14,14 +14,6 @@ namespace UpdateCoordinator.Server.Assignment;
 /// </summary>
 internal sealed partial class AssignmentAdministration(ServerDbContext db, AssignmentService assignment, AuditLog audit)
 {
-    /// <summary>Result of an administrative change: null on success, otherwise the reason it was refused.</summary>
-    public sealed record Outcome(string? Error)
-    {
-        public static Outcome Ok { get; } = new((string?)null);
-
-        public bool Succeeded => Error is null;
-    }
-
     public async Task<Outcome> SetSystemWindowsAsync(string? text, string actor, CancellationToken cancellationToken)
     {
         if (!MaintenanceWindowFormat.TryParse(text, out var windows, out var error))

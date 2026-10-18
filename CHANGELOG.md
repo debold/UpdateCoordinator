@@ -48,6 +48,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Rings (Pilot, Test, Production; Production is the final and fallback ring), groups and assignment rules (role, domain, host name pattern; priority; manual overrides per server), recalculated on registration, inventory, administrative changes and start.
 - Maintenance windows on three levels (system default, group, server) maintained in the dashboard; the effective windows are delivered with the release list and increase its version when they change.
 - Dashboard pages: Servers and server detail (Reader), Groups, Assignment rules and Maintenance windows (Admin); every change audited.
+- Ring logic per update: rollouts start in Pilot automatically for configured classifications (default Security Updates and Critical Updates) or by an operator; transitions Pilot → Test → Production by minimum/maximum wait time, feedback rate and success rate (evaluated separately), manual gate (default on before Production), alarm on a poor success rate; gate approval, stop/resume and manual override to all rings; every action audited.
+- Releases are derived from the rollout state: an approved server gets an update released for its ring that it reported as missing, until its inventory reports it installed; ring changes move releases.
+- Dashboard pages: Updates (rollouts per ring and queued updates), ring transitions under Pending approvals, Administration → Release rules.
 - Windows Update error codes are translated into plain English text centrally.
 
 ### Shared

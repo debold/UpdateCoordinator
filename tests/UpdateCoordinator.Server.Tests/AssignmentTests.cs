@@ -218,7 +218,7 @@ public sealed class AssignmentServiceTests
         Assert.Equal(expected, AssignmentService.WildcardMatches(pattern, host));
     }
 
-    private static async Task WithAdministrationAsync(ServerFactory factory, Func<AssignmentAdministration, Task<AssignmentAdministration.Outcome>> action)
+    private static async Task WithAdministrationAsync(ServerFactory factory, Func<AssignmentAdministration, Task<Outcome>> action)
     {
         factory.StartServer();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -311,13 +311,13 @@ public sealed class AssignmentAdministrationTests
         Assert.True(await factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Actor == "alice" && e.Action == "Group.Created", TestContext.Current.CancellationToken)));
     }
 
-    private static async Task<AssignmentAdministration.Outcome> RunAsync(Func<AssignmentAdministration, Task<AssignmentAdministration.Outcome>> action)
+    private static async Task<Outcome> RunAsync(Func<AssignmentAdministration, Task<Outcome>> action)
     {
         await using var factory = new ServerFactory();
         return await RunAsync(factory, action);
     }
 
-    private static async Task<AssignmentAdministration.Outcome> RunAsync(ServerFactory factory, Func<AssignmentAdministration, Task<AssignmentAdministration.Outcome>> action)
+    private static async Task<Outcome> RunAsync(ServerFactory factory, Func<AssignmentAdministration, Task<Outcome>> action)
     {
         factory.StartServer();
         await using var scope = factory.Services.CreateAsyncScope();

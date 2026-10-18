@@ -1,0 +1,120 @@
+@page "/administration/release-rules"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@using UpdateCoordinator.Server.Rollouts
+@inject ServerDbContext Db
+@inject RolloutService Rollouts
+@inject RolloutAdministration Administration
+
+<PageTitle>Release rules</PageTitle>
+
+<h1>Release rules</h1>
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<h2>Ring transitions</h2>
+<p>
+    The next ring gets an update when the minimum wait time has passed, enough servers reported (feedback rate) and enough of the reports
+    were successful (success rate). At the maximum wait time a good success rate is enough. A poor success rate raises an alarm instead.
+    With a manual gate, an operator approves the transition under Pending approvals.
+</p>
+
+<form method="post" @formname="transition" @onsubmit="SaveTransitionAsync">
+    <AntiforgeryToken />
+    <table>
+        <thead>
+            <tr><th>Transition</th><th>Minimum wait (days)</th><th>Maximum wait (days)</th><th>Feedback rate (%)</th><th>Success rate (%)</th><th>Manual gate</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var transition in _transitions)
+            {
+                var id = transition.FromRingId;
+                <tr>
+                    <td>@RingName(id) → @NextRingName(id)</td>
+                    <td><input name="MinWait_@id" type="number" min="0" max="@RingTransitionEntity.MaxWaitDays" value="@((int)transition.MinimumWait.TotalDays)" /></td>
+                    <td><input name="MaxWait_@id" type="number" min="0" max="@RingTransitionEntity.MaxWaitDays" value="@((int)transition.MaximumWait.TotalDays)" /></td>
+                    <td><input name="Feedback_@id" type="number" min="0" max="100" value="@transition.MinimumFeedbackPercent" /></td>
+                    <td><input name="Success_@id" type="number" min="0" max="100" value="@transition.MinimumSuccessPercent" /></td>
+                    <td><input name="Gate_@id" type="checkbox" value="true" checked="@transition.ManualGate" /></td>
+                    <td><button type="submit" name="FromRing" value="@id">Save</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</form>
+
+<h2>Automatic start</h2>
+<p>
+    Updates of these classifications start their rollout in the first ring as soon as an approved server reports them as missing.
+    All other updates stay queued until an operator starts them. One classification per line, as reported by Windows Update (e.g. "Security Updates");
+    empty disables automatic starts.
+</p>
+
+<form method="post" @formname="autostart" @onsubmit="SaveAutoStartAsync">
+    <AntiforgeryToken />
+    <label>Classifications <textarea name="Classifications" rows="5">@_classifications</textarea></label>
+    <button type="submit">Save</button>
+</form>
+
+@code {
+    [SupplyParameterFromForm(FormName = "transition")]
+    private string? FromRing { get; set; }
+
+    [SupplyParameterFromForm(FormName = "autostart")]
+    private string? Classifications { get; set; }
+
+    [CascadingParameter]
+    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    private List<RingEntity> _rings = [];
+    private List<RingTransitionEntity> _transitions = [];
+    private string _classifications = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task SaveTransitionAsync()
+    {
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        int? Number(string name) =>
+            form is not null && int.TryParse(form[name].ToString(), System.Globalization.NumberStyles.None, invariant, out var value) ? value : null;
+
+        Outcome outcome;
+        if (form is null || !int.TryParse(FromRing, System.Globalization.NumberStyles.None, invariant, out var id)
+            || Number($"MinWait_{id}") is not { } minWait || Number($"MaxWait_{id}") is not { } maxWait
+            || Number($"Feedback_{id}") is not { } feedback || Number($"Success_{id}") is not { } success)
+        {
+            outcome = new Outcome("Every value must be a whole number.");
+        }
+        else
+        {
+            var gate = form[$"Gate_{id}"].ToString() == "true";
+            outcome = await Administration.SetTransitionAsync(id, minWait, maxWait, feedback, success, gate, await GetActorAsync(), CancellationToken.None);
+        }
+
+        ShowResult(outcome.Error, "The transition rule was saved.");
+        await LoadAsync();
+    }
+
+    private async Task SaveAutoStartAsync()
+    {
+        var outcome = await Administration.SetAutoStartClassificationsAsync(Classifications, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The classifications for automatic start were saved.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        _transitions = await Db.RingTransitions.AsNoTracking().ToListAsync();
+        _transitions = [.. _transitions.OrderBy(t => _rings.FindIndex(r => r.Id == t.FromRingId))];
+        _classifications = string.Join('\n', await Rollouts.GetAutoStartClassificationsAsync(CancellationToken.None));
+    }
+
+    private string RingName(int id) => _rings.FirstOrDefault(r => r.Id == id)?.Name ?? "?";
+
+    private string NextRingName(int id)
+    {
+        var index = _rings.FindIndex(r => r.Id == id);
+        return index >= 0 && index + 1 < _rings.Count ? _rings[index + 1].Name : "?";
+    }
+}
