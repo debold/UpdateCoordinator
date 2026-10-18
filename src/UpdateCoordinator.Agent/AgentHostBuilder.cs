@@ -6,6 +6,8 @@ using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Configuration;
 using UpdateCoordinator.Agent.Identity;
 using UpdateCoordinator.Agent.Trust;
+using UpdateCoordinator.Common;
+using UpdateCoordinator.Common.Logging;
 
 namespace UpdateCoordinator.Agent;
 
@@ -21,6 +23,7 @@ internal static class AgentHostBuilder
         var builder = Host.CreateApplicationBuilder(args);
         builder.Configuration.AddAgentRegistry(Registry.LocalMachine);
         builder.Services.AddWindowsService(options => options.ServiceName = ServiceName);
+        builder.Services.AddRollingFileLogging(builder.Configuration, Path.Combine(DataPaths.Agent, "Logs"), "agent");
         builder.Services.AddAgent(builder.Configuration);
         return builder;
     }

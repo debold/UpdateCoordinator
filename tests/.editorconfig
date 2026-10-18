@@ -2,3 +2,7 @@
 [*.cs]
 # Test names in the Method_Expectation style are intended
 dotnet_diagnostic.CA1707.severity = none
+
+# Logging performance rules are irrelevant in tests
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none

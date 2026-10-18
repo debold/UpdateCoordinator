@@ -14,6 +14,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Reads the central server address from the registry value `CentralServerUrl`; the group policy key overrides the installer key and all other configuration sources.
 - Trust anchor: pins the anchor of the central server on first contact and accepts only the TLS certificate bound to it by a signed binding with increasing serial, independent of CA and host name. Sends nothing to an untrusted central server.
 - Local trust reset via registry value `TrustResetToken` (once per change), logged and reported to the central server.
+- An inconsistent stored trust state is treated as first contact instead of stopping the service.
 
 ### Central server
 
@@ -35,6 +36,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Shared build settings: warnings as errors, .NET analyzers, central package versions, NuGet audit against known vulnerabilities.
 - Versions derived from git tags via MinVer.
 - `UpdateCoordinator.Common`: DPAPI-protected file storage shared by agent and central server.
+- Rolling file logs for agent and central server (Serilog): one file per day and per 10 MB, 31 files kept, configurable via `Logging:File`; warnings and errors also in the Windows event log.
+- Negative tests for every input path: HTTP messages, server responses, registry values (including invalid central server addresses), configuration and stored files.
 - End-to-end tests over a real TLS connection (certificate pinning, certificate change, impostor server).
 
 ### Decided

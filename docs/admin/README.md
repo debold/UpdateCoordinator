@@ -73,6 +73,19 @@ Registry values are read when the agent service starts. The product name in the 
 
 Invalid configuration stops the service at startup with a clear error in the event log instead of running with wrong settings.
 
+### Logging (both components)
+
+Each component writes rolling log files for troubleshooting; warnings and errors also go to the Windows event log (source: service name).
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Logging:File:Directory` | `%ProgramData%\UpdateCoordinator\Agent\Logs` or `...\Server\Logs` | folder of the log files (`agent-YYYYMMDD.log`, `server-YYYYMMDD.log`) |
+| `Logging:File:MinimumLevel` | `Information` | lowest level in the file (`Trace`, `Debug`, `Information`, `Warning`, `Error`) |
+| `Logging:File:RetainedFileCountLimit` | `31` | number of files kept; older files are deleted |
+| `Logging:File:FileSizeLimitBytes` | `10485760` (10 MB) | size at which a new file is started within the same day |
+
+A new file is started every day and when the size limit is reached. Client secrets and keys are never written to the logs. For a detailed trace, set `Logging:File:MinimumLevel` to `Debug` (environment variable `Logging__File__MinimumLevel=Debug`) and restart the service.
+
 ## 5. Data on disk
 
 | Component | Path | Content |
@@ -81,6 +94,7 @@ Invalid configuration stops the service at startup with a clear error in the eve
 | Central server | `Trust:AnchorPath` | private key of the trust anchor, DPAPI-protected for the service account |
 | Agent | `%ProgramData%\UpdateCoordinator\Agent\identity.dat` | client GUID and client secret, DPAPI-protected for the service account |
 | Agent | `%ProgramData%\UpdateCoordinator\Agent\trust.dat` | pinned trust anchor, accepted certificate key and highest binding serial, DPAPI-protected |
+| Both | `Logging:File:Directory` | rolling log files |
 
 If the agent identity file is deleted or unreadable, the agent registers again and appears as a new pending client. If the trust file is deleted, the next contact is a first contact again.
 

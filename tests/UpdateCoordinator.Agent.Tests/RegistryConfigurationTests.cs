@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.Win32;
 
 using UpdateCoordinator.Agent.Configuration;
@@ -84,6 +86,42 @@ public sealed class RegistryConfigurationTests : IDisposable
         Write(AgentRegistry.InstallerKeyPath, "CentralServerUrl", "  https://installer.example.local/  ");
 
         Assert.Equal("https://installer.example.local/", Build()[AddressKey]);
+    }
+
+    [Theory]
+    [InlineData("http://central.example.local/")]
+    [InlineData("ftp://central.example.local/")]
+    [InlineData("central.example.local")]
+    [InlineData("not a url")]
+    [InlineData("https://")]
+    [InlineData("\\\\server\\share")]
+    public void InvalidAddressInRegistry_StopsStartupWithClearError(string value)
+    {
+        Write(AgentRegistry.PolicyKeyPath, "CentralServerUrl", value);
+        var configuration = Build();
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddAgent(configuration)
+            .BuildServiceProvider();
+
+        var exception = Assert.ThrowsAny<Exception>(() => provider.GetRequiredService<IOptions<CentralServerOptions>>().Value);
+
+        Assert.True(
+            exception is OptionsValidationException or InvalidOperationException,
+            $"Unexpected exception type {exception.GetType()}");
+        Assert.Contains("BaseAddress", exception.Message + exception.InnerException?.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ValidAddressInRegistry_IsUsedByAgent()
+    {
+        Write(AgentRegistry.PolicyKeyPath, "CentralServerUrl", "https://central.example.local:8443/");
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddAgent(Build())
+            .BuildServiceProvider();
+
+        Assert.Equal(new Uri("https://central.example.local:8443/"), provider.GetRequiredService<IOptions<CentralServerOptions>>().Value.BaseAddress);
     }
 
     public void Dispose()

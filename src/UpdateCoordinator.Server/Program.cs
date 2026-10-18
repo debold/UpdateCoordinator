@@ -1,3 +1,5 @@
+using UpdateCoordinator.Common;
+using UpdateCoordinator.Common.Logging;
 using UpdateCoordinator.Contracts;
 using UpdateCoordinator.Server;
 using UpdateCoordinator.Server.Agents;
@@ -6,6 +8,7 @@ using UpdateCoordinator.Server.Trust;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddWindowsService(options => options.ServiceName = "UpdateCoordinator.Server");
+builder.Services.AddRollingFileLogging(builder.Configuration, Path.Combine(DataPaths.Server, "Logs"), "server");
 builder.Services.AddCentralServer(builder.Configuration);
 
 var app = builder.Build();

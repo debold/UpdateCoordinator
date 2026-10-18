@@ -10,7 +10,8 @@ public sealed class AgentHostTests
     [Fact]
     public void Create_RegistersAgentWorker()
     {
-        var builder = AgentHostBuilder.Create(["--CentralServer:BaseAddress=https://central.example.local/"]);
+        var logs = Path.Combine(Path.GetTempPath(), "UpdateCoordinator.Tests", Guid.NewGuid().ToString("N"));
+        var builder = AgentHostBuilder.Create(["--CentralServer:BaseAddress=https://central.example.local/", $"--Logging:File:Directory={logs}"]);
 
         using var host = builder.Build();
 

@@ -29,10 +29,14 @@ public class ServerFactory : WebApplicationFactory<Program>
     /// <summary>Path of the trust anchor file of this server instance.</summary>
     public string AnchorPath => Path.Combine(_directory, "trust-anchor.key");
 
+    /// <summary>Folder of the rolling log files of this server instance.</summary>
+    public string LogDirectory => Path.Combine(_directory, "Logs");
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("Database:Path", Path.Combine(_directory, "server.db"));
         builder.UseSetting("Trust:AnchorPath", AnchorPath);
+        builder.UseSetting("Logging:File:Directory", LogDirectory);
         builder.UseSetting("Agents:RateLimit:RegisterPermitLimit", RegisterPermitLimit.ToString(CultureInfo.InvariantCulture));
         builder.ConfigureTestServices(services => services.AddSingleton<ITlsCertificateProvider>(_certificates));
     }
@@ -55,12 +59,32 @@ public class ServerFactory : WebApplicationFactory<Program>
     {
         await base.DisposeAsync();
         SqliteConnection.ClearAllPools();
-        if (Directory.Exists(_directory))
-        {
-            Directory.Delete(_directory, recursive: true);
-        }
+        await DeleteDirectoryAsync(_directory);
 
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Best-effort cleanup of the temporary folder. Windows may release file handles (log file, database)
+    /// shortly after the host is disposed, so deletion is retried; a leftover temp folder never fails a test.
+    /// </summary>
+    private static async Task DeleteDirectoryAsync(string directory)
+    {
+        for (var attempt = 0; attempt < 10 && Directory.Exists(directory); attempt++)
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                await Task.Delay(100);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                await Task.Delay(100);
+            }
+        }
     }
 
     private sealed class MutableCertificateProvider(X509Certificate2 certificate) : ITlsCertificateProvider
