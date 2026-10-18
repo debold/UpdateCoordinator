@@ -39,20 +39,12 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
 
     public async Task<HeartbeatResponse?> HeartbeatAsync(AgentIdentity identity, HeartbeatRequest request, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(identity);
-        using var message = new HttpRequestMessage(HttpMethod.Post, new Uri(ApiRoutes.AgentHeartbeat, UriKind.Relative))
-        {
-            Content = JsonContent.Create(request),
-        };
-        message.Headers.Authorization = AgentCredentials.ToHeader(identity.ClientId, identity.ClientSecret);
-
-        using var response = await httpClient.SendAsync(message, cancellationToken).ConfigureAwait(false);
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        using var response = await PostAuthenticatedAsync(ApiRoutes.AgentHeartbeat, identity, request, cancellationToken).ConfigureAwait(false);
+        if (response is null)
         {
             return null;
         }
 
-        response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<HeartbeatResponse>(cancellationToken).ConfigureAwait(false);
         if (body is null || !Enum.IsDefined(body.State))
         {
@@ -60,5 +52,40 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
         }
 
         return body;
+    }
+
+    public async Task<bool> SendInventoryAsync(AgentIdentity identity, InventoryRequest request, CancellationToken cancellationToken)
+    {
+        using var response = await PostAuthenticatedAsync(ApiRoutes.AgentInventory, identity, request, cancellationToken).ConfigureAwait(false);
+        return response is not null;
+    }
+
+    /// <summary>Posts a message with client credentials. Returns null for 401 and throws for every other error status.</summary>
+    private async Task<HttpResponseMessage?> PostAuthenticatedAsync<T>(string route, AgentIdentity identity, T body, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        using var message = new HttpRequestMessage(HttpMethod.Post, new Uri(route, UriKind.Relative))
+        {
+            Content = JsonContent.Create(body),
+        };
+        message.Headers.Authorization = AgentCredentials.ToHeader(identity.ClientId, identity.ClientSecret);
+
+        var response = await httpClient.SendAsync(message, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            response.Dispose();
+            return null;
+        }
+
+        try
+        {
+            response.EnsureSuccessStatusCode();
+            return response;
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
     }
 }

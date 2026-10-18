@@ -25,12 +25,25 @@ In addition to the regular cycle there is a full resync of the inventory data ag
 
 ### Role detection
 
-The inventory contains detected server roles so automatic group rules can apply:
+The inventory contains detected server roles so automatic group rules can apply. Roles are detected by **rules**: each rule names a role and a list of conditions, and the role is detected if any condition matches. Condition kinds: registry key exists, registry value exists (optionally with an expected value, case-insensitive) and Windows service installed; all paths are relative to HKLM and read-only. Built-in rules (decided 2026-10-18):
 
-- **Domain controller** via the LDAP configuration
-- **Exchange**, **SQL Server**, **cluster membership**, **Hyper-V host** via the client inventory
+| Role | Detection |
+|---|---|
+| `DomainController` | `ProductType` = `LanmanNt` under `SYSTEM\CurrentControlSet\Control\ProductOptions` (local and reliable; replaces the earlier idea of reading the LDAP configuration) |
+| `Exchange` | key `SOFTWARE\Microsoft\ExchangeServer\v15\Setup` or service `MSExchangeIS` |
+| `SqlServer` | key `SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL` |
+| `ClusterNode` | service `ClusSvc` or key `Cluster` |
+| `HyperVHost` | service `vmms` |
 
-In addition the agent reports domain membership and SID (basis of rule-based approval, see `03-communication-protocol.md`).
+**Extensible without code changes:** additional rules come from configuration (`Inventory:RoleRules`). A configured rule with a new name adds a role; a rule with the name of a built-in role adds conditions to it. Invalid rules stop the agent at startup with a clear error.
+
+In addition the agent reports domain membership and the SID of its computer account in AD (basis of rule-based approval, see `03-communication-protocol.md`).
+
+### Collection and sending
+
+- Installed updates are read through the WUA API (`IUpdateSearcher`, search `IsInstalled=1 and IsHidden=0`, `Online = false`, so only the local cache is used and no internet access is needed). The API is accessed late-bound through the COM support of .NET; every COM object is released explicitly. If the API is not available, the inventory is sent without the update list.
+- The inventory is collected after registration, on service start and then every `Inventory:CollectInterval` (default 1 hour). It is only sent if it changed or `Inventory:MaxSendInterval` (default 1 day) has passed. A failed send is retried with the next cycle.
+- Values are shaped to the contract before sending (control characters removed, lengths truncated, invalid entries dropped), so a single odd value never blocks the whole inventory; the central server validates again.
 
 ## 3. Cycle (fixed pipeline)
 

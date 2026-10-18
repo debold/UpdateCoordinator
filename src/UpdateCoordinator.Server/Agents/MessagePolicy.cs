@@ -10,6 +10,7 @@ internal enum MessageType
 {
     Register,
     Heartbeat,
+    Inventory,
 }
 
 /// <summary>
@@ -20,7 +21,7 @@ internal static class MessagePolicy
     public static bool IsAllowed(MessageType messageType, RegistrationState? state) => messageType switch
     {
         MessageType.Register => state is null,
-        MessageType.Heartbeat => state is RegistrationState.Pending or RegistrationState.Approved,
+        MessageType.Heartbeat or MessageType.Inventory => state is RegistrationState.Pending or RegistrationState.Approved,
         _ => false,
     };
 }

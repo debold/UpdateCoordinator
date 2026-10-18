@@ -14,6 +14,9 @@ public static class ApiRoutes
     /// <summary>Periodic heartbeat of a registered agent.</summary>
     public const string AgentHeartbeat = "/api/v1/agents/heartbeat";
 
+    /// <summary>Full inventory of a registered agent (also accepted before approval).</summary>
+    public const string AgentInventory = "/api/v1/agents/inventory";
+
     /// <summary>Signed binding between trust anchor and TLS certificate; public, self-authenticating data.</summary>
     public const string TrustBinding = "/api/v1/trust/binding";
 }

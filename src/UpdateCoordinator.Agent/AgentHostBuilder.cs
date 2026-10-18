@@ -5,6 +5,7 @@ using Microsoft.Win32;
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Configuration;
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Inventory;
 using UpdateCoordinator.Agent.Trust;
 using UpdateCoordinator.Common;
 using UpdateCoordinator.Common.Logging;
@@ -36,7 +37,19 @@ internal static class AgentHostBuilder
             .ValidateOnStart();
 
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<ISystemProbe, WindowsSystemProbe>();
         services.AddSingleton<IAgentEnvironment, AgentEnvironment>();
+
+        services.AddOptions<InventoryOptions>()
+            .Bind(configuration.GetSection(InventoryOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<IComputerSidReader, ComputerSidReader>();
+        services.AddSingleton<IInstalledUpdateSource, WuaInstalledUpdateSource>();
+        services.AddSingleton<RoleDetector>();
+        services.AddSingleton<InventoryCollector>();
+        services.AddSingleton<InventoryScheduler>();
+        services.AddSingleton<IInventoryReporter, InventoryReporter>();
         services.AddSingleton<IAgentIdentityStore>(provider => new DpapiAgentIdentityStore(
             DpapiAgentIdentityStore.DefaultPath,
             provider.GetRequiredService<ILogger<DpapiAgentIdentityStore>>()));

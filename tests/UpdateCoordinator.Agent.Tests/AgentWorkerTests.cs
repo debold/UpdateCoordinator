@@ -16,6 +16,7 @@ public sealed class AgentWorkerTests
     private readonly InMemoryIdentityStore _store = new();
     private readonly FakeTimeProvider _time = new();
     private readonly FakeServerTrust _trust = new();
+    private readonly FakeInventoryReporter _inventory = new();
 
     [Fact]
     public async Task RunCycle_WithoutIdentity_RegistersStoresIdentityAndSendsHeartbeat()
@@ -121,6 +122,41 @@ public sealed class AgentWorkerTests
     }
 
     [Fact]
+    public async Task RunCycle_ReportsInventoryAfterHeartbeat_AndResetsItOnRegistration()
+    {
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, _inventory.Reports);
+        Assert.Equal(1, _inventory.Resets);
+    }
+
+    [Fact]
+    public async Task RunCycle_WhenInventoryCredentialsAreRejected_ForgetsIdentity()
+    {
+        _store.Identity = new AgentIdentity(Guid.NewGuid(), "stored-secret");
+        _inventory.Accept = false;
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(_store.Identity);
+    }
+
+    [Fact]
+    public async Task RunCycle_SendsOsVersionWithHeartbeat()
+    {
+        HeartbeatRequest? sent = null;
+        _client.OnHeartbeatRequest = request => sent = request;
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("10.0.20348.2700", sent?.OsVersion);
+    }
+
+    [Fact]
     public async Task Execute_StopsCleanly()
     {
         using var worker = CreateWorker();
@@ -138,6 +174,7 @@ public sealed class AgentWorkerTests
         _store,
         new FakeEnvironment(),
         _trust,
+        _inventory,
         Options.Create(new CentralServerOptions
         {
             BaseAddress = new Uri("https://central.example.local/"),

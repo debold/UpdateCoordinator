@@ -28,4 +28,23 @@ internal sealed class ClientEntity
     public DateTime RegisteredAtUtc { get; set; }
 
     public DateTime? LastHeartbeatAtUtc { get; set; }
+
+    // Inventory (see docs/05-agent-design.md, section 2); empty until the first inventory arrives.
+
+    public string? ComputerSid { get; set; }
+
+    public string? OsProductName { get; set; }
+
+    public string? OsEditionId { get; set; }
+
+    public string? OsDisplayVersion { get; set; }
+
+    /// <summary>Detected roles, e.g. DomainController; stored as a JSON array.</summary>
+    public List<string> Roles { get; set; } = [];
+
+    public bool UsesWsus { get; set; }
+
+    public string? WsusServer { get; set; }
+
+    public DateTime? InventoryAtUtc { get; set; }
 }

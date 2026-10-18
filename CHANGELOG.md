@@ -15,6 +15,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Trust anchor: pins the anchor of the central server on first contact and accepts only the TLS certificate bound to it by a signed binding with increasing serial, independent of CA and host name. Sends nothing to an untrusted central server.
 - Local trust reset via registry value `TrustResetToken` (once per change), logged and reported to the central server.
 - An inconsistent stored trust state is treated as first contact instead of stopping the service.
+- Inventory: OS (product, edition, display version, version with UBR), domain, computer account SID, roles, update source (WSUS reported as warning) and installed updates via the WUA API (local cache only, COM objects released explicitly). Collected hourly, sent on start, on change and at least daily.
+- Role detection by rules: built-in rules for domain controller, Exchange, SQL Server, cluster node and Hyper-V; additional rules via `Inventory:RoleRules` without code changes.
+- Heartbeat carries the current OS version including UBR.
 
 ### Central server
 
@@ -28,6 +31,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - `GET /api/v1/trust/binding`: anchor-signed binding to the current TLS certificate; a new certificate gets the next serial on start.
 - HTTPS only (default port 8443); TLS certificate from the Windows certificate store via `Trust:CertificateThumbprint`.
 - Logs local trust resets reported by agents.
+- `POST /api/v1/agents/inventory` (also before approval): stores client attributes, roles and installed updates, builds the update catalog from agent reports, logs changes of host name, domain and SID; at most 5,000 updates and 4 MB per request.
 
 ### Shared
 

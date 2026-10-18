@@ -14,4 +14,9 @@ public sealed record HeartbeatRequest
 
     /// <summary>True if the agent reset its trust in the central server locally (registry override) since the last acknowledged heartbeat.</summary>
     public bool TrustReset { get; init; }
+
+    /// <summary>Current OS version including UBR; changes with every installed cumulative update.</summary>
+    [StringLength(23, MinimumLength = 3)]
+    [RegularExpression(ValidationPatterns.OsVersion)]
+    public string? OsVersion { get; init; }
 }

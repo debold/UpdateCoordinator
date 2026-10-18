@@ -1,5 +1,6 @@
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Inventory;
 using UpdateCoordinator.Agent.Trust;
 using UpdateCoordinator.Contracts.Agents;
 
@@ -57,6 +58,33 @@ internal sealed class FakeCentralServerClient : ICentralServerClient
         OnHeartbeatRequest(request);
         return Task.FromResult(OnHeartbeat(identity));
     }
+
+    public List<InventoryRequest> Inventories { get; } = [];
+
+    public bool AcceptInventory { get; set; } = true;
+
+    public Task<bool> SendInventoryAsync(AgentIdentity identity, InventoryRequest request, CancellationToken cancellationToken)
+    {
+        Inventories.Add(request);
+        return Task.FromResult(AcceptInventory);
+    }
+}
+
+internal sealed class FakeInventoryReporter : IInventoryReporter
+{
+    public bool Accept { get; set; } = true;
+
+    public int Reports { get; private set; }
+
+    public int Resets { get; private set; }
+
+    public Task<bool> ReportIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        Reports++;
+        return Task.FromResult(Accept);
+    }
+
+    public void Reset() => Resets++;
 }
 
 internal sealed class FakeServerTrust : IServerTrust

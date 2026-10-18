@@ -27,6 +27,10 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ComputerSid")
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DomainName")
                         .HasMaxLength(253)
                         .HasColumnType("TEXT");
@@ -36,7 +40,22 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasMaxLength(63)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("InventoryAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("LastHeartbeatAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OsDisplayVersion")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OsEditionId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OsProductName")
+                        .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("OsVersion")
@@ -51,6 +70,10 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasMaxLength(45)
                         .HasColumnType("TEXT");
 
+                    b.PrimitiveCollection<string>("Roles")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<byte[]>("SecretHash")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -59,11 +82,41 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<int>("State")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("UsesWsus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("WsusServer")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ComputerSid");
 
                     b.HasIndex("HostName");
 
                     b.ToTable("Clients", (string)null);
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientUpdateEntity", b =>
+                {
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ReportedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ClientId", "UpdateId", "Revision");
+
+                    b.HasIndex("UpdateId", "Revision");
+
+                    b.ToTable("ClientUpdates", (string)null);
                 });
 
             modelBuilder.Entity("UpdateCoordinator.Server.Data.TrustBindingEntity", b =>
@@ -87,6 +140,52 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.HasKey("Serial");
 
                     b.ToTable("TrustBindings", (string)null);
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.UpdateEntity", b =>
+                {
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Classification")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("FirstSeenAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("KbArticle")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UpdateId", "Revision");
+
+                    b.HasIndex("KbArticle");
+
+                    b.ToTable("Updates", (string)null);
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientUpdateEntity", b =>
+                {
+                    b.HasOne("UpdateCoordinator.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UpdateCoordinator.Server.Data.UpdateEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UpdateId", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

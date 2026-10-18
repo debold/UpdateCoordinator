@@ -5,13 +5,14 @@ using Microsoft.Extensions.Options;
 
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Inventory;
 using UpdateCoordinator.Agent.Trust;
 using UpdateCoordinator.Contracts.Agents;
 
 namespace UpdateCoordinator.Agent;
 
 /// <summary>
-/// Main loop of the agent: registers once, then sends heartbeats. Backs off exponentially
+/// Main loop of the agent: registers once, then sends heartbeats and the inventory when due. Backs off exponentially
 /// while the central server is unreachable and never lets an error stop the service.
 /// </summary>
 internal sealed partial class AgentWorker(
@@ -19,6 +20,7 @@ internal sealed partial class AgentWorker(
     IAgentIdentityStore identityStore,
     IAgentEnvironment environment,
     IServerTrust trust,
+    IInventoryReporter inventory,
     IOptions<CentralServerOptions> options,
     TimeProvider timeProvider,
     ILogger<AgentWorker> logger) : BackgroundService
@@ -79,16 +81,12 @@ internal sealed partial class AgentWorker(
 
         var trustReset = trust.ResetNotReported;
         var response = await client
-            .HeartbeatAsync(identity, new HeartbeatRequest { AgentVersion = environment.AgentVersion, TrustReset = trustReset }, cancellationToken)
+            .HeartbeatAsync(identity, new HeartbeatRequest { AgentVersion = environment.AgentVersion, TrustReset = trustReset, OsVersion = environment.OsVersion }, cancellationToken)
             .ConfigureAwait(false);
 
         if (response is null)
         {
-            // The central server no longer knows these credentials (e.g. deleted or database restored).
-            // Registering again creates a new entry that needs approval, so no trust is gained.
-            LogCredentialsRejected(identity.ClientId);
-            identityStore.Delete();
-            _lastState = null;
+            ForgetIdentity(identity);
             return;
         }
 
@@ -102,6 +100,22 @@ internal sealed partial class AgentWorker(
             LogStateChanged(identity.ClientId, response.State);
             _lastState = response.State;
         }
+
+        if (!await inventory.ReportIfDueAsync(identity, cancellationToken).ConfigureAwait(false))
+        {
+            ForgetIdentity(identity);
+        }
+    }
+
+    /// <summary>
+    /// The central server no longer knows these credentials (e.g. deleted or database restored).
+    /// Registering again creates a new entry that needs approval, so no trust is gained.
+    /// </summary>
+    private void ForgetIdentity(AgentIdentity identity)
+    {
+        LogCredentialsRejected(identity.ClientId);
+        identityStore.Delete();
+        _lastState = null;
     }
 
     private async Task<AgentIdentity> RegisterAsync(CancellationToken cancellationToken)
@@ -116,6 +130,7 @@ internal sealed partial class AgentWorker(
 
         var identity = await client.RegisterAsync(request, cancellationToken).ConfigureAwait(false);
         identityStore.Save(identity);
+        inventory.Reset();
         LogRegistered(identity.ClientId);
         return identity;
     }

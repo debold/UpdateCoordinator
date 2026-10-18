@@ -105,7 +105,10 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 |---|---|---|---|
 | Register | `POST /api/v1/agents/register` | none (rate limited per IP) | `200` client GUID + secret, `400` invalid input, `403` already registered, `429` rate limit |
 | Heartbeat | `POST /api/v1/agents/heartbeat` | Basic (GUID + secret) | `200` registration state, `400` invalid input, `401` unknown credentials, `403` state not allowed |
+| Inventory | `POST /api/v1/agents/inventory` | Basic (GUID + secret) | `204` stored, `400` invalid input, `401` unknown credentials, `403` state not allowed, `413` larger than 4 MB |
 | Trust binding | `GET /api/v1/trust/binding` | none (public, signed) | `200` binding (see 3.2), `503` no binding yet |
+
+The inventory contains host name, domain, computer account SID, operating system (product name, edition, display version, version with UBR), detected roles, the configured update source and up to 5,000 installed updates (update ID, revision, KB, title, classification). `installedUpdates: null` means "could not be read": the central server keeps the previous list. The heartbeat additionally carries the current OS version including UBR.
 
 The protocol version is part of the route (`/api/v1/...`). An incompatible change introduces a new version, and the central server serves both during a transition period. All input is validated against the shared contracts (`UpdateCoordinator.Contracts`); error answers use RFC 9457 problem details.
 

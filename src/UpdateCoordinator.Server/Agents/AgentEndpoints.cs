@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using UpdateCoordinator.Contracts;
@@ -28,7 +29,26 @@ internal static class AgentEndpoints
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.Heartbeat))
             .WithName("AgentHeartbeat");
 
+        endpoints.MapPost(ApiRoutes.AgentInventory, InventoryAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.Inventory))
+            .WithMetadata(new RequestSizeLimitAttribute(MaxInventoryBytes))
+            .WithName("AgentInventory");
+
         return endpoints;
+    }
+
+    /// <summary>Upper bound for an inventory request; 5,000 updates with long titles fit comfortably.</summary>
+    public const long MaxInventoryBytes = 4 * 1024 * 1024;
+
+    internal static async Task<Results<NoContent, UnauthorizedHttpResult>> InventoryAsync(
+        InventoryRequest request,
+        HttpContext httpContext,
+        InventoryService inventory,
+        CancellationToken cancellationToken)
+    {
+        var stored = await inventory.StoreAsync(httpContext.User.GetClientId(), request, cancellationToken).ConfigureAwait(false);
+        return stored ? TypedResults.NoContent() : TypedResults.Unauthorized();
     }
 
     internal static async Task<Ok<RegisterResponse>> RegisterAsync(
@@ -78,7 +98,8 @@ internal static class AgentEndpoints
             .ExecuteUpdateAsync(
                 setters => setters
                     .SetProperty(c => c.LastHeartbeatAtUtc, now)
-                    .SetProperty(c => c.AgentVersion, request.AgentVersion),
+                    .SetProperty(c => c.AgentVersion, request.AgentVersion)
+                    .SetProperty(c => c.OsVersion, c => request.OsVersion ?? c.OsVersion),
                 cancellationToken)
             .ConfigureAwait(false);
 
