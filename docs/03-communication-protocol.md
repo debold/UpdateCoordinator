@@ -17,11 +17,14 @@
 
 ## 3. Authentication and trust
 
-There is **no secret, no token and no certificate on the client side** for registration. Onboarding of new agents is decided exclusively by the **approval mechanism** (see section 4.1). Communication runs over HTTPS.
+There is **no pre-shared secret, no token and no certificate on the client side** for registration. Onboarding of new agents is decided exclusively by the **approval mechanism** (see section 4.1). Communication runs over HTTPS.
 
-### 3.1 Client identity (client GUID)
+### 3.1 Client identity (client GUID and client secret)
 
-- On registration the **central server** issues a random **client GUID** (v4) and returns it in the register response. The agent stores it locally (protected with DPAPI) and sends it with every message.
+- On registration the **central server** issues a random **client GUID** (v4) and a random **client secret** (256 bit, Base64url) and returns both in the register response. Decided on 2026-10-18: the GUID alone is not a secret, so without the client secret anyone who learns a GUID could impersonate that server.
+- The agent stores both locally (protected with DPAPI for the service account) and sends them with every further message as **HTTP Basic authentication** (`clientGuid:clientSecret`) over HTTPS.
+- The central server stores only a SHA-256 hash of the secret and compares in constant time. Unknown GUID and wrong secret produce the same answer (`401`), so GUIDs cannot be probed.
+- If the central server answers `401` (client deleted or database restored without it), the agent discards its identity and registers again. The new entry needs a new approval, so no trust is gained this way.
 - The GUID identifies the client uniquely **across renames and domain rejoins**. Host name, domain and SID are only attributes: changes are logged but do not trigger a new approval.
 - The approval (see 4.1) refers to the GUID.
 - **Clone detection (draft):** if the same GUID reports from two sources at the same time (e.g. a cloned VM), the central server flags a clone suspicion and blocks the GUID until an admin resolves it.
@@ -52,7 +55,7 @@ The approval mechanism is the **only mechanism** that decides on onboarding new 
 
 ### 4.2 Flow
 
-1. The agent sends **Register** (it knows it has never been connected). The central server issues the **client GUID** (see 3.1) and returns it.
+1. The agent sends **Register** (it knows it has never been connected). The central server issues the **client GUID and client secret** (see 3.1) and returns them. The client starts in state `Pending`.
 2. Optionally it sends its **inventory** right afterwards.
 3. The central server also accepts and stores inventory from **unapproved** clients, but returns **no control information** (no minimum version, no released updates) until the client is approved. Reason: only this way are the full inventory data (role, domain membership, SID) available for the approval decision, in particular the rule-based one.
 4. After approval, ring and group assignment follows (see `04-central-server.md`).
@@ -61,7 +64,7 @@ Register and inventory are deliberately **separate message types**, so the logic
 
 ## 5. Message types
 
-Whitelist depending on registration state. The list is a **first draft**; more types are expected.
+Whitelist depending on registration state. The list is a **first draft**; more types are expected. "Unregistered / not approved" means no credentials yet or state `Pending`; "Registered" means state `Approved`. Clients in state `Rejected`, `Blocked` or `Deleted` may send no message at all (`403`). Register is only accepted without valid credentials.
 
 | Message type | Unregistered / not approved | Registered |
 |---|---|---|
@@ -74,6 +77,15 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 | Agent update check | no | yes |
 
 **Unregister also for unapproved clients:** if an installation is accidentally started on the wrong server and uninstalled again, the uninstallation triggers an unregister before the service stops. The central server marks the entry as deleted without the admin having to clean up.
+
+### 5.1 Implemented endpoints (API version 1)
+
+| Message | Endpoint | Authentication | Answers |
+|---|---|---|---|
+| Register | `POST /api/v1/agents/register` | none (rate limited per IP) | `200` client GUID + secret, `400` invalid input, `403` already registered, `429` rate limit |
+| Heartbeat | `POST /api/v1/agents/heartbeat` | Basic (GUID + secret) | `200` registration state, `400` invalid input, `401` unknown credentials, `403` state not allowed |
+
+The protocol version is part of the route (`/api/v1/...`). An incompatible change introduces a new version, and the central server serves both during a transition period. All input is validated against the shared contracts (`UpdateCoordinator.Contracts`); error answers use RFC 9457 problem details.
 
 Further foreseeable messages (from the functional requirements, detailed specification still open): update report (search result), install report (per update, see `05-agent-design.md`), live status, history sync, full resync, log upload.
 

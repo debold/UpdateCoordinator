@@ -1,6 +1,7 @@
+using System.ComponentModel.DataAnnotations;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace UpdateCoordinator.Agent.Tests;
 
@@ -9,7 +10,7 @@ public sealed class AgentHostTests
     [Fact]
     public void Create_RegistersAgentWorker()
     {
-        var builder = AgentHostBuilder.Create([]);
+        var builder = AgentHostBuilder.Create(["--CentralServer:BaseAddress=https://central.example.local/"]);
 
         using var host = builder.Build();
 
@@ -17,28 +18,42 @@ public sealed class AgentHostTests
     }
 
     [Fact]
-    public async Task Worker_StopsCleanly()
+    public void Options_WithHttpsAddress_AreValid()
     {
-        using var worker = new AgentWorker(NullLogger<AgentWorker>.Instance);
+        Assert.Empty(Validate(new CentralServerOptions { BaseAddress = new Uri("https://central.example.local/") }));
+    }
 
-        await worker.StartAsync(TestContext.Current.CancellationToken);
-        await worker.StopAsync(TestContext.Current.CancellationToken);
-
-        Assert.NotNull(worker.ExecuteTask);
-        Assert.True(worker.ExecuteTask.IsCompleted);
-        Assert.False(worker.ExecuteTask.IsFaulted);
+    [Theory]
+    [InlineData("http://central.example.local/")]
+    [InlineData("ftp://central.example.local/")]
+    public void Options_WithoutHttps_AreRejected(string address)
+    {
+        Assert.NotEmpty(Validate(new CentralServerOptions { BaseAddress = new Uri(address) }));
     }
 
     [Fact]
-    public async Task Worker_WithCancelledToken_DoesNotThrow()
+    public void Options_WithoutAddress_AreRejected()
     {
-        using var worker = new AgentWorker(NullLogger<AgentWorker>.Instance);
-        using var cancelled = new CancellationTokenSource();
-        await cancelled.CancelAsync();
+        Assert.NotEmpty(Validate(new CentralServerOptions()));
+    }
 
-        await worker.StartAsync(cancelled.Token);
-        await worker.StopAsync(TestContext.Current.CancellationToken);
+    [Fact]
+    public void Options_WithBackoffShorterThanInterval_AreRejected()
+    {
+        var options = new CentralServerOptions
+        {
+            BaseAddress = new Uri("https://central.example.local/"),
+            HeartbeatInterval = TimeSpan.FromMinutes(1),
+            MaxBackoff = TimeSpan.FromSeconds(30),
+        };
 
-        Assert.True(worker.ExecuteTask is null || !worker.ExecuteTask.IsFaulted);
+        Assert.NotEmpty(Validate(options));
+    }
+
+    private static List<ValidationResult> Validate(CentralServerOptions options)
+    {
+        var results = new List<ValidationResult>();
+        Validator.TryValidateObject(options, new ValidationContext(options), results, validateAllProperties: true);
+        return results;
     }
 }

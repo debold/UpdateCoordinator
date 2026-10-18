@@ -7,4 +7,10 @@ public static class ApiRoutes
 {
     /// <summary>Liveness endpoint of the central server for monitoring; no authentication, no payload.</summary>
     public const string Health = "/health";
+
+    /// <summary>Registration of a new agent; the only agent endpoint that does not require client credentials.</summary>
+    public const string AgentRegister = "/api/v1/agents/register";
+
+    /// <summary>Periodic heartbeat of a registered agent.</summary>
+    public const string AgentHeartbeat = "/api/v1/agents/heartbeat";
 }

@@ -480,3 +480,17 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Local databases (SQLite)
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets and keys must never be committed
+*.pfx
+*.p12
+*.key
+*.pem
+.env
+.env.*
+secrets.json

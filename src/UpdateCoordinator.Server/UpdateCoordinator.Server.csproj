@@ -1,12 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!-- Version from git tags server/vX.Y.Z (see docs/01-architecture.md). -->
+    <MinVerTagPrefix>server/v</MinVerTagPrefix>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+    <PackageReference Include="MinVer" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\UpdateCoordinator.Contracts\UpdateCoordinator.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="UpdateCoordinator.TestSupport" />
+    <InternalsVisibleTo Include="UpdateCoordinator.IntegrationTests" />
   </ItemGroup>
 
 </Project>

@@ -1,13 +1,13 @@
 using System.Net;
 
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 using UpdateCoordinator.Contracts;
+using UpdateCoordinator.TestSupport;
 
 namespace UpdateCoordinator.Server.Tests;
 
-public sealed class HostingTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HostingTests(ServerFactory factory) : IClassFixture<ServerFactory>
 {
     private const string OpenApiDocument = "/openapi/v1.json";
 

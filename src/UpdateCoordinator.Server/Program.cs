@@ -1,12 +1,18 @@
 using UpdateCoordinator.Contracts;
+using UpdateCoordinator.Server;
+using UpdateCoordinator.Server.Agents;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddWindowsService(options => options.ServiceName = "UpdateCoordinator.Server");
-builder.Services.AddHealthChecks();
-builder.Services.AddOpenApi();
+builder.Services.AddCentralServer(builder.Configuration);
 
 var app = builder.Build();
+
+await app.Services.MigrateDatabaseAsync().ConfigureAwait(false);
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 // The API description is only exposed in development so production does not reveal its attack surface.
 if (app.Environment.IsDevelopment())
@@ -14,9 +20,14 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.MapHealthChecks(ApiRoutes.Health);
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
 
-await app.RunAsync();
+app.MapHealthChecks(ApiRoutes.Health);
+app.MapAgentEndpoints();
+
+await app.RunAsync().ConfigureAwait(false);
 
 /// <summary>Entry point; public so integration tests can host the application.</summary>
 public partial class Program;

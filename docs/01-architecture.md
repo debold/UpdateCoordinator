@@ -6,7 +6,7 @@
 
 ## 1. Goal
 
-Central coordination of Windows updates for Windows servers with ring deployment, central configuration and reporting. The project is a deliberate alternative to WSUS (classified as deprecated by Microsoft in September 2024) and is meant to be usable in arbitrary customer environments later on. Onboarding of new agents is secured exclusively through an approval mechanism (manual or rule-based), without secrets, tokens or certificates on the client side. Clients are identified by a centrally issued GUID. The agent verifies the central server through a trust anchor pinned on first use, so certificate changes can be approved centrally (see `03-communication-protocol.md`).
+Central coordination of Windows updates for Windows servers with ring deployment, central configuration and reporting. The project is a deliberate alternative to WSUS (classified as deprecated by Microsoft in September 2024) and is meant to be usable in arbitrary customer environments later on. Onboarding of new agents is secured exclusively through an approval mechanism (manual or rule-based), without pre-shared secrets, tokens or certificates on the client side. Clients are identified by a centrally issued GUID and authenticate with a client secret issued at registration. The agent verifies the central server through a trust anchor pinned on first use, so certificate changes can be approved centrally (see `03-communication-protocol.md`).
 
 ## 2. Components
 
@@ -39,6 +39,7 @@ The central server runs natively on Windows. Agent communication and administrat
 | High availability | Not planned (multi-master would mean an architecture change or an external dependency with SQLite) |
 | Backup | Self-built, file-based backup controlled by the service (e.g. ZIP); Litestream was rejected |
 | Central server installation | Classic Windows installer; configuration is preserved on updates; schema/config migration is automatic |
+| Versioning | Agent and central server have separate semantic versions, derived from git tags `agent/vX.Y.Z` and `server/vX.Y.Z` (MinVer). The protocol version is part of the API route (`/api/v1`). Compatibility is ensured by the minimum agent version announced by the central server (decided 2026-10-18) |
 | Update source per server | Windows Update or (undesired) WSUS, controlled via `ServerSelection` of `IUpdateSearcher` |
 
 ## 5. Update catalog

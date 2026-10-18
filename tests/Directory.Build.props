@@ -1,18 +1,18 @@
 <Project>
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
-  <!-- Shared settings for all test projects (xUnit v3). -->
   <PropertyGroup>
-    <IsTestProject>true</IsTestProject>
     <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- Shared settings for all test projects (xUnit v3); support libraries end with ".TestSupport". -->
+  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('.TestSupport'))">
+    <IsTestProject>true</IsTestProject>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
     <PackageReference Include="xunit.v3" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

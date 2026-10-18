@@ -9,7 +9,7 @@ Central coordination of Windows updates for Windows servers with ring deployment
 - Two components: **agent** (lightweight Windows service in C# on every server, uses the WUA API) and **central server** (native Windows service with a web API for agents and a web dashboard, SQLite for storage).
 - Communication: REST/JSON over HTTPS with ASP.NET Core. The agent initiates every connection; the central server never calls an agent.
 - The central server decides per ring which updates are released when. The agent decides locally when to install within the allowed windows.
-- New agents are onboarded only through an approval mechanism (manual or rule-based), without a secret or certificate on the client side. Clients are identified by a centrally issued GUID; the agent verifies the central server through a pinned trust anchor (trust on first use, no runtime data in the installer).
+- New agents are onboarded only through an approval mechanism (manual or rule-based), without a pre-shared secret or certificate on the client side. Clients are identified by a centrally issued GUID plus a client secret issued at registration; the agent verifies the central server through a pinned trust anchor (trust on first use, no runtime data in the installer).
 - The design was created in a spec session. The documents in `docs/` are the authoritative source.
 
 ## Language
@@ -43,6 +43,9 @@ Guidelines (always apply):
 
 - Supported from Windows Server 2016; agent and central server use the latest .NET (currently .NET 10).
 - Trust in the central server via a trust anchor with trust on first use and a local registry override; no runtime data in the client installer (details in `docs/03-communication-protocol.md`, section 3.2).
+- Clients authenticate with GUID + client secret issued at registration (HTTP Basic over HTTPS, `docs/03-communication-protocol.md` 3.1).
+- Separate semantic versions for agent and central server from git tags `agent/vX.Y.Z` / `server/vX.Y.Z` (MinVer); protocol version in the route (`/api/v1`).
+- Work directly on `main` (no feature branches or pull requests) until a requirement justifies it.
 
 ## Open decisions (do not decide unilaterally)
 
@@ -52,4 +55,4 @@ Guidelines (always apply):
 - Notification and escalation for pending approvals and alarms
 - Windows installer technology
 - Encryption of the trust anchor in the backup
-- Client secret issued at registration in addition to the GUID (proposed, not yet decided)
+- How the agent learns the central server address without runtime data in the installer (currently configuration key `CentralServer:BaseAddress`)

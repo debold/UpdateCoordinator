@@ -1,0 +1,129 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
+
+using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Contracts.Agents;
+
+namespace UpdateCoordinator.Agent.Tests;
+
+public sealed class AgentWorkerTests
+{
+    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(10);
+
+    private readonly FakeCentralServerClient _client = new();
+    private readonly InMemoryIdentityStore _store = new();
+    private readonly FakeTimeProvider _time = new();
+
+    [Fact]
+    public async Task RunCycle_WithoutIdentity_RegistersStoresIdentityAndSendsHeartbeat()
+    {
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, _client.Registrations);
+        Assert.Equal(1, _client.Heartbeats);
+        Assert.Equal(_client.IssuedIdentity, _store.Identity);
+        Assert.Equal("SRV01", _client.LastRegisterRequest?.HostName);
+        Assert.Equal("1.2.3", _client.LastRegisterRequest?.AgentVersion);
+    }
+
+    [Fact]
+    public async Task RunCycle_WithStoredIdentity_DoesNotRegisterAgain()
+    {
+        _store.Identity = new AgentIdentity(Guid.NewGuid(), "stored-secret");
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, _client.Registrations);
+        Assert.Equal(1, _client.Heartbeats);
+    }
+
+    [Fact]
+    public async Task RunCycle_WhenCredentialsAreRejected_DeletesIdentityAndRegistersOnNextCycle()
+    {
+        _store.Identity = new AgentIdentity(Guid.NewGuid(), "revoked-secret");
+        _client.OnHeartbeat = identity => identity == _client.IssuedIdentity ? new HeartbeatResponse(RegistrationState.Pending) : null;
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+        Assert.Null(_store.Identity);
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, _client.Registrations);
+        Assert.Equal(_client.IssuedIdentity, _store.Identity);
+    }
+
+    [Fact]
+    public async Task Execute_WhenCentralServerFails_KeepsRunningAndRetriesWithBackoff()
+    {
+        var attempts = new System.Collections.Concurrent.ConcurrentQueue<DateTimeOffset>();
+        _client.OnHeartbeat = _ =>
+        {
+            attempts.Enqueue(_time.GetUtcNow());
+            throw new HttpRequestException("unreachable");
+        };
+        using var worker = CreateWorker();
+
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await AdvanceUntilAsync(() => attempts.Count >= 3);
+
+        // Exponential back-off: the gap after the second failure is at least twice the interval.
+        var times = attempts.ToArray();
+        Assert.True(times[1] - times[0] >= Interval);
+        Assert.True(times[2] - times[1] >= 2 * Interval);
+        Assert.False(worker.ExecuteTask!.IsCompleted);
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+        Assert.False(worker.ExecuteTask.IsFaulted);
+    }
+
+    [Fact]
+    public async Task Execute_StopsCleanly()
+    {
+        using var worker = CreateWorker();
+
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await WaitUntilAsync(() => _client.Heartbeats >= 1);
+        await worker.StopAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(worker.ExecuteTask!.IsCompleted);
+        Assert.False(worker.ExecuteTask.IsFaulted);
+    }
+
+    private AgentWorker CreateWorker() => new(
+        _client,
+        _store,
+        new FakeEnvironment(),
+        Options.Create(new CentralServerOptions
+        {
+            BaseAddress = new Uri("https://central.example.local/"),
+            HeartbeatInterval = Interval,
+            MaxBackoff = TimeSpan.FromMinutes(5),
+        }),
+        _time,
+        NullLogger<AgentWorker>.Instance);
+
+    /// <summary>Moves fake time forward in small steps until the condition holds.</summary>
+    private async Task AdvanceUntilAsync(Func<bool> condition)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        while (!condition())
+        {
+            _time.Advance(TimeSpan.FromSeconds(1));
+            await Task.Delay(5, timeout.Token);
+        }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        while (!condition())
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+    }
+}
