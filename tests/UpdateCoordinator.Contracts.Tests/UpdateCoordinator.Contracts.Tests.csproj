@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\UpdateCoordinator.Contracts\UpdateCoordinator.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

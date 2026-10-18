@@ -1,0 +1,55 @@
+# Windows Update Coordinator (working title)
+
+## Goal
+
+Central coordination of Windows updates for Windows servers with ring deployment, central configuration and reporting. A deliberate alternative to WSUS (classified as deprecated by Microsoft since September 2024), later usable in arbitrary customer environments.
+
+## Context
+
+- Two components: **agent** (lightweight Windows service in C# on every server, uses the WUA API) and **central server** (native Windows service with a web API for agents and a web dashboard, SQLite for storage).
+- Communication: REST/JSON over HTTPS with ASP.NET Core. The agent initiates every connection; the central server never calls an agent.
+- The central server decides per ring which updates are released when. The agent decides locally when to install within the allowed windows.
+- New agents are onboarded only through an approval mechanism (manual or rule-based), without a secret or certificate on the client side. Clients are identified by a centrally issued GUID; the agent verifies the central server through a pinned trust anchor (trust on first use, no runtime data in the installer).
+- The design was created in a spec session. The documents in `docs/` are the authoritative source.
+
+## Language
+
+- Everything in the repository is English: code, comments, log messages, documentation, commit messages.
+- Conversation with Marc in chat is in German.
+
+## Documents (read when needed, not all at once)
+
+- `docs/01-architecture.md`: overview, decisions, implementation order (read first)
+- `docs/03-communication-protocol.md`: messages, registration, identity, trust
+- `docs/04-central-server.md`: entities, ring logic, administration security, backup
+- `docs/05-agent-design.md`: inventory, pipeline, installation, reporting
+- `docs/06-dashboard.md`: user interface and administration
+- `docs/admin/README.md`: admin documentation (setup, communication paths)
+
+Guidelines (always apply):
+
+@docs/02-guidelines.md
+
+## Way of working
+
+- Order according to `docs/01-architecture.md`: first the vertical slice with register and heartbeat, then inventory, then update functions, finally ring logic and dashboard.
+- Present a short plan before each feature. Ask instead of guessing when something is unclear.
+- Tests (positive and negative) and documentation (changelog, README, admin documentation) are part of finishing every feature.
+- Every change gets a security review, especially input validation and SQL.
+- If the code contradicts the documents, report it and update the document deliberately instead of silently working around it.
+- Build: `dotnet build UpdateCoordinator.slnx`; tests: `dotnet test --solution UpdateCoordinator.slnx` (Microsoft.Testing.Platform, configured in `global.json`).
+
+## Decisions made
+
+- Supported from Windows Server 2016; agent and central server use the latest .NET (currently .NET 10).
+- Trust in the central server via a trust anchor with trust on first use and a local registry override; no runtime data in the client installer (details in `docs/03-communication-protocol.md`, section 3.2).
+
+## Open decisions (do not decide unilaterally)
+
+- Project name (placeholder in code: `UpdateCoordinator`)
+- Concrete database schema and operating limits (memory, CPU, retry intervals)
+- Permission assignment per function for Operator and Admin
+- Notification and escalation for pending approvals and alarms
+- Windows installer technology
+- Encryption of the trust anchor in the backup
+- Client secret issued at registration in addition to the GUID (proposed, not yet decided)

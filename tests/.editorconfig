@@ -1,0 +1,4 @@
+# Additions for test projects
+[*.cs]
+# Test names in the Method_Expectation style are intended
+dotnet_diagnostic.CA1707.severity = none

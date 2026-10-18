@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared message contracts between agent and central server. -->
+
+</Project>

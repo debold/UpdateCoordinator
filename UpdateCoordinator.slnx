@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/UpdateCoordinator.Agent/UpdateCoordinator.Agent.csproj" />
+    <Project Path="src/UpdateCoordinator.Contracts/UpdateCoordinator.Contracts.csproj" />
+    <Project Path="src/UpdateCoordinator.Server/UpdateCoordinator.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/UpdateCoordinator.Agent.Tests/UpdateCoordinator.Agent.Tests.csproj" />
+    <Project Path="tests/UpdateCoordinator.Contracts.Tests/UpdateCoordinator.Contracts.Tests.csproj" />
+    <Project Path="tests/UpdateCoordinator.Server.Tests/UpdateCoordinator.Server.Tests.csproj" />
+  </Folder>
+</Solution>
