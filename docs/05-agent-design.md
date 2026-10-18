@@ -110,6 +110,7 @@ The agent fetches actions from the queue, executes them in the given order and r
 
 ## 8. Installation and uninstallation
 
+- The address of the central server comes from the registry (group policy before installer value); the installer writes it from the `SERVERURL` option or from its own file name when downloaded from the central server (see `03-communication-protocol.md` 3.3).
 - On uninstallation the agent sends an **unregister** to the central server before the service stops (relevant also for unapproved clients).
 
 ## 9. Stability

@@ -39,9 +39,18 @@ Both services use the standard .NET configuration: `appsettings.json` next to th
 
 ### Agent
 
+The address of the central server is normally set in the registry (string value `CentralServerUrl`):
+
+| Registry key | Written by | Priority |
+|---|---|---|
+| `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` | group policy | highest: overrides every other setting |
+| `HKLM\SOFTWARE\UpdateCoordinator\Agent` | installer (`SERVERURL=https://…`, later also from the download file name) | overrides `appsettings.json`, environment and command line |
+
+Changing the policy value takes effect after a restart of the agent service. The product name in the key paths is a placeholder until the project name is decided.
+
 | Key | Default | Meaning |
 |---|---|---|
-| `CentralServer:BaseAddress` | none (required) | address of the central server, must be `https://` |
+| `CentralServer:BaseAddress` | none (required) | address of the central server, must be `https://`; set via the registry value above |
 | `CentralServer:HeartbeatInterval` | `00:00:10` | interval between heartbeats (1 s to 10 min) |
 | `CentralServer:MaxBackoff` | `00:05:00` | longest wait between attempts while the central server is unreachable |
 

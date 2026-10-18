@@ -46,6 +46,8 @@ Guidelines (always apply):
 - Clients authenticate with GUID + client secret issued at registration (HTTP Basic over HTTPS, `docs/03-communication-protocol.md` 3.1).
 - Separate semantic versions for agent and central server from git tags `agent/vX.Y.Z` / `server/vX.Y.Z` (MinVer); protocol version in the route (`/api/v1`).
 - Work directly on `main` (no feature branches or pull requests) until a requirement justifies it.
+- Central server address: registry value `CentralServerUrl` (policy key before installer key), written by installer option `SERVERURL` or from the installer file name when downloaded from the central server (`docs/03-communication-protocol.md` 3.3).
+- Public repository https://github.com/debold/UpdateCoordinator under the MIT license.
 
 ## Open decisions (do not decide unilaterally)
 
@@ -55,4 +57,4 @@ Guidelines (always apply):
 - Notification and escalation for pending approvals and alarms
 - Windows installer technology
 - Encryption of the trust anchor in the backup
-- How the agent learns the central server address without runtime data in the installer (currently configuration key `CentralServer:BaseAddress`)
+- Whether the download file name also carries the trust anchor fingerprint (`docs/03-communication-protocol.md` 3.3)

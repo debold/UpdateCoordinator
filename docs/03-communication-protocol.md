@@ -42,6 +42,16 @@ The agent verifies that it is talking to the genuine central server. A certifica
 - **Local override (registry):** an administrator of the server can force the agent to discard the stored trust and pin again on the next contact (trust on first use). Mechanism: a value under `HKLM\SOFTWARE\Policies\<Product>\Agent` (draft: `TrustResetToken`, string). The agent performs the reset exactly once whenever the value differs from the last processed one, so it also works with GPOs that rewrite values periodically. The reset is written to the Windows event log and reported to the central server, which shows it in the audit log and dashboard. Only local administrators, who control the agent anyway, can write this key.
 - **Limit:** if the anchor is lost (without backup) or compromised, central re-trust is impossible in principle, because an attacker could otherwise do the same. Only the local override or a reinstallation of the agent remains. Until then the agent sends nothing, reports "central server not trusted" locally and keeps retrying with backoff.
 
+### 3.3 Address of the central server
+
+The installer binary contains no environment-specific data, so it stays signed and identical for every customer. The address of the central server is supplied at installation time and kept in the registry. Decided on 2026-10-18:
+
+1. **Registry is the only runtime source.** The agent reads `CentralServerUrl` (string) from `HKLM\SOFTWARE\Policies\<Product>\Agent` (group policy) and `HKLM\SOFTWARE\<Product>\Agent` (installer). The policy value wins over the installer value and over every other configuration source, so the address can be changed centrally at any time. Only plain string values up to 2048 characters are accepted; the value must be an absolute `https://` URI.
+2. **Installer option** `SERVERURL=https://…` (msiexec command line, transform, Intune, SCCM, Ansible) writes the installer value.
+3. **Download from the central server (planned with the installer):** the central server offers the unchanged, signed MSI for download with the address encoded in the file name (e.g. `UpdateCoordinator-Agent_updates.example.local_8443.msi`). A custom action reads the file name via the MSI property `OriginalDatabase` and writes the installer value. Because the file content is not modified, the Authenticode signature stays valid. If the file is renamed, the address is missing and option 1 or 2 applies (or the installer asks for it).
+
+The central server could encode the fingerprint of its trust anchor in the same file name, which would remove the trust-on-first-use weakness without making the installer environment-specific. This is to be decided together with the installer technology.
+
 **Forged success reports:** are addressed by approval and GUID identification (only approved clients are accepted). A content plausibility check (e.g. build number against the expected update) was deliberately rejected, because legitimate cases such as a manual rollback produce the same deviation.
 
 ## 4. Registration of new agents

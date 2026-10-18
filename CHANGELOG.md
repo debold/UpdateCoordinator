@@ -11,6 +11,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Registers again automatically if the central server no longer accepts its credentials.
 - Backs off exponentially (up to 5 minutes, configurable) while the central server is unreachable; timeouts and circuit breaker via `Microsoft.Extensions.Http.Resilience`. No error stops the service.
 - Accepts only HTTPS addresses for the central server and validates every server response.
+- Reads the central server address from the registry value `CentralServerUrl`; the group policy key overrides the installer key and all other configuration sources.
 
 ### Central server
 
@@ -34,3 +35,4 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Trust in the central server via a trust anchor with trust on first use and a local registry override; no runtime data in the client installer (`docs/03-communication-protocol.md`, section 3.2).
 - Client secret issued at registration in addition to the GUID (`docs/03-communication-protocol.md`, section 3.1).
 - All project artifacts (code, logs, documentation) are written in English.
+- Central server address via registry, installer option `SERVERURL` and installer file name on download from the central server (`docs/03-communication-protocol.md`, section 3.3).

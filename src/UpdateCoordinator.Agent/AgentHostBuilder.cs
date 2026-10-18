@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
+using Microsoft.Win32;
 
 using UpdateCoordinator.Agent.Communication;
+using UpdateCoordinator.Agent.Configuration;
 using UpdateCoordinator.Agent.Identity;
 
 namespace UpdateCoordinator.Agent;
@@ -16,6 +18,7 @@ internal static class AgentHostBuilder
     public static HostApplicationBuilder Create(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
+        builder.Configuration.AddAgentRegistry(Registry.LocalMachine);
         builder.Services.AddWindowsService(options => options.ServiceName = ServiceName);
         builder.Services.AddAgent(builder.Configuration);
         return builder;
