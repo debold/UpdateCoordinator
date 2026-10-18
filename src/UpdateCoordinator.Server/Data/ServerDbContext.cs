@@ -38,6 +38,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<RingTransitionEntity> RingTransitions => Set<RingTransitionEntity>();
 
+    public DbSet<StartRuleEntity> StartRules => Set<StartRuleEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -88,6 +90,17 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
                 MinimumSuccessPercent = 95,
                 ManualGate = true,
             });
+
+        var startRule = modelBuilder.Entity<StartRuleEntity>();
+        startRule.ToTable("StartRules");
+        startRule.HasKey(r => r.Id);
+        startRule.Property(r => r.Mode).HasConversion<int>();
+        startRule.Property(r => r.Classification).HasMaxLength(64);
+        startRule.Property(r => r.MsrcSeverity).HasMaxLength(32);
+        startRule.Property(r => r.TitlePattern).HasMaxLength(128);
+
+        // Default: every update starts automatically and without delay (decided 2026-10-18).
+        startRule.HasData(new StartRuleEntity { Id = StartRuleEntity.CatchAllId, Priority = 1000, Mode = StartMode.Automatic, Delay = TimeSpan.Zero });
 
         var rollout = modelBuilder.Entity<RolloutEntity>();
         rollout.ToTable("Rollouts");

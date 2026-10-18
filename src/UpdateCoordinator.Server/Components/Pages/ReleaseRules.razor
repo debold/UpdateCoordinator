@@ -3,7 +3,6 @@
 @inherits DashboardPageBase
 @using UpdateCoordinator.Server.Rollouts
 @inject ServerDbContext Db
-@inject RolloutService Rollouts
 @inject RolloutAdministration Administration
 
 <PageTitle>Release rules</PageTitle>
@@ -42,32 +41,83 @@
     </table>
 </form>
 
-<h2>Automatic start</h2>
+<h2>Start rules</h2>
 <p>
-    Updates of these classifications start their rollout in the first ring as soon as an approved server reports them as missing.
-    All other updates stay queued until an operator starts them. One classification per line, as reported by Windows Update (e.g. "Security Updates");
-    empty disables automatic starts.
+    Decide how a newly reported update enters the first ring. The matching rule with the lowest priority number applies; all filled conditions must match,
+    a rule without conditions matches every update. "Automatic" starts the rollout, optionally with a delay before servers of the first ring may install it;
+    "Manual" keeps the update queued until an operator starts it. Without a matching rule the update stays queued.
 </p>
 
-<form method="post" @formname="autostart" @onsubmit="SaveAutoStartAsync">
+<form method="post" @formname="startrules" @onsubmit="HandleStartRuleAsync">
     <AntiforgeryToken />
-    <label>Classifications <textarea name="Classifications" rows="5">@_classifications</textarea></label>
-    <button type="submit">Save</button>
+    <table>
+        <thead>
+            <tr><th>Priority</th><th>Classification</th><th>Severity</th><th>Title pattern</th><th>Start</th><th>Delay (hours)</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var rule in _startRules)
+            {
+                <tr>
+                    <td>@rule.Priority</td>
+                    <td>@(rule.Classification ?? "any")</td>
+                    <td>@(rule.MsrcSeverity ?? "any")</td>
+                    <td>@(rule.TitlePattern ?? "any")</td>
+                    <td>@rule.Mode</td>
+                    <td>@((int)rule.Delay.TotalHours)</td>
+                    <td><button type="submit" name="StartAction" value="delete:@rule.Id">Delete</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h3>New start rule</h3>
+    <label>Priority <input name="StartPriority" type="number" min="0" max="10000" value="100" /></label>
+    <label>Classification (e.g. Security Updates) <input name="StartClassification" maxlength="64" /></label>
+    <label>Severity (e.g. Critical) <input name="StartSeverity" maxlength="32" /></label>
+    <label>Title pattern (* and ? allowed) <input name="StartTitle" maxlength="128" /></label>
+    <label>
+        Start
+        <select name="StartMode">
+            <option value="automatic">Automatic</option>
+            <option value="manual">Manual</option>
+        </select>
+    </label>
+    <label>Delay (hours) <input name="StartDelay" type="number" min="0" max="@StartRuleEntity.MaxDelayHours" value="0" /></label>
+    <button type="submit" name="StartAction" value="create">Create rule</button>
 </form>
 
 @code {
     [SupplyParameterFromForm(FormName = "transition")]
     private string? FromRing { get; set; }
 
-    [SupplyParameterFromForm(FormName = "autostart")]
-    private string? Classifications { get; set; }
+    [SupplyParameterFromForm(FormName = "startrules")]
+    private string? StartAction { get; set; }
+
+    [SupplyParameterFromForm(FormName = "startrules")]
+    private string? StartPriority { get; set; }
+
+    [SupplyParameterFromForm(FormName = "startrules")]
+    private string? StartClassification { get; set; }
+
+    [SupplyParameterFromForm(FormName = "startrules")]
+    private string? StartSeverity { get; set; }
+
+    [SupplyParameterFromForm(FormName = "startrules")]
+    private string? StartTitle { get; set; }
+
+    [SupplyParameterFromForm(FormName = "startrules", Name = "StartMode")]
+    private string? StartModeText { get; set; }
+
+    [SupplyParameterFromForm(FormName = "startrules")]
+    private string? StartDelay { get; set; }
+
 
     [CascadingParameter]
     private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
 
     private List<RingEntity> _rings = [];
     private List<RingTransitionEntity> _transitions = [];
-    private string _classifications = string.Empty;
+    private List<StartRuleEntity> _startRules = [];
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -95,10 +145,41 @@
         await LoadAsync();
     }
 
-    private async Task SaveAutoStartAsync()
+
+    private async Task HandleStartRuleAsync()
     {
-        var outcome = await Administration.SetAutoStartClassificationsAsync(Classifications, await GetActorAsync(), CancellationToken.None);
-        ShowResult(outcome.Error, "The classifications for automatic start were saved.");
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        var actor = await GetActorAsync();
+        Outcome outcome;
+        string success;
+        if (StartAction == "create")
+        {
+            StartMode? mode = StartModeText switch { "automatic" => StartMode.Automatic, "manual" => StartMode.Manual, _ => null };
+            if (!int.TryParse(StartPriority, System.Globalization.NumberStyles.None, invariant, out var priority)
+                || !int.TryParse(string.IsNullOrEmpty(StartDelay) ? "0" : StartDelay, System.Globalization.NumberStyles.None, invariant, out var delay)
+                || mode is null)
+            {
+                outcome = new Outcome("Priority and delay must be whole numbers and the start mode Automatic or Manual.");
+                success = string.Empty;
+            }
+            else
+            {
+                outcome = await Administration.CreateStartRuleAsync(priority, StartClassification, StartSeverity, StartTitle, mode.Value, delay, actor, CancellationToken.None);
+                success = "The start rule was created.";
+            }
+        }
+        else if (StartAction?.Split(':', 2) is ["delete", var deleteId] && int.TryParse(deleteId, System.Globalization.NumberStyles.None, invariant, out var ruleId))
+        {
+            outcome = await Administration.DeleteStartRuleAsync(ruleId, actor, CancellationToken.None);
+            success = "The start rule was deleted.";
+        }
+        else
+        {
+            outcome = new Outcome("Invalid request.");
+            success = string.Empty;
+        }
+
+        ShowResult(outcome.Error, success);
         await LoadAsync();
     }
 
@@ -107,7 +188,7 @@
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _transitions = await Db.RingTransitions.AsNoTracking().ToListAsync();
         _transitions = [.. _transitions.OrderBy(t => _rings.FindIndex(r => r.Id == t.FromRingId))];
-        _classifications = string.Join('\n', await Rollouts.GetAutoStartClassificationsAsync(CancellationToken.None));
+        _startRules = await Db.StartRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync();
     }
 
     private string RingName(int id) => _rings.FirstOrDefault(r => r.Id == id)?.Name ?? "?";

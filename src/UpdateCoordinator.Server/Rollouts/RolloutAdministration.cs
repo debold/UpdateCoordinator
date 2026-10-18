@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using Microsoft.EntityFrameworkCore;
@@ -10,13 +9,11 @@ using UpdateCoordinator.Server.Data;
 namespace UpdateCoordinator.Server.Rollouts;
 
 /// <summary>
-/// Manual interventions in rollouts (start, stop, override, gate approval) and the release rules.
+/// Manual interventions in rollouts (start, stop, override, gate approval), start rules and transition rules.
 /// Every change is validated, written to the audit log and followed by a release synchronization.
 /// </summary>
 internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutService rollouts, ReleasePlanner releases, AuditLog audit, TimeProvider timeProvider)
 {
-    public const int MaxClassifications = 20;
-
     /// <summary>Starts the rollout of a queued update, or resumes a stopped one.</summary>
     public async Task<Outcome> StartAsync(Guid updateId, int revision, string actor, CancellationToken cancellationToken)
     {
@@ -30,7 +27,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         string action;
         if (rollout is null)
         {
-            await rollouts.CreateAsync(updateId, revision, actor, cancellationToken).ConfigureAwait(false);
+            await rollouts.CreateAsync(updateId, revision, actor, TimeSpan.Zero, cancellationToken).ConfigureAwait(false);
             action = "Rollout.Started";
         }
         else if (rollout.State == RolloutState.Stopped)
@@ -73,7 +70,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         }
 
         var rollout = await db.Rollouts.SingleOrDefaultAsync(r => r.UpdateId == updateId && r.Revision == revision, cancellationToken).ConfigureAwait(false)
-            ?? await rollouts.CreateAsync(updateId, revision, actor, cancellationToken).ConfigureAwait(false);
+            ?? await rollouts.CreateAsync(updateId, revision, actor, TimeSpan.Zero, cancellationToken).ConfigureAwait(false);
         if (rollout.Override && rollout.State == RolloutState.Active)
         {
             return new Outcome("The update is already released to every ring.");
@@ -154,39 +151,72 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         return Outcome.Ok;
     }
 
-    /// <summary>Sets the classifications whose rollouts start automatically; one per line, empty disables automatic starts.</summary>
-    public async Task<Outcome> SetAutoStartClassificationsAsync(string? text, string actor, CancellationToken cancellationToken)
+    /// <summary>Creates a start rule; conditions are optional, a rule without conditions matches every update.</summary>
+    public async Task<Outcome> CreateStartRuleAsync(
+        int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, string actor, CancellationToken cancellationToken)
     {
-        var classifications = (text ?? string.Empty)
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (classifications.Count > MaxClassifications)
+        classification = Normalize(classification);
+        msrcSeverity = Normalize(msrcSeverity);
+        titlePattern = Normalize(titlePattern);
+
+        if (priority is < 0 or > 10_000)
         {
-            return new Outcome($"At most {MaxClassifications} classifications are allowed.");
+            return new Outcome("The priority must be between 0 and 10000.");
         }
 
-        var invalid = classifications.FirstOrDefault(c => !ClassificationRegex().IsMatch(c));
-        if (invalid is not null)
+        if (!Enum.IsDefined(mode))
         {
-            return new Outcome("A classification may contain letters, digits, spaces, '-' and '.' (at most 64 characters).");
+            return new Outcome("The start mode is invalid.");
         }
 
-        var json = JsonSerializer.Serialize(classifications);
-        var setting = await db.Settings.SingleOrDefaultAsync(s => s.Key == SettingEntity.AutoStartClassifications, cancellationToken).ConfigureAwait(false);
-        if (setting is null)
+        if (delayHours < 0 || delayHours > StartRuleEntity.MaxDelayHours || (mode == StartMode.Manual && delayHours != 0))
         {
-            db.Settings.Add(new SettingEntity { Key = SettingEntity.AutoStartClassifications, Value = json });
-        }
-        else
-        {
-            setting.Value = json;
+            return new Outcome($"The delay must be between 0 and {StartRuleEntity.MaxDelayHours} hours, and 0 for a manual start.");
         }
 
+        if (classification is not null && !LabelRegex().IsMatch(classification))
+        {
+            return new Outcome("The classification may contain letters, digits, spaces, '-' and '.' (at most 64 characters).");
+        }
+
+        if (msrcSeverity is not null && !SeverityRegex().IsMatch(msrcSeverity))
+        {
+            return new Outcome("The severity must be a single word, e.g. Critical.");
+        }
+
+        if (titlePattern is not null && (titlePattern.Length > 128 || titlePattern.Any(char.IsControl)))
+        {
+            return new Outcome("The title pattern may have at most 128 characters and no control characters.");
+        }
+
+        db.StartRules.Add(new StartRuleEntity
+        {
+            Priority = priority,
+            Classification = classification,
+            MsrcSeverity = msrcSeverity,
+            TitlePattern = titlePattern,
+            Mode = mode,
+            Delay = TimeSpan.FromHours(delayHours),
+        });
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        await audit.WriteAsync(actor, "Rollout.AutoStartChanged", "classifications", classifications.Count > 0 ? string.Join(", ", classifications) : "none", cancellationToken).ConfigureAwait(false);
+        var details = string.Create(CultureInfo.InvariantCulture, $"priority {priority}, classification {classification ?? "-"}, severity {msrcSeverity ?? "-"}, title {titlePattern ?? "-"}, {mode}, delay {delayHours} hours");
+        await audit.WriteAsync(actor, "StartRule.Created", mode.ToString(), details, cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
     }
+
+    public async Task<Outcome> DeleteStartRuleAsync(int ruleId, string actor, CancellationToken cancellationToken)
+    {
+        var deleted = await db.StartRules.Where(r => r.Id == ruleId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        if (deleted == 0)
+        {
+            return new Outcome("The rule no longer exists.");
+        }
+
+        await audit.WriteAsync(actor, "StartRule.Deleted", ruleId.ToString(CultureInfo.InvariantCulture), null, cancellationToken).ConfigureAwait(false);
+        return Outcome.Ok;
+    }
+
+    private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private Task<UpdateEntity?> FindUpdateAsync(Guid updateId, int revision, CancellationToken cancellationToken) =>
         db.Updates.AsNoTracking().SingleOrDefaultAsync(u => u.UpdateId == updateId && u.Revision == revision, cancellationToken);
@@ -200,5 +230,8 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
     }
 
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9 .\-]{0,63}$")]
-    private static partial Regex ClassificationRegex();
+    private static partial Regex LabelRegex();
+
+    [GeneratedRegex(@"^[A-Za-z]{1,32}$")]
+    private static partial Regex SeverityRegex();
 }

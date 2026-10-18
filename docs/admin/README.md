@@ -242,7 +242,7 @@ Every change is recorded in the audit log.
 
 Every update runs through the rings Pilot → Test → Production on its own. A server gets an update only when it is released for the server's ring and the server reported it as missing; it installs it only inside its maintenance windows.
 
-**Start:** updates of the classifications listed under Administration → Release rules → Automatic start (default `Security Updates` and `Critical Updates`) start in Pilot as soon as an approved server reports them. All other updates appear as **queued** on the Updates page, where an `Operator` starts them.
+**Start rules** (Administration → Release rules, role `Admin`) decide how a newly reported update enters Pilot. The matching rule with the lowest priority number applies; conditions are classification (e.g. `Security Updates`), MSRC severity (e.g. `Critical`) and title pattern (e.g. `*Cumulative Update*`), and all filled conditions must match. "Automatic" starts the rollout, optionally with a delay in hours before Pilot servers may install the update (the wait time for Pilot → Test starts after the delay). "Manual" keeps matching updates **queued** on the Updates page until an `Operator` starts them; updates without a matching rule stay queued as well. By default one rule without conditions starts every update automatically and without delay.
 
 **Transitions:** Administration → Release rules (role `Admin`) sets per transition the minimum and maximum wait time (days), the feedback rate (share of targeted servers that reported a result) and the success rate (share of successful results), and whether a manual gate applies.
 

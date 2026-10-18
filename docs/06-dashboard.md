@@ -59,7 +59,7 @@ Implemented pages (Admin role): Administration → Maintenance windows (system d
 
 Ring transitions (time-/success-based), rates, minimum/maximum wait times, manual gates, each also per update type/category.
 
-Implemented: Updates page (rollout state per ring, queued updates, start/stop/override for Operators), ring transitions and gates under Pending approvals, Administration → Release rules (Admin) for transition rules and the classifications that start automatically. Rules per update category follow.
+Implemented: Updates page (rollout state per ring, queued updates, start/stop/override for Operators), ring transitions and gates under Pending approvals, Administration → Release rules (Admin) for transition rules and start rules. Rules per update category follow.
 
 ### Registration
 

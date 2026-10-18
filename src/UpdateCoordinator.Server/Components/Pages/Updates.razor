@@ -198,7 +198,7 @@
 
     private static string Describe(RolloutRingEntity? state) => state?.State switch
     {
-        RingRolloutState.Released => $"Released {Format(state.ReleasedAtUtc)}",
+        RingRolloutState.Released => $"Released, installs from {Format(state.ReleasedAtUtc)}",
         RingRolloutState.AwaitingApproval => "Awaiting approval",
         RingRolloutState.Alarm => $"Alarm: {state.Reason}",
         RingRolloutState.Waiting => "Waiting",

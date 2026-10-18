@@ -1,9 +1,10 @@
-using System.Text.Json;
+using System.Globalization;
 
 using Microsoft.EntityFrameworkCore;
 
 using UpdateCoordinator.Contracts.Agents;
 using UpdateCoordinator.Server.Administration;
+using UpdateCoordinator.Server.Assignment;
 using UpdateCoordinator.Server.Data;
 
 namespace UpdateCoordinator.Server.Rollouts;
@@ -16,35 +17,11 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
 {
     public const string RuleActor = "rule";
 
-    /// <summary>Classifications started automatically unless an administrator changed the setting.</summary>
-    public static IReadOnlyList<string> DefaultAutoStartClassifications { get; } = ["Security Updates", "Critical Updates"];
-
-    public async Task<IReadOnlyList<string>> GetAutoStartClassificationsAsync(CancellationToken cancellationToken)
-    {
-        var stored = await db.Settings.AsNoTracking()
-            .Where(s => s.Key == SettingEntity.AutoStartClassifications)
-            .Select(s => s.Value)
-            .FirstOrDefaultAsync(cancellationToken)
-            .ConfigureAwait(false);
-        if (stored is null)
-        {
-            return DefaultAutoStartClassifications;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<List<string>>(stored) ?? [];
-        }
-        catch (JsonException)
-        {
-            return DefaultAutoStartClassifications;
-        }
-    }
-
     /// <summary>
     /// Creates the rollout of an update: released in the first ring, waiting in all others. Does not save.
+    /// With a delay, servers of the first ring install it at the earliest after the delay, and the transition wait time starts then.
     /// </summary>
-    public async Task<RolloutEntity> CreateAsync(Guid updateId, int revision, string actor, CancellationToken cancellationToken)
+    public async Task<RolloutEntity> CreateAsync(Guid updateId, int revision, string actor, TimeSpan delay, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var rings = await db.Rings.AsNoTracking().OrderBy(r => r.Order).Select(r => r.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -56,32 +33,45 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
             Revision = revision,
             RingId = ring,
             State = index == 0 ? RingRolloutState.Released : RingRolloutState.Waiting,
-            ReleasedAtUtc = index == 0 ? now : null,
+            ReleasedAtUtc = index == 0 ? now + delay : null,
             StateChangedAtUtc = now,
         }));
         return rollout;
     }
 
-    /// <summary>Starts rollouts for reported updates whose classification is configured for automatic start.</summary>
+    /// <summary>The start rule for an update: the matching rule with the lowest priority number, or null.</summary>
+    internal static StartRuleEntity? FindStartRule(IEnumerable<StartRuleEntity> rules, UpdateEntity update) => rules
+        .OrderBy(r => r.Priority)
+        .ThenBy(r => r.Id)
+        .FirstOrDefault(r =>
+            (r.Classification is null || string.Equals(r.Classification, update.Classification, StringComparison.OrdinalIgnoreCase))
+            && (r.MsrcSeverity is null || string.Equals(r.MsrcSeverity, update.MsrcSeverity, StringComparison.OrdinalIgnoreCase))
+            && (r.TitlePattern is null || Wildcard.Matches(r.TitlePattern, update.Title)));
+
+    /// <summary>Starts rollouts for newly reported updates according to the start rules.</summary>
     public async Task AutoStartAsync(IReadOnlyCollection<(Guid UpdateId, int Revision)> updates, CancellationToken cancellationToken)
     {
-        var classifications = await GetAutoStartClassificationsAsync(cancellationToken).ConfigureAwait(false);
-        if (classifications.Count == 0 || updates.Count == 0)
+        if (updates.Count == 0)
         {
             return;
         }
 
+        var rules = await db.StartRules.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
         var ids = updates.Select(u => u.UpdateId).Distinct().ToList();
         var candidates = await db.Updates.AsNoTracking()
-            .Where(u => ids.Contains(u.UpdateId) && u.Classification != null)
+            .Where(u => ids.Contains(u.UpdateId))
             .Where(u => !db.Rollouts.Any(r => r.UpdateId == u.UpdateId && r.Revision == u.Revision))
-            .Select(u => new { u.UpdateId, u.Revision, u.KbArticle, u.Title, u.Classification })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        foreach (var update in candidates.Where(c => updates.Contains((c.UpdateId, c.Revision)) && classifications.Contains(c.Classification!, StringComparer.OrdinalIgnoreCase)))
+        foreach (var update in candidates.Where(c => updates.Contains((c.UpdateId, c.Revision))))
         {
-            await CreateAsync(update.UpdateId, update.Revision, RuleActor, cancellationToken).ConfigureAwait(false);
+            if (FindStartRule(rules, update) is not { Mode: StartMode.Automatic } rule)
+            {
+                continue;
+            }
+
+            await CreateAsync(update.UpdateId, update.Revision, RuleActor, rule.Delay, cancellationToken).ConfigureAwait(false);
             try
             {
                 await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -93,8 +83,9 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
                 continue;
             }
 
-            await audit.WriteAsync(RuleActor, "Rollout.Started", Describe(update.KbArticle, update.Title, update.UpdateId, update.Revision), $"automatic start for classification {update.Classification}", cancellationToken).ConfigureAwait(false);
-            LogAutoStarted(update.UpdateId, update.Revision, update.Classification!);
+            var details = string.Create(CultureInfo.InvariantCulture, $"automatic start by start rule {rule.Id}, delay {rule.Delay.TotalHours:0} hours");
+            await audit.WriteAsync(RuleActor, "Rollout.Started", Describe(update.KbArticle, update.Title, update.UpdateId, update.Revision), details, cancellationToken).ConfigureAwait(false);
+            LogAutoStarted(update.UpdateId, update.Revision, rule.Id, rule.Delay);
         }
     }
 
@@ -191,8 +182,8 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
     internal static string Describe(string? kb, string title, Guid updateId, int revision) =>
         $"{(kb is null ? string.Empty : $"KB{kb} ")}{title} ({updateId:D}, revision {revision})";
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Rollout of {UpdateId} revision {Revision} started automatically (classification {Classification}).")]
-    private partial void LogAutoStarted(Guid updateId, int revision, string classification);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Rollout of {UpdateId} revision {Revision} started automatically by start rule {RuleId} (delay {Delay}).")]
+    private partial void LogAutoStarted(Guid updateId, int revision, int ruleId, TimeSpan delay);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Update {UpdateId} revision {Revision} released for ring {Ring}.")]
     private partial void LogReleased(Guid updateId, int revision, string ring);

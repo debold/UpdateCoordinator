@@ -57,10 +57,54 @@ public sealed class TransitionRuleTests
     }
 }
 
+public sealed class StartRuleTests
+{
+    private static readonly UpdateEntity Cumulative = new()
+    {
+        UpdateId = Guid.NewGuid(),
+        Revision = 1,
+        Title = "2026-10 Cumulative Update for Microsoft server operating system",
+        Classification = "Security Updates",
+        MsrcSeverity = "Critical",
+    };
+
+    private static StartRuleEntity Rule(int id, int priority, string? classification = null, string? severity = null, string? title = null) =>
+        new() { Id = id, Priority = priority, Classification = classification, MsrcSeverity = severity, TitlePattern = title };
+
+    [Fact]
+    public void LowestPriorityMatchingRule_Wins()
+    {
+        var rules = new[] { Rule(1, 1000), Rule(2, 20, "security updates"), Rule(3, 10, "Feature Packs") };
+
+        Assert.Equal(2, RolloutService.FindStartRule(rules, Cumulative)!.Id);
+    }
+
+    [Theory]
+    [InlineData(null, "Critical", null, true)]
+    [InlineData(null, "Important", null, false)]
+    [InlineData(null, null, "*cumulative update*", true)]
+    [InlineData(null, null, "Cumulative*", false)]
+    [InlineData("Security Updates", "Critical", "*Cumulative*", true)]
+    [InlineData("Security Updates", "Low", "*Cumulative*", false)]
+    public void AllConditions_MustMatch(string? classification, string? severity, string? title, bool matches)
+    {
+        Assert.Equal(matches, RolloutService.FindStartRule([Rule(1, 1, classification, severity, title)], Cumulative) is not null);
+    }
+
+    [Fact]
+    public void UpdateWithoutClassification_MatchesOnlyRulesWithoutClassification()
+    {
+        var update = new UpdateEntity { UpdateId = Guid.NewGuid(), Revision = 1, Title = "Unknown" };
+
+        Assert.Null(RolloutService.FindStartRule([Rule(1, 1, "Security Updates")], update));
+        Assert.NotNull(RolloutService.FindStartRule([Rule(1, 1)], update));
+    }
+}
+
 public sealed class RolloutTests
 {
     [Fact]
-    public async Task SecurityUpdate_StartsAutomatically_AndIsReleasedToPilotOnly()
+    public async Task NewUpdate_StartsAutomaticallyByDefault_AndIsReleasedToPilotOnly()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
         var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
@@ -78,27 +122,49 @@ public sealed class RolloutTests
     }
 
     [Fact]
-    public async Task OtherClassification_StaysQueued()
+    public async Task ManualStartRule_KeepsMatchingUpdatesQueued()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
+        Assert.True((await scenario.AdministerAsync(admin => admin.CreateStartRuleAsync(10, "Feature Packs", null, null, StartMode.Manual, 0, "admin", CancellationToken.None))).Succeeded);
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var security = RolloutScenario.Update("Security Updates");
+
+        await scenario.ReportAsync(pilot, RolloutScenario.Update("Feature Packs"), security);
+
+        var rollout = await scenario.Factory.WithDbAsync(db => db.Rollouts.SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(security.UpdateId, rollout.UpdateId);
+        Assert.Equal(security.UpdateId, Assert.Single((await scenario.ReleasesAsync(pilot)).Releases).UpdateId);
+    }
+
+    [Fact]
+    public async Task WithoutMatchingStartRule_UpdateStaysQueued()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await scenario.ManualStartOnlyAsync();
         var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
 
-        await scenario.ReportAsync(pilot, RolloutScenario.Update("Feature Packs"));
+        await scenario.ReportAsync(pilot, RolloutScenario.Update("Security Updates"));
 
         Assert.False(await scenario.Factory.WithDbAsync(db => db.Rollouts.AnyAsync(TestContext.Current.CancellationToken)));
         Assert.Empty((await scenario.ReleasesAsync(pilot)).Releases);
     }
 
     [Fact]
-    public async Task EmptyAutoStartList_DisablesAutomaticStart()
+    public async Task StartRuleDelay_PostponesInstallationAndTransitionInPilot()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
-        Assert.True((await scenario.AdministerAsync(admin => admin.SetAutoStartClassificationsAsync("", "admin", CancellationToken.None))).Succeeded);
+        Assert.True((await scenario.AdministerAsync(admin => admin.CreateStartRuleAsync(10, "Security Updates", null, null, StartMode.Automatic, 24, "admin", CancellationToken.None))).Succeeded);
+        Assert.True((await scenario.AdministerAsync(admin => admin.SetTransitionAsync(RingEntity.PilotId, 0, 7, 80, 95, false, "admin", CancellationToken.None))).Succeeded);
         var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates");
 
-        await scenario.ReportAsync(pilot, RolloutScenario.Update("Security Updates"));
+        await scenario.ReportAsync(pilot, update);
 
-        Assert.False(await scenario.Factory.WithDbAsync(db => db.Rollouts.AnyAsync(TestContext.Current.CancellationToken)));
+        var release = Assert.Single((await scenario.ReleasesAsync(pilot)).Releases);
+        Assert.InRange(release.EarliestInstallAt, DateTimeOffset.UtcNow.AddHours(23), DateTimeOffset.UtcNow.AddHours(25));
+
+        // The wait time of the transition starts with the delayed release, even with a zero minimum wait.
+        Assert.Equal(0, await scenario.AdvanceAsync());
     }
 
     [Fact]
@@ -211,6 +277,7 @@ public sealed class RolloutTests
     {
         await using var scenario = await RolloutScenario.CreateAsync();
         var production = await scenario.AddClientAsync("PROD01", RingEntity.ProductionId);
+        await scenario.ManualStartOnlyAsync();
         var update = RolloutScenario.Update("Updates");
         await scenario.ReportAsync(production, update);
 
@@ -314,27 +381,39 @@ public sealed class RolloutAdministrationTests
     }
 
     [Theory]
-    [InlineData("<script>")]
-    [InlineData("Security Updates; DROP TABLE")]
-    [InlineData("-leading")]
-    [InlineData("a classification name that is clearly far longer than sixty-four characters allowed")]
-    public async Task InvalidClassification_IsRefused(string text)
+    [InlineData(-1, null, null, null, (int)StartMode.Automatic, 0)]
+    [InlineData(1, null, null, null, (int)StartMode.Automatic, -1)]
+    [InlineData(1, null, null, null, (int)StartMode.Automatic, StartRuleEntity.MaxDelayHours + 1)]
+    [InlineData(1, null, null, null, (int)StartMode.Manual, 5)]
+    [InlineData(1, null, null, null, 7, 0)]
+    [InlineData(1, "<script>", null, null, (int)StartMode.Automatic, 0)]
+    [InlineData(1, "Security Updates; DROP TABLE", null, null, (int)StartMode.Automatic, 0)]
+    [InlineData(1, null, "Very critical", null, (int)StartMode.Automatic, 0)]
+    [InlineData(1, null, null, "Cumulative\u0001*", (int)StartMode.Automatic, 0)]
+    public async Task InvalidStartRule_IsRefused(int priority, string? classification, string? severity, string? title, int mode, int delay)
     {
         await using var scenario = await RolloutScenario.CreateAsync();
 
-        Assert.False((await scenario.AdministerAsync(admin => admin.SetAutoStartClassificationsAsync(text, "admin", CancellationToken.None))).Succeeded);
-        Assert.Equal(RolloutService.DefaultAutoStartClassifications, await scenario.WithServiceAsync<RolloutService, IReadOnlyList<string>>(s => s.GetAutoStartClassificationsAsync(CancellationToken.None)));
+        var outcome = await scenario.AdministerAsync(admin => admin.CreateStartRuleAsync(priority, classification, severity, title, (StartMode)mode, delay, "admin", CancellationToken.None));
+
+        Assert.False(outcome.Succeeded);
+        Assert.Equal(1, await scenario.Factory.WithDbAsync(db => db.StartRules.CountAsync(TestContext.Current.CancellationToken)));
     }
 
     [Fact]
-    public async Task TooManyClassifications_AreRefused()
+    public async Task StartRuleChanges_AreAudited_AndUnknownRuleCannotBeDeleted()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
-        var text = string.Join('\n', Enumerable.Range(0, RolloutAdministration.MaxClassifications + 1).Select(i => $"Class {i}"));
 
-        Assert.False((await scenario.AdministerAsync(admin => admin.SetAutoStartClassificationsAsync(text, "admin", CancellationToken.None))).Succeeded);
+        Assert.True((await scenario.AdministerAsync(admin => admin.CreateStartRuleAsync(5, " Security Updates ", "Critical", "*Cumulative*", StartMode.Automatic, 48, "alice", CancellationToken.None))).Succeeded);
+        Assert.True((await scenario.AdministerAsync(admin => admin.DeleteStartRuleAsync(StartRuleEntity.CatchAllId, "alice", CancellationToken.None))).Succeeded);
+        Assert.False((await scenario.AdministerAsync(admin => admin.DeleteStartRuleAsync(StartRuleEntity.CatchAllId, "alice", CancellationToken.None))).Succeeded);
+
+        var rule = await scenario.Factory.WithDbAsync(db => db.StartRules.SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Equal("Security Updates", rule.Classification);
+        Assert.Equal(TimeSpan.FromHours(48), rule.Delay);
+        Assert.Equal(2, await scenario.Factory.WithDbAsync(db => db.AuditEntries.CountAsync(e => e.Actor == "alice" && e.Action.StartsWith("StartRule."), TestContext.Current.CancellationToken)));
     }
-
     [Fact]
     public async Task ActionsOnUnknownOrWrongState_AreRefused()
     {
@@ -350,19 +429,6 @@ public sealed class RolloutAdministrationTests
         Assert.False((await scenario.AdministerAsync(admin => admin.ApproveRingAsync(update.UpdateId, 1, RingEntity.TestId, "operator", CancellationToken.None))).Succeeded);
         Assert.False((await scenario.AdministerAsync(admin => admin.ApproveRingAsync(update.UpdateId, 1, 99, "operator", CancellationToken.None))).Succeeded);
     }
-
-    [Fact]
-    public async Task CorruptStoredClassifications_FallBackToDefault()
-    {
-        await using var scenario = await RolloutScenario.CreateAsync();
-        await scenario.Factory.WithDbAsync(db =>
-        {
-            db.Settings.Add(new SettingEntity { Key = SettingEntity.AutoStartClassifications, Value = "not json" });
-            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        });
-
-        Assert.Equal(RolloutService.DefaultAutoStartClassifications, await scenario.WithServiceAsync<RolloutService, IReadOnlyList<string>>(s => s.GetAutoStartClassificationsAsync(CancellationToken.None)));
-    }
 }
 
 public sealed class RolloutPageTests
@@ -374,6 +440,7 @@ public sealed class RolloutPageTests
     {
         await using var scenario = await RolloutScenario.CreateAsync();
         var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        await scenario.ManualStartOnlyAsync();
         var update = RolloutScenario.Update("Feature Packs");
         await scenario.ReportAsync(pilot, update);
         await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
@@ -397,6 +464,7 @@ public sealed class RolloutPageTests
         await using var scenario = await RolloutScenario.CreateAsync();
         Assert.True((await scenario.AdministerAsync(admin => admin.SetTransitionAsync(RingEntity.PilotId, 0, 7, 80, 95, true, "admin", CancellationToken.None))).Succeeded);
         var test = await scenario.AddClientAsync("TEST01", RingEntity.TestId);
+        await scenario.ManualStartOnlyAsync();
         var update = RolloutScenario.Update("Feature Packs");
         await scenario.ReportAsync(test, update);
         await scenario.Factory.CreateUserAsync("operator", Password, AdminRoles.Operator);
@@ -490,6 +558,58 @@ public sealed class RolloutPageTests
         Assert.Contains("Every value must be a whole number.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public async Task Admin_CreatesStartRuleThroughForm()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        using var response = await browser.PostFormAsync("/administration/release-rules", new Dictionary<string, string>
+        {
+            ["_handler"] = "startrules",
+            ["StartAction"] = "create",
+            ["StartPriority"] = "10",
+            ["StartClassification"] = "Security Updates",
+            ["StartMode"] = "automatic",
+            ["StartDelay"] = "12",
+        });
+
+        Assert.Contains("The start rule was created.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        var rule = await scenario.Factory.WithDbAsync(db => db.StartRules.SingleAsync(r => r.Priority == 10, TestContext.Current.CancellationToken));
+        Assert.Equal(TimeSpan.FromHours(12), rule.Delay);
+    }
+
+    [Theory]
+    [InlineData("create", "10", "sometimes", "0")]
+    [InlineData("create", "ten", "automatic", "0")]
+    [InlineData("create", "10", "automatic", "-3")]
+    [InlineData("delete:abc", "10", "automatic", "0")]
+    public async Task Admin_MalformedStartRuleForm_IsRefused(string action, string priority, string mode, string delay)
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        using var response = await browser.PostFormAsync("/administration/release-rules", new Dictionary<string, string>
+        {
+            ["_handler"] = "startrules",
+            ["StartAction"] = action,
+            ["StartPriority"] = priority,
+            ["StartMode"] = mode,
+            ["StartDelay"] = delay,
+        });
+
+        Assert.Contains("role=\"alert\"", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Equal(1, await scenario.Factory.WithDbAsync(db => db.StartRules.CountAsync(TestContext.Current.CancellationToken)));
+    }
     [Fact]
     public async Task ReleaseRules_AreOnlyForAdministrators()
     {
@@ -587,6 +707,10 @@ internal sealed class RolloutScenario : IAsyncDisposable
 
     public Task<RingRolloutState> RingStateAsync(Guid updateId, int ring) =>
         Factory.WithDbAsync(db => db.RolloutRings.Where(r => r.UpdateId == updateId && r.RingId == ring).Select(r => r.State).SingleAsync(TestContext.Current.CancellationToken));
+
+    /// <summary>Removes the default start rule, so every update stays queued until it is started.</summary>
+    public Task ManualStartOnlyAsync() =>
+        Factory.WithDbAsync(db => db.StartRules.ExecuteDeleteAsync(TestContext.Current.CancellationToken));
 
     public Task<int> AdvanceAsync() => WithServiceAsync<RolloutService, int>(s => s.AdvanceAsync(CancellationToken.None));
 

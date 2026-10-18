@@ -92,3 +92,41 @@ internal sealed class RingTransitionEntity
     /// <summary>A human must approve the transition when the rule is met.</summary>
     public bool ManualGate { get; set; }
 }
+
+internal enum StartMode
+{
+    /// <summary>The rollout starts in the first ring by itself.</summary>
+    Automatic = 0,
+
+    /// <summary>The update stays queued until an operator starts it.</summary>
+    Manual = 1,
+}
+
+/// <summary>
+/// Decides how a newly reported update enters the first ring. The matching rule with the lowest priority number applies;
+/// all set conditions must match, a rule without conditions matches every update. Without a matching rule the update stays queued.
+/// </summary>
+internal sealed class StartRuleEntity
+{
+    public const int CatchAllId = 1;
+
+    public const int MaxDelayHours = 720;
+
+    public int Id { get; set; }
+
+    public int Priority { get; set; }
+
+    /// <summary>Update classification as reported by Windows Update, e.g. "Security Updates".</summary>
+    public string? Classification { get; set; }
+
+    /// <summary>MSRC severity, e.g. "Critical".</summary>
+    public string? MsrcSeverity { get; set; }
+
+    /// <summary>Title pattern with * and ? wildcards, e.g. "*Cumulative Update*".</summary>
+    public string? TitlePattern { get; set; }
+
+    public StartMode Mode { get; set; }
+
+    /// <summary>Delay between the start of the rollout and the earliest installation in the first ring.</summary>
+    public TimeSpan Delay { get; set; }
+}

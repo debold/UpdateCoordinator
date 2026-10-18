@@ -720,6 +720,47 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.ToTable("Settings", (string)null);
                 });
 
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.StartRuleEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Classification")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<TimeSpan>("Delay")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MsrcSeverity")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TitlePattern")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StartRules", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Delay = new TimeSpan(0, 0, 0, 0, 0),
+                            Mode = 0,
+                            Priority = 1000
+                        });
+                });
+
             modelBuilder.Entity("UpdateCoordinator.Server.Data.TrustBindingEntity", b =>
                 {
                     b.Property<long>("Serial")

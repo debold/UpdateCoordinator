@@ -87,9 +87,6 @@ internal sealed class SettingEntity
 {
     public const string SystemMaintenanceWindows = "MaintenanceWindows.SystemDefault";
 
-    /// <summary>JSON list of update classifications whose rollouts start automatically in the first ring.</summary>
-    public const string AutoStartClassifications = "Rollout.AutoStartClassifications";
-
     public required string Key { get; set; }
 
     public required string Value { get; set; }

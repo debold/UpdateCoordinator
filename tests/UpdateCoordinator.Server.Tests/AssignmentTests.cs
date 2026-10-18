@@ -215,7 +215,7 @@ public sealed class AssignmentServiceTests
     [InlineData("S.V01", "SRV01", false)]
     public void WildcardPatterns_MatchLiterally(string pattern, string host, bool expected)
     {
-        Assert.Equal(expected, AssignmentService.WildcardMatches(pattern, host));
+        Assert.Equal(expected, Wildcard.Matches(pattern, host));
     }
 
     private static async Task WithAdministrationAsync(ServerFactory factory, Func<AssignmentAdministration, Task<Outcome>> action)

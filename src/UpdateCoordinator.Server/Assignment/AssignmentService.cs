@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 using Microsoft.EntityFrameworkCore;
 
 using UpdateCoordinator.Contracts.Agents;
@@ -17,8 +15,6 @@ namespace UpdateCoordinator.Server.Assignment;
 /// </summary>
 internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner releases)
 {
-    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(200);
-
     /// <summary>Recalculates one client, or all clients if <paramref name="clientId"/> is null. Saves the changes.</summary>
     public async Task RecalculateAsync(Guid? clientId, CancellationToken cancellationToken)
     {
@@ -88,14 +84,7 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
 
         return (rule.Role is null || client.Roles.Contains(rule.Role, StringComparer.OrdinalIgnoreCase))
             && (rule.Domain is null || string.Equals(rule.Domain, client.DomainName, StringComparison.OrdinalIgnoreCase))
-            && (rule.HostNamePattern is null || WildcardMatches(rule.HostNamePattern, client.HostName));
-    }
-
-    /// <summary>Wildcard match with * and ?; every other character is literal.</summary>
-    internal static bool WildcardMatches(string pattern, string value)
-    {
-        var regex = "^" + Regex.Escape(pattern).Replace(@"\*", ".*", StringComparison.Ordinal).Replace(@"\?", ".", StringComparison.Ordinal) + "$";
-        return Regex.IsMatch(value, regex, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, RegexTimeout);
+            && (rule.HostNamePattern is null || Wildcard.Matches(rule.HostNamePattern, client.HostName));
     }
 
     private static List<MaintenanceWindow>? Union(IEnumerable<IReadOnlyList<MaintenanceWindow>?> lists)
