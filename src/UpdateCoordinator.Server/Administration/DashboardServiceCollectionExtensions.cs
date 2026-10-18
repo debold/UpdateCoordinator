@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 
+using UpdateCoordinator.Server.Approval;
 using UpdateCoordinator.Server.Data;
 
 namespace UpdateCoordinator.Server.Administration;
@@ -59,6 +60,16 @@ internal static class DashboardServiceCollectionExtensions
 
         services.AddSingleton<SetupService>();
         services.AddScoped<AuditLog>();
+
+        services.AddOptions<ApprovalOptions>()
+            .Bind(configuration.GetSection(ApprovalOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<ClientApprovalService>();
+        services.AddSingleton<IDirectoryLookup, LdapDirectoryLookup>();
+        services.AddSingleton<IDnsLookup, SystemDnsLookup>();
+        services.AddScoped<RuleBasedApprover>();
+        services.AddHostedService<RuleBasedApprovalWorker>();
         return services;
     }
 

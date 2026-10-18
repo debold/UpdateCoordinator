@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
     <PackageReference Include="MinVer" PrivateAssets="all" />
+    <PackageReference Include="System.DirectoryServices.Protocols" />
   </ItemGroup>
 
   <ItemGroup>

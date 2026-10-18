@@ -1,7 +1,7 @@
 # Admin Documentation
 
 > Guide and information on setup and communication paths. Updated with every feature.
-> Status: register, heartbeat, trust anchor, inventory, update search, installation (without reboots) and web administration (accounts, roles, audit log). Installers and the dashboard follow with later features.
+> Status: register, heartbeat, trust anchor, inventory, update search, installation (without reboots), web administration (accounts, roles, audit log) and approval of new servers. Installers and the dashboard follow with later features.
 
 ## 1. Components in operation
 
@@ -196,3 +196,21 @@ The dashboard runs on the same HTTPS endpoint as the agent API (default `https:/
 | Key | Default | Meaning |
 |---|---|---|
 | `Administration:SetupTokenPath` | `%ProgramData%\UpdateCoordinator\Server\setup-token.txt` | one-time setup token file (only while no account exists) |
+
+## 10. Approving new servers
+
+New agents register without any secret and stay `Pending` until they are approved. Pending servers send heartbeats and their inventory but receive no releases and install nothing.
+
+**Manual:** Pending approvals (role `Operator` or `Admin`) lists host name, domain, source IP address, operating system, detected roles and times. Approve or reject; every decision is recorded in the audit log. A server can be decided only once; rejected servers cannot send anything.
+
+**Rule-based (optional):** list DNS domains in `Approval:AutoApproveDomains`. Every `Approval:CheckInterval` (default 1 minute) the central server checks each pending server of such a domain itself:
+
+1. the computer account `HOST$` exists in Active Directory and is enabled (LDAP with signing and sealing, using the service account of the central server; the central server must be a domain member);
+2. the IP address the registration came from is one of the addresses DNS returns for `host.domain`.
+
+Only if both checks pass is the server approved, recorded in the audit log as actor `rule`. Values reported by the agent are never trusted on their own. If Active Directory cannot be reached, the server stays pending and is checked again later; servers that do not pass stay pending for a manual decision.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Approval:AutoApproveDomains` | empty (off) | DNS domains whose verified members are approved automatically |
+| `Approval:CheckInterval` | `00:01:00` | how often pending servers are checked (10 s to 1 h) |

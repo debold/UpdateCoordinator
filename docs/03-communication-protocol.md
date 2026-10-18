@@ -74,6 +74,8 @@ The approval mechanism is the **only mechanism** that decides on onboarding new 
 - **manually** by the admin (showing IP, name and basic information with approve/reject), or
 - **rule-based**, e.g. the client is a domain member: the central server itself looks up the computer object in AD (by host name in the reported domain) and checks that the request comes from the IP address registered in DNS for it. Self-reported values such as a SID are not trusted; the agent therefore does not report a SID at all (decided 2026-10-18).
 
+Implemented 2026-10-18: manual decisions on the dashboard page "Pending approvals" (role Operator); rule-based approval for the DNS domains in `Approval:AutoApproveDomains`, checked periodically by the central server (enabled computer account `HOST$` via LDAP with signing and sealing, source IP address among the DNS addresses of `host.domain`). Rule management in the dashboard follows later.
+
 ### 4.2 Flow
 
 1. The agent sends **Register** (it knows it has never been connected). The central server issues the **client GUID and client secret** (see 3.1) and returns them. The client starts in state `Pending`.

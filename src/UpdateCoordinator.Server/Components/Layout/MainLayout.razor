@@ -6,6 +6,9 @@
         <Authorized>
             <nav>
                 <a href="/">Overview</a>
+                <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
+                    <a href="/approvals">Pending approvals</a>
+                </AuthorizeView>
                 <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
                     <a href="/administration/audit">Audit log</a>
                 </AuthorizeView>

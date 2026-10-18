@@ -1,0 +1,101 @@
+@page "/approvals"
+@attribute [Authorize(Policy = AdminRoles.Policies.Operate)]
+@using UpdateCoordinator.Contracts.Agents
+@using UpdateCoordinator.Server.Approval
+@inject ServerDbContext Db
+@inject ClientApprovalService Approvals
+@inject NavigationManager Navigation
+
+<PageTitle>Pending approvals</PageTitle>
+
+<h1>Pending approvals</h1>
+
+<p>New servers register without any secret. Approve only servers you expect; rejected servers cannot send anything until they are deleted.</p>
+
+@if (_message is not null)
+{
+    <p class="notice" role="status">@_message</p>
+}
+
+@* One form that is always rendered, so a decision posted after the list changed still reaches the handler. *@
+<form method="post" @formname="decision" @onsubmit="DecideAsync">
+    <AntiforgeryToken />
+    @if (_pending.Count == 0)
+    {
+        <p>No server is waiting for approval.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Server</th><th>Domain</th><th>Registered from</th><th>Operating system</th><th>Roles</th><th>Registered (UTC)</th><th>Last heartbeat (UTC)</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var client in _pending)
+                {
+                    <tr>
+                        <td>@client.HostName</td>
+                        <td>@client.DomainName</td>
+                        <td>@client.RegisteredFromAddress</td>
+                        <td>@(client.OsProductName ?? client.OsVersion)</td>
+                        <td>@string.Join(", ", client.Roles)</td>
+                        <td>@Format(client.RegisteredAtUtc)</td>
+                        <td>@Format(client.LastHeartbeatAtUtc)</td>
+                        <td class="actions">
+                            <button type="submit" name="Action" value="approve:@client.Id">Approve</button>
+                            <button type="submit" name="Action" value="reject:@client.Id">Reject</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</form>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    /// <summary>Value of the pressed button: "approve:{client id}" or "reject:{client id}".</summary>
+    [SupplyParameterFromForm(FormName = "decision")]
+    private string? Action { get; set; }
+
+    private List<ClientEntity> _pending = [];
+    private string? _message;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task DecideAsync()
+    {
+        var parts = Action?.Split(':', 2);
+        var decision = parts?[0];
+        if (parts is not { Length: 2 } || decision is not ("approve" or "reject") || !Guid.TryParse(parts[1], out var id))
+        {
+            _message = "Invalid request.";
+            return;
+        }
+
+        var actor = AuthenticationState is null ? "unknown" : (await AuthenticationState).User.Identity?.Name ?? "unknown";
+        var result = decision == "approve"
+            ? await Approvals.ApproveAsync(id, actor, null, CancellationToken.None)
+            : await Approvals.RejectAsync(id, actor, null, CancellationToken.None);
+
+        _message = result switch
+        {
+            ApprovalResult.Done => decision == "approve" ? "The server was approved." : "The server was rejected.",
+            ApprovalResult.NotPending => "The server was already decided by someone else.",
+            _ => "The server no longer exists.",
+        };
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() =>
+        _pending = await Db.Clients.AsNoTracking()
+            .Where(c => c.State == RegistrationState.Pending)
+            .OrderBy(c => c.RegisteredAtUtc)
+            .Take(500)
+            .ToListAsync();
+
+    private static string Format(DateTime? value) =>
+        value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";
+}

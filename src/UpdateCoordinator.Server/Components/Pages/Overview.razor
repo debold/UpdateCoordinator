@@ -8,6 +8,10 @@
 <h1>Overview</h1>
 
 <section class="tiles">
+    @if (_pending > 0)
+    {
+        <a class="tile urgent" href="/approvals"><span class="value">@_pending</span><span class="label">waiting for approval</span></a>
+    }
     @foreach (var (state, count) in _counts)
     {
         <div class="tile"><span class="value">@count</span><span class="label">@state</span></div>
@@ -16,6 +20,7 @@
 
 @code {
     private List<(string State, int Count)> _counts = [];
+    private int _pending;
 
     protected override async Task OnInitializedAsync()
     {
@@ -23,6 +28,7 @@
             .GroupBy(c => c.State)
             .Select(g => new { State = g.Key, Count = g.Count() })
             .ToListAsync();
+        _pending = grouped.FirstOrDefault(g => g.State == RegistrationState.Pending)?.Count ?? 0;
         _counts = [.. Enum.GetValues<RegistrationState>().Select(state => (state.ToString(), grouped.FirstOrDefault(g => g.State == state)?.Count ?? 0))];
     }
 }
