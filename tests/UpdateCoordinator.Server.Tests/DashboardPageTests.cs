@@ -441,3 +441,132 @@ public sealed class DashboardViewTests
         return await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
     }
 }
+
+public sealed class UpdateDetailTests
+{
+    private const string Password = "correct horse battery";
+
+    [Fact]
+    public async Task Reader_SeesProgressTimelineAndServers_WithoutActions()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var pilot2 = await scenario.AddClientAsync("PILOT02", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(pilot, update);
+        await scenario.ReportAsync(pilot2, update);
+        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Succeeded);
+        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
+
+        var html = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1");
+
+        Assert.Contains("Progress by ring", html, StringComparison.Ordinal);
+        Assert.Contains("50 % (1/2)", html, StringComparison.Ordinal);
+        Assert.Contains("Released for ring Pilot", html, StringComparison.Ordinal);
+        Assert.Contains("Rollout started", html, StringComparison.Ordinal);
+        Assert.Contains("PILOT02", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"stop\"", html, StringComparison.Ordinal);
+
+        using var post = await browser.PostFormAsync($"/updates/{update.UpdateId:D}/1", new Dictionary<string, string> { ["_handler"] = "update", ["Action"] = "stop" }, pageToRead: "/");
+        Assert.Equal(RolloutState.Active, await scenario.Factory.WithDbAsync(db => db.Rollouts.Select(r => r.State).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task ServerTable_FiltersByState_AndIgnoresUnknownState()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var pilot2 = await scenario.AddClientAsync("PILOT02", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(pilot, update);
+        await scenario.ReportAsync(pilot2, update);
+        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Failed);
+        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
+
+        var failed = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?state=Failed");
+        var unknown = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?state=%3Cscript%3E");
+
+        Assert.Contains("PILOT01", failed, StringComparison.Ordinal);
+        Assert.DoesNotContain("PILOT02", failed, StringComparison.Ordinal);
+        Assert.Contains("PILOT02", unknown, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script>", unknown, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Operator_ApprovesGateAndStopsRolloutOnThePage()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        Assert.True((await scenario.AdministerAsync(admin => admin.SetTransitionAsync(RingEntity.PilotId, 0, 7, 80, 95, true, "admin", CancellationToken.None))).Succeeded);
+        var test = await scenario.AddClientAsync("TEST01", RingEntity.TestId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(test, update);
+        await scenario.AdvanceAsync();
+        using var browser = await LoginAsync(scenario, AdminRoles.Operator);
+        var path = $"/updates/{update.UpdateId:D}/1";
+
+        Assert.Contains("Approve for Test", await GetHtmlAsync(browser, path), StringComparison.Ordinal);
+        using (var approved = await browser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "update", ["Action"] = $"approve:{RingEntity.TestId}" }))
+        {
+            Assert.Contains("The update was released for the ring.", await approved.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.Single((await scenario.ReleasesAsync(test)).Releases);
+
+        using (await browser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "update", ["Action"] = "stop" }))
+        {
+        }
+
+        Assert.Empty((await scenario.ReleasesAsync(test)).Releases);
+        Assert.Contains("Rollout stopped", await GetHtmlAsync(browser, path), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("approve:abc")]
+    [InlineData("approve")]
+    [InlineData("delete")]
+    [InlineData("")]
+    public async Task Operator_MalformedAction_IsRefused(string action)
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(pilot, update);
+        using var browser = await LoginAsync(scenario, AdminRoles.Operator);
+
+        using var response = await browser.PostFormAsync($"/updates/{update.UpdateId:D}/1", new Dictionary<string, string> { ["_handler"] = "update", ["Action"] = action });
+
+        Assert.Contains("role=\"alert\"", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task QueuedAndUnknownUpdates_RenderSafely()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await scenario.ManualStartOnlyAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Feature Packs");
+        await scenario.ReportAsync(pilot, update);
+        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
+
+        Assert.Contains("Queued: no rollout", await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1"), StringComparison.Ordinal);
+        Assert.Contains("Update not found", await GetHtmlAsync(browser, $"/updates/{Guid.NewGuid():D}/1"), StringComparison.Ordinal);
+    }
+
+    private static async Task<DashboardClient> LoginAsync(RolloutScenario scenario, string role)
+    {
+        await scenario.Factory.CreateUserAsync("user", Password, role);
+        var browser = new DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("user", Password))
+        {
+        }
+
+        return browser;
+    }
+
+    private static async Task<string> GetHtmlAsync(DashboardClient browser, string path)
+    {
+        using var response = await browser.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+    }
+}

@@ -52,6 +52,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Releases are derived from the rollout state: an approved server gets an update released for its ring that it reported as missing, until its inventory reports it installed; ring changes move releases.
 - Dashboard pages: Updates (rollouts per ring and queued updates), ring transitions under Pending approvals, Administration → Release rules.
 - Dashboard redesigned after the mockup (navigation sidebar, cards, charts drawn on the server as SVG, still without scripts; usable at phone width): overview with "Needs attention", key figures, deployment by ring and patch compliance trend (daily snapshot); ring detail page; server list with health and filters; server detail with pre-flight checks, missing updates and update history.
+- Update detail page: progress per ring with rates, timeline, affected servers filterable by status, and rollout actions for operators.
 - Windows Update error codes are translated into plain English text centrally.
 
 ### Shared

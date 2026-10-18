@@ -1,0 +1,326 @@
+@page "/updates/{UpdateId:guid}/{Revision:int}"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using UpdateCoordinator.Server.Agents
+@inject ServerDbContext Db
+@inject DeploymentStatus Deployment
+@inject RolloutService Rollouts
+@inject RolloutAdministration Administration
+@inject TimeProvider Time
+
+<PageTitle>@(_update is null ? "Update" : UpdateText.Title(_update, UpdateId))</PageTitle>
+
+@if (_update is null)
+{
+    <h1>Update not found</h1>
+}
+else
+{
+    <div class="crumbs"><a href="/">Overview</a> / <a href="/updates">Updates</a> / @UpdateText.Title(_update.KbArticle, string.Empty).Trim()</div>
+    <div class="page-head">
+        <div>
+            <h1>@UpdateText.Title(_update, UpdateId)</h1>
+            <div class="subtitle">@(_update.Classification ?? "Unclassified")@(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}") · revision @Revision · first seen @Format(_update.FirstSeenAtUtc) UTC</div>
+        </div>
+        <span class="pill @_stateClass">@_stateLabel</span>
+    </div>
+    <StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+    @if (_canOperate)
+    {
+        <form method="post" @formname="update" @onsubmit="HandleAsync" class="actions">
+            <AntiforgeryToken />
+            @if (_rollout is null || _rollout.State == RolloutState.Stopped)
+            {
+                <button type="submit" name="Action" value="start">@(_rollout is null ? "Start rollout" : "Resume")</button>
+            }
+            else
+            {
+                <button type="submit" name="Action" value="stop">Stop</button>
+            }
+            @if (_rollout is null || !_rollout.Override || _rollout.State == RolloutState.Stopped)
+            {
+                <button type="submit" name="Action" value="override">Release to all rings</button>
+            }
+            @foreach (var ring in _ringRows.Where(r => r.State is RingRolloutState.AwaitingApproval or RingRolloutState.Alarm))
+            {
+                <button type="submit" class="primary" name="Action" value="approve:@ring.RingId">@(ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve") for @ring.Name</button>
+            }
+        </form>
+    }
+
+    <div class="columns">
+        <section class="card narrow" aria-labelledby="total-h">
+            <h2 id="total-h">All servers</h2>
+            <div class="ring-status">
+                <Donut Counts="@_total" />
+                <Legend Counts="@_total" Vertical="true" />
+            </div>
+        </section>
+
+        <section class="card flush wide" aria-labelledby="rings-h">
+            <h2 id="rings-h">Progress by ring</h2>
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>Ring</th><th>State</th><th>Released (UTC)</th><th>Feedback</th><th>Success</th><th>Status (servers)</th></tr></thead>
+                    <tbody>
+                        @foreach (var ring in _ringRows)
+                        {
+                            <tr>
+                                <td><a href="/rings/@ring.RingId?update=@Key">@ring.Order · @ring.Name</a></td>
+                                <td><span class="pill @RingStateClass(ring.State)">@RingStateLabel(ring)</span></td>
+                                <td>@Format(ring.ReleasedAtUtc)</td>
+                                <td>@Percent(ring.Statistics.FeedbackPercent) (@ring.Statistics.Reported/@ring.Statistics.Targeted)</td>
+                                <td>@Percent(ring.Statistics.SuccessPercent)</td>
+                                <td><StackedBar Counts="@ring.Counts" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <section class="card flush" aria-labelledby="timeline-h">
+        <h2 id="timeline-h">Timeline</h2>
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Time (UTC)</th><th>Event</th><th>By</th></tr></thead>
+                <tbody>
+                    @if (_timeline.Count == 0)
+                    {
+                        <tr><td colspan="3">No rollout yet: the update is queued.</td></tr>
+                    }
+                    @foreach (var item in _timeline)
+                    {
+                        <tr><td>@Format(item.AtUtc)</td><td>@item.Text</td><td>@item.Actor</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card flush" aria-labelledby="servers-h">
+        <h2 id="servers-h">Servers</h2>
+        <form method="get" class="filters" role="search">
+            <label>
+                Status
+                <select name="state">
+                    <option value="">Any</option>
+                    @foreach (var state in Enum.GetValues<DeploymentState>())
+                    {
+                        <option value="@state" selected="@(state == _stateFilter)">@state</option>
+                    }
+                </select>
+            </label>
+            <button type="submit">Filter</button>
+        </form>
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Server</th><th>Ring</th><th>Status</th><th>Earliest installation (UTC)</th><th>Result</th></tr></thead>
+                <tbody>
+                    @if (_servers.Count == 0)
+                    {
+                        <tr><td colspan="5">No server matches.</td></tr>
+                    }
+                    @foreach (var row in _servers)
+                    {
+                        <tr>
+                            <td><a href="/servers/@row.Entry.ClientId">@row.HostName</a></td>
+                            <td>@row.Ring</td>
+                            <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@row.Entry.State</span></td>
+                            <td>@Format(row.Entry.EarliestInstallAtUtc)</td>
+                            <td>@DeploymentText.Result(row.Entry)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@code {
+    private const int MaxServerRows = 1000;
+
+    private sealed record RingRow(int RingId, int Order, string Name, RingRolloutState? State, string? Reason, DateTime? ReleasedAtUtc, RingStatistics Statistics, DeploymentCounts Counts);
+
+    private sealed record ServerRow(string HostName, string Ring, DeploymentEntry Entry);
+
+    private sealed record TimelineItem(DateTime AtUtc, string Text, string Actor);
+
+    [Parameter]
+    public Guid UpdateId { get; set; }
+
+    [Parameter]
+    public int Revision { get; set; }
+
+    [SupplyParameterFromQuery(Name = "state")]
+    public string? StateFilter { get; set; }
+
+    [SupplyParameterFromForm(FormName = "update")]
+    private string? Action { get; set; }
+
+    private bool _canOperate;
+    private UpdateEntity? _update;
+    private RolloutEntity? _rollout;
+    private string _stateLabel = string.Empty;
+    private string _stateClass = "neutral";
+    private DeploymentCounts _total = DeploymentCounts.Empty;
+    private DeploymentState? _stateFilter;
+    private List<RingRow> _ringRows = [];
+    private List<ServerRow> _servers = [];
+    private List<TimelineItem> _timeline = [];
+
+    private string Key => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{UpdateId:D}:{Revision}");
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _canOperate = await IsAuthorizedAsync(AdminRoles.Policies.Operate);
+        await LoadAsync();
+    }
+
+    private async Task HandleAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate))
+        {
+            ShowResult("Only operators and administrators can change rollouts.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var parts = Action?.Split(':', 2);
+        int? ringId = null;
+        if (parts is ["approve", var ring])
+        {
+            if (!int.TryParse(ring, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            {
+                ShowResult("Invalid request.", string.Empty);
+                await LoadAsync();
+                return;
+            }
+
+            ringId = parsed;
+        }
+
+        var (outcome, success) = await RolloutActions.RunAsync(Administration, parts?[0], UpdateId, Revision, ringId, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, success);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _update = await Db.Updates.AsNoTracking().SingleOrDefaultAsync(u => u.UpdateId == UpdateId && u.Revision == Revision);
+        if (_update is null)
+        {
+            return;
+        }
+
+        _stateFilter = Enum.TryParse<DeploymentState>(StateFilter, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
+        _rollout = await Db.Rollouts.AsNoTracking().SingleOrDefaultAsync(r => r.UpdateId == UpdateId && r.Revision == Revision);
+        (_stateLabel, _stateClass) = _rollout switch
+        {
+            null => ("Queued: no rollout", "queue"),
+            { State: RolloutState.Stopped } => ("Stopped", "fail"),
+            { Override: true } => ("Released to all rings", "pend"),
+            _ => ("Rolling out", "pend"),
+        };
+
+        var rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        var states = await Db.RolloutRings.AsNoTracking().Where(r => r.UpdateId == UpdateId && r.Revision == Revision).ToDictionaryAsync(r => r.RingId);
+        var entries = await Deployment.GetAsync(null, null, [UpdateId], CancellationToken.None);
+        entries = [.. entries.Where(e => e.Revision == Revision)];
+        _total = DeploymentCounts.Of(entries);
+
+        _ringRows = [];
+        foreach (var ring in rings)
+        {
+            var state = states.GetValueOrDefault(ring.Id);
+            var statistics = await Rollouts.GetStatisticsAsync(UpdateId, Revision, ring.Id, CancellationToken.None);
+            _ringRows.Add(new RingRow(ring.Id, ring.Order, ring.Name, state?.State, state?.Reason, state?.ReleasedAtUtc, statistics, DeploymentCounts.Of(entries.Where(e => e.RingId == ring.Id))));
+        }
+
+        var ids = entries.Select(e => e.ClientId).ToList();
+        var hosts = await Db.Clients.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.HostName);
+        var ringNames = rings.ToDictionary(r => r.Id, r => r.Name);
+        _servers = [.. entries
+            .Where(e => _stateFilter is null || e.State == _stateFilter)
+            .Select(e => new ServerRow(hosts.GetValueOrDefault(e.ClientId) ?? "?", e.RingId is { } r ? ringNames.GetValueOrDefault(r) ?? "–" : "–", e))
+            .OrderBy(r => r.Entry.State == DeploymentState.Failed ? 0 : 1).ThenBy(r => r.HostName)
+            .Take(MaxServerRows)];
+
+        await LoadTimelineAsync(rings, states);
+    }
+
+    private async Task LoadTimelineAsync(List<RingEntity> rings, Dictionary<int, RolloutRingEntity> states)
+    {
+        _timeline = [];
+        if (_rollout is null)
+        {
+            return;
+        }
+
+        foreach (var ring in rings)
+        {
+            if (states.GetValueOrDefault(ring.Id) is not { } state)
+            {
+                continue;
+            }
+
+            if (state.ReleasedAtUtc is { } released)
+            {
+                _timeline.Add(new TimelineItem(released, released > Time.GetUtcNow().UtcDateTime ? $"Installation in ring {ring.Name} allowed from here (start delay)" : $"Released for ring {ring.Name}", string.Empty));
+            }
+
+            if (state.State == RingRolloutState.AwaitingApproval)
+            {
+                _timeline.Add(new TimelineItem(state.StateChangedAtUtc, $"Waits for manual release to ring {ring.Name}", string.Empty));
+            }
+            else if (state.State == RingRolloutState.Alarm)
+            {
+                _timeline.Add(new TimelineItem(state.StateChangedAtUtc, $"Alarm before ring {ring.Name}: {state.Reason}", string.Empty));
+            }
+        }
+
+        // Manual actions come from the audit log; its target names the update ID and revision.
+        var marker = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"({UpdateId:D}, revision {Revision})");
+        var audited = await Db.AuditEntries.AsNoTracking()
+            .Where(e => e.Action.StartsWith("Rollout.") && e.Target != null && e.Target.EndsWith(marker))
+            .OrderByDescending(e => e.Id)
+            .Take(100)
+            .ToListAsync();
+        _timeline.AddRange(audited.Select(e => new TimelineItem(e.AtUtc, AuditText(e), e.Actor)));
+        _timeline = [.. _timeline.OrderByDescending(t => t.AtUtc)];
+    }
+
+    private static string AuditText(AuditEntryEntity entry) => entry.Action switch
+    {
+        "Rollout.Started" => $"Rollout started{(entry.Details is null ? null : $" ({entry.Details})")}",
+        "Rollout.Resumed" => "Rollout resumed",
+        "Rollout.Stopped" => "Rollout stopped",
+        "Rollout.Override" => "Released to every ring (manual override)",
+        "Rollout.RingApproved" => $"Approved: {entry.Details}",
+        _ => entry.Action,
+    };
+
+    private static string RingStateLabel(RingRow ring) => ring.State switch
+    {
+        RingRolloutState.Released => "Released",
+        RingRolloutState.AwaitingApproval => "Awaiting approval",
+        RingRolloutState.Alarm => $"Alarm: {ring.Reason}",
+        RingRolloutState.Waiting => "Waiting",
+        _ => "Not started",
+    };
+
+    private static string RingStateClass(RingRolloutState? state) => state switch
+    {
+        RingRolloutState.Released => "ok",
+        RingRolloutState.AwaitingApproval => "queue",
+        RingRolloutState.Alarm => "fail",
+        _ => "neutral",
+    };
+
+    private static string Percent(int? value) => value is null ? "n/a" : $"{value} %";
+
+    private static string Format(DateTime? value) =>
+        value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";
+}

@@ -29,6 +29,7 @@ Implemented (2026-10-18): "Needs attention" (alarms, release gates, servers wait
 - Feedback and success rate, wait and release status per update (the release logic applies per update).
 - **Overall ring status as a donut chart** across all updates in the ring: successful (green), pending (blue), queued (yellow), failed (red).
 Implemented (2026-10-18): page per ring with the ring sequence and gates, transition rule, donut of all server × update states, active updates with progress, feedback and success rate and wait day, and the server table of the selected update (maintenance windows, earliest installation, status, result with HResult text). States: successful and failed by the last installation result, pending = released without result, queued = reported as missing but not released for the ring.
+### Update detail viewImplemented (2026-10-18): one page per update (reached from the update list, ring pages, server details and "Needs attention") with the rollout state, a donut over all servers, progress per ring (state, release time, feedback and success rate, server states), a timeline from the ring states and the audit log, and the servers with ring, status, earliest installation and result, filterable by status. Operators start, stop, resume, override and approve gates there.
 
 ## 4. Server detail view
 

@@ -82,7 +82,7 @@ else
     @if (_selected is not null)
     {
         <section class="card flush" aria-labelledby="servers-h">
-            <h2 id="servers-h">Servers for @_selected.Title</h2>
+            <h2 id="servers-h">Servers for @_selected.Title · <a href="/updates/@(_selected.Key.Replace(":", "/", StringComparison.Ordinal))">update details</a></h2>
             <div class="scroll">
                 <table>
                     <thead><tr><th>Server</th><th>Maintenance windows (server time)</th><th>Earliest installation (UTC)</th><th>Status</th><th>Result</th></tr></thead>
@@ -97,8 +97,8 @@ else
                                 <td><a href="/servers/@row.ClientId">@row.HostName</a></td>
                                 <td>@row.Windows</td>
                                 <td>@Format(row.Entry.EarliestInstallAtUtc)</td>
-                                <td><span class="pill @StateClass(row.Entry.State)">@row.Entry.State</span></td>
-                                <td>@ResultText(row.Entry)</td>
+                                <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@row.Entry.State</span></td>
+                                <td>@DeploymentText.Result(row.Entry)</td>
                             </tr>
                         }
                     </tbody>
@@ -221,22 +221,6 @@ else
             ? "Delayed start"
             : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Day {Math.Floor(days) + 1:0} of {rule.MinimumWait.TotalDays:0}–{rule.MaximumWait.TotalDays:0}");
     }
-
-    private static string ResultText(DeploymentEntry entry) => entry.State switch
-    {
-        DeploymentState.Successful => $"Installed {Format(entry.LastResultAtUtc)} UTC",
-        DeploymentState.Failed => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{entry.HResult:X8}: {HResultCatalog.Describe(entry.HResult ?? 0)}"),
-        DeploymentState.Pending => "Waiting for the maintenance window",
-        _ => "Not released for this ring",
-    };
-
-    internal static string StateClass(DeploymentState state) => state switch
-    {
-        DeploymentState.Successful => "ok",
-        DeploymentState.Pending => "pend",
-        DeploymentState.Queued => "queue",
-        _ => "fail",
-    };
 
     private static string Key(Guid updateId, int revision) =>
         string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{updateId:D}:{revision}");

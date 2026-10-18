@@ -77,8 +77,8 @@ else
                         @foreach (var (entry, title) in _open)
                         {
                             <tr>
-                                <td>@title</td>
-                                <td><span class="pill @RingDetail.StateClass(entry.State)">@(entry.State == DeploymentState.Queued ? "Not released" : entry.State.ToString())</span></td>
+                                <td><a href="/updates/@entry.UpdateId/@entry.Revision">@title</a></td>
+                                <td><span class="pill @DeploymentText.PillClass(entry.State)">@(entry.State == DeploymentState.Queued ? "Not released" : entry.State.ToString())</span></td>
                                 <td>@Format(entry.EarliestInstallAtUtc)</td>
                                 <td>@(entry.HResult is { } hresult ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{hresult:X8}: {UpdateCoordinator.Server.Agents.HResultCatalog.Describe(hresult)}") : null)</td>
                             </tr>
@@ -103,7 +103,7 @@ else
                     {
                         <tr>
                             <td>@Format(installation.FinishedAtUtc)</td>
-                            <td>@title</td>
+                            <td><a href="/updates/@installation.UpdateId/@installation.Revision">@title</a></td>
                             <td>@installation.Source</td>
                             <td>@ResultText(installation)</td>
                             <td>@(installation.RebootRequired ? "Required" : "No")</td>

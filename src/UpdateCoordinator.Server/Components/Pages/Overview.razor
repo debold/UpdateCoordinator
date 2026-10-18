@@ -200,8 +200,8 @@
             var title = UpdateText.Title(updates.FirstOrDefault(u => u.UpdateId == ring.UpdateId && u.Revision == ring.Revision), ring.UpdateId);
             var ringName = rings.GetValueOrDefault(ring.RingId) ?? "?";
             _attention.Add(ring.State == RingRolloutState.Alarm
-                ? new AttentionItem("Alarm", "fail", $"{title} stopped before ring {ringName}", ring.Reason, "/approvals", "Decide")
-                : new AttentionItem("Release gate", "queue", $"{title} waits for manual release to ring {ringName}", $"Since {Format(ring.StateChangedAtUtc)} UTC", "/approvals", "Decide"));
+                ? new AttentionItem("Alarm", "fail", $"{title} stopped before ring {ringName}", ring.Reason, $"/updates/{ring.UpdateId:D}/{ring.Revision}", "Open update")
+                : new AttentionItem("Release gate", "queue", $"{title} waits for manual release to ring {ringName}", $"Since {Format(ring.StateChangedAtUtc)} UTC", $"/updates/{ring.UpdateId:D}/{ring.Revision}", "Open update"));
         }
 
         var pending = await Db.Clients.CountAsync(c => c.State == RegistrationState.Pending);

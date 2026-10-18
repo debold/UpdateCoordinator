@@ -1,6 +1,9 @@
+using System.Globalization;
+
 using Microsoft.EntityFrameworkCore;
 
 using UpdateCoordinator.Contracts.Agents;
+using UpdateCoordinator.Server.Agents;
 using UpdateCoordinator.Server.Data;
 
 namespace UpdateCoordinator.Server.Rollouts;
@@ -124,4 +127,32 @@ internal sealed class DeploymentStatus(ServerDbContext db)
 
         return entries;
     }
+}
+
+/// <summary>How deployment states are shown in the dashboard; shared by ring, update and server pages.</summary>
+internal static class DeploymentText
+{
+    /// <summary>CSS class of the status pill.</summary>
+    public static string PillClass(DeploymentState state) => state switch
+    {
+        DeploymentState.Successful => "ok",
+        DeploymentState.Pending => "pend",
+        DeploymentState.Queued => "queue",
+        _ => "fail",
+    };
+
+    public static string Result(DeploymentEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.State switch
+        {
+            DeploymentState.Successful => $"Installed {Format(entry.LastResultAtUtc)} UTC",
+            DeploymentState.Failed => string.Create(CultureInfo.InvariantCulture, $"0x{entry.HResult ?? 0:X8}: {HResultCatalog.Describe(entry.HResult ?? 0)}"),
+            DeploymentState.Pending => "Waiting for the maintenance window",
+            _ => "Not released for the server's ring",
+        };
+    }
+
+    public static string Format(DateTime? value) =>
+        value?.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "–";
 }

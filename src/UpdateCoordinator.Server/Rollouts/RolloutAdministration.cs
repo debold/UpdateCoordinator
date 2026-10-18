@@ -235,3 +235,22 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
     [GeneratedRegex(@"^[A-Za-z]{1,32}$")]
     private static partial Regex SeverityRegex();
 }
+
+/// <summary>Rollout actions posted by dashboard forms; shared by the update list and the update detail page.</summary>
+internal static class RolloutActions
+{
+    /// <summary>Runs "start", "stop", "override" or "approve" (with a ring) and returns the outcome and the success message.</summary>
+    public static async Task<(Outcome Outcome, string Success)> RunAsync(
+        RolloutAdministration administration, string? action, Guid updateId, int revision, int? ringId, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(administration);
+        return action switch
+        {
+            "start" => (await administration.StartAsync(updateId, revision, actor, cancellationToken).ConfigureAwait(false), "The rollout runs."),
+            "stop" => (await administration.StopAsync(updateId, revision, actor, cancellationToken).ConfigureAwait(false), "The rollout was stopped; servers that have not installed the update no longer get it."),
+            "override" => (await administration.OverrideAsync(updateId, revision, actor, cancellationToken).ConfigureAwait(false), "The update is released to every ring."),
+            "approve" when ringId is { } ring => (await administration.ApproveRingAsync(updateId, revision, ring, actor, cancellationToken).ConfigureAwait(false), "The update was released for the ring."),
+            _ => (new Outcome("Invalid request."), string.Empty),
+        };
+    }
+}

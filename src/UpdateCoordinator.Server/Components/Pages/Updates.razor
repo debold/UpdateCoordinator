@@ -42,7 +42,7 @@
                 {
                     var key = Key(rollout.UpdateId, rollout.Revision);
                     <tr>
-                        <td>@Title(rollout.UpdateId, rollout.Revision)</td>
+                        <td><a href="/updates/@rollout.UpdateId/@rollout.Revision">@Title(rollout.UpdateId, rollout.Revision)</a></td>
                         <td>@_updates.GetValueOrDefault(key)?.Classification</td>
                         <td>@Format(rollout.StartedAtUtc) (@rollout.StartedBy)</td>
                         <td>@(rollout.State == RolloutState.Stopped ? "Stopped" : rollout.Override ? "Override" : "Active")</td>
@@ -92,7 +92,7 @@
                 {
                     var key = Key(queued.Update.UpdateId, queued.Update.Revision);
                     <tr>
-                        <td>@Title(queued.Update.UpdateId, queued.Update.Revision)</td>
+                        <td><a href="/updates/@queued.Update.UpdateId/@queued.Update.Revision">@Title(queued.Update.UpdateId, queued.Update.Revision)</a></td>
                         <td>@queued.Update.Classification</td>
                         <td>@queued.Update.MsrcSeverity</td>
                         <td>@queued.Servers</td>
@@ -151,13 +151,7 @@
         }
 
         var actor = await GetActorAsync();
-        var (outcome, success) = action switch
-        {
-            "start" => (await Administration.StartAsync(updateId, revision, actor, CancellationToken.None), "The rollout runs."),
-            "stop" => (await Administration.StopAsync(updateId, revision, actor, CancellationToken.None), "The rollout was stopped; servers that have not installed the update no longer get it."),
-            "override" => (await Administration.OverrideAsync(updateId, revision, actor, CancellationToken.None), "The update is released to every ring."),
-            _ => (new Outcome("Invalid request."), string.Empty),
-        };
+        var (outcome, success) = await RolloutActions.RunAsync(Administration, action, updateId, revision, null, actor, CancellationToken.None);
 
         ShowResult(outcome.Error, success);
         await LoadAsync();
