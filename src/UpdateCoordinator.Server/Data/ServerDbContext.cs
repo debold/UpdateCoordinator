@@ -16,6 +16,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<ReleaseEntity> Releases => Set<ReleaseEntity>();
 
+    public DbSet<InstallationEntity> Installations => Set<InstallationEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var client = modelBuilder.Entity<ClientEntity>();
@@ -69,5 +71,14 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         release.HasKey(r => new { r.ClientId, r.UpdateId, r.Revision });
         release.HasOne<ClientEntity>().WithMany().HasForeignKey(r => r.ClientId).OnDelete(DeleteBehavior.Cascade);
         release.HasOne<UpdateEntity>().WithMany().HasForeignKey(r => new { r.UpdateId, r.Revision }).OnDelete(DeleteBehavior.Restrict);
+
+        var installation = modelBuilder.Entity<InstallationEntity>();
+        installation.ToTable("Installations");
+        installation.HasKey(i => i.Id);
+        installation.Property(i => i.Source).HasMaxLength(32).IsRequired();
+        installation.HasIndex(i => new { i.ClientId, i.RunId, i.UpdateId, i.Revision }).IsUnique();
+        installation.HasIndex(i => new { i.UpdateId, i.Revision });
+        installation.HasOne<ClientEntity>().WithMany().HasForeignKey(i => i.ClientId).OnDelete(DeleteBehavior.Cascade);
+        installation.HasOne<UpdateEntity>().WithMany().HasForeignKey(i => new { i.UpdateId, i.Revision }).OnDelete(DeleteBehavior.Restrict);
     }
 }

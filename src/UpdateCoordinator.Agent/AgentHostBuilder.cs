@@ -5,6 +5,7 @@ using Microsoft.Win32;
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Configuration;
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Installation;
 using UpdateCoordinator.Agent.Inventory;
 using UpdateCoordinator.Agent.Trust;
 using UpdateCoordinator.Agent.Updates;
@@ -60,6 +61,16 @@ internal static class AgentHostBuilder
         services.AddSingleton<IAvailableUpdateSearch, WuaAvailableUpdateSearch>();
         services.AddSingleton<IUpdateReporter, UpdateReporter>();
         services.AddSingleton<IReleaseSync, ReleaseSync>();
+
+        services.AddOptions<InstallationOptions>()
+            .Bind(configuration.GetSection(InstallationOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<IUpdateInstaller, WuaUpdateInstaller>();
+        services.AddSingleton<IInstallationStateStore>(provider => new ProtectedInstallationStateStore(
+            ProtectedInstallationStateStore.DefaultPath,
+            provider.GetRequiredService<ILogger<ProtectedInstallationStateStore>>()));
+        services.AddSingleton<IInstallationRunner, InstallationRunner>();
         services.AddSingleton<IAgentIdentityStore>(provider => new DpapiAgentIdentityStore(
             DpapiAgentIdentityStore.DefaultPath,
             provider.GetRequiredService<ILogger<DpapiAgentIdentityStore>>()));

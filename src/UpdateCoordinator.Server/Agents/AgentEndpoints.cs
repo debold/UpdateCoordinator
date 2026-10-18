@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 using UpdateCoordinator.Contracts;
 using UpdateCoordinator.Contracts.Agents;
@@ -41,6 +42,11 @@ internal static class AgentEndpoints
             .WithMetadata(new RequestSizeLimitAttribute(MaxInventoryBytes))
             .WithName("AgentUpdateReport");
 
+        endpoints.MapPost(ApiRoutes.AgentInstallReport, InstallReportAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.InstallReport))
+            .WithName("AgentInstallReport");
+
         endpoints.MapGet(ApiRoutes.AgentReleases, ReleasesAsync)
             .RequireAuthorization()
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.ReleaseRequest))
@@ -59,6 +65,16 @@ internal static class AgentEndpoints
         CancellationToken cancellationToken)
     {
         var stored = await reports.StoreAsync(httpContext.User.GetClientId(), request, cancellationToken).ConfigureAwait(false);
+        return stored ? TypedResults.NoContent() : TypedResults.Unauthorized();
+    }
+
+    internal static async Task<Results<NoContent, UnauthorizedHttpResult>> InstallReportAsync(
+        InstallReport request,
+        HttpContext httpContext,
+        InstallationService installations,
+        CancellationToken cancellationToken)
+    {
+        var stored = await installations.StoreAsync(httpContext.User.GetClientId(), request, cancellationToken).ConfigureAwait(false);
         return stored ? TypedResults.NoContent() : TypedResults.Unauthorized();
     }
 
@@ -114,6 +130,7 @@ internal static class AgentEndpoints
         ServerDbContext db,
         TimeProvider timeProvider,
         ILoggerFactory loggerFactory,
+        IOptionsMonitor<InstallationControlOptions> installation,
         CancellationToken cancellationToken)
     {
         var clientId = httpContext.User.GetClientId();
@@ -143,12 +160,15 @@ internal static class AgentEndpoints
             AgentLog.TrustReset(logger, clientId);
         }
 
-        // Control information (release list version) only for approved clients (docs/03, 4.2).
+        // Control information (release list version, global pause) only for approved clients (docs/03, 4.2).
         var state = httpContext.User.GetRegistrationState()!.Value;
-        long? releasesVersion = state == RegistrationState.Approved
-            ? await db.Clients.Where(c => c.Id == clientId).Select(c => c.ReleasesVersion).SingleAsync(cancellationToken).ConfigureAwait(false)
-            : null;
-        return TypedResults.Ok(new HeartbeatResponse(state, releasesVersion));
+        if (state != RegistrationState.Approved)
+        {
+            return TypedResults.Ok(new HeartbeatResponse(state));
+        }
+
+        var releasesVersion = await db.Clients.Where(c => c.Id == clientId).Select(c => c.ReleasesVersion).SingleAsync(cancellationToken).ConfigureAwait(false);
+        return TypedResults.Ok(new HeartbeatResponse(state, releasesVersion, installation.CurrentValue.GlobalPause));
     }
 }
 

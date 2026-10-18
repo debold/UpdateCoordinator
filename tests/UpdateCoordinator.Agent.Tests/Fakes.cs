@@ -1,5 +1,6 @@
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Installation;
 using UpdateCoordinator.Agent.Inventory;
 using UpdateCoordinator.Agent.Trust;
 using UpdateCoordinator.Agent.Updates;
@@ -89,6 +90,21 @@ internal sealed class FakeCentralServerClient : ICentralServerClient
         ReleaseRequests++;
         return Task.FromResult(ReleaseListResult);
     }
+
+    public List<InstallReport> InstallReports { get; } = [];
+
+    public Func<InstallReport, bool> OnInstallReport { get; set; } = _ => true;
+
+    public Task<bool> SendInstallReportAsync(AgentIdentity identity, InstallReport report, CancellationToken cancellationToken)
+    {
+        var accepted = OnInstallReport(report);
+        if (accepted)
+        {
+            InstallReports.Add(report);
+        }
+
+        return Task.FromResult(accepted);
+    }
 }
 
 internal sealed class FakeUpdateReporter : IUpdateReporter
@@ -96,6 +112,12 @@ internal sealed class FakeUpdateReporter : IUpdateReporter
     public bool Accept { get; set; } = true;
 
     public int Runs { get; private set; }
+
+    public int RunRequests { get; private set; }
+
+    public IReadOnlySet<(Guid UpdateId, int Revision)>? LastMissingUpdates { get; set; }
+
+    public void RequestRun() => RunRequests++;
 
     public Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
@@ -110,11 +132,13 @@ internal sealed class FakeReleaseSync : IReleaseSync
 
     public List<long?> AnnouncedVersions { get; } = [];
 
-    public ReleaseList Current { get; } = new(0, []);
+    public ReleaseList Current { get; set; } = new(0, []);
 
-    public Task<bool> SyncAsync(AgentIdentity identity, long? announcedVersion, CancellationToken cancellationToken)
+    public bool InstallationsPaused { get; set; }
+
+    public Task<bool> SyncAsync(AgentIdentity identity, HeartbeatResponse heartbeat, CancellationToken cancellationToken)
     {
-        AnnouncedVersions.Add(announcedVersion);
+        AnnouncedVersions.Add(heartbeat.ReleasesVersion);
         return Task.FromResult(Accept);
     }
 }
@@ -150,4 +174,17 @@ internal sealed class FakeServerTrust : IServerTrust
     public void RequestRefresh() => RefreshRequests++;
 
     public void MarkResetReported() => ResetNotReported = false;
+}
+
+internal sealed class FakeInstallationRunner : IInstallationRunner
+{
+    public bool Accept { get; set; } = true;
+
+    public int Runs { get; private set; }
+
+    public Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        Runs++;
+        return Task.FromResult(Accept);
+    }
 }

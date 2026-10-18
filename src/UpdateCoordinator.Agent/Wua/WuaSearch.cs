@@ -116,28 +116,4 @@ internal static class WuaSearch
 
         return null;
     }
-
-    /// <summary>Collects COM objects and releases them in reverse order.</summary>
-    private sealed class ComScope : IDisposable
-    {
-        private readonly Stack<object> _objects = new();
-
-        public object Track(object instance)
-        {
-            if (instance is not null && Marshal.IsComObject(instance))
-            {
-                _objects.Push(instance);
-            }
-
-            return instance!;
-        }
-
-        public void Dispose()
-        {
-            while (_objects.TryPop(out var instance))
-            {
-                Marshal.FinalReleaseComObject(instance);
-            }
-        }
-    }
 }

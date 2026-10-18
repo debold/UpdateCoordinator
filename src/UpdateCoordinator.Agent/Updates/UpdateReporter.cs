@@ -14,6 +14,12 @@ internal interface IUpdateReporter
 {
     /// <summary>Runs check, search and report if due. Returns false if the central server rejected the credentials.</summary>
     Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken);
+
+    /// <summary>Updates the last successful search found missing; null before the first successful search.</summary>
+    IReadOnlySet<(Guid UpdateId, int Revision)>? LastMissingUpdates { get; }
+
+    /// <summary>Makes the next cycle run check, search and report regardless of the interval (e.g. after an installation).</summary>
+    void RequestRun();
 }
 
 internal sealed partial class UpdateReporter(
@@ -25,6 +31,10 @@ internal sealed partial class UpdateReporter(
     ILogger<UpdateReporter> logger) : IUpdateReporter
 {
     private DateTimeOffset? _lastRun;
+
+    public IReadOnlySet<(Guid UpdateId, int Revision)>? LastMissingUpdates { get; private set; }
+
+    public void RequestRun() => _lastRun = null;
 
     public async Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
@@ -42,6 +52,11 @@ internal sealed partial class UpdateReporter(
 
         // Only a delivered report counts as a run; otherwise the next cycle tries again.
         _lastRun = now;
+        if (report is { SearchSucceeded: true, AvailableUpdates: { } available })
+        {
+            LastMissingUpdates = available.Select(u => (u.UpdateId, u.Revision)).ToHashSet();
+        }
+
         LogReported(report.SearchSucceeded, report.AvailableUpdates?.Count ?? 0);
         return true;
     }

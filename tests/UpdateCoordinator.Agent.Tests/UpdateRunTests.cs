@@ -248,7 +248,7 @@ public sealed class ReleaseSyncTests
         _client.ReleaseListResult = new ReleaseList(3, [release]);
         var sync = Create();
 
-        Assert.True(await sync.SyncAsync(Identity, 3, TestContext.Current.CancellationToken));
+        Assert.True(await sync.SyncAsync(Identity, new HeartbeatResponse(RegistrationState.Approved, 3), TestContext.Current.CancellationToken));
 
         Assert.Equal(3, sync.Current.Version);
         Assert.Equal([release], sync.Current.Releases);
@@ -259,9 +259,9 @@ public sealed class ReleaseSyncTests
     {
         _client.ReleaseListResult = new ReleaseList(3, [new Release(Guid.NewGuid(), 1, DateTimeOffset.UtcNow)]);
         var sync = Create();
-        await sync.SyncAsync(Identity, 3, TestContext.Current.CancellationToken);
+        await sync.SyncAsync(Identity, new HeartbeatResponse(RegistrationState.Approved, 3), TestContext.Current.CancellationToken);
 
-        await sync.SyncAsync(Identity, 3, TestContext.Current.CancellationToken);
+        await sync.SyncAsync(Identity, new HeartbeatResponse(RegistrationState.Approved, 3), TestContext.Current.CancellationToken);
 
         Assert.Equal(1, _client.ReleaseRequests);
     }
@@ -271,9 +271,9 @@ public sealed class ReleaseSyncTests
     {
         _client.ReleaseListResult = new ReleaseList(3, [new Release(Guid.NewGuid(), 1, DateTimeOffset.UtcNow)]);
         var sync = Create();
-        await sync.SyncAsync(Identity, 3, TestContext.Current.CancellationToken);
+        await sync.SyncAsync(Identity, new HeartbeatResponse(RegistrationState.Approved, 3), TestContext.Current.CancellationToken);
 
-        await sync.SyncAsync(Identity, null, TestContext.Current.CancellationToken);
+        await sync.SyncAsync(Identity, new HeartbeatResponse(RegistrationState.Pending), TestContext.Current.CancellationToken);
 
         Assert.Empty(sync.Current.Releases);
         Assert.Equal(1, _client.ReleaseRequests);
@@ -284,7 +284,7 @@ public sealed class ReleaseSyncTests
     {
         _client.ReleaseListResult = null;
 
-        Assert.False(await Create().SyncAsync(Identity, 1, TestContext.Current.CancellationToken));
+        Assert.False(await Create().SyncAsync(Identity, new HeartbeatResponse(RegistrationState.Approved, 1), TestContext.Current.CancellationToken));
     }
 
     private ReleaseSync Create() => new(_client, NullLogger<ReleaseSync>.Instance);

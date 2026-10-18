@@ -1,7 +1,7 @@
 # Admin Documentation
 
 > Guide and information on setup and communication paths. Updated with every feature.
-> Status: register, heartbeat, trust anchor, inventory and update search. Installers and the dashboard follow with later features.
+> Status: register, heartbeat, trust anchor, inventory, update search and installation (without reboots). Installers and the dashboard follow with later features.
 
 ## 1. Components in operation
 
@@ -20,6 +20,7 @@
 | Agent | Central server | HTTPS, `POST /api/v1/agents/inventory` | after registration, on start, when changed, at least daily | OS, domain, roles, update source, installed updates |
 | Agent | Central server | HTTPS, `POST /api/v1/agents/updates` | every 4 h (approved agents) | pre-flight checks and available updates |
 | Agent | Central server | HTTPS, `GET /api/v1/agents/releases` | when the release version in the heartbeat changes (approved agents) | released updates with earliest installation time |
+| Agent | Central server | HTTPS, `POST /api/v1/agents/installations` | after each installation run, or later if the central server was unreachable | result per update, reboot needed |
 | Agent | Windows Update (or WSUS) | HTTPS, via the Windows Update Agent API | during the update search | search for available updates; the agent itself contacts no other internet address |
 | Admin browser | Central server | HTTPS | on demand | dashboard and administration (later feature) |
 | Monitoring | Central server | HTTPS `GET /health` | as needed | liveness check, no authentication, no payload |
@@ -52,6 +53,7 @@ Both services use the standard .NET configuration: `appsettings.json` next to th
 | `Database:Path` | `%ProgramData%\UpdateCoordinator\Server\server.db` | SQLite database file; the folder is created and the schema migrated on startup |
 | `Agents:RateLimit:RegisterPermitLimit` | `10` | registrations allowed per IP address and window |
 | `Agents:RateLimit:Window` | `00:01:00` | window of the registration rate limit |
+| `Installation:GlobalPause` | `false` | global pause: agents start no new installations (check, search and reporting continue); read at runtime |
 
 ### Agent
 
@@ -81,6 +83,10 @@ Registry values are read when the agent service starts. The product name in the 
 | `Updates:SearchInterval` | `04:00:00` | how often pre-flight check, update search and report run on approved agents (1 h to 1 day) |
 | `Updates:MinFreeDiskSpaceMegabytes` | `4096` | free space required on the system drive; below it no search or installation runs |
 | `Updates:Source` | `System` | `System`: search where the server is configured (Windows Update, or WSUS by policy); `WindowsUpdate`: always Windows Update directly |
+| `Installation:Enabled` | `true` | `false` disables installations on this server; search and reporting continue |
+| `Installation:Windows` | system default | maintenance windows in local server time; default Mon–Fri 19:00–05:00 and Sat/Sun all day (see below) |
+| `Installation:PullForwardTolerance` | `00:30:00` | releases due within this time join a batch that is already due (0 to 4 h) |
+| `Installation:RetryDelay` | `06:00:00` | an attempted update is not retried before this time (1 h to 7 days) |
 
 Invalid configuration stops the service at startup with a clear error in the event log instead of running with wrong settings.
 
@@ -127,7 +133,8 @@ A new file is started every day and when the size limit is reached. Client secre
 | Central server | `Trust:AnchorPath` | private key of the trust anchor, DPAPI-protected for the service account |
 | Agent | `%ProgramData%\UpdateCoordinator\Agent\identity.dat` | client GUID and client secret, DPAPI-protected for the service account |
 | Agent | `%ProgramData%\UpdateCoordinator\Agent\trust.dat` | pinned trust anchor, accepted certificate key and highest binding serial, DPAPI-protected |
-| Both | `Logging:File:Directory` | rolling log files |
+| Agent | `%ProgramData%PDATECOORDINATORAGENTINSTALLATIONS.DAT` | INSTALL REPORTS NOT YET DELIVERED AND THE LAST ATTEMPT PER UPDATE, DPAPI-PROTECTED |
+| BOTH | `LOGGING:FILE:DIRECTORY` | ROLLING LOG FILES |
 
 If the agent identity file is deleted or unreadable, the agent registers again and appears as a new pending client. If the trust file is deleted, the next contact is a first contact again.
 
@@ -154,3 +161,22 @@ Details in `docs/03-communication-protocol.md`, section 3.2.
 - The trust anchor file is part of the central server backup. If it is lost, every agent must be reset locally.
 - If an agent does not trust the central server, it sends nothing and logs "Central server not trusted" in the event log every retry.
 - **Local reset on a server:** set or change the string value `TrustResetToken` (e.g. to the current date) under `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` by group policy or manually, then restart the agent service. The agent forgets the pinned anchor once, pins the central server again on the next contact, writes a warning to the event log and reports the reset to the central server. The same value again does not trigger another reset.
+
+## 8. Installations
+
+- Agents install only updates released to them by the central server, only inside a maintenance window, only if the pre-flight check passes and never during a global pause.
+- **The agent never reboots the server.** If an update needs a reboot, the agent reports it and the central server marks the server as "reboot pending". Reboot handling follows with the dashboard.
+- Example for custom maintenance windows in the agent's `appsettings.json` (Wednesday 22:00 to Thursday 04:00):
+
+```json
+{
+  "Installation": {
+    "Windows": [
+      { "Days": [ "Wednesday" ], "Start": "22:00:00", "End": "04:00:00" }
+    ]
+  }
+}
+```
+
+`End` not after `Start` means the window runs over midnight; an all-day window uses `"Start": "00:00:00", "End": "1.00:00:00"`.
+- Error codes of failed installations are translated into plain English text on the central server (log and, later, dashboard).

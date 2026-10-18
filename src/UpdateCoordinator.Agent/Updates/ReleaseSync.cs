@@ -12,8 +12,11 @@ internal interface IReleaseSync
 {
     ReleaseList Current { get; }
 
-    /// <summary>Fetches the release list if <paramref name="announcedVersion"/> differs. Returns false if the credentials were rejected.</summary>
-    Task<bool> SyncAsync(AgentIdentity identity, long? announcedVersion, CancellationToken cancellationToken);
+    /// <summary>Global pause announced by the central server with the last heartbeat.</summary>
+    bool InstallationsPaused { get; }
+
+    /// <summary>Applies the control information of a heartbeat and fetches the release list if the version changed. Returns false if the credentials were rejected.</summary>
+    Task<bool> SyncAsync(AgentIdentity identity, HeartbeatResponse heartbeat, CancellationToken cancellationToken);
 }
 
 internal sealed partial class ReleaseSync(ICentralServerClient client, ILogger<ReleaseSync> logger) : IReleaseSync
@@ -22,8 +25,13 @@ internal sealed partial class ReleaseSync(ICentralServerClient client, ILogger<R
 
     public ReleaseList Current { get; private set; } = Empty;
 
-    public async Task<bool> SyncAsync(AgentIdentity identity, long? announcedVersion, CancellationToken cancellationToken)
+    public bool InstallationsPaused { get; private set; }
+
+    public async Task<bool> SyncAsync(AgentIdentity identity, HeartbeatResponse heartbeat, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(heartbeat);
+        var announcedVersion = heartbeat.ReleasesVersion;
+        InstallationsPaused = heartbeat.InstallationsPaused;
         if (announcedVersion is null)
         {
             // Not approved (any more): nothing may be installed.

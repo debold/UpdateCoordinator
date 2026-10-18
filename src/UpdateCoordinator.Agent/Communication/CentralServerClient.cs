@@ -88,6 +88,12 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
         return body;
     }
 
+    public async Task<bool> SendInstallReportAsync(AgentIdentity identity, InstallReport report, CancellationToken cancellationToken)
+    {
+        using var response = await PostAuthenticatedAsync(ApiRoutes.AgentInstallReport, identity, report, cancellationToken).ConfigureAwait(false);
+        return response is not null;
+    }
+
     /// <summary>Upper bound for releases accepted from the server.</summary>
     private const int MaxReleases = 5_000;
 

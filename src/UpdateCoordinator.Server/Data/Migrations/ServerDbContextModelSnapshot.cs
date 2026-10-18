@@ -63,6 +63,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<DateTime?>("LastHeartbeatAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("LastInstallAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("LastSearchAtUtc")
                         .HasColumnType("TEXT");
 
@@ -88,6 +91,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(23)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("RebootPending")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("RegisteredAtUtc")
                         .HasColumnType("TEXT");
@@ -144,6 +150,54 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.HasIndex("UpdateId", "Revision");
 
                     b.ToTable("ClientUpdates", (string)null);
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.InstallationEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("FinishedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("HResult")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("RebootRequired")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ResultCode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdateId", "Revision");
+
+                    b.HasIndex("ClientId", "RunId", "UpdateId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("Installations", (string)null);
                 });
 
             modelBuilder.Entity("UpdateCoordinator.Server.Data.ReleaseEntity", b =>
@@ -281,6 +335,21 @@ namespace UpdateCoordinator.Server.Data.Migrations
                 });
 
             modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientUpdateEntity", b =>
+                {
+                    b.HasOne("UpdateCoordinator.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UpdateCoordinator.Server.Data.UpdateEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UpdateId", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.InstallationEntity", b =>
                 {
                     b.HasOne("UpdateCoordinator.Server.Data.ClientEntity", null)
                         .WithMany()

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Installation;
 using UpdateCoordinator.Agent.Inventory;
 using UpdateCoordinator.Agent.Trust;
 using UpdateCoordinator.Agent.Updates;
@@ -24,6 +25,7 @@ internal sealed partial class AgentWorker(
     IInventoryReporter inventory,
     IReleaseSync releases,
     IUpdateReporter updates,
+    IInstallationRunner installation,
     IOptions<CentralServerOptions> options,
     TimeProvider timeProvider,
     ILogger<AgentWorker> logger) : BackgroundService
@@ -105,10 +107,11 @@ internal sealed partial class AgentWorker(
         }
 
         // Each step returns false if the central server no longer accepts the credentials.
-        var accepted = await releases.SyncAsync(identity, response.ReleasesVersion, cancellationToken).ConfigureAwait(false)
+        var accepted = await releases.SyncAsync(identity, response, cancellationToken).ConfigureAwait(false)
             && await inventory.ReportIfDueAsync(identity, cancellationToken).ConfigureAwait(false)
             && (response.State != RegistrationState.Approved
-                || await updates.RunIfDueAsync(identity, cancellationToken).ConfigureAwait(false));
+                || (await updates.RunIfDueAsync(identity, cancellationToken).ConfigureAwait(false)
+                    && await installation.RunIfDueAsync(identity, cancellationToken).ConfigureAwait(false)));
 
         if (!accepted)
         {

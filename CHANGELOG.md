@@ -20,6 +20,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Heartbeat carries the current OS version including UBR.
 - Update run on approved agents every 4 hours (configurable): pre-flight checks (disk space, Windows Update service, WSUS warning), online search for available updates via the WUA API and report to the central server; search failures are reported with their error code.
 - Fetches the released updates when the release version announced in the heartbeat changes.
+- Installation of released updates inside maintenance windows (default Mon–Fri 19:00–05:00, Sat/Sun all day, configurable): batches with pull-forward tolerance, no retry loop (retry delay), health check first, global pause respected, one WUA download/install cycle per batch. **The agent never reboots**; a needed reboot is reported.
+- Install reports are buffered on disk and delivered when the central server is reachable again.
 
 ### Central server
 
@@ -36,6 +38,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - `POST /api/v1/agents/inventory` (also before approval): stores client attributes, roles and installed updates, builds the update catalog from agent reports, logs changes of host name and domain; at most 5,000 updates and 4 MB per request.
 - `POST /api/v1/agents/updates` and `GET /api/v1/agents/releases` (approved clients only): stores pre-flight checks, last search result and available updates per client, extends the catalog with download size, reboot behavior and severity; delivers releases with a version that the heartbeat announces.
 - Enum values in agent messages are validated (undefined numeric values are rejected).
+- `POST /api/v1/agents/installations` (approved clients only): installation history per server and update; only results for updates released to the client are accepted; duplicate runs are stored once; reboot pending flag.
+- Global pause via `Installation:GlobalPause`, announced in the heartbeat.
+- Windows Update error codes are translated into plain English text centrally.
 
 ### Shared
 

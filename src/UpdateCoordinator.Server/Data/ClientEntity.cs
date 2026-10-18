@@ -58,4 +58,9 @@ internal sealed class ClientEntity
 
     /// <summary>Incremented whenever the releases of this client change; announced in the heartbeat.</summary>
     public long ReleasesVersion { get; set; }
+
+    public DateTime? LastInstallAtUtc { get; set; }
+
+    /// <summary>Reboot needed according to the latest installation run (the agent never reboots on its own).</summary>
+    public bool RebootPending { get; set; }
 }

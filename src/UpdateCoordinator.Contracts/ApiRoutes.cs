@@ -23,6 +23,9 @@ public static class ApiRoutes
     /// <summary>Updates released for an approved agent.</summary>
     public const string AgentReleases = "/api/v1/agents/releases";
 
+    /// <summary>Result of an installation run of an approved agent.</summary>
+    public const string AgentInstallReport = "/api/v1/agents/installations";
+
     /// <summary>Signed binding between trust anchor and TLS certificate; public, self-authenticating data.</summary>
     public const string TrustBinding = "/api/v1/trust/binding";
 }

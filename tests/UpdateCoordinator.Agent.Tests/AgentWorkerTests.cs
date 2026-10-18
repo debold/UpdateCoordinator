@@ -19,6 +19,7 @@ public sealed class AgentWorkerTests
     private readonly FakeInventoryReporter _inventory = new();
     private readonly FakeReleaseSync _releases = new();
     private readonly FakeUpdateReporter _updates = new();
+    private readonly FakeInstallationRunner _installation = new();
 
     [Fact]
     public async Task RunCycle_WithoutIdentity_RegistersStoresIdentityAndSendsHeartbeat()
@@ -194,6 +195,27 @@ public sealed class AgentWorkerTests
     }
 
     [Fact]
+    public async Task RunCycle_ForApprovedClient_RunsInstallationAfterSearch()
+    {
+        _client.OnHeartbeat = _ => new HeartbeatResponse(RegistrationState.Approved, 1);
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, _installation.Runs);
+    }
+
+    [Fact]
+    public async Task RunCycle_ForPendingClient_NeverInstalls()
+    {
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, _installation.Runs);
+    }
+
+    [Fact]
     public async Task Execute_StopsCleanly()
     {
         using var worker = CreateWorker();
@@ -214,6 +236,7 @@ public sealed class AgentWorkerTests
         _inventory,
         _releases,
         _updates,
+        _installation,
         Options.Create(new CentralServerOptions
         {
             BaseAddress = new Uri("https://central.example.local/"),

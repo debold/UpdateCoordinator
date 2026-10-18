@@ -21,4 +21,7 @@ internal interface ICentralServerClient
 
     /// <summary>Fetches the released updates. Returns null if the central server no longer accepts the credentials.</summary>
     Task<ReleaseList?> GetReleasesAsync(AgentIdentity identity, CancellationToken cancellationToken);
+
+    /// <summary>Sends the result of an installation run. Returns false if the central server no longer accepts the credentials.</summary>
+    Task<bool> SendInstallReportAsync(AgentIdentity identity, InstallReport report, CancellationToken cancellationToken);
 }

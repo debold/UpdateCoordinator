@@ -93,6 +93,8 @@ public sealed record AvailableUpdate : UpdateInfo
 /// <summary>
 /// Updates the central server has released for this server (see docs/05-agent-design.md, section 4).
 /// </summary>
+/// <param name="Version">Changes whenever the releases of the client change; announced in the heartbeat.</param>
+/// <param name="Releases">Released updates with earliest installation time.</param>
 public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases);
 
 /// <summary>

@@ -95,6 +95,7 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 | Unregister | yes | yes |
 | Update report (search result) | no | yes |
 | Release request (fetch released updates) | no | yes |
+| Install report (installation result) | no | yes |
 | Action request (fetch queue) | no | yes |
 | Action status update (progress) | no | yes |
 | Agent update check | no | yes |
@@ -110,6 +111,7 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 | Inventory | `POST /api/v1/agents/inventory` | Basic (GUID + secret) | `204` stored, `400` invalid input, `401` unknown credentials, `403` state not allowed, `413` larger than 4 MB |
 | Update report | `POST /api/v1/agents/updates` | Basic, approved only | `204` stored, `400` invalid input, `401`, `403` not approved, `413` larger than 4 MB |
 | Releases | `GET /api/v1/agents/releases` | Basic, approved only | `200` release list with version, `401`, `403` not approved |
+| Install report | `POST /api/v1/agents/installations` | Basic, approved only | `204` stored, `400` invalid input, `401`, `403` not approved |
 | Trust binding | `GET /api/v1/trust/binding` | none (public, signed) | `200` binding (see 3.2), `503` no binding yet |
 
 The inventory contains host name, domain, operating system (product name, edition, display version, version with UBR), detected roles, the configured update source and up to 5,000 installed updates (update ID, revision, KB, title, classification). `installedUpdates: null` means "could not be read": the central server keeps the previous list. The heartbeat additionally carries the current OS version including UBR.
@@ -118,7 +120,9 @@ The protocol version is part of the route (`/api/v1/...`). An incompatible chang
 
 The update report carries the pre-flight checks (name, status `Ok`/`Warning`/`Failed`, detail), whether the search succeeded, the WUA error code if not, and up to 5,000 available updates (identity as in the inventory plus download size, reboot behavior and MSRC severity). Releases are delivered as a list of update ID, revision and earliest installation time with a version number; the heartbeat of an approved client announces the current version (`releasesVersion`), and the agent fetches the list only when it changed. Update reports and releases are accepted only from approved clients (decided 2026-10-18), so unapproved clients cannot fill the catalog through search results.
 
-Further foreseeable messages (from the functional requirements, detailed specification still open): install report (per update, see `05-agent-design.md`), live status, history sync, full resync, log upload.
+The install report describes one installation run: a run ID (a report buffered by the agent and sent twice is stored once), start and end, per update the WUA result code, error code and whether a reboot is needed, the OS version afterwards and the post-install health checks. The central server stores only results for updates released to that client, so a client cannot write arbitrary history. The heartbeat of an approved client also carries the global pause (`installationsPaused`).
+
+Further foreseeable messages (from the functional requirements, detailed specification still open): troubleshooting details for failed installations (event log excerpts, CBS.log, see `05-agent-design.md`), live status, history sync, full resync, log upload.
 
 ## 6. Unique update identification
 

@@ -2,7 +2,7 @@
 
 Central coordination of Windows updates for Windows servers with ring deployment, central configuration and reporting, as an alternative to WSUS. The project name is still open; `UpdateCoordinator` is a placeholder.
 
-> Status: agents register, verify the central server through its trust anchor, send heartbeats, their inventory and the result of their update search. Installation, approval and the dashboard follow.
+> Status: agents register, verify the central server through its trust anchor, report inventory and available updates, and install released updates inside maintenance windows (without reboots). Approval, ring logic and the dashboard follow.
 
 ## Components
 
