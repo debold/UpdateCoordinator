@@ -1,6 +1,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
-     xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall">
+     xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
   <!--
     Central server installer. Installs the self-contained central server as a Windows service running as LocalSystem.
@@ -55,6 +56,7 @@
       <ComponentRef Id="ServerSettings" />
       <ComponentRef Id="ServerCertificate" />
       <ComponentRef Id="ServerServiceStart" />
+      <ComponentRef Id="DashboardShortcut" />
     </Feature>
 
     <ComponentGroup Id="ServerFiles" Directory="INSTALLFOLDER">
@@ -100,5 +102,32 @@
       <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
       <ServiceControl Id="ServerServiceStartControl" Name="UpdateCoordinator.Server" Start="install" Wait="no" />
     </Component>
+
+    <!-- Start menu entry that opens the dashboard on this machine. -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ProductMenuFolder" Name="UpdateCoordinator" />
+    </StandardDirectory>
+    <Component Id="DashboardShortcut" Directory="ProductMenuFolder" Guid="3B7E9A41-6C2D-4F85-9E1A-5D8C2B7F4E63">
+      <util:InternetShortcut Id="DashboardLink" Name="UpdateCoordinator Dashboard" Target="[DASHBOARDURL]" Type="url" />
+      <RemoveFolder Id="RemoveProductMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="DashboardShortcut" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!--
+      Interactive installation: license, progress and a final page with the dashboard address and an option to open it.
+      Port and certificate stay command line options; the defaults (8443, own certificate) need no input.
+    -->
+    <SetProperty Id="DASHBOARDURL" Value="https://[ComputerName]:[HTTPSPORT]/" After="SetDefaultHttpsPort" Sequence="both" />
+    <SetProperty Id="WixShellExecTarget" Value="[DASHBOARDURL]" After="SetDASHBOARDURL" Sequence="ui" />
+    <SetProperty Id="WIXUI_EXITDIALOGOPTIONALTEXT" After="SetDASHBOARDURL" Sequence="ui"
+                 Value="The dashboard is at [DASHBOARDURL]. On the first visit, create the first administrator with the one-time token from %ProgramData%\UpdateCoordinator\Server\setup-token.txt (readable by administrators only)." />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Open the dashboard" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <CustomAction Id="OpenDashboard" BinaryRef="Wix4UtilCA_X64" DllEntry="WixShellExec" Impersonate="yes" Return="ignore" />
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="..\License.rtf" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="OpenDashboard" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
   </Package>
 </Wix>

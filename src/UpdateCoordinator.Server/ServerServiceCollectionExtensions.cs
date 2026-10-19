@@ -37,7 +37,9 @@ internal static class ServerServiceCollectionExtensions
         {
             var path = provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.Path;
             var connection = new SqliteConnectionStringBuilder { DataSource = path, Pooling = true };
-            options.UseSqlite(connection.ToString());
+            options.UseSqlite(connection.ToString())
+                // SQLite table rebuilds switch foreign keys off outside the transaction; expected, not worth a warning on every first start.
+                .ConfigureWarnings(warnings => warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.NonTransactionalMigrationOperationWarning));
         });
 
         services.AddOptions<TrustOptions>()

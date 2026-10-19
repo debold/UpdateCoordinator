@@ -334,6 +334,9 @@ msiexec /i UpdateCoordinator.Server.msi CERTTHUMBPRINT=<thumbprint> HTTPSPORT=84
 - Installs to `%ProgramFiles%\UpdateCoordinator\Server` and registers the service `UpdateCoordinator.Server` (LocalSystem, automatic start, restart on failure).
 - `CERTTHUMBPRINT` and `HTTPSPORT` (default 8443) are stored under `HKLM\SOFTWARE\UpdateCoordinator\Server` (`CertificateThumbprint`, `HttpsUrl`) and override `appsettings.json`. The service is started right away, with or without a thumbprint.
 - Opens the HTTPS port in the Windows firewall for the service.
+- Interactive installation (double-click): license page, progress and a final page with the dashboard address (`https://<computer name>:<port>/`), the note on the setup token and an option to open the dashboard right away. The defaults need no input; port and certificate are set on the command line when needed.
+- Start menu entry "UpdateCoordinator Dashboard" (all users) that opens the dashboard on this machine.
+- A startup error of the service (e.g. an unreadable trust anchor) is written to the server log as a critical entry before the service ends; service recovery restarts it after 60 seconds.
 - Database, trust anchor, setup token and logs stay under `%ProgramData%\UpdateCoordinator\Server`, also on uninstall. Back them up before removing a server for good.
 
 **Agent:**

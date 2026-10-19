@@ -23,9 +23,6 @@ builder.Services.AddDashboard(builder.Configuration);
 
 var app = builder.Build();
 
-await app.Services.InitializeCentralServerAsync().ConfigureAwait(false);
-await app.Services.InitializeDashboardAsync().ConfigureAwait(false);
-
 app.UseExceptionHandler();
 app.UseSecurityHeaders();
 
@@ -48,7 +45,11 @@ app.MapBackupEndpoints();
 app.MapStaticAssets();
 app.MapRazorComponents<App>();
 
-await app.RunAsync().ConfigureAwait(false);
+await ServerStartup.RunAsync(app, async started =>
+{
+    await started.Services.InitializeCentralServerAsync().ConfigureAwait(false);
+    await started.Services.InitializeDashboardAsync().ConfigureAwait(false);
+}).ConfigureAwait(false);
 return 0;
 
 /// <summary>Entry point; public so integration tests can host the application.</summary>

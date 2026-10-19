@@ -61,6 +61,7 @@ function Get-ProductVersion([string] $Name) {
 $serverKey = 'HKLM:\SOFTWARE\UpdateCoordinator\Server'
 $agentKey = 'HKLM:\SOFTWARE\UpdateCoordinator\Agent'
 $healthUrl = "https://localhost:$Port/health"
+$dashboardShortcut = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\UpdateCoordinator\UpdateCoordinator Dashboard.url"
 $certificate = New-SelfSignedCertificate -DnsName 'localhost' -CertStoreLocation 'Cert:\LocalMachine\My' -NotAfter (Get-Date).AddDays(7)
 
 # --- Version 1: fresh installation ------------------------------------------------------------------------------
@@ -70,6 +71,7 @@ Check 'server settings in registry' { (Get-ItemProperty $serverKey).CertificateT
 Check 'server restarts on failure' { (sc.exe qfailure UpdateCoordinator.Server | Out-String) -match 'RESTART' }
 Check 'firewall rule for the port' { (Get-NetFirewallRule -DisplayName 'UpdateCoordinator Central Server (HTTPS)' | Get-NetFirewallPortFilter).LocalPort -eq "$Port" }
 Check 'health endpoint answers' { Wait-Until { (Invoke-WebRequest $healthUrl -SkipCertificateCheck -UseBasicParsing).StatusCode -eq 200 } 90 }
+Check 'start menu entry opens the dashboard' { (Get-Content $dashboardShortcut -Raw) -match "URL=https://$($env:COMPUTERNAME):$Port/" }
 
 Check 'agent installs' { (Invoke-Msi "/i `"$Version1Directory\UpdateCoordinator.Agent.msi`" SERVERURL=https://localhost:$Port/" 'agent-install.log') -eq 0 }
 Check 'agent service runs' { Wait-Until { (Get-Service UpdateCoordinator.Agent).Status -eq 'Running' } 60 }
@@ -101,6 +103,7 @@ Check 'services removed' { -not (Get-Service UpdateCoordinator.Agent, UpdateCoor
 Check 'program files removed' { -not (Test-Path "$env:ProgramFiles\UpdateCoordinator") }
 Check 'installer settings removed' { -not (Test-Path $agentKey) -and -not (Test-Path $serverKey) }
 Check 'firewall rule removed' { -not (Get-NetFirewallRule -DisplayName 'UpdateCoordinator Central Server (HTTPS)' -ErrorAction SilentlyContinue) }
+Check 'start menu entry removed' { -not (Test-Path $dashboardShortcut) }
 Check 'data under ProgramData kept' { Test-Path "$env:ProgramData\UpdateCoordinator\Server\server.db" }
 
 Remove-Item -Path "Cert:\LocalMachine\My\$($certificate.Thumbprint)"
