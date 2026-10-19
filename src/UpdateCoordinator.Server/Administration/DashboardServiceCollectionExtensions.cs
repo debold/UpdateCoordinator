@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using UpdateCoordinator.Server.Approval;
 using UpdateCoordinator.Server.Assignment;
 using UpdateCoordinator.Server.Data;
+using UpdateCoordinator.Server.Notifications;
 using UpdateCoordinator.Server.Rollouts;
 
 namespace UpdateCoordinator.Server.Administration;
@@ -100,6 +101,20 @@ internal static class DashboardServiceCollectionExtensions
             .ValidateOnStart();
         services.AddScoped<DirectoryCoverage>();
         services.AddHostedService<CoverageWorker>();
+
+        services.AddOptions<NotificationOptions>()
+            .Bind(configuration.GetSection(NotificationOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<NotificationSettingsStore>();
+        services.AddScoped<NotificationEvents>();
+        services.AddScoped<NotificationService>();
+        services.AddSingleton<IMailTransport, SmtpMailTransport>();
+        services.AddScoped<INotificationChannel, EmailChannel>();
+        // Webhooks never follow redirects, so a configured address cannot be bent to another target.
+        services.AddHttpClient<INotificationChannel, WebhookChannel>(http => http.Timeout = TimeSpan.FromSeconds(30))
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+        services.AddHostedService<NotificationWorker>();
         return services;
     }
 

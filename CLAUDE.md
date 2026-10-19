@@ -58,6 +58,6 @@ Guidelines (always apply):
 - Project name (placeholder in code: `UpdateCoordinator`)
 - Concrete database schema and operating limits of the central server (agent limits decided, see Decisions made)
 - Permission assignment per function for Operator and Admin
-- Notification and escalation for pending approvals and alarms
+- Escalation of notifications (channels decided: e-mail via SMTP and a generic webhook, Marc 2026-10-19)
 - Encryption of the trust anchor in the backup
 - Whether the download file name also carries the trust anchor fingerprint (`docs/03-communication-protocol.md` 3.3)

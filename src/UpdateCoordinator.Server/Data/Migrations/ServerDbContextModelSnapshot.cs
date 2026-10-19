@@ -994,6 +994,20 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.ToTable("Updates", (string)null);
                 });
 
+            modelBuilder.Entity("UpdateCoordinator.Server.Notifications.NotificationSentEntity", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("SentAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("NotificationsSent", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)

@@ -65,6 +65,6 @@ Updates installed outside our own maintenance (manually or through other mechani
 
 ## 8. Open / later
 
-- Notification channel and escalation when a manual approval is outstanding
+- Escalation when a manual approval stays outstanding (notification by e-mail and webhook is implemented)
 - AD/LDAP integration for dashboard login and role assignment
 - Further message types (the list is a first draft)

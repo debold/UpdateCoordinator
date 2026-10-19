@@ -52,6 +52,9 @@ public class ServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Coverage:Enabled", "false");
         // Tests run the certificate check explicitly.
         builder.UseSetting("Certificate:CheckInterval", "1.00:00:00");
+        // Tests run the notification check explicitly; secrets stay in the temporary folder.
+        builder.UseSetting("Notifications:Interval", "01:00:00");
+        builder.UseSetting("Notifications:SecretsPath", Path.Combine(_directory, "notification-secrets.dat"));
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<ITlsCertificateProvider>(_certificates);

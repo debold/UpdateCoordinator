@@ -48,6 +48,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<UpdateCoordinator.Server.Approval.DirectoryComputerEntity> DirectoryComputers => Set<UpdateCoordinator.Server.Approval.DirectoryComputerEntity>();
 
+    public DbSet<UpdateCoordinator.Server.Notifications.NotificationSentEntity> NotificationsSent => Set<UpdateCoordinator.Server.Notifications.NotificationSentEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -116,6 +118,11 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         computer.Property(c => c.Name).HasMaxLength(64).UseCollation("NOCASE");
         computer.Property(c => c.DnsHostName).HasMaxLength(255);
         computer.Property(c => c.OperatingSystem).HasMaxLength(128);
+
+        var notification = modelBuilder.Entity<UpdateCoordinator.Server.Notifications.NotificationSentEntity>();
+        notification.ToTable("NotificationsSent");
+        notification.HasKey(n => n.Key);
+        notification.Property(n => n.Key).HasMaxLength(UpdateCoordinator.Server.Notifications.NotificationSentEntity.MaxKeyLength);
 
         var lease = modelBuilder.Entity<LeaseEntity>();
         lease.ToTable("Leases");

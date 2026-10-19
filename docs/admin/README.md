@@ -22,7 +22,9 @@
 | Agent | Central server | HTTPS, `GET /api/v1/agents/releases` | when the release version in the heartbeat changes (approved agents) | released updates with earliest installation time |
 | Agent | Central server | HTTPS, `POST /api/v1/agents/installations` | after each installation run, or later if the central server was unreachable | result per update, reboot needed |
 | Agent | Windows Update (or WSUS) | HTTPS, via the Windows Update Agent API | during the update search | search for available updates; the agent itself contacts no other internet address |
-| Admin browser | Central server | HTTPS | on demand | dashboard and administration (later feature) |
+| Admin browser | Central server | HTTPS | on demand | dashboard and administration |
+| Central server | SMTP server | SMTP with STARTTLS (587), TLS (465) or plain (internal relay) | when new events occur (checked every minute) | e-mail notifications (section 20) |
+| Central server | Webhook receiver | HTTPS `POST`, no redirects | when new events occur | JSON notifications, optionally HMAC-signed (section 20) |
 | Monitoring | Central server | HTTPS `GET /health` | as needed | liveness check, no authentication, no payload |
 
 The central server **never** opens a connection to an agent. No inbound port is required on the managed servers. On the central server, allow inbound TCP **8443** (default HTTPS port) from the managed servers.
@@ -383,3 +385,38 @@ Keep archive and password apart. Without the password the trust anchor cannot be
 The restore refuses to run while the service runs. It checks everything first (archive complete, format supported, password decrypts the trust anchor, anchor matches the manifest) and only then replaces the database and the trust anchor, so a failed restore leaves the current installation untouched. Since the restore runs under your account and the service as LocalSystem, the trust anchor is first staged as `trust-anchor.key.restore` (DPAPI machine scope, readable only by administrators and LocalSystem); on its next start the service protects it for its own account and deletes the staged file.
 
 A scheduled automatic backup is not implemented yet; create backups from the dashboard and keep them with your regular server backup.
+
+## 20. Notifications
+
+Administration → Notifications (role `Admin`). Every minute the central server derives the current conditions from its data and notifies each new one once, collected in one message per check (at most 50 events; the rest follows a minute later):
+
+| Event | Notified again |
+|---|---|
+| New server waiting for approval | after it was approved or rejected and appears again |
+| Server blocked as suspected clone | after it was unblocked and blocked again |
+| Rollout alarm before a ring | after the alarm was resolved and occurs again |
+| Gate waiting for approval | for every update and ring |
+| Coordinated group stopped after failures | after an operator resumed it and it stops again |
+| CA certificate expires within 30 days and no renewal is in the store | for a new certificate |
+| Automatic certificate change (renewal, rollover, fallback) | each change, reported for a day |
+
+**E-mail:** SMTP server, port, encryption (STARTTLS, TLS or none for an internal relay), optional user and password, sender and up to 20 recipients. The certificate of the mail server is validated.
+
+**Webhook:** `POST` of a JSON document to an `https://` address (redirects are not followed):
+
+```json
+{ "subject": "UpdateCoordinator: 2 new events", "createdAtUtc": "2026-10-19T12:00:00Z",
+  "events": [ { "kind": "ServerPendingApproval", "key": "client.pending:…", "text": "New server waiting for approval: srv01.lab.local", "link": "https://uc01.lab.local:8443/approvals" } ] }
+```
+
+With a signature secret, the header `X-UpdateCoordinator-Signature: sha256=<hex>` carries the HMAC-SHA256 of the body; check it on the receiving side.
+
+**Dashboard address** (optional) turns the events into links. **Send a test notification** checks every enabled channel and shows the error per channel.
+
+If no channel is configured, nothing is sent and nothing is lost: the events go out once a channel is set up. If a channel fails, the events are sent again on the next check, unless another channel delivered them. The SMTP password and the webhook secret are stored DPAPI-protected in `%ProgramData%\UpdateCoordinator\Server\notification-secrets.dat` and are **not** part of the backup; enter them again after a restore. Changes and test notifications are audited.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Notifications:Enabled` | `true` | switches all notifications off |
+| `Notifications:Interval` | `00:01:00` | how often the conditions are checked (10 seconds to 1 hour) |
+| `Notifications:SecretsPath` | `%ProgramData%\UpdateCoordinator\Server\notification-secrets.dat` | protected file with SMTP password and webhook secret |

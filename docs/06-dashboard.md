@@ -98,5 +98,5 @@ Visibility of agent versions, state of the internal agent rollout, minimum versi
 ## 7. Open points
 
 - Exact permission assignment per function
-- Notification channels (e.g. for pending approvals, alarms) and escalation
+- Escalation of notifications (reminders, further recipients) when nobody reacts; the channels themselves (e-mail, webhook) are implemented (decided by Marc on 2026-10-19, `docs/admin/README.md` section 20)
 - Visualization details beyond the ideas listed
