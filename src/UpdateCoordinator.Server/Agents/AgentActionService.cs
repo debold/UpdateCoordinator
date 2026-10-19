@@ -6,11 +6,19 @@ using UpdateCoordinator.Server.Data;
 
 namespace UpdateCoordinator.Server.Agents;
 
+internal enum LogUploadResult
+{
+    Stored,
+    NotFound,
+    Invalid,
+}
+
 /// <summary>
 /// Remote action queue (docs/03-communication-protocol.md, section 6): administrators queue actions, the heartbeat
 /// announces them, the agent fetches and confirms them. The central server never contacts the agent.
 /// </summary>
-internal sealed partial class AgentActionService(ServerDbContext db, AuditLog audit, TimeProvider timeProvider, ILogger<AgentActionService> logger)
+internal sealed partial class AgentActionService(
+    ServerDbContext db, AuditLog audit, Microsoft.Extensions.Options.IOptions<AdministrationOptions> administration, TimeProvider timeProvider, ILogger<AgentActionService> logger)
 {
     /// <summary>Upper bound of open actions per server, so a stuck agent cannot pile up work.</summary>
     public const int MaxOpenPerClient = 10;
@@ -122,6 +130,67 @@ internal sealed partial class AgentActionService(ServerDbContext db, AuditLog au
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         LogCompleted(clientId, action.Kind, action.State);
         return true;
+    }
+
+    /// <summary>
+    /// Stores the log archive of a delivered "UploadLogs" action of this client. The file name is derived from the action
+    /// ID only; the archive is checked to be a readable ZIP file but never extracted on the central server.
+    /// </summary>
+    public async Task<LogUploadResult> StoreLogsAsync(Guid clientId, Guid actionId, byte[] archive, CancellationToken cancellationToken)
+    {
+        var action = await db.AgentActions
+            .SingleOrDefaultAsync(a => a.Id == actionId && a.ClientId == clientId && a.State == AgentActionState.Delivered && a.Kind == AgentActionKind.UploadLogs, cancellationToken)
+            .ConfigureAwait(false);
+        if (action is null)
+        {
+            return LogUploadResult.NotFound;
+        }
+
+        if (!IsZip(archive))
+        {
+            return LogUploadResult.Invalid;
+        }
+
+        RestrictedFile.Write(LogPath(actionId), archive);
+        action.LogFileSize = archive.Length;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return LogUploadResult.Stored;
+    }
+
+    /// <summary>Path of the stored archive of an action; the name contains only the action ID.</summary>
+    public string LogPath(Guid actionId) => Path.Combine(administration.Value.AgentLogDirectory, $"{actionId:N}.zip");
+
+    /// <summary>Deletes log archives older than the retention time.</summary>
+    public async Task<int> DeleteOldLogsAsync(CancellationToken cancellationToken)
+    {
+        var before = timeProvider.GetUtcNow().UtcDateTime.AddDays(-administration.Value.AgentLogRetentionDays);
+        var old = await db.AgentActions.Where(a => a.LogFileSize != null && a.RequestedAtUtc < before).ToListAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var action in old)
+        {
+            File.Delete(LogPath(action.Id));
+            action.LogFileSize = null;
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return old.Count;
+    }
+
+    private static bool IsZip(byte[] archive)
+    {
+        if (archive.Length < 22 || archive.Length > AgentActionList.MaxLogBytes)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(archive, writable: false), System.IO.Compression.ZipArchiveMode.Read);
+            return zip.Entries.Count <= 1_000;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Expires actions that were never fetched or never confirmed.</summary>

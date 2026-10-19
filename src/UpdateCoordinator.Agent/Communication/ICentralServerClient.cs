@@ -30,4 +30,7 @@ internal interface ICentralServerClient
 
     /// <summary>Sends the result of a remote action. Returns false if the central server no longer accepts the credentials.</summary>
     Task<bool> SendActionResultAsync(AgentIdentity identity, Guid actionId, AgentActionResult result, CancellationToken cancellationToken);
+
+    /// <summary>Uploads a log archive for a remote action. Returns false if the central server no longer accepts the credentials.</summary>
+    Task<bool> UploadLogsAsync(AgentIdentity identity, Guid actionId, byte[] archive, CancellationToken cancellationToken);
 }

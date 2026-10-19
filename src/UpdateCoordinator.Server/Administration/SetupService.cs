@@ -1,8 +1,6 @@
 using System.Buffers.Text;
 using System.ComponentModel.DataAnnotations;
-using System.Security.AccessControl;
 using System.Security.Cryptography;
-using System.Security.Principal;
 using System.Text;
 
 using Microsoft.AspNetCore.Identity;
@@ -23,6 +21,14 @@ internal sealed class AdministrationOptions
     /// <summary>File that receives the one-time setup token while no account exists; readable only by administrators.</summary>
     [Required]
     public string SetupTokenPath { get; set; } = Path.Combine(DataPaths.Server, "setup-token.txt");
+
+    /// <summary>Folder of agent log archives uploaded on request; readable only by administrators.</summary>
+    [Required]
+    public string AgentLogDirectory { get; set; } = Path.Combine(DataPaths.Server, "AgentLogs");
+
+    /// <summary>Agent log archives are deleted after this many days.</summary>
+    [Range(1, 365)]
+    public int AgentLogRetentionDays { get; set; } = 14;
 }
 
 internal enum SetupResult
@@ -128,30 +134,7 @@ internal sealed partial class SetupService(IOptions<AdministrationOptions> optio
     private static byte[] Hash(string token) => SHA256.HashData(Encoding.UTF8.GetBytes(token));
 
     /// <summary>Writes the token readable only by SYSTEM, local administrators and the service account.</summary>
-    private static void WriteRestricted(string path, string token)
-    {
-        var directory = Path.GetDirectoryName(Path.GetFullPath(path));
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var security = new FileSecurity();
-        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-        foreach (var identity in new IdentityReference[]
-        {
-            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-            WindowsIdentity.GetCurrent().User!,
-        })
-        {
-            security.AddAccessRule(new FileSystemAccessRule(identity, FileSystemRights.FullControl, AccessControlType.Allow));
-        }
-
-        DeleteTokenFile(path);
-        using var stream = new FileInfo(path).Create(FileMode.CreateNew, FileSystemRights.Write | FileSystemRights.ReadData, FileShare.None, 4096, FileOptions.None, security);
-        stream.Write(Encoding.UTF8.GetBytes(token));
-    }
+    private static void WriteRestricted(string path, string token) => RestrictedFile.Write(path, Encoding.UTF8.GetBytes(token));
 
     private static void DeleteTokenFile(string path)
     {

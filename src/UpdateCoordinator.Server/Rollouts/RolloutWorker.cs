@@ -57,7 +57,9 @@ internal sealed partial class RolloutWorker(
         await using var scope = scopes.CreateAsyncScope();
         var changes = await scope.ServiceProvider.GetRequiredService<RolloutService>().AdvanceAsync(cancellationToken).ConfigureAwait(false);
         await scope.ServiceProvider.GetRequiredService<ComplianceHistory>().RecordAsync(cancellationToken).ConfigureAwait(false);
-        await scope.ServiceProvider.GetRequiredService<UpdateCoordinator.Server.Agents.AgentActionService>().ExpireAsync(cancellationToken).ConfigureAwait(false);
+        var actions = scope.ServiceProvider.GetRequiredService<UpdateCoordinator.Server.Agents.AgentActionService>();
+        await actions.ExpireAsync(cancellationToken).ConfigureAwait(false);
+        await actions.DeleteOldLogsAsync(cancellationToken).ConfigureAwait(false);
         return changes;
     }
 

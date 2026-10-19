@@ -27,7 +27,9 @@ internal static class AgentHostBuilder
         var builder = Host.CreateApplicationBuilder(args);
         builder.Configuration.AddAgentRegistry(Registry.LocalMachine);
         builder.Services.AddWindowsService(options => options.ServiceName = ServiceName);
+        var logDirectory = builder.Configuration[$"{FileLoggingOptions.SectionName}:Directory"] is { Length: > 0 } configured ? configured : Path.Combine(DataPaths.Agent, "Logs");
         builder.Services.AddRollingFileLogging(builder.Configuration, Path.Combine(DataPaths.Agent, "Logs"), "agent");
+        builder.Services.AddSingleton<ILogCollector>(services => new LogCollector(logDirectory, services.GetRequiredService<TimeProvider>()));
         builder.Services.AddAgent(builder.Configuration);
         return builder;
     }

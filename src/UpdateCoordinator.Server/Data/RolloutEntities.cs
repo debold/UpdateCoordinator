@@ -172,4 +172,7 @@ internal sealed class AgentActionEntity
     public DateTime? CompletedAtUtc { get; set; }
 
     public string? Detail { get; set; }
+
+    /// <summary>Size of the uploaded log archive while it is kept; null if there is none (any more).</summary>
+    public long? LogFileSize { get; set; }
 }

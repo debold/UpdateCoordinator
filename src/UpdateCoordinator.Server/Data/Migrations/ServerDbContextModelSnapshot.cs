@@ -230,6 +230,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<int>("Kind")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("LogFileSize")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("RequestedAtUtc")
                         .HasColumnType("TEXT");
 

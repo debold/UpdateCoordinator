@@ -32,6 +32,12 @@ public static class ApiRoutes
     /// <summary>Result of one remote action; {id} is the action ID.</summary>
     public const string AgentActionResult = "/api/v1/agents/actions/{id:guid}/result";
 
+    /// <summary>Upload of agent logs for an "UploadLogs" action (ZIP archive); {id} is the action ID.</summary>
+    public const string AgentActionLogs = "/api/v1/agents/actions/{id:guid}/logs";
+
+    /// <summary>Log upload route for a concrete action.</summary>
+    public static string AgentActionLogsFor(Guid id) => $"/api/v1/agents/actions/{id:D}/logs";
+
     /// <summary>Result route for a concrete action.</summary>
     public static string AgentActionResultFor(Guid id) => $"/api/v1/agents/actions/{id:D}/result";
 

@@ -238,7 +238,7 @@ public sealed class AgentWorkerTests
         _releases,
         _updates,
         _installation,
-        new UpdateCoordinator.Agent.Actions.ActionRunner(_client, _updates, _inventory, _restarter, NullLogger<UpdateCoordinator.Agent.Actions.ActionRunner>.Instance),
+        new UpdateCoordinator.Agent.Actions.ActionRunner(_client, _updates, _inventory, _restarter, new FakeRestart(), new FakeLogCollector(), Options.Create(new UpdateCoordinator.Agent.Installation.InstallationOptions()), NullLogger<UpdateCoordinator.Agent.Actions.ActionRunner>.Instance),
         Options.Create(new CentralServerOptions
         {
             BaseAddress = new Uri("https://central.example.local/"),

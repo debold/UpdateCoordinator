@@ -36,6 +36,7 @@ app.UseRateLimiter();
 app.MapHealthChecks(ApiRoutes.Health);
 app.MapAgentEndpoints();
 app.MapTrustEndpoints();
+app.MapAgentLogEndpoints();
 app.MapStaticAssets();
 app.MapRazorComponents<App>();
 

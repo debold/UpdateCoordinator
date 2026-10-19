@@ -118,6 +118,18 @@ internal sealed class FakeCentralServerClient : ICentralServerClient
 
     public Task<AgentActionList?> GetActionsAsync(AgentIdentity identity, CancellationToken cancellationToken) => Task.FromResult(ActionList);
 
+    public Dictionary<Guid, byte[]> UploadedLogs { get; } = [];
+
+    public Task<bool> UploadLogsAsync(AgentIdentity identity, Guid actionId, byte[] archive, CancellationToken cancellationToken)
+    {
+        if (AcceptActionResults)
+        {
+            UploadedLogs[actionId] = archive;
+        }
+
+        return Task.FromResult(AcceptActionResults);
+    }
+
     public Task<bool> SendActionResultAsync(AgentIdentity identity, Guid actionId, AgentActionResult result, CancellationToken cancellationToken)
     {
         if (AcceptActionResults)
@@ -229,4 +241,13 @@ internal sealed class FakeServiceRestarter : UpdateCoordinator.Agent.Actions.ISe
     public int Requests { get; private set; }
 
     public void RequestRestart() => Requests++;
+}
+
+internal sealed class FakeLogCollector : UpdateCoordinator.Agent.Actions.ILogCollector
+{
+    public (byte[] Archive, int Files) Result { get; set; } = ([0x50, 0x4B, 0x05, 0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0);
+
+    public Exception? Failure { get; set; }
+
+    public (byte[] Archive, int Files) Collect() => Failure is null ? Result : throw Failure;
 }

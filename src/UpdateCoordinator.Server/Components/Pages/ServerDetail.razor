@@ -129,6 +129,13 @@ else
                     <button type="submit" name="RemoteAction" value="queue:SearchNow">Search for updates now</button>
                     <button type="submit" name="RemoteAction" value="queue:FullResync">Full resync</button>
                     <button type="submit" name="RemoteAction" value="queue:RestartService">Restart agent service</button>
+                    <button type="submit" name="RemoteAction" value="queue:UploadLogs">Request agent logs</button>
+                </div>
+            </AuthorizeView>
+            <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="administer">
+                <div class="actions card-text">
+                    <label class="inline"><input type="checkbox" name="ConfirmRestart" value="yes" /> Restart now, even outside the maintenance window</label>
+                    <button type="submit" name="RemoteAction" value="queue:RestartServer">Restart server</button>
                 </div>
             </AuthorizeView>
             <div class="scroll">
@@ -146,7 +153,13 @@ else
                                 <td>@action.Kind</td>
                                 <td>@action.RequestedBy</td>
                                 <td><span class="pill @ActionClass(action.State)">@action.State</span></td>
-                                <td>@action.Detail</td>
+                                <td>
+                                    @action.Detail
+                                    @if (action.LogFileSize is { } size && _canOperate)
+                                    {
+                                        <a href="@AgentLogEndpoints.DownloadPath(action.Id)">Download (@(size / 1024) KB)</a>
+                                    }
+                                </td>
                                 <td>
                                     @if (action.State == AgentActionState.Queued && _canOperate)
                                     {
@@ -280,6 +293,9 @@ else
     [SupplyParameterFromForm(FormName = "action")]
     private string? RemoteAction { get; set; }
 
+    [SupplyParameterFromForm(FormName = "action")]
+    private string? ConfirmRestart { get; set; }
+
     private bool _canOperate;
     private List<AgentActionEntity> _actions = [];
 
@@ -296,7 +312,18 @@ else
             && Enum.IsDefined(kind)
             && !int.TryParse(kindText, out _))
         {
-            (outcome, success) = (await Actions.QueueAsync(Id, kind, await GetActorAsync(), CancellationToken.None), "The action was queued; the agent picks it up with its next heartbeat.");
+            if (kind == UpdateCoordinator.Contracts.Agents.AgentActionKind.RestartServer && !await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+            {
+                (outcome, success) = (new Outcome("Only administrators can restart a server."), string.Empty);
+            }
+            else if (kind == UpdateCoordinator.Contracts.Agents.AgentActionKind.RestartServer && ConfirmRestart != "yes")
+            {
+                (outcome, success) = (new Outcome("Confirm the restart with the checkbox first."), string.Empty);
+            }
+            else
+            {
+                (outcome, success) = (await Actions.QueueAsync(Id, kind, await GetActorAsync(), CancellationToken.None), "The action was queued; the agent picks it up with its next heartbeat.");
+            }
         }
         else if (RemoteAction?.Split(':', 2) is ["cancel", var idText] && Guid.TryParse(idText, out var actionId))
         {

@@ -41,6 +41,7 @@ public class ServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Trust:AnchorPath", AnchorPath);
         builder.UseSetting("Logging:File:Directory", LogDirectory);
         builder.UseSetting("Administration:SetupTokenPath", SetupTokenPath);
+        builder.UseSetting("Administration:AgentLogDirectory", Path.Combine(_directory, "AgentLogs"));
         builder.UseSetting("Agents:RateLimit:RegisterPermitLimit", RegisterPermitLimit.ToString(CultureInfo.InvariantCulture));
         // Tests drive the ring logic explicitly; the worker only runs once at start.
         builder.UseSetting("Rollout:EvaluationInterval", "01:00:00");

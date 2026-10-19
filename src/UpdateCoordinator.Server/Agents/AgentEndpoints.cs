@@ -62,7 +62,51 @@ internal static class AgentEndpoints
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.ActionResult))
             .WithName("AgentActionResult");
 
+        endpoints.MapPost(ApiRoutes.AgentActionLogs, ActionLogsAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.ActionResult))
+            .WithName("AgentActionLogs");
+
         return endpoints;
+    }
+
+    /// <summary>Accepts a ZIP archive of at most <see cref="AgentActionList.MaxLogBytes"/> for a delivered "UploadLogs" action.</summary>
+    internal static async Task<IResult> ActionLogsAsync(
+        Guid id,
+        HttpContext httpContext,
+        AgentActionService actions,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(httpContext.Request.ContentType, "application/zip", StringComparison.OrdinalIgnoreCase))
+        {
+            return TypedResults.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+        }
+
+        if (httpContext.Request.ContentLength > AgentActionList.MaxLogBytes)
+        {
+            return TypedResults.StatusCode(StatusCodes.Status413PayloadTooLarge);
+        }
+
+        // Read at most one byte more than allowed, so a body without length header cannot exceed the limit either.
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await httpContext.Request.Body.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            if (buffer.Length + read > AgentActionList.MaxLogBytes)
+            {
+                return TypedResults.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            }
+
+            buffer.Write(chunk, 0, read);
+        }
+
+        return await actions.StoreLogsAsync(httpContext.User.GetClientId(), id, buffer.ToArray(), cancellationToken).ConfigureAwait(false) switch
+        {
+            LogUploadResult.Stored => TypedResults.NoContent(),
+            LogUploadResult.Invalid => TypedResults.BadRequest(),
+            _ => TypedResults.NotFound(),
+        };
     }
 
     internal static async Task<Ok<AgentActionList>> ActionsAsync(

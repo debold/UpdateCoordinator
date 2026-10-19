@@ -180,6 +180,127 @@ public sealed class AgentActionTests
         Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
     }
 
+    [Fact]
+    public async Task UploadedLogs_CanBeDownloadedByOperators_AndExpire()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        await QueueAsync(scenario, client.ClientId, AgentActionKind.UploadLogs);
+        var action = Assert.Single((await FetchAsync(scenario, client)).Actions);
+        var archive = Zip("agent-20261019.log", "log line");
+
+        Assert.Equal(HttpStatusCode.NoContent, await UploadAsync(scenario, client, action.Id, archive));
+        Assert.Equal(archive.Length, await scenario.Factory.WithDbAsync(db => db.AgentActions.Select(a => a.LogFileSize).SingleAsync(TestContext.Current.CancellationToken)));
+
+        using var browser = await LoginAsync(scenario, AdminRoles.Operator);
+        Assert.Contains(AgentLogEndpoints.DownloadPath(action.Id), await GetHtmlAsync(browser, $"/servers/{client.ClientId}"), StringComparison.Ordinal);
+        using (var download = await browser.GetAsync(AgentLogEndpoints.DownloadPath(action.Id)))
+        {
+            Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+            Assert.Equal(archive, await download.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken));
+            Assert.Equal("application/zip", download.Content.Headers.ContentType?.MediaType);
+        }
+
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "Action.LogsDownloaded", TestContext.Current.CancellationToken)));
+
+        await scenario.Factory.WithDbAsync(db => db.AgentActions.ExecuteUpdateAsync(s => s.SetProperty(a => a.RequestedAtUtc, DateTime.UtcNow.AddDays(-15)), TestContext.Current.CancellationToken));
+        Assert.Equal(1, await scenario.WithServiceAsync<AgentActionService, int>(s => s.DeleteOldLogsAsync(CancellationToken.None)));
+        using var gone = await browser.GetAsync(AgentLogEndpoints.DownloadPath(action.Id));
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+    }
+
+    [Fact]
+    public async Task LogDownload_IsForOperatorsOnly()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
+
+        using var response = await browser.GetAsync(AgentLogEndpoints.DownloadPath(Guid.NewGuid()));
+
+        Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvalidLogUploads_AreRefused()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        await QueueAsync(scenario, client.ClientId, AgentActionKind.SearchNow);
+        await QueueAsync(scenario, client.ClientId, AgentActionKind.UploadLogs);
+        var actions = (await FetchAsync(scenario, client)).Actions;
+        var search = actions.Single(a => a.Kind == AgentActionKind.SearchNow);
+        var logs = actions.Single(a => a.Kind == AgentActionKind.UploadLogs);
+
+        Assert.Equal(HttpStatusCode.NotFound, await UploadAsync(scenario, client, search.Id, Zip("a.log", "x")));
+        Assert.Equal(HttpStatusCode.NotFound, await UploadAsync(scenario, client, Guid.NewGuid(), Zip("a.log", "x")));
+        Assert.Equal(HttpStatusCode.BadRequest, await UploadAsync(scenario, client, logs.Id, System.Text.Encoding.UTF8.GetBytes("not a zip archive at all, sorry")));
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, await UploadAsync(scenario, client, logs.Id, Zip("a.log", "x"), "text/plain"));
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, await UploadAsync(scenario, client, logs.Id, new byte[AgentActionList.MaxLogBytes + 1]));
+        Assert.Null(await scenario.Factory.WithDbAsync(db => db.AgentActions.Where(a => a.Id == logs.Id).Select(a => a.LogFileSize).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task ServerRestart_NeedsAdministratorAndConfirmation()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        await scenario.Factory.CreateUserAsync("operator", Password, AdminRoles.Operator);
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        var path = $"/servers/{client.ClientId}";
+
+        using (var operatorBrowser = new DashboardClient(scenario.Factory))
+        {
+            using (await operatorBrowser.LoginAsync("operator", Password))
+            {
+            }
+
+            Assert.DoesNotContain("value=\"queue:RestartServer\"", await GetHtmlAsync(operatorBrowser, path), StringComparison.Ordinal);
+            using var refused = await operatorBrowser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:RestartServer", ["ConfirmRestart"] = "yes" });
+            Assert.Contains("Only administrators can restart a server.", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        using var adminBrowser = new DashboardClient(scenario.Factory);
+        using (await adminBrowser.LoginAsync("admin", Password))
+        {
+        }
+
+        using (var unconfirmed = await adminBrowser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:RestartServer" }))
+        {
+            Assert.Contains("Confirm the restart", await unconfirmed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
+
+        using (await adminBrowser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:RestartServer", ["ConfirmRestart"] = "yes" }))
+        {
+        }
+
+        Assert.Equal(AgentActionKind.RestartServer, await scenario.Factory.WithDbAsync(db => db.AgentActions.Select(a => a.Kind).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
+    private static byte[] Zip(string name, string content)
+    {
+        using var buffer = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(buffer, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using var writer = new StreamWriter(zip.CreateEntry(name).Open());
+            writer.Write(content);
+        }
+
+        return buffer.ToArray();
+    }
+
+    private static async Task<HttpStatusCode> UploadAsync(RolloutScenario scenario, RegisterResponse client, Guid actionId, byte[] archive, string contentType = "application/zip")
+    {
+        using var content = new ByteArrayContent(archive);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(ApiRoutes.AgentActionLogsFor(actionId), UriKind.Relative)) { Content = content };
+        request.Headers.Authorization = AgentCredentials.ToHeader(client.ClientId, client.ClientSecret);
+        using var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken);
+        return response.StatusCode;
+    }
+
     private static async Task<Outcome> QueueAsync(RolloutScenario scenario, Guid clientId, AgentActionKind kind, bool expectSuccess = true)
     {
         var outcome = await scenario.WithServiceAsync<AgentActionService, Outcome>(s => s.QueueAsync(clientId, kind, "operator", CancellationToken.None));

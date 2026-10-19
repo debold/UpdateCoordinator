@@ -1,4 +1,7 @@
+using Microsoft.Extensions.Options;
+
 using UpdateCoordinator.Agent.Communication;
+using UpdateCoordinator.Agent.Installation;
 using UpdateCoordinator.Agent.Identity;
 using UpdateCoordinator.Agent.Inventory;
 using UpdateCoordinator.Agent.Updates;
@@ -36,14 +39,17 @@ internal sealed class HostServiceRestarter(IHostApplicationLifetime lifetime) : 
 }
 
 /// <summary>
-/// Runs remote actions (docs/05-agent-design.md, remote actions). Actions only trigger steps the agent performs anyway,
-/// so an action can never do more than the agent's own schedule allows.
+/// Runs remote actions (docs/05-agent-design.md, remote actions). Most actions only trigger steps the agent performs anyway;
+/// a server restart is an explicit administrator request that still respects the local veto.
 /// </summary>
 internal sealed partial class ActionRunner(
     ICentralServerClient client,
     IUpdateReporter updates,
     IInventoryReporter inventory,
     IServiceRestarter restarter,
+    ISystemRestart systemRestart,
+    ILogCollector logs,
+    IOptions<InstallationOptions> installation,
     ILogger<ActionRunner> logger) : IActionRunner
 {
     public async Task<bool> RunAnnouncedAsync(AgentIdentity identity, HeartbeatResponse heartbeat, CancellationToken cancellationToken)
@@ -63,7 +69,12 @@ internal sealed partial class ActionRunner(
         var restart = false;
         foreach (var action in list.Actions)
         {
-            var (result, restartAfter) = Run(action);
+            var (result, restartAfter, accepted) = await RunAsync(identity, action, cancellationToken).ConfigureAwait(false);
+            if (!accepted)
+            {
+                return false;
+            }
+
             LogAction(action.Id, action.Kind, result.Status);
             if (!await client.SendActionResultAsync(identity, action.Id, result, cancellationToken).ConfigureAwait(false))
             {
@@ -82,22 +93,51 @@ internal sealed partial class ActionRunner(
         return true;
     }
 
-    private (AgentActionResult Result, bool Restart) Run(AgentAction action)
+    /// <summary>Runs one action; Accepted is false if the central server rejected the credentials during it.</summary>
+    private async Task<(AgentActionResult Result, bool Restart, bool Accepted)> RunAsync(AgentIdentity identity, AgentAction action, CancellationToken cancellationToken)
     {
         switch (action.Kind)
         {
+            case AgentActionKind.RestartServer:
+                // An explicit administrator request bypasses policy and window, never the local veto.
+                if (!installation.Value.AllowReboot)
+                {
+                    return (new AgentActionResult { Status = AgentActionStatus.Rejected, Detail = "Reboots are forbidden on this server (AllowReboot)." }, false, true);
+                }
+
+                return systemRestart.Schedule(Installation.RebootPlanner.WarningPeriod)
+                    ? (Succeeded("The server restarts in 5 minutes."), false, true)
+                    : (new AgentActionResult { Status = AgentActionStatus.Failed, Detail = "Windows did not accept the restart request." }, false, true);
+            case AgentActionKind.UploadLogs:
+                byte[] archive;
+                int files;
+                try
+                {
+                    (archive, files) = logs.Collect();
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    return (new AgentActionResult { Status = AgentActionStatus.Failed, Detail = "The log files could not be read: " + ex.GetType().Name }, false, true);
+                }
+
+                if (!await client.UploadLogsAsync(identity, action.Id, archive, cancellationToken).ConfigureAwait(false))
+                {
+                    return (Succeeded(string.Empty), false, false);
+                }
+
+                return (Succeeded(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{files} log files uploaded ({archive.Length / 1024} KB).")), false, true);
             case AgentActionKind.SearchNow:
                 updates.RequestRun();
-                return (Succeeded("The update search runs with this cycle."), false);
+                return (Succeeded("The update search runs with this cycle."), false, true);
             case AgentActionKind.FullResync:
                 inventory.Reset();
                 updates.RequestRun();
-                return (Succeeded("Inventory and update search run with this cycle."), false);
+                return (Succeeded("Inventory and update search run with this cycle."), false, true);
             case AgentActionKind.RestartService:
-                return (Succeeded("The agent service restarts."), true);
+                return (Succeeded("The agent service restarts."), true, true);
             default:
                 // A newer central server may know actions this agent does not.
-                return (new AgentActionResult { Status = AgentActionStatus.Rejected, Detail = "This agent version does not know the action." }, false);
+                return (new AgentActionResult { Status = AgentActionStatus.Rejected, Detail = "This agent version does not know the action." }, false, true);
         }
     }
 

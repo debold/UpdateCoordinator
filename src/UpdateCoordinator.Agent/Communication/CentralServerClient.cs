@@ -130,6 +130,15 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
         }
     }
 
+    public async Task<bool> UploadLogsAsync(AgentIdentity identity, Guid actionId, byte[] archive, CancellationToken cancellationToken)
+    {
+        using var content = new ByteArrayContent(archive);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
+        using var message = new HttpRequestMessage(HttpMethod.Post, new Uri(ApiRoutes.AgentActionLogsFor(actionId), UriKind.Relative)) { Content = content };
+        using var response = await SendAuthenticatedAsync(message, identity, cancellationToken).ConfigureAwait(false);
+        return response is not null;
+    }
+
     private static bool IsValid(MaintenanceWindow? window) =>
         window is { Days: not null }
         && System.ComponentModel.DataAnnotations.Validator.TryValidateObject(window, new System.ComponentModel.DataAnnotations.ValidationContext(window), null, validateAllProperties: true);

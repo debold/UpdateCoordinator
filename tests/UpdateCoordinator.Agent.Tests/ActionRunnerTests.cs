@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using UpdateCoordinator.Agent.Actions;
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Identity;
+using UpdateCoordinator.Agent.Installation;
 using UpdateCoordinator.Contracts.Agents;
 
 namespace UpdateCoordinator.Agent.Tests;
@@ -20,7 +21,11 @@ public sealed class ActionRunnerTests
     private readonly FakeInventoryReporter _inventory = new();
     private readonly FakeServiceRestarter _restarter = new();
 
-    private ActionRunner Create() => new(_client, _updates, _inventory, _restarter, NullLogger<ActionRunner>.Instance);
+    private readonly FakeRestart _systemRestart = new();
+    private readonly FakeLogCollector _logs = new();
+    private InstallationOptions _installation = new();
+
+    private ActionRunner Create() => new(_client, _updates, _inventory, _restarter, _systemRestart, _logs, Microsoft.Extensions.Options.Options.Create(_installation), NullLogger<ActionRunner>.Instance);
 
     private static AgentAction Action(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow);
 
@@ -50,6 +55,60 @@ public sealed class ActionRunnerTests
 
         Assert.Equal(2, _client.ActionResults.Count);
         Assert.Equal(1, _restarter.Requests);
+    }
+
+    [Fact]
+    public async Task RestartServer_SchedulesRestart_UnlessVetoed()
+    {
+        var allowed = Action(AgentActionKind.RestartServer);
+        _client.ActionList = new AgentActionList([allowed]);
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        _installation = new InstallationOptions { AllowReboot = false };
+        var vetoed = Action(AgentActionKind.RestartServer);
+        _client.ActionList = new AgentActionList([vetoed]);
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[allowed.Id].Status);
+        Assert.Equal(AgentActionStatus.Rejected, _client.ActionResults[vetoed.Id].Status);
+        Assert.Equal([RebootPlanner.WarningPeriod], _systemRestart.Requests);
+    }
+
+    [Fact]
+    public async Task RestartServerRefusedByWindows_IsReportedAsFailed()
+    {
+        var action = Action(AgentActionKind.RestartServer);
+        _client.ActionList = new AgentActionList([action]);
+        _systemRestart.Accept = false;
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Equal(AgentActionStatus.Failed, _client.ActionResults[action.Id].Status);
+    }
+
+    [Fact]
+    public async Task UploadLogs_UploadsArchiveThenReports()
+    {
+        var action = Action(AgentActionKind.UploadLogs);
+        _client.ActionList = new AgentActionList([action]);
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.True(_client.UploadedLogs.ContainsKey(action.Id));
+        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[action.Id].Status);
+    }
+
+    [Fact]
+    public async Task UnreadableLogs_AreReportedAsFailed()
+    {
+        var action = Action(AgentActionKind.UploadLogs);
+        _client.ActionList = new AgentActionList([action]);
+        _logs.Failure = new IOException("locked");
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Empty(_client.UploadedLogs);
+        Assert.Equal(AgentActionStatus.Failed, _client.ActionResults[action.Id].Status);
     }
 
     [Fact]

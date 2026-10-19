@@ -18,6 +18,12 @@ public enum AgentActionKind
 
     /// <summary>Restart the agent service.</summary>
     RestartService = 2,
+
+    /// <summary>Restart the server now, outside the maintenance window if needed; the local veto still applies.</summary>
+    RestartServer = 3,
+
+    /// <summary>Upload the agent log files of the last days.</summary>
+    UploadLogs = 4,
 }
 
 /// <summary>One queued action.</summary>
@@ -28,6 +34,12 @@ public sealed record AgentActionList(IReadOnlyList<AgentAction> Actions)
 {
     /// <summary>Upper bound per fetch; further actions follow with the next heartbeat.</summary>
     public const int MaxActions = 20;
+
+    /// <summary>Upper bound of an uploaded log archive.</summary>
+    public const int MaxLogBytes = 10 * 1024 * 1024;
+
+    /// <summary>Log files of this many days are uploaded.</summary>
+    public const int LogDays = 3;
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<AgentActionStatus>))]
