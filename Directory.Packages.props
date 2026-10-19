@@ -24,8 +24,8 @@
 
   <ItemGroup Label="Build">
     <PackageVersion Include="MinVer" Version="8.0.0" />
-    <PackageVersion Include="WixToolset.Util.wixext" Version="6.0.2" />
-    <PackageVersion Include="WixToolset.Firewall.wixext" Version="6.0.2" />
+    <PackageVersion Include="WixToolset.Util.wixext" Version="7.0.0" />
+    <PackageVersion Include="WixToolset.Firewall.wixext" Version="7.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Tests">

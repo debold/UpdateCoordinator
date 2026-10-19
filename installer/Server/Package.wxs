@@ -20,7 +20,14 @@
     <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of the UpdateCoordinator central server is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Launch Condition="Installed OR WindowsBuild &gt;= 14393" Message="The UpdateCoordinator central server requires Windows Server 2016 or newer." />
+    <!--
+      Windows Server 2016 (build 14393) or newer. WindowsBuild reports 9600 on every newer Windows (version lie for
+      compatibility), so the real build number is read from the registry.
+    -->
+    <Property Id="CURRENTBUILD">
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion" Name="CurrentBuildNumber" Type="raw" Bitness="always64" />
+    </Property>
+    <Launch Condition="Installed OR CURRENTBUILD &gt;= 14393" Message="The UpdateCoordinator central server requires Windows Server 2016 or newer." />
 
     <!-- Values from the command line win; otherwise an upgrade keeps the installed ones. -->
     <Property Id="CERTTHUMBPRINT" Secure="yes" />

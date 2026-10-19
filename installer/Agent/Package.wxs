@@ -20,8 +20,14 @@
     <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of the UpdateCoordinator agent is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <!-- Windows Server 2016 (build 14393) or newer. -->
-    <Launch Condition="Installed OR WindowsBuild &gt;= 14393" Message="The UpdateCoordinator agent requires Windows Server 2016 or newer." />
+    <!--
+      Windows Server 2016 (build 14393) or newer. WindowsBuild reports 9600 on every newer Windows (version lie for
+      compatibility), so the real build number is read from the registry.
+    -->
+    <Property Id="CURRENTBUILD">
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion" Name="CurrentBuildNumber" Type="raw" Bitness="always64" />
+    </Property>
+    <Launch Condition="Installed OR CURRENTBUILD &gt;= 14393" Message="The UpdateCoordinator agent requires Windows Server 2016 or newer." />
 
     <!-- The address given on the command line wins; otherwise an upgrade keeps the installed one. -->
     <Property Id="SERVERURL" Secure="yes" />

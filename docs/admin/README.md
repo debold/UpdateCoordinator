@@ -297,7 +297,7 @@ If the central server is a domain member, it reads the enabled server computer a
 
 ## 17. Installation (MSI)
 
-Both components ship as MSI packages (WiX Toolset) for Windows Server 2016 or newer. They are self-contained: no .NET runtime needs to be installed. They can be distributed by group policy, Configuration Manager or Intune, or installed manually.
+Both components ship as MSI packages (WiX Toolset 7) for Windows Server 2016 or newer. They are self-contained: no .NET runtime needs to be installed. They can be distributed by group policy, Configuration Manager or Intune, or installed manually.
 
 **Central server** (run as administrator; the certificate must be in `LocalMachine\My` with its private key):
 
