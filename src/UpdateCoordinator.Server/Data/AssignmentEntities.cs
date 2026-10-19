@@ -88,7 +88,7 @@ internal sealed class AssignmentRuleEntity
 
     public int TargetId { get; set; }
 
-    /// <summary>Detected role reported in the inventory, e.g. DomainController.</summary>
+    /// <summary>Roles reported in the inventory, comma-separated (e.g. DomainController,SqlServer); any of them matches.</summary>
     public string? Role { get; set; }
 
     /// <summary>DNS domain of the server.</summary>

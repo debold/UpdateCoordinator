@@ -104,7 +104,7 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
             return false;
         }
 
-        return (rule.Role is null || client.Roles.Contains(rule.Role, StringComparer.OrdinalIgnoreCase))
+        return (rule.Role is null || AssignmentAdministration.RuleRoles(rule.Role).Any(role => client.Roles.Contains(role, StringComparer.OrdinalIgnoreCase)))
             && (rule.Domain is null || string.Equals(rule.Domain, client.DomainName, StringComparison.OrdinalIgnoreCase))
             && (rule.HostNamePattern is null || Wildcard.Matches(rule.HostNamePattern, client.HostName));
     }

@@ -403,12 +403,13 @@ public sealed class AssignmentPageTests
         }
 
         var groupId = await factory.WithDbAsync(db => db.Groups.Where(g => g.Name == "SQL servers").Select(g => g.Id).SingleAsync(TestContext.Current.CancellationToken));
-        using (await browser.PostFormAsync("/administration/rules", new Dictionary<string, string>
+        using (await browser.PostFormAsync("/administration/rules?dialog=new", new Dictionary<string, string>
         {
-            ["Action"] = "create",
+            ["_handler"] = "rule-dialog",
+            ["Mode"] = "create",
             ["Priority"] = "5",
             ["Target"] = $"group:{groupId}",
-            ["Role"] = "SqlServer",
+            ["Roles"] = "SqlServer",
         }))
         {
         }
@@ -416,6 +417,24 @@ public sealed class AssignmentPageTests
         var rule = await factory.WithDbAsync(db => db.AssignmentRules.SingleAsync(TestContext.Current.CancellationToken));
         Assert.Equal(groupId, rule.TargetId);
         Assert.Equal("SqlServer", rule.Role);
+
+        // Editing the rule: two roles (any of them matches) and a new priority.
+        using (var edited = await browser.PostFormAsync($"/administration/rules?dialog=edit&id={rule.Id}", new Dictionary<string, string>
+        {
+            ["_handler"] = "rule-dialog",
+            ["Mode"] = "edit",
+            ["Id"] = rule.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["Priority"] = "7",
+            ["Target"] = $"group:{groupId}",
+            ["Roles"] = "ClusterNode",
+        }))
+        {
+            Assert.Contains("The rule was saved.", await edited.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        var changed = await factory.WithDbAsync(db => db.AssignmentRules.SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(7, changed.Priority);
+        Assert.Equal("ClusterNode", changed.Role);
     }
 
     [Theory]

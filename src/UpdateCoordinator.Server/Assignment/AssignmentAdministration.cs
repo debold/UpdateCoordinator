@@ -131,10 +131,26 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         return await CompleteAsync(actor, "Group.Deleted", group.Name, null, null, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<Outcome> CreateRuleAsync(
-        int priority, AssignmentTarget target, int targetId, string? role, string? domain, string? hostNamePattern, string actor, CancellationToken cancellationToken)
+    /// <summary>Most roles one rule can name; the rule matches servers with any of them.</summary>
+    public const int MaxRuleRoles = 10;
+
+    public Task<Outcome> CreateRuleAsync(
+        int priority, AssignmentTarget target, int targetId, string? roles, string? domain, string? hostNamePattern, string actor, CancellationToken cancellationToken) =>
+        SaveRuleAsync(null, priority, target, targetId, roles, domain, hostNamePattern, actor, cancellationToken);
+
+    public Task<Outcome> UpdateRuleAsync(
+        int ruleId, int priority, AssignmentTarget target, int targetId, string? roles, string? domain, string? hostNamePattern, string actor, CancellationToken cancellationToken) =>
+        SaveRuleAsync(ruleId, priority, target, targetId, roles, domain, hostNamePattern, actor, cancellationToken);
+
+    /// <summary>Roles of a rule: comma-separated, any of them matches.</summary>
+    public static IReadOnlyList<string> RuleRoles(string? roles) =>
+        (roles ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private async Task<Outcome> SaveRuleAsync(
+        int? ruleId, int priority, AssignmentTarget target, int targetId, string? roles, string? domain, string? hostNamePattern, string actor, CancellationToken cancellationToken)
     {
-        role = Normalize(role);
+        var roleList = RuleRoles(roles).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var role = roleList.Count == 0 ? null : string.Join(',', roleList);
         domain = Normalize(domain);
         hostNamePattern = Normalize(hostNamePattern);
 
@@ -148,9 +164,9 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
             return new Outcome("A rule needs at least one condition (role, domain or host name pattern).");
         }
 
-        if (role is not null && !RoleRegex().IsMatch(role))
+        if (roleList.Count > MaxRuleRoles || roleList.Any(r => !RoleRegex().IsMatch(r)))
         {
-            return new Outcome("The role must look like a role name, e.g. DomainController.");
+            return new Outcome($"Select at most {MaxRuleRoles} roles; each must look like a role name, e.g. DomainController.");
         }
 
         if (domain is not null && (domain.Length > 253 || !DomainRegex().IsMatch(domain)))
@@ -174,18 +190,32 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
             return new Outcome("The selected ring or group does not exist.");
         }
 
-        db.AssignmentRules.Add(new AssignmentRuleEntity
+        AssignmentRuleEntity rule;
+        if (ruleId is { } id)
         {
-            Priority = priority,
-            Target = target,
-            TargetId = targetId,
-            Role = role,
-            Domain = domain,
-            HostNamePattern = hostNamePattern,
-        });
+            var existing = await db.AssignmentRules.SingleOrDefaultAsync(r => r.Id == id, cancellationToken).ConfigureAwait(false);
+            if (existing is null)
+            {
+                return new Outcome("The rule no longer exists.");
+            }
+
+            rule = existing;
+        }
+        else
+        {
+            rule = new AssignmentRuleEntity();
+            db.AssignmentRules.Add(rule);
+        }
+
+        rule.Priority = priority;
+        rule.Target = target;
+        rule.TargetId = targetId;
+        rule.Role = role;
+        rule.Domain = domain;
+        rule.HostNamePattern = hostNamePattern;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        var details = $"priority {priority}, {target} {targetId}, role {role ?? "-"}, domain {domain ?? "-"}, host {hostNamePattern ?? "-"}";
-        return await CompleteAsync(actor, "AssignmentRule.Created", target.ToString(), details, null, cancellationToken).ConfigureAwait(false);
+        var details = $"priority {priority}, {target} {targetId}, roles {role ?? "-"}, domain {domain ?? "-"}, host {hostNamePattern ?? "-"}";
+        return await CompleteAsync(actor, ruleId is null ? "AssignmentRule.Created" : "AssignmentRule.Changed", target.ToString(), details, null, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<Outcome> DeleteRuleAsync(int ruleId, string actor, CancellationToken cancellationToken)

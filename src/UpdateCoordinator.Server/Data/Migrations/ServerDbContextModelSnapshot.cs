@@ -298,7 +298,7 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Role")
-                        .HasMaxLength(64)
+                        .HasMaxLength(700)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Target")

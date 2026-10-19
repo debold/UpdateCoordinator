@@ -184,7 +184,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         rule.ToTable("AssignmentRules");
         rule.HasKey(r => r.Id);
         rule.Property(r => r.Target).HasConversion<int>();
-        rule.Property(r => r.Role).HasMaxLength(64);
+        rule.Property(r => r.Role).HasMaxLength(700);
         rule.Property(r => r.Domain).HasMaxLength(253);
         rule.Property(r => r.HostNamePattern).HasMaxLength(63);
 
