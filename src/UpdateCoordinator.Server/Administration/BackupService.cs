@@ -48,14 +48,7 @@ internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions
         var copy = Path.Combine(Path.GetTempPath(), $"UpdateCoordinator-backup-{Guid.NewGuid():N}.db");
         try
         {
-            // Online backup: a consistent copy while the service keeps writing.
-            await using (var source = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = database.Value.Path, Mode = SqliteOpenMode.ReadOnly }.ToString()))
-            await using (var destination = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = copy, Pooling = false }.ToString()))
-            {
-                await source.OpenAsync(cancellationToken).ConfigureAwait(false);
-                await destination.OpenAsync(cancellationToken).ConfigureAwait(false);
-                source.BackupDatabase(destination);
-            }
+            await CopyDatabaseAsync(copy, cancellationToken).ConfigureAwait(false);
 
             var manifest = new BackupManifest(FormatVersion, timeProvider.GetUtcNow().UtcDateTime, ServerVersion, Convert.ToBase64String(anchor.PublicKey));
             using (var zip = new ZipArchive(target, ZipArchiveMode.Create, leaveOpen: true))
@@ -174,6 +167,34 @@ internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions
             return new Outcome("The archive's manifest is damaged.");
         }
     }
+
+    /// <summary>
+    /// Online backup: a consistent copy while the service keeps writing. A write in progress makes SQLite report the
+    /// database as busy; the copy is then retried shortly instead of failing the backup.
+    /// </summary>
+    private async Task CopyDatabaseAsync(string copy, CancellationToken cancellationToken)
+    {
+        const int Attempts = 20;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await using var source = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = database.Value.Path, Mode = SqliteOpenMode.ReadOnly }.ToString());
+                await using var destination = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = copy, Pooling = false }.ToString());
+                await source.OpenAsync(cancellationToken).ConfigureAwait(false);
+                await destination.OpenAsync(cancellationToken).ConfigureAwait(false);
+                source.BackupDatabase(destination);
+                return;
+            }
+            catch (SqliteException ex) when ((ex.SqliteErrorCode & 0xFF) is SqliteBusy or SqliteLocked && attempt < Attempts)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250), timeProvider, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private const int SqliteBusy = 5;
+    private const int SqliteLocked = 6;
 
     private static string ServerVersion =>
         typeof(BackupService).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
