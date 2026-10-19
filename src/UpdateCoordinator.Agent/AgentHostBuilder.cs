@@ -75,6 +75,12 @@ internal static class AgentHostBuilder
             provider.GetRequiredService<ILogger<ProtectedInstallationStateStore>>()));
         services.AddSingleton<ISystemRestart, ShutdownToolRestart>();
         services.AddSingleton<IServiceRestarter, HostServiceRestarter>();
+        services.AddOptions<ResourceOptions>()
+            .Bind(configuration.GetSection(ResourceOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<IProcessResources, CurrentProcessResources>();
+        services.AddSingleton<ResourceGuard>();
         services.AddSingleton<IActionRunner, ActionRunner>();
         services.AddSingleton<IInstallationRunner, InstallationRunner>();
         services.AddSingleton<IAgentIdentityStore>(provider => new DpapiAgentIdentityStore(

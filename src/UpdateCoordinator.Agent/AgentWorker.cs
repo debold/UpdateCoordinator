@@ -28,6 +28,7 @@ internal sealed partial class AgentWorker(
     IUpdateReporter updates,
     IInstallationRunner installation,
     IActionRunner actions,
+    ResourceGuard resources,
     IOptions<CentralServerOptions> options,
     TimeProvider timeProvider,
     ILogger<AgentWorker> logger) : BackgroundService
@@ -37,6 +38,7 @@ internal sealed partial class AgentWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         LogStarted(environment.AgentVersion);
+        resources.ApplyPriority();
         var settings = options.Value;
         var consecutiveFailures = 0;
 
@@ -64,6 +66,11 @@ internal sealed partial class AgentWorker(
                 consecutiveFailures++;
                 delay = Backoff.Compute(consecutiveFailures, settings.HeartbeatInterval, settings.MaxBackoff);
                 LogCycleFailed(ex, consecutiveFailures, delay);
+            }
+
+            if (!resources.CheckMemory())
+            {
+                break;
             }
 
             try

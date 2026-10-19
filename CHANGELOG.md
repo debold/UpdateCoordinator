@@ -8,6 +8,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 - Registers once at the central server and stores client GUID and client secret encrypted with DPAPI under `%ProgramData%\UpdateCoordinator\Agent`.
 - Sends a heartbeat every 10 seconds (configurable) and logs changes of the registration state.
+- Resource limits: runs with below-normal process priority and restarts its service when private memory stays above 200 MB after a full garbage collection (`Resources:*`).
 - Registers again automatically if the central server no longer accepts its credentials.
 - Backs off exponentially (up to 5 minutes, configurable) while the central server is unreachable; timeouts and circuit breaker via `Microsoft.Extensions.Http.Resilience`. No error stops the service.
 - Accepts only HTTPS addresses for the central server and validates every server response.

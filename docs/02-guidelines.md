@@ -58,4 +58,4 @@ The services should be 99.9 % available, fault tolerant, able to run permanently
 - The agent never triggers a reboot or any action that endangers operation unless it is explicitly configured and allowed in the maintenance window.
 - A monitoring mechanism (watchdog/service recovery) restarts the service automatically if it hangs.
 
-> Note: the operational requirements in section 9 were proposed in the spec session and confirmed. Concrete limits (memory, CPU, retry intervals) are not defined yet.
+> Note: the operational requirements in section 9 were proposed in the spec session and confirmed. Agent limits are defined (200 MB private memory with restart, below-normal priority, backoff up to 5 minutes; `docs/admin/README.md`, configuration); limits of the central server are not defined yet.

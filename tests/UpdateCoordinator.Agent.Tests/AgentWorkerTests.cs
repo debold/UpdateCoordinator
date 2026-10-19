@@ -21,6 +21,7 @@ public sealed class AgentWorkerTests
     private readonly FakeUpdateReporter _updates = new();
     private readonly FakeInstallationRunner _installation = new();
     private readonly FakeServiceRestarter _restarter = new();
+    private readonly FakeProcessResources _process = new();
 
     [Fact]
     public async Task RunCycle_WithoutIdentity_RegistersStoresIdentityAndSendsHeartbeat()
@@ -84,6 +85,24 @@ public sealed class AgentWorkerTests
         Assert.False(worker.ExecuteTask!.IsCompleted);
         await worker.StopAsync(TestContext.Current.CancellationToken);
         Assert.False(worker.ExecuteTask.IsFaulted);
+    }
+
+    [Fact]
+    public async Task Execute_LowersPriority_AndRestartsWhenMemoryStaysAboveTheLimit()
+    {
+        using var worker = CreateWorker();
+
+        await worker.StartAsync(TestContext.Current.CancellationToken);
+        await WaitUntilAsync(() => _client.Heartbeats >= 1);
+        Assert.True(_process.PriorityLowered);
+        Assert.Equal(0, _restarter.Requests);
+
+        _process.PrivateMemoryBytes = 500L * 1024 * 1024;
+        await AdvanceUntilAsync(() => worker.ExecuteTask!.IsCompleted);
+
+        Assert.Equal(1, _restarter.Requests);
+        Assert.False(worker.ExecuteTask!.IsFaulted);
+        await worker.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -239,6 +258,7 @@ public sealed class AgentWorkerTests
         _updates,
         _installation,
         new UpdateCoordinator.Agent.Actions.ActionRunner(_client, _updates, _inventory, _restarter, new FakeRestart(), new FakeLogCollector(), Options.Create(new UpdateCoordinator.Agent.Installation.InstallationOptions()), NullLogger<UpdateCoordinator.Agent.Actions.ActionRunner>.Instance),
+        new ResourceGuard(_process, _restarter, Options.Create(new ResourceOptions()), NullLogger<ResourceGuard>.Instance),
         Options.Create(new CentralServerOptions
         {
             BaseAddress = new Uri("https://central.example.local/"),

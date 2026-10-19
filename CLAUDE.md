@@ -50,12 +50,13 @@ Guidelines (always apply):
 - Central server address: registry value `CentralServerUrl` (policy key before installer key), written by installer option `SERVERURL` or from the installer file name when downloaded from the central server (`docs/03-communication-protocol.md` 3.3).
 - Public repository https://github.com/debold/UpdateCoordinator under the MIT license.
 - Installers: MSI packages built with WiX Toolset 7, self-contained publish; CI on GitHub Actions installs them on the runner (Marc, 2026-10-19). Marc accepted the WiX Open Source Maintenance Fee EULA (no revenue from this project); revisit if that changes.
+- Agent operating limits (Marc, 2026-10-19): about 200 MB private memory (restart above it), below-normal process priority, backoff up to 5 minutes; configurable under `Resources:*` and `CentralServer:MaxBackoff`.
 - Dashboard: Blazor with static server rendering by default (interactive only where it adds real value, e.g. live status), ASP.NET Core Identity with local accounts, first administrator via one-time browser setup with a local token, permissions as sketched in `docs/06-dashboard.md`.
 
 ## Open decisions (do not decide unilaterally)
 
 - Project name (placeholder in code: `UpdateCoordinator`)
-- Concrete database schema and operating limits (memory, CPU, retry intervals)
+- Concrete database schema and operating limits of the central server (agent limits decided, see Decisions made)
 - Permission assignment per function for Operator and Admin
 - Notification and escalation for pending approvals and alarms
 - Encryption of the trust anchor in the backup

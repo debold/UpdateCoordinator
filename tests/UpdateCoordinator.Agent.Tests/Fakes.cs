@@ -269,3 +269,36 @@ internal sealed class FakeLogCollector : UpdateCoordinator.Agent.Actions.ILogCol
 
     public (byte[] Archive, int Files) Collect() => Failure is null ? Result : throw Failure;
 }
+
+internal sealed class FakeProcessResources : IProcessResources
+{
+    /// <summary>Memory reported before and after a garbage collection.</summary>
+    public long PrivateMemoryBytes { get; set; } = 50L * 1024 * 1024;
+
+    public long? AfterCollection { get; set; }
+
+    public int Collections { get; private set; }
+
+    public bool PriorityLowered { get; private set; }
+
+    public Exception? PriorityFailure { get; set; }
+
+    public void CollectGarbage()
+    {
+        Collections++;
+        if (AfterCollection is { } after)
+        {
+            PrivateMemoryBytes = after;
+        }
+    }
+
+    public void LowerPriority()
+    {
+        if (PriorityFailure is not null)
+        {
+            throw PriorityFailure;
+        }
+
+        PriorityLowered = true;
+    }
+}
