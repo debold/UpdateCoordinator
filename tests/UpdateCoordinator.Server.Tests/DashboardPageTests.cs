@@ -312,13 +312,20 @@ public sealed class DashboardViewTests
         await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Failed);
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
-        using var response = await browser.GetAsync($"/rings/{RingEntity.PilotId}?update={update.UpdateId:D}:1");
+        using var response = await browser.GetAsync($"/rings/{RingEntity.PilotId}?update={update.UpdateId:D}:1&tab=update");
         var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var members = await (await browser.GetAsync($"/rings/{RingEntity.PilotId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        Assert.Contains("Ring Pilot", html, StringComparison.Ordinal);
+        Assert.Contains("Pilot</h1>", html, StringComparison.Ordinal);
         Assert.Contains("KB5040000", html, StringComparison.Ordinal);
+        Assert.Contains("Status of KB5040000 per server", html, StringComparison.Ordinal);
         Assert.Contains("PILOT01", html, StringComparison.Ordinal);
         Assert.Contains("0x80070005", html, StringComparison.Ordinal);
+
+        // The members of the ring are always the first tab, also before an update is selected.
+        Assert.Contains("Servers in this ring (1)", members, StringComparison.Ordinal);
+        Assert.Contains("PILOT01", members, StringComparison.Ordinal);
+        Assert.DoesNotContain("0x80070005", members, StringComparison.Ordinal);
     }
 
     [Theory]
