@@ -95,6 +95,7 @@ internal sealed partial class AgentWorker(
                     AgentVersion = environment.AgentVersion,
                     TrustReset = trustReset,
                     OsVersion = environment.OsVersion,
+                    HostName = environment.HostName,
                     RebootPending = environment.RebootPending,
                     LastBootAt = environment.LastBootAt,
                 },

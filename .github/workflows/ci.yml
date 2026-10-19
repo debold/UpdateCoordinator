@@ -72,12 +72,18 @@ jobs:
           path: artifacts/installers/*.msi
           if-no-files-found: error
 
+      - name: Collect service logs
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/install-logs/services | Out-Null
+          Get-ChildItem "$env:ProgramData/UpdateCoordinator" -Recurse -Filter *.log -ErrorAction SilentlyContinue |
+            Copy-Item -Destination artifacts/install-logs/services
+
       - name: Upload install logs
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: install-logs
-          path: |
-            artifacts/install-logs/
-            C:/ProgramData/UpdateCoordinator/**/Logs/*.log
+          path: artifacts/install-logs/
           if-no-files-found: ignore

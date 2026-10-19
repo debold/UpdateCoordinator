@@ -412,6 +412,10 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<DateTime?>("LastHeartbeatAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("LastHeartbeatHostName")
+                        .HasMaxLength(63)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("LastInstallAtUtc")
                         .HasColumnType("TEXT");
 
@@ -446,6 +450,13 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<string>("OsVersion")
                         .IsRequired()
                         .HasMaxLength(23)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PreviousHostName")
+                        .HasMaxLength(63)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PreviousHostNameSeenAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("RebootPending")

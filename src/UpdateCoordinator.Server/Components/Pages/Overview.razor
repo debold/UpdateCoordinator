@@ -215,6 +215,12 @@
                 : new AttentionItem("Release gate", "queue", $"{title} waits for manual release to ring {ringName}", $"Since {Format(ring.StateChangedAtUtc)} UTC", $"/updates/{ring.UpdateId:D}/{ring.Revision}", "Open update"));
         }
 
+        var blocked = await Db.Clients.CountAsync(c => c.State == RegistrationState.Blocked);
+        if (blocked > 0)
+        {
+            _attention.Add(new AttentionItem("Clone", "fail", $"{blocked} servers blocked on clone suspicion", "The same credentials were used by two hosts in turn.", "/approvals", "Review"));
+        }
+
         var pending = await Db.Clients.CountAsync(c => c.State == RegistrationState.Pending);
         if (pending > 0)
         {

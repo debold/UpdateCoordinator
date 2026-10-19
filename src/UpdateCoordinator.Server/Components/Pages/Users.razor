@@ -1,0 +1,111 @@
+@page "/administration/users"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@inject UserAdministration Administration
+
+<PageTitle>Users</PageTitle>
+
+<h1>Users</h1>
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<p>
+    Local accounts of the dashboard. Reader sees everything, Operator decides approvals, gates, rollouts and remote actions,
+    Admin changes settings, rules and accounts. A role change or reset ends the sessions of that account.
+    Passwords need at least 12 characters.
+</p>
+
+<form method="post" @formname="users" @onsubmit="HandleAsync">
+    <AntiforgeryToken />
+    <div class="card flush scroll">
+        <table>
+            <thead><tr><th>Account</th><th>Role</th><th>State</th><th>New password</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var user in _users)
+                {
+                    <tr>
+                        <td>@user.UserName</td>
+                        <td>
+                            <select name="Role_@user.Id" aria-label="Role of @user.UserName">
+                                @foreach (var role in AdminRoles.All)
+                                {
+                                    <option value="@role" selected="@(role == user.Role)">@role</option>
+                                }
+                            </select>
+                        </td>
+                        <td>@(user.LockedOut ? (user.LockoutEnd == DateTimeOffset.MaxValue ? "Locked" : "Locked out after failed sign-ins") : "Active")</td>
+                        <td><input name="Password_@user.Id" type="password" autocomplete="new-password" aria-label="New password for @user.UserName" /></td>
+                        <td class="actions">
+                            <button type="submit" name="Action" value="role:@user.Id">Save role</button>
+                            <button type="submit" name="Action" value="password:@user.Id">Set password</button>
+                            @if (user.LockedOut)
+                            {
+                                <button type="submit" name="Action" value="unlock:@user.Id">Unlock</button>
+                            }
+                            else
+                            {
+                                <button type="submit" name="Action" value="lock:@user.Id">Lock</button>
+                            }
+                            <button type="submit" name="Action" value="delete:@user.Id">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <h2>New account</h2>
+    <label>Account name <input name="NewName" maxlength="256" autocomplete="off" /></label>
+    <label>Initial password <input name="NewPassword" type="password" autocomplete="new-password" /></label>
+    <label>
+        Role
+        <select name="NewRole">
+            @foreach (var role in AdminRoles.All)
+            {
+                <option value="@role">@role</option>
+            }
+        </select>
+    </label>
+    <button type="submit" name="Action" value="create">Create account</button>
+</form>
+
+@code {
+    [SupplyParameterFromForm(FormName = "users")]
+    private string? Action { get; set; }
+
+    [SupplyParameterFromForm(FormName = "users")]
+    private string? NewName { get; set; }
+
+    [SupplyParameterFromForm(FormName = "users")]
+    private string? NewPassword { get; set; }
+
+    [SupplyParameterFromForm(FormName = "users")]
+    private string? NewRole { get; set; }
+
+    [CascadingParameter]
+    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    private IReadOnlyList<UserSummary> _users = [];
+
+    protected override async Task OnInitializedAsync() => _users = await Administration.ListAsync(CancellationToken.None);
+
+    private async Task HandleAsync()
+    {
+        var actor = await GetActorAsync();
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        string? Field(string name) => form?[name].ToString();
+
+        var (outcome, success) = Action?.Split(':', 2) switch
+        {
+            ["create"] => (await Administration.CreateAsync(NewName, NewPassword, NewRole, actor, CancellationToken.None), "The account was created."),
+            ["role", var id] => (await Administration.SetRoleAsync(id, Field($"Role_{id}"), actor, CancellationToken.None), "The role was changed."),
+            ["password", var id] => (await Administration.ResetPasswordAsync(id, Field($"Password_{id}"), actor, CancellationToken.None), "The password was set."),
+            ["lock", var id] => (await Administration.SetLockedAsync(id, true, actor, CancellationToken.None), "The account was locked."),
+            ["unlock", var id] => (await Administration.SetLockedAsync(id, false, actor, CancellationToken.None), "The account was unlocked."),
+            ["delete", var id] => (await Administration.DeleteAsync(id, actor, CancellationToken.None), "The account was deleted."),
+            _ => (new Outcome("Invalid request."), string.Empty),
+        };
+
+        ShowResult(outcome.Error, success);
+        _users = await Administration.ListAsync(CancellationToken.None);
+    }
+}

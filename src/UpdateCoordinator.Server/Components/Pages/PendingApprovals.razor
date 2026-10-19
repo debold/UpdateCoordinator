@@ -6,6 +6,7 @@
 @inject ClientApprovalService Approvals
 @inject UpdateCoordinator.Server.Rollouts.RolloutAdministration Rollouts
 @inject UpdateCoordinator.Server.Assignment.LeaseService Leases
+@inject UpdateCoordinator.Server.Approval.ClientLifecycle Lifecycle
 @inject NavigationManager Navigation
 
 <PageTitle>Pending approvals</PageTitle>
@@ -118,6 +119,35 @@
     }
 </form>
 
+<h2>Clone suspicions</h2>
+
+<p>The credentials of these servers were used by two hosts in turn, most likely a copied virtual machine. They are blocked. If only one host uses them, unblock the server; otherwise delete it on its detail page so each copy registers on its own.</p>
+
+<form method="post" @formname="blocked" @onsubmit="UnblockAsync">
+    <AntiforgeryToken />
+    @if (_blocked.Count == 0)
+    {
+        <p>No clone suspicion.</p>
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Server</th><th>Host names seen</th><th>Last heartbeat (UTC)</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var client in _blocked)
+                {
+                    <tr>
+                        <td><a href="/servers/@client.Id">@client.HostName</a></td>
+                        <td>@client.LastHeartbeatHostName, @client.PreviousHostName</td>
+                        <td>@Format(client.LastHeartbeatAtUtc)</td>
+                        <td><button type="submit" name="UnblockClient" value="@client.Id">Unblock</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</form>
+
 @code {
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationState { get; set; }
@@ -133,6 +163,10 @@
     private List<ClientEntity> _pending = [];
     private List<(RolloutRingEntity Ring, string Title, string RingName)> _gates = [];
     private List<GroupEntity> _halted = [];
+    private List<ClientEntity> _blocked = [];
+
+    [SupplyParameterFromForm(FormName = "blocked")]
+    private string? UnblockClient { get; set; }
 
     [SupplyParameterFromForm(FormName = "halted")]
     private string? ResumeGroup { get; set; }
@@ -173,6 +207,7 @@
             .ToListAsync();
 
         _halted = await Db.Groups.AsNoTracking().Where(g => g.LeasesHalted).OrderBy(g => g.Name).ToListAsync();
+        _blocked = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Blocked).OrderBy(c => c.HostName).Take(500).ToListAsync();
 
         var waiting = await Db.RolloutRings.AsNoTracking()
             .Where(r => r.State == RingRolloutState.AwaitingApproval || r.State == RingRolloutState.Alarm)
@@ -189,6 +224,16 @@
             var title = UpdateCoordinator.Server.Rollouts.UpdateText.Title(update, r.UpdateId);
             return (r, title, rings.GetValueOrDefault(r.RingId) ?? "?");
         })];
+    }
+
+    private async Task UnblockAsync()
+    {
+        var actor = AuthenticationState is null ? "unknown" : (await AuthenticationState).User.Identity?.Name ?? "unknown";
+        var outcome = Guid.TryParse(UnblockClient, out var clientId)
+            ? await Lifecycle.UnblockAsync(clientId, actor, CancellationToken.None)
+            : new Outcome("Invalid request.");
+        _message = outcome.Error ?? "The server was unblocked.";
+        await LoadAsync();
     }
 
     private async Task ResumeGroupAsync()

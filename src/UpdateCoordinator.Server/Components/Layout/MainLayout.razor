@@ -16,6 +16,7 @@
                 </AuthorizeView>
                 <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
                     <span class="section">Administration</span>
+                    <a href="/administration/users">Users</a>
                     <a href="/administration/groups">Groups</a>
                     <a href="/administration/rules">Assignment rules</a>
                     <a href="/administration/release-rules">Release rules</a>
@@ -52,7 +53,7 @@
             var transitions = await Db.RolloutRings
                 .Where(r => r.State == RingRolloutState.AwaitingApproval || r.State == RingRolloutState.Alarm)
                 .CountAsync(r => Db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.State == RolloutState.Active));
-            _waiting = servers + transitions + await Db.Groups.CountAsync(g => g.LeasesHalted);
+            _waiting = servers + transitions + await Db.Groups.CountAsync(g => g.LeasesHalted) + await Db.Clients.CountAsync(c => c.State == RegistrationState.Blocked);
         }
     }
 }

@@ -40,9 +40,13 @@ internal static class DashboardServiceCollectionExtensions
             })
             .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<ServerDbContext>()
-            .AddSignInManager();
+            .AddSignInManager()
+            .AddDefaultTokenProviders();
 
         services.AddAuthentication().AddIdentityCookies();
+
+        // Role changes, locks and password resets renew the security stamp; sessions notice it within a minute.
+        services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(1));
         services.ConfigureApplicationCookie(options =>
         {
             options.LoginPath = LoginPath;
@@ -62,12 +66,14 @@ internal static class DashboardServiceCollectionExtensions
 
         services.AddSingleton<SetupService>();
         services.AddScoped<AuditLog>();
+        services.AddScoped<UserAdministration>();
 
         services.AddOptions<ApprovalOptions>()
             .Bind(configuration.GetSection(ApprovalOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddScoped<ClientApprovalService>();
+        services.AddScoped<ClientLifecycle>();
         services.AddScoped<AssignmentService>();
         services.AddScoped<AssignmentAdministration>();
         services.AddScoped<LeaseService>();

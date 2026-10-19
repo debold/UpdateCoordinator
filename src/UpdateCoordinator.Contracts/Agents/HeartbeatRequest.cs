@@ -20,6 +20,11 @@ public sealed record HeartbeatRequest
     [RegularExpression(ValidationPatterns.OsVersion)]
     public string? OsVersion { get; init; }
 
+    /// <summary>Host name of the server; the central server uses it to detect copied machines.</summary>
+    [StringLength(63, MinimumLength = 1)]
+    [RegularExpression(ValidationPatterns.HostName)]
+    public string? HostName { get; init; }
+
     /// <summary>True if Windows reports a pending reboot (component servicing or Windows Update), whatever caused it.</summary>
     public bool RebootPending { get; init; }
 

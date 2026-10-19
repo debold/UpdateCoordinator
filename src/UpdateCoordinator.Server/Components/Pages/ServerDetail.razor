@@ -7,6 +7,7 @@
 @inject AssignmentAdministration Administration
 @inject DeploymentStatus Deployment
 @inject UpdateCoordinator.Server.Agents.AgentActionService Actions
+@inject UpdateCoordinator.Server.Approval.ClientLifecycle Lifecycle
 @inject TimeProvider Time
 
 <PageTitle>Server</PageTitle>
@@ -174,6 +175,21 @@ else
         </form>
     </section>
 
+    <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="remove">
+        <section class="card" aria-labelledby="remove-h">
+            <h2 id="remove-h">Remove server</h2>
+            <p class="sub">
+                Delete keeps the history and ends the server's credentials; a still running agent registers again as a new pending server.
+                Delete with history removes the server and all its data for good.
+            </p>
+            <form method="post" @formname="remove" @onsubmit="RemoveAsync" class="actions">
+                <AntiforgeryToken />
+                <label class="inline"><input type="checkbox" name="ConfirmRemove" value="yes" /> I want to remove this server</label>
+                <button type="submit" name="Remove" value="soft">Delete</button>
+                <button type="submit" name="Remove" value="hard">Delete with history</button>
+            </form>
+        </section>
+    </AuthorizeView>
     <AuthorizeView Policy="@AdminRoles.Policies.Administer">
         <h2>Assignment</h2>
         <form method="post" @formname="assignment" @onsubmit="SaveAsync">
@@ -345,6 +361,45 @@ else
         AgentActionState.Failed or AgentActionState.Rejected or AgentActionState.Expired => "fail",
         _ => "neutral",
     };
+
+    [SupplyParameterFromForm(FormName = "remove")]
+    private string? Remove { get; set; }
+
+    [SupplyParameterFromForm(FormName = "remove")]
+    private string? ConfirmRemove { get; set; }
+
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    private async Task RemoveAsync()
+    {
+        Outcome outcome;
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            outcome = new Outcome("Only administrators can remove servers.");
+        }
+        else if (ConfirmRemove != "yes")
+        {
+            outcome = new Outcome("Confirm the removal with the checkbox first.");
+        }
+        else
+        {
+            outcome = Remove switch
+            {
+                "soft" => await Lifecycle.SoftDeleteAsync(Id, await GetActorAsync(), CancellationToken.None),
+                "hard" => await Lifecycle.HardDeleteAsync(Id, await GetActorAsync(), CancellationToken.None),
+                _ => new Outcome("Invalid request."),
+            };
+            if (outcome.Succeeded && Remove == "hard")
+            {
+                Navigation.NavigateTo("/servers");
+                return;
+            }
+        }
+
+        ShowResult(outcome.Error, "The server was deleted; its history is kept.");
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {

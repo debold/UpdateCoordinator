@@ -324,3 +324,11 @@ msiexec /i UpdateCoordinator.Agent.msi SERVERURL=https://central.example.local:8
 **Upgrades:** install the newer MSI the same way; options can be left out, the installed values are kept. Downgrades are refused.
 
 **Building the installers:** `./build/Build-Installers.ps1` publishes both components and builds the MSIs into `artifacts\installers` (versions from the git tags; `-AgentVersion`/`-ServerVersion` override them). The CI pipeline builds them on every push, installs, upgrades and uninstalls them on the disposable runner and checks services, settings, firewall, the health endpoint and the agent registration (`build/Test-Installers.ps1`, which refuses to run outside CI because it changes the machine).
+
+## 18. Accounts and removing servers
+
+**Users** (Administration → Users, role `Admin`): create accounts with one role, change the role, set a new password, lock, unlock and delete. Your own account cannot be locked or deleted, and the last active administrator can neither lose the Admin role nor be locked or deleted. A role change, lock or new password ends the sessions of that account within a minute. Every change is audited.
+
+**Removing a server** (server detail page, role `Admin`, with confirmation): *Delete* keeps the history, cancels open releases, actions and leases and ends the credentials; if the agent is still running, it registers again as a new pending server. *Delete with history* removes the server and all its data.
+
+**Clone suspicion:** the agent reports its host name with every heartbeat. If the credentials of one server are used by two host names in turn within an hour (typically a copied virtual machine), the server is blocked and appears under Pending approvals and on the overview. If only one host uses it, an `Operator` unblocks it; otherwise an `Admin` deletes it so each copy registers on its own. A simple rename is no clone suspicion.

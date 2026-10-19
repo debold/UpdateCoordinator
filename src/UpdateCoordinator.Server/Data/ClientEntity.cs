@@ -67,6 +67,13 @@ internal sealed class ClientEntity
     /// <summary>Last start of the operating system reported by the agent.</summary>
     public DateTime? LastBootAtUtc { get; set; }
 
+    /// <summary>Host name of the last heartbeat; with the previous one it reveals copied machines (clone suspicion).</summary>
+    public string? LastHeartbeatHostName { get; set; }
+
+    public string? PreviousHostName { get; set; }
+
+    public DateTime? PreviousHostNameSeenAtUtc { get; set; }
+
     /// <summary>Windows time zone of the server from the inventory; null if unknown.</summary>
     public string? TimeZoneId { get; set; }
 

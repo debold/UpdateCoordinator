@@ -26,6 +26,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Reboots inside the maintenance window when the central reboot policy allows it: pending reboot detected from Windows (also after updates installed by others), at least 30 minutes left in the window, 5-minute warning via shutdown.exe, at most one request per 6 hours, never during a global pause; local veto via registry value `AllowReboot` (only 1/true allows). Heartbeat reports pending reboot and last boot time.
 - Runs remote actions announced in the heartbeat and confirms each one; unknown actions are rejected. Reports its Windows time zone with the inventory.
 - In coordinated groups installs and reboots only with a lease; keeps it across its own restart and releases it with the outcome.
+- Reports its host name with every heartbeat (clone detection).
 
 ### Central server
 
@@ -61,6 +62,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Server time zone from the inventory (known IDs only); the server detail page shows the next maintenance window as a date.
 - Coordinated groups with leases: share in percent with an upper bound (default 25 %, at most 5, at least 1), 2-hour leases, all-or-nothing across several coordinated groups, stop after failed or expired leases in a row (capped by group size), resume by operators, audited.
 - AD coverage: enabled server accounts of the domain (Windows Server 2016 or newer only; older ones listed separately) compared with registered agents every 6 hours; coverage rate on the overview, page with servers without agent.
+- User management for administrators (create, role, password, lock, delete; the last administrator is protected), server removal (delete keeping the history, delete with history) and clone detection (credentials used by two hosts in turn block the server until an operator decides).
 - Windows Update error codes are translated into plain English text centrally.
 
 ### Installers and CI

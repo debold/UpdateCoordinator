@@ -229,6 +229,7 @@ internal static class AgentEndpoints
         ILoggerFactory loggerFactory,
         GlobalPause globalPause,
         AgentActionService actions,
+        Approval.ClientLifecycle lifecycle,
         CancellationToken cancellationToken)
     {
         var clientId = httpContext.User.GetClientId();
@@ -261,6 +262,12 @@ internal static class AgentEndpoints
             // Security-relevant: will go to the audit log once it exists.
             var logger = loggerFactory.CreateLogger(LogCategory);
             AgentLog.TrustReset(logger, clientId);
+        }
+
+        // The same credentials from two hosts in turn: most likely a copied machine; it is blocked until an admin decides.
+        if (request.HostName is { } hostName && await lifecycle.RecordHostAsync(clientId, hostName, cancellationToken).ConfigureAwait(false))
+        {
+            return TypedResults.Ok(new HeartbeatResponse(RegistrationState.Blocked));
         }
 
         // Control information (release list version, global pause) only for approved clients (docs/03, 4.2).

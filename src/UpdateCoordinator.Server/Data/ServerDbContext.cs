@@ -203,6 +203,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         client.Property(c => c.OsDisplayVersion).HasMaxLength(16);
         client.Property(c => c.WsusServer).HasMaxLength(255);
         client.Property(c => c.TimeZoneId).HasMaxLength(64);
+        client.Property(c => c.LastHeartbeatHostName).HasMaxLength(63);
+        client.Property(c => c.PreviousHostName).HasMaxLength(63);
         client.OwnsMany(c => c.HealthChecks, health => health.ToJson());
         client.Property(c => c.MaintenanceWindowsJson).HasMaxLength(4096);
         client.Property(c => c.EffectiveWindowsJson).HasMaxLength(8192);
