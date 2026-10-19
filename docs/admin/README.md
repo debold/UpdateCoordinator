@@ -34,10 +34,10 @@ Agents authenticate every request except registration and the trust binding with
 The central server only listens on HTTPS. Its certificate comes from the Windows certificate store, so no certificate password is stored in configuration.
 
 1. Import a certificate with private key into `LocalMachine\My` (any CA, also self-signed: agents do not rely on the CA but on the trust anchor). The service account needs read access to the private key.
-2. Set `Trust:CertificateThumbprint` to its thumbprint and restart the service.
-3. On start the central server signs a new trust binding for the certificate (next serial). Agents accept the new certificate automatically on their next contact.
+2. Select it under Administration → TLS certificate (role `Admin`, with confirmation), or set it at installation with `CERTTHUMBPRINT`. The selection is stored in `HKLM\SOFTWARE\UpdateCoordinator\Server\CertificateThumbprint`; `Trust:CertificateThumbprint` in the configuration works as well.
+3. The central server presents the new certificate at once (no restart) and signs a new trust binding for it (next serial). Agents accept the new certificate automatically on their next contact.
 
-Configuring the thumbprint is the approval of the certificate until the dashboard offers an approval step. Renewing a certificate with the same key does not even need a new binding.
+Selecting the certificate is its approval; the change is recorded in the audit log. Renewing a certificate with the same key does not even need a new binding.
 
 ## 4. Configuration
 
@@ -135,7 +135,7 @@ A new file is started every day and when the size limit is reached. Client secre
 | Agent | `%ProgramData%\UpdateCoordinator\Agent\trust.dat` | pinned trust anchor, accepted certificate key and highest binding serial, DPAPI-protected |
 | Agent | `%ProgramData%\UpdateCoordinator\Agent\installations.dat` | install reports not yet delivered (at most 50) and the last attempt per update, DPAPI-protected |
 | Both | `Logging:File:Directory` | rolling log files |
-| Agent | `%ProgramData%PDATECOORDINATORAGENTINSTALLATIONS.DAT` | INSTALL REPORTS NOT YET DELIVERED AND THE LAST ATTEMPT PER UPDATE, DPAPI-PROTECTED |
+| Agent | `%ProgramData%\UpdateCoordinator\Agent\installations.dat` | install reports not yet delivered, the last attempt per update and a held lease, DPAPI-protected |
 | BOTH | `LOGGING:FILE:DIRECTORY` | ROLLING LOG FILES |
 
 If the agent identity file is deleted or unreadable, the agent registers again and appears as a new pending client. If the trust file is deleted, the next contact is a first contact again.

@@ -17,7 +17,7 @@ internal sealed class TrustOptions
 
     /// <summary>
     /// Thumbprint (SHA-1, hex) of the TLS certificate in the Windows certificate store (LocalMachine\My, then CurrentUser\My).
-    /// Configuring a certificate here is the approval of that certificate until the dashboard offers an approval step.
+    /// Normally selected in the dashboard (Administration → TLS certificate) or by the installer; both store it in the registry.
     /// In development the ASP.NET Core development certificate is used when no thumbprint is set.
     /// </summary>
     [RegularExpression("^[0-9A-Fa-f]{40}$")]

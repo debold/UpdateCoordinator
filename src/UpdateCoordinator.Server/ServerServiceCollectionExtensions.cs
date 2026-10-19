@@ -46,6 +46,8 @@ internal static class ServerServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<TrustAnchor>();
         services.AddSingleton<ITlsCertificateProvider, StoreTlsCertificateProvider>();
+        services.AddSingleton<IServerCertificateStore, WindowsServerCertificateStore>();
+        services.AddScoped<CertificateAdministration>();
         services.AddScoped<TrustBindingService>();
         services.AddScoped<UpdateCatalog>();
         services.AddScoped<InventoryService>();

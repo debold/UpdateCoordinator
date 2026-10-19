@@ -67,6 +67,7 @@ internal static class DashboardServiceCollectionExtensions
         services.AddSingleton<SetupService>();
         services.AddScoped<AuditLog>();
         services.AddScoped<UserAdministration>();
+        services.AddScoped<BackupService>();
 
         services.AddOptions<ApprovalOptions>()
             .Bind(configuration.GetSection(ApprovalOptions.SectionName))

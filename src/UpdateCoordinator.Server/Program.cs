@@ -7,6 +7,11 @@ using UpdateCoordinator.Server.Agents;
 using UpdateCoordinator.Server.Components;
 using UpdateCoordinator.Server.Trust;
 
+if (args is [RestoreCommand.Verb, ..])
+{
+    return await RestoreCommand.RunAsync(args).ConfigureAwait(false);
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddServerRegistry(Microsoft.Win32.Registry.LocalMachine);
@@ -39,10 +44,12 @@ app.MapHealthChecks(ApiRoutes.Health);
 app.MapAgentEndpoints();
 app.MapTrustEndpoints();
 app.MapAgentLogEndpoints();
+app.MapBackupEndpoints();
 app.MapStaticAssets();
 app.MapRazorComponents<App>();
 
 await app.RunAsync().ConfigureAwait(false);
+return 0;
 
 /// <summary>Entry point; public so integration tests can host the application.</summary>
 public partial class Program;

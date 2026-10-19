@@ -10,6 +10,9 @@ namespace UpdateCoordinator.Server.Trust;
 internal interface ITlsCertificateProvider
 {
     X509Certificate2 Certificate { get; }
+
+    /// <summary>Presents another certificate from now on (new TLS handshakes use it).</summary>
+    void Replace(X509Certificate2 certificate);
 }
 
 /// <summary>
@@ -20,9 +23,31 @@ internal sealed class StoreTlsCertificateProvider(IOptions<TrustOptions> options
     /// <summary>Extension that marks the ASP.NET Core HTTPS development certificate.</summary>
     private const string DevelopmentCertificateOid = "1.3.6.1.4.1.311.84.1.1";
 
-    private readonly Lazy<X509Certificate2> _certificate = new(() => Load(options.Value.CertificateThumbprint, environment));
+    private readonly Lock _gate = new();
+    private X509Certificate2? _certificate;
+    private X509Certificate2? _previous;
 
-    public X509Certificate2 Certificate => _certificate.Value;
+    public X509Certificate2 Certificate
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _certificate ??= Load(options.Value.CertificateThumbprint, environment);
+            }
+        }
+    }
+
+    public void Replace(X509Certificate2 certificate)
+    {
+        lock (_gate)
+        {
+            // The previous certificate may still be in use by handshakes in progress; it is released with the next change.
+            _previous?.Dispose();
+            _previous = _certificate;
+            _certificate = certificate;
+        }
+    }
 
     private static X509Certificate2 Load(string? thumbprint, IHostEnvironment environment)
     {
@@ -42,7 +67,7 @@ internal sealed class StoreTlsCertificateProvider(IOptions<TrustOptions> options
         throw new InvalidOperationException("No TLS certificate configured. Set Trust:CertificateThumbprint to a certificate in LocalMachine\\My.");
     }
 
-    private static X509Certificate2? Find(StoreLocation location, Func<X509Certificate2, bool> match)
+    internal static X509Certificate2? Find(StoreLocation location, Func<X509Certificate2, bool> match)
     {
         using var store = new X509Store(StoreName.My, location);
         store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
@@ -69,9 +94,10 @@ internal sealed class StoreTlsCertificateProvider(IOptions<TrustOptions> options
 
     public void Dispose()
     {
-        if (_certificate.IsValueCreated)
+        lock (_gate)
         {
-            _certificate.Value.Dispose();
+            _previous?.Dispose();
+            _certificate?.Dispose();
         }
     }
 }

@@ -115,6 +115,8 @@ public class ServerFactory : WebApplicationFactory<Program>
     private sealed class MutableCertificateProvider(X509Certificate2 certificate) : ITlsCertificateProvider
     {
         public X509Certificate2 Certificate { get; set; } = certificate;
+
+        public void Replace(X509Certificate2 certificate) => Certificate = certificate;
     }
 }
 

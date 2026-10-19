@@ -13,11 +13,13 @@ namespace UpdateCoordinator.Server.Trust;
 /// </summary>
 internal sealed partial class TrustAnchor : IDisposable
 {
+    private const string ProtectionPurpose = "UpdateCoordinator.Server.TrustAnchor.v1";
+
     private readonly Lazy<ECDsa> _key;
 
     public TrustAnchor(IOptions<TrustOptions> options, ILogger<TrustAnchor> logger)
     {
-        var file = new ProtectedFile(options.Value.AnchorPath, "UpdateCoordinator.Server.TrustAnchor.v1", logger);
+        var file = new ProtectedFile(options.Value.AnchorPath, ProtectionPurpose, logger);
         _key = new Lazy<ECDsa>(() => LoadOrCreate(file, logger));
     }
 
@@ -27,6 +29,28 @@ internal sealed partial class TrustAnchor : IDisposable
     public byte[] Sign(byte[] data) => _key.Value.SignData(data, TrustBindingFormat.HashAlgorithm);
 
     public bool Verify(byte[] data, byte[] signature) => _key.Value.VerifyData(data, signature, TrustBindingFormat.HashAlgorithm);
+
+    /// <summary>Iterations of the password-based encryption of the exported key (PBKDF2 with SHA-256, AES-256).</summary>
+    public const int ExportIterations = 600_000;
+
+    /// <summary>The private key as password-encrypted PKCS#8 for backups (docs/04-central-server.md, backup).</summary>
+    public byte[] ExportEncrypted(string password) =>
+        _key.Value.ExportEncryptedPkcs8PrivateKey(password, new PbeParameters(PbeEncryptionAlgorithm.Aes256Cbc, HashAlgorithmName.SHA256, ExportIterations));
+
+    /// <summary>
+    /// Decrypts a backed-up key; returns it as PKCS#8 and its public key.
+    /// Throws <see cref="CryptographicException"/> for a wrong password or damaged data.
+    /// </summary>
+    public static (byte[] Pkcs8, byte[] PublicKey) DecryptBackup(byte[] encrypted, string password)
+    {
+        using var key = ECDsa.Create();
+        key.ImportEncryptedPkcs8PrivateKey(password, encrypted, out _);
+        return (key.ExportPkcs8PrivateKey(), key.ExportSubjectPublicKeyInfo());
+    }
+
+    /// <summary>Stores a restored key DPAPI-protected at <paramref name="anchorPath"/>, where the central server loads it.</summary>
+    public static void StoreRestored(string anchorPath, byte[] pkcs8, ILogger logger) =>
+        new ProtectedFile(anchorPath, ProtectionPurpose, logger).Write(pkcs8);
 
     private static ECDsa LoadOrCreate(ProtectedFile file, ILogger logger)
     {

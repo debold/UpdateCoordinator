@@ -1,0 +1,99 @@
+@page "/administration/certificate"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@using UpdateCoordinator.Server.Trust
+@inject CertificateAdministration Administration
+@inject TrustBindingService Bindings
+
+<PageTitle>TLS certificate</PageTitle>
+
+<h1>TLS certificate</h1>
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<p>
+    Agents do not pin the TLS certificate but the trust anchor of the central server. When you switch to another certificate,
+    the trust anchor signs a binding for it, and every agent accepts the new certificate on its next contact; nothing changes on
+    the servers. Renew the certificate in the Windows certificate store (LocalMachine\My) first, then select it here.
+</p>
+
+<section class="card">
+    <h2>In use</h2>
+    <dl class="facts">
+        <dt>Subject</dt><dd>@_current.Subject</dd>
+        <dt>Issuer</dt><dd>@_current.Issuer</dd>
+        <dt>Thumbprint</dt><dd class="mono">@_current.Thumbprint</dd>
+        <dt>Valid until (UTC)</dt><dd>@_current.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)</dd>
+        <dt>Binding serial</dt><dd>@(_serial?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "–")</dd>
+    </dl>
+</section>
+
+<section class="card flush" aria-labelledby="candidates-h">
+    <h2 id="candidates-h">Available certificates</h2>
+    <form method="post" @formname="certificate" @onsubmit="UseAsync">
+        <AntiforgeryToken />
+        <p class="sub card-text">Certificates in LocalMachine\My with private key, currently valid and allowed for server authentication.</p>
+        <div class="card-text"><label class="inline"><input type="checkbox" name="ConfirmChange" value="yes" /> Switch the central server to the selected certificate now</label></div>
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Subject</th><th>DNS names</th><th>Issuer</th><th>Valid until (UTC)</th><th>Thumbprint</th><th></th></tr></thead>
+                <tbody>
+                    @if (_candidates.Count == 0)
+                    {
+                        <tr><td colspan="6">No suitable certificate found.</td></tr>
+                    }
+                    @foreach (var candidate in _candidates)
+                    {
+                        var inUse = string.Equals(candidate.Thumbprint, _current.Thumbprint, StringComparison.OrdinalIgnoreCase);
+                        <tr>
+                            <td>@candidate.Subject</td>
+                            <td>@string.Join(", ", candidate.DnsNames)</td>
+                            <td>@candidate.Issuer</td>
+                            <td>@candidate.NotAfterUtc.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)</td>
+                            <td class="mono">@candidate.Thumbprint</td>
+                            <td>
+                                @if (inUse)
+                                {
+                                    <span class="pill ok">In use</span>
+                                }
+                                else
+                                {
+                                    <button type="submit" name="Thumbprint" value="@candidate.Thumbprint">Use</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </form>
+</section>
+
+@code {
+    [SupplyParameterFromForm(FormName = "certificate")]
+    private string? Thumbprint { get; set; }
+
+    [SupplyParameterFromForm(FormName = "certificate")]
+    private string? ConfirmChange { get; set; }
+
+    private System.Security.Cryptography.X509Certificates.X509Certificate2 _current = default!;
+    private IReadOnlyList<CertificateCandidate> _candidates = [];
+    private long? _serial;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task UseAsync()
+    {
+        var outcome = ConfirmChange == "yes"
+            ? await Administration.UseAsync(Thumbprint, await GetActorAsync(), CancellationToken.None)
+            : new Outcome("Confirm the change with the checkbox first.");
+        ShowResult(outcome.Error, "The central server presents the new certificate; agents accept it through the new trust binding.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _current = Administration.Current;
+        _candidates = Administration.ListCandidates();
+        _serial = (await Bindings.GetCurrentAsync(CancellationToken.None))?.Serial;
+    }
+}

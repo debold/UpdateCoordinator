@@ -25,6 +25,7 @@ Central coordination of Windows updates for Windows servers with ring deployment
 - `docs/05-agent-design.md`: inventory, pipeline, installation, reporting
 - `docs/06-dashboard.md`: user interface and administration
 - `docs/admin/README.md`: admin documentation (setup, communication paths)
+- `docs/admin/test-guide.md`: walk-through for a domain lab test
 
 Guidelines (always apply):
 
