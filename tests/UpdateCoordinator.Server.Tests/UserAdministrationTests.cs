@@ -19,12 +19,13 @@ public sealed class UserAdministrationTests
         await using var factory = new ServerFactory();
         using var browser = await LoginAsync(factory, "admin", AdminRoles.Admin);
 
-        using (var created = await browser.PostFormAsync("/administration/users", new Dictionary<string, string>
+        using (var created = await browser.PostFormAsync("/administration/users?dialog=new", new Dictionary<string, string>
         {
-            ["Action"] = "create",
-            ["NewName"] = "operator1",
-            ["NewPassword"] = "another long passphrase",
-            ["NewRole"] = AdminRoles.Operator,
+            ["_handler"] = "user-dialog",
+            ["Mode"] = "create",
+            ["Name"] = "operator1",
+            ["Password"] = "another long passphrase",
+            ["Role"] = AdminRoles.Operator,
         }))
         {
             Assert.Contains("The account was created.", await created.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
@@ -136,15 +137,15 @@ public sealed class UserAdministrationTests
     }
 
     [Theory]
-    [InlineData("role:unknown-id")]
-    [InlineData("delete:")]
+    [InlineData("lock:unknown-id")]
+    [InlineData("unlock:")]
     [InlineData("explode")]
     public async Task MalformedOrUnknownRequests_AreRefused(string action)
     {
         await using var factory = new ServerFactory();
         using var browser = await LoginAsync(factory, "admin", AdminRoles.Admin);
 
-        using var response = await browser.PostFormAsync("/administration/users", new Dictionary<string, string> { ["Action"] = action });
+        using var response = await browser.PostFormAsync("/administration/users", new Dictionary<string, string> { ["_handler"] = "users", ["Action"] = action });
 
         Assert.Contains("role=\"alert\"", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
@@ -158,6 +159,40 @@ public sealed class UserAdministrationTests
         using var response = await browser.GetAsync("/administration/users");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Dialogs_EditAndDeleteAccounts_AndKeepTheDialogOpenOnErrors()
+    {
+        await using var factory = new ServerFactory();
+        using var browser = await LoginAsync(factory, "admin", AdminRoles.Admin);
+        await factory.CreateUserAsync("helper", Password, AdminRoles.Reader);
+        var id = await factory.WithDbAsync(db => db.Users.Where(u => u.UserName == "helper").Select(u => u.Id).SingleAsync(TestContext.Current.CancellationToken));
+        var edit = $"/administration/users?dialog=edit&id={id}";
+
+        var dialog = await (await browser.GetAsync(edit)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Edit helper", dialog, StringComparison.Ordinal);
+
+        using (var tooShort = await browser.PostFormAsync(edit, new Dictionary<string, string> { ["_handler"] = "user-dialog", ["Mode"] = "edit", ["Id"] = id, ["Role"] = AdminRoles.Operator, ["Password"] = "short" }))
+        {
+            var html = await tooShort.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains("role=\"dialog\"", html, StringComparison.Ordinal);
+            Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        }
+
+        using (var saved = await browser.PostFormAsync(edit, new Dictionary<string, string> { ["_handler"] = "user-dialog", ["Mode"] = "edit", ["Id"] = id, ["Role"] = AdminRoles.Operator, ["Password"] = string.Empty }))
+        {
+            var html = await saved.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains("The account was saved.", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("role=\"dialog\"", html, StringComparison.Ordinal);
+        }
+
+        var delete = $"/administration/users?dialog=delete&id={id}";
+        using (await browser.PostFormAsync(delete, new Dictionary<string, string> { ["_handler"] = "user-dialog", ["Mode"] = "delete", ["Id"] = id }))
+        {
+        }
+
+        Assert.False(await factory.WithDbAsync(db => db.Users.AnyAsync(u => u.UserName == "helper", TestContext.Current.CancellationToken)));
     }
 
     private static async Task<DashboardClient> LoginAsync(ServerFactory factory, string name, string role)

@@ -5,107 +5,193 @@
 
 <PageTitle>Users</PageTitle>
 
-<h1>Users</h1>
+<PageHeader Title="Users" Subtitle="Local accounts of the dashboard. Reader sees everything; Operator decides approvals, gates, rollouts and remote actions; Admin changes settings, rules and accounts." Crumbs="@([("Administration", null), ("Users", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-<p>
-    Local accounts of the dashboard. Reader sees everything, Operator decides approvals, gates, rollouts and remote actions,
-    Admin changes settings, rules and accounts. A role change or reset ends the sessions of that account.
-    Passwords need at least 12 characters.
-</p>
+<ActionBand>
+    <a class="btn primary" href="@Path?dialog=new">New user</a>
+</ActionBand>
 
-<form method="post" @formname="users" @onsubmit="HandleAsync">
+<form method="post" @formname="users" @onsubmit="HandleAsync" class="box">
     <AntiforgeryToken />
-    <div class="card flush scroll">
+    <div class="scroll">
         <table>
-            <thead><tr><th>Account</th><th>Role</th><th>State</th><th>New password</th><th></th></tr></thead>
+            <thead><tr><th>Account</th><th>Role</th><th>State</th><th class="n">Actions</th></tr></thead>
             <tbody>
                 @foreach (var user in _users)
                 {
                     <tr>
                         <td>@user.UserName</td>
+                        <td>@user.Role</td>
                         <td>
-                            <select name="Role_@user.Id" aria-label="Role of @user.UserName">
-                                @foreach (var role in AdminRoles.All)
-                                {
-                                    <option value="@role" selected="@(role == user.Role)">@role</option>
-                                }
-                            </select>
-                        </td>
-                        <td>@(user.LockedOut ? (user.LockoutEnd == DateTimeOffset.MaxValue ? "Locked" : "Locked out after failed sign-ins") : "Active")</td>
-                        <td><input name="Password_@user.Id" type="password" autocomplete="new-password" aria-label="New password for @user.UserName" /></td>
-                        <td class="actions">
-                            <button type="submit" name="Action" value="role:@user.Id">Save role</button>
-                            <button type="submit" name="Action" value="password:@user.Id">Set password</button>
                             @if (user.LockedOut)
                             {
-                                <button type="submit" name="Action" value="unlock:@user.Id">Unlock</button>
+                                <span class="pill neutral">@(user.LockoutEnd == DateTimeOffset.MaxValue ? "Locked" : "Locked out after failed sign-ins")</span>
                             }
                             else
                             {
-                                <button type="submit" name="Action" value="lock:@user.Id">Lock</button>
+                                <span class="pill ok">Active</span>
                             }
-                            <button type="submit" name="Action" value="delete:@user.Id">Delete</button>
+                        </td>
+                        <td class="n">
+                            <span class="row-actions">
+                                <a class="btn" href="@Path?dialog=edit&amp;id=@Uri.EscapeDataString(user.Id)">Edit</a>
+                                @if (user.LockedOut)
+                                {
+                                    <button type="submit" name="Action" value="unlock:@user.Id">Unlock</button>
+                                }
+                                else
+                                {
+                                    <button type="submit" name="Action" value="lock:@user.Id">Lock</button>
+                                }
+                                <a class="btn danger" href="@Path?dialog=delete&amp;id=@Uri.EscapeDataString(user.Id)">Delete</a>
+                            </span>
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
-
-    <h2>New account</h2>
-    <label>Account name <input name="NewName" maxlength="256" autocomplete="off" /></label>
-    <label>Initial password <input name="NewPassword" type="password" autocomplete="new-password" /></label>
-    <label>
-        Role
-        <select name="NewRole">
-            @foreach (var role in AdminRoles.All)
-            {
-                <option value="@role">@role</option>
-            }
-        </select>
-    </label>
-    <button type="submit" name="Action" value="create">Create account</button>
 </form>
 
+@if (_dialog is "new" or "edit")
+{
+    var editing = _dialog == "edit" ? _users.FirstOrDefault(u => u.Id == DialogId) : null;
+    @if (_dialog == "new" || editing is not null)
+    {
+        <Dialog Title="@(editing is null ? "New user" : $"Edit {editing.UserName}")" CloseHref="@Path">
+            <form method="post" @formname="user-dialog" @onsubmit="SaveAsync">
+                <AntiforgeryToken />
+                <input type="hidden" name="Mode" value="@(editing is null ? "create" : "edit")" />
+                <input type="hidden" name="Id" value="@editing?.Id" />
+                <div class="dialog-body">
+                    @if (MessageIsError)
+                    {
+                        <p class="error" role="alert">@Message</p>
+                    }
+                    <label class="field"><span>Account name</span>
+                        @if (editing is null)
+                        {
+                            <input name="Name" maxlength="256" autocomplete="off" required value="@Name" />
+                        }
+                        else
+                        {
+                            <input value="@editing.UserName" disabled />
+                        }
+                    </label>
+                    <label class="field"><span>Role</span>
+                        <select name="Role">
+                            @foreach (var role in AdminRoles.All)
+                            {
+                                <option value="@role" selected="@(role == (Role ?? editing?.Role ?? AdminRoles.Reader))">@role</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="field"><span>@(editing is null ? "Initial password" : "New password (empty: keep the current one)")</span>
+                        <input name="Password" type="password" autocomplete="new-password" />
+                        <span class="help">At least 12 characters. A role change or new password ends the sessions of this account within a minute.</span>
+                    </label>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(editing is null ? "Create user" : "Save")</button></div>
+            </form>
+        </Dialog>
+    }
+}
+else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is { } doomed)
+{
+    <Dialog Title="@($"Delete {doomed.UserName}?")" CloseHref="@Path">
+        <form method="post" @formname="user-dialog" @onsubmit="SaveAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Mode" value="delete" />
+            <input type="hidden" name="Id" value="@doomed.Id" />
+            <div class="dialog-body"><p>The account and its sign-in end at once. Audit entries keep its name. Your own account and the last active administrator cannot be deleted.</p></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="danger">Delete user</button></div>
+        </form>
+    </Dialog>
+}
+
 @code {
+    private const string Path = "/administration/users";
+
     [SupplyParameterFromForm(FormName = "users")]
     private string? Action { get; set; }
 
-    [SupplyParameterFromForm(FormName = "users")]
-    private string? NewName { get; set; }
+    [SupplyParameterFromForm(FormName = "user-dialog")]
+    private string? Mode { get; set; }
 
-    [SupplyParameterFromForm(FormName = "users")]
-    private string? NewPassword { get; set; }
+    [SupplyParameterFromForm(FormName = "user-dialog")]
+    private string? Id { get; set; }
 
-    [SupplyParameterFromForm(FormName = "users")]
-    private string? NewRole { get; set; }
+    [SupplyParameterFromForm(FormName = "user-dialog")]
+    private string? Name { get; set; }
 
-    [CascadingParameter]
-    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+    [SupplyParameterFromForm(FormName = "user-dialog")]
+    private string? Password { get; set; }
 
+    [SupplyParameterFromForm(FormName = "user-dialog")]
+    private string? Role { get; set; }
+
+    /// <summary>Dialog the address asks for: new, edit or delete (with <see cref="DialogId"/>).</summary>
+    [SupplyParameterFromQuery(Name = "dialog")]
+    private string? DialogName { get; set; }
+
+    [SupplyParameterFromQuery(Name = "id")]
+    private string? DialogId { get; set; }
+
+    private string? _dialog;
     private IReadOnlyList<UserSummary> _users = [];
 
-    protected override async Task OnInitializedAsync() => _users = await Administration.ListAsync(CancellationToken.None);
+    protected override async Task OnInitializedAsync()
+    {
+        _dialog = DialogName;
+        _users = await Administration.ListAsync(CancellationToken.None);
+    }
 
+    /// <summary>Lock and unlock from the list.</summary>
     private async Task HandleAsync()
     {
         var actor = await GetActorAsync();
-        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
-        string? Field(string name) => form?[name].ToString();
-
         var (outcome, success) = Action?.Split(':', 2) switch
         {
-            ["create"] => (await Administration.CreateAsync(NewName, NewPassword, NewRole, actor, CancellationToken.None), "The account was created."),
-            ["role", var id] => (await Administration.SetRoleAsync(id, Field($"Role_{id}"), actor, CancellationToken.None), "The role was changed."),
-            ["password", var id] => (await Administration.ResetPasswordAsync(id, Field($"Password_{id}"), actor, CancellationToken.None), "The password was set."),
-            ["lock", var id] => (await Administration.SetLockedAsync(id, true, actor, CancellationToken.None), "The account was locked."),
-            ["unlock", var id] => (await Administration.SetLockedAsync(id, false, actor, CancellationToken.None), "The account was unlocked."),
-            ["delete", var id] => (await Administration.DeleteAsync(id, actor, CancellationToken.None), "The account was deleted."),
+            ["lock", var id] when id.Length > 0 => (await Administration.SetLockedAsync(id, true, actor, CancellationToken.None), "The account was locked."),
+            ["unlock", var id] when id.Length > 0 => (await Administration.SetLockedAsync(id, false, actor, CancellationToken.None), "The account was unlocked."),
             _ => (new Outcome("Invalid request."), string.Empty),
         };
 
         ShowResult(outcome.Error, success);
+        _users = await Administration.ListAsync(CancellationToken.None);
+    }
+
+    /// <summary>Create, edit and delete from the dialog; the dialog stays open on an error, so nothing typed is lost.</summary>
+    private async Task SaveAsync()
+    {
+        var actor = await GetActorAsync();
+        Outcome outcome;
+        string success;
+        switch (Mode)
+        {
+            case "create":
+                (outcome, success) = (await Administration.CreateAsync(Name?.Trim(), Password, Role, actor, CancellationToken.None), "The account was created.");
+                break;
+            case "edit" when !string.IsNullOrEmpty(Id):
+                outcome = await Administration.SetRoleAsync(Id, Role, actor, CancellationToken.None);
+                if (outcome.Succeeded && !string.IsNullOrEmpty(Password))
+                {
+                    outcome = await Administration.ResetPasswordAsync(Id, Password, actor, CancellationToken.None);
+                }
+
+                success = "The account was saved.";
+                break;
+            case "delete" when !string.IsNullOrEmpty(Id):
+                (outcome, success) = (await Administration.DeleteAsync(Id, actor, CancellationToken.None), "The account was deleted.");
+                break;
+            default:
+                (outcome, success) = (new Outcome("Invalid request."), string.Empty);
+                break;
+        }
+
+        ShowResult(outcome.Error, success);
+        _dialog = outcome.Succeeded ? null : DialogName;
         _users = await Administration.ListAsync(CancellationToken.None);
     }
 }
