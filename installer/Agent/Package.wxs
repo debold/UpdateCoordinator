@@ -11,6 +11,7 @@
   <Package Name="UpdateCoordinator Agent"
            Manufacturer="UpdateCoordinator"
            Version="$(var.ProductVersion)"
+           ProductCode="$(var.ProductCode)"
            UpgradeCode="F94F20CA-E2D1-4F0C-8D0C-4D810C149471"
            Scope="perMachine"
            InstallerVersion="500"

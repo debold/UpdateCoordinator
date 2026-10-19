@@ -13,6 +13,7 @@
   <Package Name="UpdateCoordinator Central Server"
            Manufacturer="UpdateCoordinator"
            Version="$(var.ProductVersion)"
+           ProductCode="$(var.ProductCode)"
            UpgradeCode="F8E3FCF7-6CF5-4113-8F2A-9CDAD522B559"
            Scope="perMachine"
            InstallerVersion="500"

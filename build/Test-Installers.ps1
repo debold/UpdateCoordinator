@@ -53,15 +53,10 @@ function Wait-Until([scriptblock] $Condition, [int] $Seconds) {
     return $false
 }
 
-function Get-MsiProperty([string] $Path, [string] $Property) {
-    $installer = New-Object -ComObject WindowsInstaller.Installer
-    $database = $installer.GetType().InvokeMember('OpenDatabase', 'InvokeMethod', $null, $installer, @($Path, 0))
-    $view = $database.GetType().InvokeMember('OpenView', 'InvokeMethod', $null, $database, @("SELECT Value FROM Property WHERE Property='$Property'"))
-    $view.GetType().InvokeMember('Execute', 'InvokeMethod', $null, $view, $null)
-    $record = $view.GetType().InvokeMember('Fetch', 'InvokeMethod', $null, $view, $null)
-    $value = $record.GetType().InvokeMember('StringData', 'GetProperty', $null, $record, 1)
-    $view.GetType().InvokeMember('Close', 'InvokeMethod', $null, $view, $null)
-    return $value
+function Get-ProductCode([string] $Name) {
+    Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' |
+        Where-Object { (Get-ItemProperty $_.PSPath).DisplayName -eq $Name } |
+        Select-Object -ExpandProperty PSChildName -First 1
 }
 
 function Get-ProductVersion([string] $Name) {
@@ -77,22 +72,11 @@ $healthUrl = "https://localhost:$Port/health"
 $dashboardShortcut = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\UpdateCoordinator\UpdateCoordinator Dashboard.url"
 $certificate = New-SelfSignedCertificate -DnsName 'localhost' -CertStoreLocation 'Cert:\LocalMachine\My' -NotAfter (Get-Date).AddDays(7)
 
-# --- Packages: every build needs its own product code, otherwise an upgrade becomes a failing reconfiguration ----
-foreach ($name in 'Server', 'Agent') {
-    Check "$name versions have different product codes and versions" {
-        $old = Get-MsiProperty "$Version1Directory\UpdateCoordinator.$name.msi" 'ProductCode'
-        $new = Get-MsiProperty "$Version2Directory\UpdateCoordinator.$name.msi" 'ProductCode'
-        $oldVersion = Get-MsiProperty "$Version1Directory\UpdateCoordinator.$name.msi" 'ProductVersion'
-        $newVersion = Get-MsiProperty "$Version2Directory\UpdateCoordinator.$name.msi" 'ProductVersion'
-        Write-Host "  $name $oldVersion $old -> $newVersion $new"
-        $old -ne $new -and $oldVersion -eq '0.1.0' -and $newVersion -eq '0.2.0'
-    }
-}
-
 # --- Version 1: fresh installation ------------------------------------------------------------------------------
 Check 'server installs' { (Invoke-Msi "/i `"$Version1Directory\UpdateCoordinator.Server.msi`" CERTTHUMBPRINT=$($certificate.Thumbprint) HTTPSPORT=$Port" 'server-install.log') -eq 0 }
 Check 'server service runs' { Wait-Until { (Get-Service UpdateCoordinator.Server).Status -eq 'Running' } 60 }
 Check 'server settings in registry' { (Get-ItemProperty $serverKey).CertificateThumbprint -eq $certificate.Thumbprint -and (Get-ItemProperty $serverKey).HttpsUrl -eq "https://*:$Port" }
+$serverCodeV1 = Get-ProductCode 'UpdateCoordinator Central Server'
 Check 'server restarts on failure' { (sc.exe qfailure UpdateCoordinator.Server | Out-String) -match 'RESTART' }
 Check 'firewall rule for the port' { (Get-NetFirewallRule -DisplayName 'UpdateCoordinator Central Server (HTTPS)' | Get-NetFirewallPortFilter).LocalPort -eq "$Port" }
 Check 'health endpoint answers' { Wait-Until { (Invoke-WebRequest $healthUrl -SkipCertificateCheck -UseBasicParsing).StatusCode -eq 200 } 90 }
@@ -101,6 +85,7 @@ Check 'start menu entry opens the dashboard' { (Get-Content $dashboardShortcut -
 Check 'agent installs' { (Invoke-Msi "/i `"$Version1Directory\UpdateCoordinator.Agent.msi`" SERVERURL=https://localhost:$Port/" 'agent-install.log') -eq 0 }
 Check 'agent service runs' { Wait-Until { (Get-Service UpdateCoordinator.Agent).Status -eq 'Running' } 60 }
 Check 'agent address in registry' { (Get-ItemProperty $agentKey).CentralServerUrl -eq "https://localhost:$Port/" }
+$agentCodeV1 = Get-ProductCode 'UpdateCoordinator Agent'
 Check 'agent restarts on failure, also on error exit codes' {
     ((sc.exe qfailure UpdateCoordinator.Agent | Out-String) -match 'RESTART') -and ((sc.exe qfailureflag UpdateCoordinator.Agent | Out-String) -match ':\s*TRUE')
 }
@@ -132,12 +117,14 @@ Check 'server upgrades over a crashing service from a renamed file' { (Invoke-Ms
 Move-Item "$anchor.backup" $anchor -Force
 Start-Service UpdateCoordinator.Server -ErrorAction SilentlyContinue
 Check 'server version 2 installed once' { (Get-ProductVersion 'UpdateCoordinator Central Server') -eq '0.2.0' }
+Check 'server upgrade replaced the product (new product code)' { (Get-ProductCode 'UpdateCoordinator Central Server') -ne $serverCodeV1 }
 Check 'server keeps certificate setting' { (Get-ItemProperty $serverKey).CertificateThumbprint -eq $certificate.Thumbprint }
 Check 'server keeps its database' { Test-Path "$env:ProgramData\UpdateCoordinator\Server\server.db" }
 Check 'server runs after upgrade' { Wait-Until { (Invoke-WebRequest $healthUrl -SkipCertificateCheck -UseBasicParsing).StatusCode -eq 200 } 90 }
 
 Check 'agent upgrades' { (Invoke-Msi "/i `"$Version2Directory\UpdateCoordinator.Agent.msi`"" 'agent-upgrade.log') -eq 0 }
 Check 'agent version 2 installed once' { (Get-ProductVersion 'UpdateCoordinator Agent') -eq '0.2.0' }
+Check 'agent upgrade replaced the product (new product code)' { (Get-ProductCode 'UpdateCoordinator Agent') -ne $agentCodeV1 }
 Check 'agent keeps its address' { (Get-ItemProperty $agentKey).CentralServerUrl -eq "https://localhost:$Port/" }
 Check 'agent keeps its identity' { Test-Path "$env:ProgramData\UpdateCoordinator\Agent\identity.dat" }
 Check 'agent runs after upgrade' { Wait-Until { (Get-Service UpdateCoordinator.Agent).Status -eq 'Running' } 60 }
