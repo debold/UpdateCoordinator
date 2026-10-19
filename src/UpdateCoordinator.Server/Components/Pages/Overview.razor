@@ -13,104 +13,113 @@
 
 <PageTitle>Overview</PageTitle>
 
-<div class="page-head">
-    <div>
-        <h1>Overview</h1>
-        <div class="subtitle">As of @Format(_now) UTC</div>
-    </div>
-    <form method="post" @formname="pause" @onsubmit="TogglePauseAsync" class="actions">
-        <AntiforgeryToken />
-        <span class="pill @(_paused ? "fail" : "ok")">@(_paused ? "Global pause: no new installations" : "Installations running")</span>
-        @if (_canOperate)
-        {
-            <button type="submit" name="Pause" value="@(_paused ? "off" : "on")">@(_paused ? "Resume installations" : "Pause all installations")</button>
-        }
-    </form>
-</div>
+<PageHeader Title="Overview" Subtitle="@($"As of {Format(_now)} UTC")" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-<section class="card flush" aria-labelledby="attention-h">
-    <h2 id="attention-h">Needs attention</h2>
-    <div class="attention">
-        @if (_attention.Count == 0)
+<ActionBand>
+    <span class="pill @(_paused ? "fail" : "ok")">@(_paused ? "Global pause: no new installations" : "Installations allowed within maintenance windows")</span>
+    <div class="spacer"></div>
+    @* The form is always rendered (the handler checks the role again); only operators see the button. *@
+    <form method="post" @formname="pause" @onsubmit="TogglePauseAsync">
+        <AntiforgeryToken />
+        @if (_canOperate)
         {
-            <div class="empty">Nothing waits for a human decision.</div>
+            <button type="submit" name="Pause" value="@(_paused ? "off" : "on")" class="@(_paused ? "primary" : "danger")">@(_paused ? "Resume installations" : "Pause all installations")</button>
         }
-        @foreach (var item in _attention)
-        {
-            <div class="item">
-                <span class="pill @item.PillClass">@item.Kind</span>
-                <div class="text">
-                    <div class="title">@item.Title</div>
-                    @if (item.Detail is not null)
-                    {
-                        <div class="sub">@item.Detail</div>
-                    }
-                </div>
-                <a class="btn" href="@item.Link">@item.LinkText</a>
-            </div>
-        }
-    </div>
-</section>
+    </form>
+</ActionBand>
 
 <section class="figures" aria-label="Key figures">
-    <div class="card figure">
-        <div class="label">Agents reporting</div>
+    <a class="tile" href="@Servers.Link("status", ReportingStates)">
+        <span class="go">Open ›</span>
+        <div class="label">Servers reporting</div>
         <div class="value">@_reporting <small>/ @_approved</small></div>
-        <div class="detail">@(_approved - _reporting) without heartbeat for over an hour</div>
-    </div>
-    <div class="card figure">
-        <div class="label">Pending client updates</div>
-        <div class="value">@_pendingUpdates</div>
-        <div class="detail">released and not yet installed, on @_pendingServers servers</div>
-    </div>
-    <div class="card figure">
-        <div class="label">Active warnings</div>
-        <div class="value">@(_wsus + _diskWarnings + _rebootPending)</div>
+        <div class="detail">approved servers with a heartbeat within the last hour</div>
+    </a>
+    <a class="tile" href="@Servers.Link("pending", Servers.PendingYes)">
+        <span class="go">Open ›</span>
+        <div class="label">Servers with pending updates</div>
+        <div class="value">@_pendingServers</div>
+        <div class="detail">@_pendingUpdates released updates not installed yet; they install in the next maintenance window</div>
+    </a>
+    <a class="tile @(_failedServers > 0 ? "attention-tile" : null)" href="@Servers.Link("status", ServerHealth.Label(ServerHealthState.Failed))">
+        <span class="go">Open ›</span>
+        <div class="label">Servers with failures</div>
+        <div class="value">@_failedServers</div>
+        <div class="detail">failed installation or pre-flight check</div>
+    </a>
+    <a class="tile" href="@Servers.Link("status", ServerHealth.Label(ServerHealthState.Warning), ServerHealth.Label(ServerHealthState.RebootPending))">
+        <span class="go">Open ›</span>
+        <div class="label">Servers with warnings</div>
+        <div class="value">@_warningServers</div>
         <div class="detail">@_wsus WSUS source · @_diskWarnings low disk · @_rebootPending reboot pending</div>
-    </div>
-    @if (_coverage.ReadAtUtc is not null)
-    {
-        <div class="card figure">
-            <div class="label">AD coverage</div>
-            <div class="value">@(_coverage.Percent is { } percent ? $"{percent} %" : "–")</div>
-            <div class="detail">@_coverage.Covered of @_coverage.Supported supported server accounts · <a href="/coverage">@_coverage.Missing.Count without agent</a></div>
-        </div>
-    }
-    <div class="card figure">
+    </a>
+    <a class="tile" href="@Servers.Link("pending", Servers.PendingNo)">
+        <span class="go">Open ›</span>
         <div class="label">Patch compliance</div>
         <div class="value">@_compliancePercent %</div>
         <div class="detail">servers with every released update installed</div>
-    </div>
+    </a>
+    @if (_coverage.ReadAtUtc is not null)
+    {
+        <a class="tile" href="/coverage">
+            <span class="go">Open ›</span>
+            <div class="label">AD coverage</div>
+            <div class="value">@(_coverage.Percent is { } percent ? $"{percent} %" : "–")</div>
+            <div class="detail">@_coverage.Covered of @_coverage.Supported supported server accounts run an agent · @_coverage.Missing.Count without agent</div>
+        </a>
+    }
 </section>
 
-<section class="card flush" aria-labelledby="rings-h">
-    <h2 id="rings-h">Deployment by ring</h2>
-    <div class="card-body scroll">
-        <table>
-            <thead><tr><th>Ring</th><th>Servers</th><th>Active updates</th><th>Status (server × update)</th><th>Health</th></tr></thead>
-            <tbody>
-                @foreach (var ring in _rings)
-                {
-                    <tr>
-                        <td><a href="/rings/@ring.Id">@ring.Order · @ring.Name</a></td>
-                        <td>@ring.Servers</td>
-                        <td>@ring.ActiveUpdates</td>
-                        <td><StackedBar Counts="@ring.Counts" /></td>
-                        <td><span class="pill @ring.HealthClass">@ring.Health</span></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-</section>
-<Legend />
+<div class="grid-side">
+    <Box Title="Deployment by ring" Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Ring</th><th class="n">Servers</th><th class="n">Active updates</th><th>Status (server × update)</th><th>State</th></tr></thead>
+                <tbody>
+                    @foreach (var ring in _rings)
+                    {
+                        <tr>
+                            <td class="nowrap"><a href="/rings/@ring.Id">@ring.Order · @ring.Name</a></td>
+                            <td class="n">@ring.Servers</td>
+                            <td class="n">@ring.ActiveUpdates</td>
+                            <td><StackedBar Counts="@ring.Counts" /></td>
+                            <td><span class="pill @ring.HealthClass">@ring.Health</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="box-body"><Legend /></div>
+    </Box>
 
-<section class="card" aria-labelledby="trend-h">
-    <h2 id="trend-h">Patch compliance, last 90 days</h2>
-    <div class="sub">Share of approved servers with every released update installed.</div>
+    <Box Title="Needs attention" Flush="true">
+        <div class="attention">
+            @if (_attention.Count == 0)
+            {
+                <div class="empty">Nothing waits for a human decision.</div>
+            }
+            @foreach (var item in _attention)
+            {
+                <div class="item">
+                    <span class="pill @item.PillClass">@item.Kind</span>
+                    <div class="text">
+                        <div class="title">@item.Title</div>
+                        @if (item.Detail is not null)
+                        {
+                            <div class="sub">@item.Detail</div>
+                        }
+                    </div>
+                    <a class="btn" href="@item.Link">@item.LinkText</a>
+                </div>
+            }
+        </div>
+    </Box>
+</div>
+
+<Box Title="Patch compliance, last 90 days" Hint="Share of approved servers with every released update installed">
     <TrendChart Points="@_trend" />
-</section>
+</Box>
 
 @code {
     private sealed record AttentionItem(string Kind, string PillClass, string Title, string? Detail, string Link, string LinkText);
@@ -134,6 +143,11 @@
     private int _diskWarnings;
     private int _rebootPending;
     private int _compliancePercent;
+    private int _failedServers;
+    private int _warningServers;
+
+    /// <summary>Health states of approved servers that sent a heartbeat within the last hour.</summary>
+    private static readonly string[] ReportingStates = [.. Enum.GetValues<ServerHealthState>().Where(s => s is not (ServerHealthState.Offline or ServerHealthState.NotApproved)).Select(ServerHealth.Label)];
     private UpdateCoordinator.Server.Approval.CoverageReport _coverage = new(null, 0, 0, [], []);
 
     protected override async Task OnInitializedAsync()
@@ -185,6 +199,8 @@
         _wsus = clients.Count(c => c.WsusServer is not null);
         _diskWarnings = clients.Count(c => c.HealthChecks.Any(h => h.Name == "DiskSpace" && h.Status != (int)HealthStatus.Ok));
         _rebootPending = clients.Count(c => c.RebootPending);
+        _failedServers = health.Values.Count(h => h == ServerHealthState.Failed);
+        _warningServers = health.Values.Count(h => h is ServerHealthState.Warning or ServerHealthState.RebootPending);
         _compliancePercent = _approved == 0 ? 100 : (int)Math.Floor(100.0 * clients.Count(c => !released.Any(e => e.ClientId == c.Id)) / _approved);
 
         await LoadAttentionAsync(health);
@@ -241,7 +257,7 @@
         var count = health.Values.Count(h => h == state);
         if (count > 0)
         {
-            _attention.Add(new AttentionItem(kind, pill, $"{count} {text}", null, $"/servers?health={state}", "Show servers"));
+            _attention.Add(new AttentionItem(kind, pill, $"{count} {text}", null, Servers.Link("status", ServerHealth.Label(state)), "Show servers"));
         }
     }
 

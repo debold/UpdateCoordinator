@@ -123,6 +123,7 @@ button:disabled, .btn.disabled { opacity: 0.5; cursor: not-allowed; }
 a.tile { display: block; position: relative; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.15rem; box-shadow: var(--shadow); }
 a.tile:hover { border-color: var(--accent); text-decoration: none; }
 a.tile .go { position: absolute; right: 1rem; top: 1rem; color: var(--muted); font-size: 0.82rem; }
+a.tile .label { padding-right: 3rem; }
 a.tile.attention-tile { border-left: 4px solid var(--queue); }
 
 /* Pills (state in form, not only in text). */

@@ -40,7 +40,7 @@
                     <SortHeader Table="_table" Column="ring" Label="Ring" Options="@Options("ring")" />
                     <SortHeader Table="_table" Column="group" Label="Groups" Options="@Options("group")" />
                     <SortHeader Table="_table" Column="status" Label="Status" Options="@Options("status")" />
-                    <SortHeader Table="_table" Column="pending" Label="Pending updates" Class="n" />
+                    <SortHeader Table="_table" Column="pending" Label="Pending updates" Class="n" Options="@Options("pending")" />
                     <SortHeader Table="_table" Column="seen" Label="Last heartbeat (UTC)" />
                 </tr>
             </thead>
@@ -79,7 +79,15 @@
 
 @code {
     private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("os", "Operating system"), ("ring", "Ring"), ("group", "Group"), ("status", "Status"), ("domain", "Domain")];
-    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["domain"] = "Domain", ["os"] = "Operating system", ["ring"] = "Ring", ["group"] = "Group", ["status"] = "Status" };
+    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["domain"] = "Domain", ["os"] = "Operating system", ["ring"] = "Ring", ["group"] = "Group", ["status"] = "Status", ["pending"] = "Updates" };
+
+    /// <summary>Filter values of the pending column; the overview links to them.</summary>
+    public const string PendingYes = "Updates pending";
+    public const string PendingNo = "Up to date";
+
+    /// <summary>Address of the server list filtered to the given values of one column.</summary>
+    public static string Link(string column, params string[] values) =>
+        "/servers?" + string.Join("&", values.Select(v => $"{Uri.EscapeDataString(TableQuery.FilterField(column))}={Uri.EscapeDataString(v)}"));
 
     private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, ServerHealthState Health, int Pending, DateTime? LastHeartbeat);
 
@@ -92,7 +100,7 @@
         new("ring", "Ring", r => r.RingOrder, r => [r.Ring]),
         new("group", "Groups", r => r.Groups.FirstOrDefault(), r => r.Groups.Count == 0 ? [string.Empty] : r.Groups),
         new("status", "Status", r => (int)r.Health, r => [ServerHealth.Label(r.Health)]),
-        new("pending", "Pending updates", r => r.Pending),
+        new("pending", "Pending updates", r => r.Pending, r => [r.Pending > 0 ? PendingYes : PendingNo]),
         new("seen", "Last heartbeat", r => r.LastHeartbeat),
     ];
 

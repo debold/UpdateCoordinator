@@ -125,6 +125,28 @@ public sealed class TableTests
         Assert.Equal(1, await factory.WithDbAsync(db => db.AgentActions.CountAsync(a => a.ClientId == ids[0], TestContext.Current.CancellationToken)));
     }
 
+    [Fact]
+    public async Task OverviewTiles_OpenTheServerListWithExactlyTheirFilter()
+    {
+        await using var factory = new ServerFactory();
+        await factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        await SeedAsync(factory);
+        using var reader = new DashboardClient(factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        var overview = await (await reader.GetAsync("/")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("href=\"/servers?f.status=Failed\"", overview, StringComparison.Ordinal);
+        Assert.Contains("href=\"/servers?f.pending=Updates%20pending\"", overview, StringComparison.Ordinal);
+        Assert.Contains("Servers reporting", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Installations running", overview, StringComparison.Ordinal);
+
+        var reporting = await (await reader.GetAsync("/servers?f.status=OK&f.status=Warning&f.status=Reboot%20pending&f.status=Failed")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("SQL01", reporting, StringComparison.Ordinal);
+        Assert.Contains("of 3 servers", reporting, StringComparison.Ordinal);
+    }
+
     private static Task<List<Guid>> SeedAsync(ServerFactory factory)
     {
         factory.StartServer();
