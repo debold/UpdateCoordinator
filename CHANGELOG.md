@@ -32,7 +32,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
-- Dashboard redesign (in progress): one design system (action band for all page actions, boxed content, consistent buttons and pills), tables that sort, filter (header filter with clickable criteria and counts), search, group and page through the address without script. Server list: readable operating system name with build, filters for domain, operating system, ring, group and status, grouping, bulk "Search for updates now" and "Sync inventory" for selected servers.
+- Dashboard redesign (in progress): one design system (action band for all page actions, boxed content, consistent buttons and pills), tables that sort, filter (header filter with clickable criteria and counts), search, group and page through the address without script. Server list: readable operating system name with build, filters for domain, operating system, ring, group and status, grouping, bulk "Search for updates now" and "Sync inventory" for selected servers. Server detail: all actions in the action band (restart and removal confirmed in a dialog), assignment as one saved configuration, maintenance windows from a weekday picker with week preview instead of free text, group multi-select. Overview: every tile opens the server list filtered to exactly what it counts.
 - `POST /api/v1/agents/register`: issues client GUID and client secret, stores the client as `Pending`; rate limited per IP address.
 - `POST /api/v1/agents/heartbeat`: authenticated with HTTP Basic (GUID + secret), records the heartbeat and returns the registration state.
 - Whitelist of message types per registration state, enforced centrally for every agent endpoint.

@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 
+using Microsoft.EntityFrameworkCore;
+
 using UpdateCoordinator.Contracts.Agents;
 using UpdateCoordinator.Server.Administration;
 using UpdateCoordinator.Server.Data;
@@ -31,12 +33,13 @@ public sealed partial class DashboardSnapshots
         }
 
         var css = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "UpdateCoordinator.Server", "wwwroot", "app.css"), TestContext.Current.CancellationToken);
-        var pages = (Environment.GetEnvironmentVariable("UPDATECOORDINATOR_SNAPSHOT_PAGES") ?? "/;/servers;/servers?group=os;/servers?f.status=Offline&sort=name&dir=desc")
+        var pages = (Environment.GetEnvironmentVariable("UPDATECOORDINATOR_SNAPSHOT_PAGES") ?? "/;/servers;/servers?group=os;/servers/{sql01};/servers/{sql01}?dialog=remove")
             .Split(';', StringSplitOptions.RemoveEmptyEntries);
+        var sql01 = await factory.WithDbAsync(db => db.Clients.Where(c => c.HostName == "SQL01").Select(c => c.Id).SingleAsync(TestContext.Current.CancellationToken));
         var index = 0;
         foreach (var page in pages)
         {
-            using var response = await browser.GetAsync(page);
+            using var response = await browser.GetAsync(page.Replace("{sql01}", sql01.ToString(), StringComparison.Ordinal));
             var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             html = StylesheetRegex().Replace(html, $"<style>{css}</style>");
             await File.WriteAllTextAsync(Path.Combine(output!, $"page-{index++:00}.html"), $"<!-- {page} -->\n{html}", TestContext.Current.CancellationToken);

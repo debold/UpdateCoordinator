@@ -119,6 +119,7 @@ button:disabled, .btn.disabled { opacity: 0.5; cursor: not-allowed; }
 .figure .label, .tile .label { color: var(--muted); font-size: 0.88rem; }
 .figure .value, .tile .value { font-size: 1.8rem; font-weight: 650; margin-top: 0.35rem; font-variant-numeric: tabular-nums; }
 .figure .value small, .tile .value small { font-size: 1rem; color: var(--muted); font-weight: 400; }
+.figure .value.small-value, .tile .value.small-value { font-size: 1.05rem; font-weight: 600; }
 .figure .detail, .tile .detail { color: var(--muted); font-size: 0.82rem; margin-top: 0.2rem; }
 a.tile { display: block; position: relative; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.15rem; box-shadow: var(--shadow); }
 a.tile:hover { border-color: var(--accent); text-decoration: none; }

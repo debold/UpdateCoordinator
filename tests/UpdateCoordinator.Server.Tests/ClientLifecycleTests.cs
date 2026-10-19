@@ -132,7 +132,7 @@ public sealed class ClientLifecycleTests
         var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
         await scenario.Factory.CreateUserAsync("operator", Password, AdminRoles.Operator);
         await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
-        var path = $"/servers/{client.ClientId}";
+        var path = $"/servers/{client.ClientId}?dialog=remove";
 
         using (var operatorBrowser = new DashboardClient(scenario.Factory))
         {
@@ -152,7 +152,7 @@ public sealed class ClientLifecycleTests
         {
         }
 
-        using (var unconfirmed = await admin.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "remove", ["Remove"] = "soft" }))
+        using (var unconfirmed = await admin.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "remove", ["Remove"] = "soft", ["ConfirmRemove"] = string.Empty }))
         {
             Assert.Contains("Confirm the removal", await unconfirmed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
