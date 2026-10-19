@@ -117,7 +117,12 @@ Check 'server reuses its certificate after restart' {
     (Wait-Until { (Invoke-WebRequest $healthUrl -SkipCertificateCheck -UseBasicParsing).StatusCode -eq 200 } 90) -and @(Get-OwnCertificate).Count -eq 1
 }
 Check 'server uninstalls again' { (Invoke-Msi "/x `"$Version2Directory\UpdateCoordinator.Server.msi`"" 'server-uninstall-own-certificate.log') -eq 0 }
-Get-OwnCertificate | Remove-Item -DeleteKey
+# PowerShell 7 has no Remove-Item -DeleteKey: delete the persisted CNG key explicitly.
+foreach ($own in Get-OwnCertificate) {
+    $key = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($own)
+    Remove-Item -Path "Cert:\LocalMachine\My\$($own.Thumbprint)"
+    $key.Key.Delete()
+}
 
 if ($failures.Count -gt 0) {
     throw "$($failures.Count) installer checks failed: $($failures -join ', ')"
