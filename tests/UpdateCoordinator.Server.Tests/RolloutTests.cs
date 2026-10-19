@@ -519,17 +519,20 @@ public sealed class RolloutPageTests
         {
         }
 
-        using var response = await browser.PostFormAsync("/administration/release-rules", new Dictionary<string, string>
+        using var response = await browser.PostFormAsync($"/administration/release-rules?dialog=ring&id={RingEntity.TestId}", new Dictionary<string, string>
         {
-            ["_handler"] = "transition",
-            ["FromRing"] = RingEntity.TestId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            [$"MinWait_{RingEntity.TestId}"] = "1",
-            [$"MaxWait_{RingEntity.TestId}"] = "5",
-            [$"Feedback_{RingEntity.TestId}"] = "70",
-            [$"Success_{RingEntity.TestId}"] = "90",
+            ["_handler"] = "release-dialog",
+            ["Mode"] = "ring-edit",
+            ["Id"] = RingEntity.TestId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["Name"] = "Test",
+            ["MinWait"] = "1",
+            ["MaxWait"] = "5",
+            ["Feedback"] = "70",
+            ["Success"] = "90",
+            ["Gate"] = string.Empty,
         });
 
-        Assert.Contains("The transition rule was saved.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains("The ring was saved.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         var transition = await scenario.Factory.WithDbAsync(db => db.RingTransitions.SingleAsync(t => t.FromRingId == RingEntity.TestId, TestContext.Current.CancellationToken));
         Assert.Equal(TimeSpan.FromDays(5), transition.MaximumWait);
         Assert.False(transition.ManualGate);
@@ -545,17 +548,19 @@ public sealed class RolloutPageTests
         {
         }
 
-        using var response = await browser.PostFormAsync("/administration/release-rules", new Dictionary<string, string>
+        using var response = await browser.PostFormAsync($"/administration/release-rules?dialog=ring&id={RingEntity.TestId}", new Dictionary<string, string>
         {
-            ["_handler"] = "transition",
-            ["FromRing"] = RingEntity.TestId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            [$"MinWait_{RingEntity.TestId}"] = "1e3",
-            [$"MaxWait_{RingEntity.TestId}"] = "5",
-            [$"Feedback_{RingEntity.TestId}"] = "70",
-            [$"Success_{RingEntity.TestId}"] = "90",
+            ["_handler"] = "release-dialog",
+            ["Mode"] = "ring-edit",
+            ["Id"] = RingEntity.TestId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["Name"] = "Test",
+            ["MinWait"] = "1e3",
+            ["MaxWait"] = "5",
+            ["Feedback"] = "70",
+            ["Success"] = "90",
         });
 
-        Assert.Contains("Every value must be a whole number.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains("Wait times must be between", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
 
@@ -569,14 +574,14 @@ public sealed class RolloutPageTests
         {
         }
 
-        using var response = await browser.PostFormAsync("/administration/release-rules", new Dictionary<string, string>
+        using var response = await browser.PostFormAsync("/administration/release-rules?dialog=rule-new", new Dictionary<string, string>
         {
-            ["_handler"] = "startrules",
-            ["StartAction"] = "create",
-            ["StartPriority"] = "10",
-            ["StartClassification"] = "Security Updates",
+            ["_handler"] = "release-dialog",
+            ["Mode"] = "rule-create",
+            ["Priority"] = "10",
+            ["Classification"] = "Security Updates",
             ["StartMode"] = "automatic",
-            ["StartDelay"] = "12",
+            ["Delay"] = "12",
         });
 
         Assert.Contains("The start rule was created.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
@@ -585,10 +590,10 @@ public sealed class RolloutPageTests
     }
 
     [Theory]
-    [InlineData("create", "10", "sometimes", "0")]
-    [InlineData("create", "ten", "automatic", "0")]
-    [InlineData("create", "10", "automatic", "-3")]
-    [InlineData("delete:abc", "10", "automatic", "0")]
+    [InlineData("rule-create", "10", "sometimes", "0")]
+    [InlineData("rule-create", "ten", "automatic", "0")]
+    [InlineData("rule-create", "10", "automatic", "-3")]
+    [InlineData("rule-delete", "10", "automatic", "0")]
     public async Task Admin_MalformedStartRuleForm_IsRefused(string action, string priority, string mode, string delay)
     {
         await using var scenario = await RolloutScenario.CreateAsync();
@@ -598,13 +603,13 @@ public sealed class RolloutPageTests
         {
         }
 
-        using var response = await browser.PostFormAsync("/administration/release-rules", new Dictionary<string, string>
+        using var response = await browser.PostFormAsync("/administration/release-rules?dialog=rule-new", new Dictionary<string, string>
         {
-            ["_handler"] = "startrules",
-            ["StartAction"] = action,
-            ["StartPriority"] = priority,
+            ["_handler"] = "release-dialog",
+            ["Mode"] = action,
+            ["Priority"] = priority,
             ["StartMode"] = mode,
-            ["StartDelay"] = delay,
+            ["Delay"] = delay,
         });
 
         Assert.Contains("role=\"alert\"", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);

@@ -508,7 +508,7 @@ else
 
         _ownWindows = MaintenanceWindowFormat.FromJson(_client.MaintenanceWindowsJson) ?? [];
         _effectiveWindows = MaintenanceWindowFormat.FromJson(_client.EffectiveWindowsJson) ?? [];
-        _fallbackRing = RingName(RingEntity.FallbackId);
+        _fallbackRing = _rings.Count > 0 ? _rings[^1].Name : "the final ring";
 
         var entries = await Deployment.GetAsync(null, Id, null, CancellationToken.None);
         _health = ServerHealth.Evaluate(_client, entries.Any(e => e.State == DeploymentState.Failed), Time.GetUtcNow().UtcDateTime);

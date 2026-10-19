@@ -9,8 +9,6 @@ internal sealed class RingEntity
     public const int TestId = 2;
     public const int ProductionId = 3;
 
-    /// <summary>Ring of servers without a manual or rule-based ring assignment.</summary>
-    public const int FallbackId = ProductionId;
 
     public int Id { get; set; }
 

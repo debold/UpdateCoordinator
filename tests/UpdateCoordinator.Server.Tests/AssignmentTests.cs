@@ -347,7 +347,7 @@ public sealed class AssignmentPageTests
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         Assert.Contains("SRV01", await list.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         Assert.DoesNotContain("formname=\"assignment\"", await detail.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
-        Assert.Equal(RingEntity.FallbackId, await factory.WithDbAsync(db => db.Clients.Where(c => c.Id == credentials.ClientId).Select(c => c.RingId).SingleAsync(TestContext.Current.CancellationToken)));
+        Assert.Equal(RingEntity.ProductionId, await factory.WithDbAsync(db => db.Clients.Where(c => c.Id == credentials.ClientId).Select(c => c.RingId).SingleAsync(TestContext.Current.CancellationToken)));
     }
 
     [Fact]

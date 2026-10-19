@@ -245,32 +245,25 @@ Only if both checks pass is the server approved, recorded in the audit log as ac
 
 ## 11. Rings, groups and maintenance windows
 
-**Rings:** every server is in exactly one of the fixed rings `Pilot`, `Test` and `Production`. Production is deployed last and is also the fallback: new servers land in `Production` until a rule or an administrator assigns another ring.
+**Rings:** every server is in exactly one ring. Out of the box the rings are `Pilot`, `Test` and `Production`. Administration → Release rules (role `Admin`) adds rings (always before the final ring, at most 10), renames them and deletes rings without servers and without assignment rules. The last ring is the **final ring**: it is deployed last, cannot be deleted and is the fallback for servers without manual or rule-based ring.
 
-**Groups:** Administration → Groups (role `Admin`). A group bundles servers, e.g. domain controllers, and may have its own maintenance windows.
+**Groups:** Administration → Groups (role `Admin`). A group bundles servers, e.g. domain controllers, with its own maintenance windows, reboot policy and coordination (leases). New and edit use the same dialog.
 
-**Assignment rules:** Administration → Assignment rules (role `Admin`). A rule has a priority, a target (a ring or a group) and up to three conditions, all of which must match: detected role (e.g. `DomainController`), DNS domain and host name pattern (`*` any characters, `?` one character, case-insensitive).
+**Assignment rules:** Administration → Assignment rules (role `Admin`). A rule has a priority, a target (a ring or a group) and up to three conditions, all of which must match: detected roles (chosen from a list; the rule matches servers with any of the selected roles), DNS domain and host name pattern (`*` any characters, `?` one character, case-insensitive). Rules can be edited.
 
-- Ring: a manual ring on the server wins; otherwise the matching ring rule with the lowest priority number; otherwise `Production`.
+- Ring: a manual ring on the server wins; otherwise the matching ring rule with the lowest priority number; otherwise the final ring.
 - Groups: every matching group rule adds its group; manual memberships set on the server stay until they are removed there.
 - Assignment is recalculated when a server registers, after every inventory, after every change in the administration and when the central server starts.
 
-**Maintenance windows:** Administration → Maintenance windows sets the system default; groups and single servers (server detail page) can override it. One window per line in local server time of the server:
-
-```
-Mon-Fri 19:00-05:00
-Sat,Sun 00:00-24:00
-```
-
-A window whose end is not after its start runs over midnight. At most 14 windows per level. The most specific level wins: server windows, otherwise the windows of all groups of the server together, otherwise the system default. The effective windows are shown on the server detail page and delivered to the agent with the release list; agents pick up a change with the next heartbeat.
+**Maintenance windows:** Administration → Maintenance windows sets the system default; groups and single servers (server detail page) can override it. Windows are put together in a picker: weekdays, start and end in local server time of the server, with a week preview and a plain-language summary. A window whose end is not after its start runs over midnight. At most 14 windows per level. The most specific level wins: server windows, otherwise the windows of all groups of the server together, otherwise the system default. Agents pick up a change with the next heartbeat.
 
 Every change is recorded in the audit log.
 
 ## 12. Rollouts (ring logic)
 
-Every update runs through the rings Pilot → Test → Production on its own. A server gets an update only when it is released for the server's ring and the server reported it as missing; it installs it only inside its maintenance windows.
+Every update runs through the rings (by default Pilot → Test → Production) on its own. A server gets an update only when it is released for the server's ring and the server reported it as missing; it installs it only inside its maintenance windows.
 
-**Start rules** (Administration → Release rules, role `Admin`) decide how a newly reported update enters Pilot. The matching rule with the lowest priority number applies; conditions are classification (e.g. `Security Updates`), MSRC severity (e.g. `Critical`) and title pattern (e.g. `*Cumulative Update*`), and all filled conditions must match. "Automatic" starts the rollout, optionally with a delay in hours before Pilot servers may install the update (the wait time for Pilot → Test starts after the delay). "Manual" keeps matching updates **queued** on the Updates page until an `Operator` starts them; updates without a matching rule stay queued as well. By default one rule without conditions starts every update automatically and without delay.
+**Start rules** (Administration → Release rules, role `Admin`) decide how a newly reported update enters the rings. The matching rule with the lowest priority number applies; conditions are classification (e.g. `Security Updates`), MSRC severity (e.g. `Critical`) and title pattern (e.g. `*Cumulative Update*`), and all filled conditions must match. "Automatic" starts the rollout, optionally with a delay in hours before Pilot servers may install the update (the wait time for Pilot → Test starts after the delay). "Manual" keeps matching updates **queued** on the Updates page until an `Operator` starts them; updates without a matching rule stay queued as well. A rule can also release the update in further rings at once ("Starts in"), e.g. definition updates in every ring; rings not selected follow their transition rules. By default one rule without conditions starts every update automatically and without delay in the first ring. Rules are created and edited in a dialog with lists for classification and severity; "Create release rule from this update" on an update page opens it pre-filled.
 
 **Transitions:** Administration → Release rules (role `Admin`) sets per transition the minimum and maximum wait time (days), the feedback rate (share of targeted servers that reported a result) and the success rate (share of successful results), and whether a manual gate applies.
 
@@ -281,9 +274,9 @@ Every update runs through the rings Pilot → Test → Production on its own. A 
 
 After the minimum wait time the next ring is released when both rates are met. At the maximum wait time a good success rate is enough. A poor success rate, or no result at all at the maximum wait time, raises an **alarm**: nothing rolls on until an operator decides.
 
-**Pending approvals** (role `Operator`) lists updates waiting at a manual gate or stopped by an alarm. Approve (or "release anyway" for an alarm) releases the update for the ring; "Stop rollout" withdraws it.
+**Approvals** (role `Operator`) lists updates waiting at a manual gate or stopped by an alarm. Approve (or "release anyway" for an alarm) releases the update for the ring; "Stop rollout" withdraws it.
 
-**Updates** page (role `Reader`, actions `Operator`): state of every rollout per ring, queued updates with the number of servers missing them, and the actions start/resume, stop and "Release to all rings" (manual override, e.g. for a critical security update; servers still install only inside their maintenance windows). Stopping withdraws the update from every server that has not installed it; install results arriving afterwards are ignored.
+**Updates** page (role `Reader`, actions `Operator`): one table of all updates with classification, severity, rollout state, servers missing them and a status donut; filter, sort and page through it, and start, stop or "Release to all rings" for the selected updates (manual override, e.g. for a critical security update; servers still install only inside their maintenance windows). Stopping withdraws the update from every server that has not installed it; install results arriving afterwards are ignored.
 
 Every start, stop, override, approval and rule change is recorded in the audit log.
 
@@ -293,10 +286,13 @@ Every start, stop, override, approval and rule change is recorded in the audit l
 
 ## 13. Dashboard pages
 
-- **Overview** (role `Reader`): items that wait for a human decision (alarms, release gates, new servers, servers with failed installations or pre-flight checks, servers without heartbeat for over an hour), key figures, deployment per ring and the patch compliance trend. Operators pause and resume all installations here; the pause is announced to the agents with their next heartbeat and recorded in the audit log.
-- **Update detail** (role `Reader`, actions `Operator`): one page per update with its progress in every ring, the timeline of releases, gates, alarms and manual actions, and every affected server with status and result; operators start, stop, override and approve gates there.
-- **Rings** (role `Reader`): one page per ring with the state of every server × update pair (successful, pending = released and waiting for the window, queued = missing but not released, failed), the active updates with their rates and the servers of a selected update.
-- **Servers** (role `Reader`): list with health and filters for name or domain, ring and health; the detail page shows pre-flight checks, missing updates with their release state, assignment, maintenance windows and the update history with error codes in plain text.
+Every page follows one pattern: page header, an **action band** with all actions of the page (primary first, destructive ones at the end, confirmed in a dialog), then boxed content. Lists sort by clicking a column, filter through the funnel icon in a column header (clickable values with counts), search, group (where offered) and page through 25 rows at a time; the view is part of the address, so a filtered list can be bookmarked or shared. New and edit open a dialog over the list.
+
+- **Overview** (role `Reader`): key figures as tiles; each tile opens the server list filtered to exactly what it counts. Items that wait for a human decision, deployment per ring and the patch compliance trend. Operators pause and resume all installations in the action band; the pause is announced to the agents with their next heartbeat and recorded in the audit log.
+- **Servers** (role `Reader`, actions `Operator`): operating system as a readable name with the build, filters for domain, operating system, ring, group, status and pending updates, grouping, and "Search for updates now" or "Sync inventory" for the selected servers.
+- **Server detail** (role `Reader`): status tiles, assignment as one saved configuration (ring, reboot policy, groups, maintenance windows; role `Admin`), system facts, missing updates, update history, pre-flight checks and remote actions.
+- **Rings** (role `Reader`): one page per ring with its updates as a table (state, day, feedback, success), the ring status donut, the servers of the ring as their own tab and the status of a selected update per server as a second tab.
+- **Updates** and **update detail** (role `Reader`, actions `Operator`): see section 12; the detail page shows progress per ring, all servers with filters, and the timeline.
 - A server counts as **offline** after one hour without heartbeat. **Patch compliance** is the share of approved servers without any released update left to install; the central server stores one value per day for 400 days.
 
 ## 14. Remote actions

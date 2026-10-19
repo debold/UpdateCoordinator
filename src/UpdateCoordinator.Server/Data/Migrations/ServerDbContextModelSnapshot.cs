@@ -912,6 +912,10 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<int>("Priority")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("StartRingIds")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("TitlePattern")
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");

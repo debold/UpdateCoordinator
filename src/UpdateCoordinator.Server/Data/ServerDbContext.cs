@@ -107,6 +107,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         startRule.Property(r => r.Mode).HasConversion<int>();
         startRule.Property(r => r.Classification).HasMaxLength(64);
         startRule.Property(r => r.MsrcSeverity).HasMaxLength(32);
+        startRule.Property(r => r.StartRingIds).HasMaxLength(200);
         startRule.Property(r => r.TitlePattern).HasMaxLength(128);
 
         // Default: every update starts automatically and without delay (decided 2026-10-18).

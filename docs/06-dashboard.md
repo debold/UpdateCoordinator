@@ -47,7 +47,7 @@ Implemented (2026-10-18): health (offline, failed, reboot pending, warning, OK),
 
 ### Servers and assignment
 
-- **Ring assignment** in three levels: fallback ring Production → rule-based → manual override.
+- **Ring assignment** in three levels: final ring as fallback → rule-based → manual override.
 - **Grouping** with the same logic, with shipped standard rules for role detection (domain controller, Exchange, SQL, cluster, Hyper-V).
 - **Remove server:** soft delete (history is kept) or hard delete (all data is deleted).
 - **Exclusion** of individual servers or groups from the update process, **global pause**.

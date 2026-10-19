@@ -29,7 +29,7 @@
 |---|---|
 | **Server/client** | **Client GUID** (issued centrally, unchanged across renames and domain rejoins), registration state (pending/approved/deleted/blocked on clone suspicion), name, IP, domain membership, OS version, build/UBR (updated on every sync), agent version, detected roles, ring, groups, update source (WU/WSUS), heartbeat time |
 | **Update (catalog)** | Unique update ID with revision, KB, title, category/type (e.g. security, feature), aggregated from agent reports |
-| **Ring** | Name, order, transition rules; the final ring (Production) is also the fallback ring |
+| **Ring** | Name, order, transition rules; the final ring (by default Production) is also the fallback ring. Administrators add rings before the final ring and delete rings without servers and rules; the final ring always stays (Marc, 2026-10-19) |
 | **Ring update state** | Per update **and** ring: feedback rate, success rate, minimum/maximum wait time, transition state, release gate |
 | **Group** | Members (rule-based/manual), coordinated group yes/no (leases), maintenance window |
 | **Assignment rule** | Attribute/AD conditions for ring and group assignment, priority, manual overrides |
@@ -71,7 +71,7 @@ The entire release logic (rates, wait times, transition) applies **per concrete 
 
 ### Implemented (2026-10-18)
 
-- **Start rules** decide how an update enters the first ring (Pilot) when an approved server first reports it as missing: the matching rule with the lowest priority number applies; conditions are classification, MSRC severity and title pattern (all set conditions must match). "Automatic" starts the rollout with an optional delay (0–720 hours) before servers of the first ring may install it; the transition wait time starts after the delay. "Manual" keeps the update **queued** until an Operator starts it; so does the absence of a matching rule. Default (decided 2026-10-18): one rule without conditions, automatic, no delay, so every update starts automatically.
+- **Start rules** decide how an update enters the rings when an approved server first reports it as missing: the matching rule with the lowest priority number applies; conditions are classification, MSRC severity and title pattern (all set conditions must match). "Automatic" starts the rollout with an optional delay (0–720 hours) before servers of the first ring may install it; the transition wait time starts after the delay. "Manual" keeps the update **queued** until an Operator starts it; so does the absence of a matching rule. Default (decided 2026-10-18): one rule without conditions, automatic, no delay, so every update starts automatically. A start rule may release the update in further rings at once (e.g. definition updates in every ring); rings in between follow their transition rules (Marc, 2026-10-19).
 - **Transitions:** Pilot → Test and Test → Production each have a minimum and maximum wait time, a minimum feedback rate and a minimum success rate, and a manual gate. Defaults: Pilot → Test 2–7 days, Test → Production 3–10 days, each 80 % feedback and 95 % success; the manual gate is on for Test → Production only. Wait times run from the release in the source ring. Only success-based transitions are implemented; fixed start times are not.
 - **Rates** are computed from the servers currently in the source ring: targeted = servers the update was released to or that reported a result; the last result per server counts, so a successful retry replaces a failure. If no server of the ring needs the update, the transition passes after the minimum wait time.
 - **Decision:** rule met → next ring released, or "awaiting approval" with a manual gate; feedback met but success poor, or nothing reported at the maximum wait time, or poor success at the maximum wait time → **alarm**. Gates and alarms are decided by an Operator (approve, release anyway, or stop the rollout); an alarm never clears by itself.
@@ -83,7 +83,7 @@ The entire release logic (rates, wait times, transition) applies **per concrete 
 
 ### Ring and group assignment (three levels)
 
-1. **Fallback:** servers without an assignment are in the final ring Production (deployed last; decided 2026-10-18, no separate Default ring).
+1. **Fallback:** servers without an assignment are in the final ring, by default Production (deployed last; decided 2026-10-18, no separate Default ring).
 2. **Rule-based** by attributes (values reported by the client, AD attributes, AD group memberships).
 3. **Manual assignment** of a server or group, overriding the rules.
 

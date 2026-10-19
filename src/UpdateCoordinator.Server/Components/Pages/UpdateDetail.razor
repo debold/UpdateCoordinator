@@ -165,7 +165,7 @@ else
     /// <summary>Opens the new release rule dialog pre-filled with this update's classification, severity and title.</summary>
     private string ReleaseRuleLink => _update is null
         ? "/administration/release-rules"
-        : "/administration/release-rules?dialog=new"
+        : "/administration/release-rules?dialog=rule-new"
             + (_update.Classification is { } classification ? $"&classification={Uri.EscapeDataString(classification)}" : string.Empty)
             + (_update.MsrcSeverity is { } severity ? $"&severity={Uri.EscapeDataString(severity)}" : string.Empty)
             + $"&title={Uri.EscapeDataString(_update.Title.Length > 60 ? _update.Title[..60] : _update.Title)}";

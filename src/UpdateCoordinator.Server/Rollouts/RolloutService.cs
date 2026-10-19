@@ -21,10 +21,17 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
     /// Creates the rollout of an update: released in the first ring, waiting in all others. Does not save.
     /// With a delay, servers of the first ring install it at the earliest after the delay, and the transition wait time starts then.
     /// </summary>
-    public async Task<RolloutEntity> CreateAsync(Guid updateId, int revision, string actor, TimeSpan delay, CancellationToken cancellationToken)
+    /// <param name="updateId">The update.</param>
+    /// <param name="revision">Its revision.</param>
+    /// <param name="actor">Who started it.</param>
+    /// <param name="delay">Delay before the first installation.</param>
+    /// <param name="startRings">Further rings released at once (start rule); unknown IDs are ignored.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    public async Task<RolloutEntity> CreateAsync(Guid updateId, int revision, string actor, TimeSpan delay, IReadOnlyCollection<int>? startRings, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var rings = await db.Rings.AsNoTracking().OrderBy(r => r.Order).Select(r => r.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        bool StartsHere(int ring, int index) => index == 0 || startRings?.Contains(ring) == true;
         var rollout = new RolloutEntity { UpdateId = updateId, Revision = revision, State = RolloutState.Active, StartedAtUtc = now, StartedBy = actor };
         db.Rollouts.Add(rollout);
         db.RolloutRings.AddRange(rings.Select((ring, index) => new RolloutRingEntity
@@ -32,8 +39,8 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
             UpdateId = updateId,
             Revision = revision,
             RingId = ring,
-            State = index == 0 ? RingRolloutState.Released : RingRolloutState.Waiting,
-            ReleasedAtUtc = index == 0 ? now + delay : null,
+            State = StartsHere(ring, index) ? RingRolloutState.Released : RingRolloutState.Waiting,
+            ReleasedAtUtc = StartsHere(ring, index) ? now + delay : null,
             StateChangedAtUtc = now,
         }));
         return rollout;
@@ -71,7 +78,7 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
                 continue;
             }
 
-            await CreateAsync(update.UpdateId, update.Revision, RuleActor, rule.Delay, cancellationToken).ConfigureAwait(false);
+            await CreateAsync(update.UpdateId, update.Revision, RuleActor, rule.Delay, StartRings.Parse(rule.StartRingIds), cancellationToken).ConfigureAwait(false);
             try
             {
                 await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

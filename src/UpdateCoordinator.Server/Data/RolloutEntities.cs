@@ -129,6 +129,12 @@ internal sealed class StartRuleEntity
 
     /// <summary>Delay between the start of the rollout and the earliest installation in the first ring.</summary>
     public TimeSpan Delay { get; set; }
+
+    /// <summary>
+    /// Rings the update is released in right away, comma-separated ring IDs; null means the first ring only. The rings in
+    /// between still follow their transition rules, e.g. definition updates can start in every ring at once.
+    /// </summary>
+    public string? StartRingIds { get; set; }
 }
 
 /// <summary>Patch compliance of one day: approved servers and those with every released update installed.</summary>

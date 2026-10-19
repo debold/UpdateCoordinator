@@ -27,7 +27,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         string action;
         if (rollout is null)
         {
-            await rollouts.CreateAsync(updateId, revision, actor, TimeSpan.Zero, cancellationToken).ConfigureAwait(false);
+            await rollouts.CreateAsync(updateId, revision, actor, TimeSpan.Zero, null, cancellationToken).ConfigureAwait(false);
             action = "Rollout.Started";
         }
         else if (rollout.State == RolloutState.Stopped)
@@ -70,7 +70,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         }
 
         var rollout = await db.Rollouts.SingleOrDefaultAsync(r => r.UpdateId == updateId && r.Revision == revision, cancellationToken).ConfigureAwait(false)
-            ?? await rollouts.CreateAsync(updateId, revision, actor, TimeSpan.Zero, cancellationToken).ConfigureAwait(false);
+            ?? await rollouts.CreateAsync(updateId, revision, actor, TimeSpan.Zero, null, cancellationToken).ConfigureAwait(false);
         if (rollout.Override && rollout.State == RolloutState.Active)
         {
             return new Outcome("The update is already released to every ring.");
@@ -152,8 +152,18 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
     }
 
     /// <summary>Creates a start rule; conditions are optional, a rule without conditions matches every update.</summary>
-    public async Task<Outcome> CreateStartRuleAsync(
-        int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, string actor, CancellationToken cancellationToken)
+    public Task<Outcome> CreateStartRuleAsync(
+        int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, string actor, CancellationToken cancellationToken,
+        IReadOnlyCollection<int>? startRings = null) =>
+        SaveStartRuleAsync(null, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings ?? [], actor, cancellationToken);
+
+    public Task<Outcome> UpdateStartRuleAsync(
+        int ruleId, int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, IReadOnlyCollection<int> startRings, string actor, CancellationToken cancellationToken) =>
+        SaveStartRuleAsync(ruleId, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings, actor, cancellationToken);
+
+    /// <summary>Validates and stores a start rule; <c>startRings</c> lists rings released at once besides the first ring.</summary>
+    private async Task<Outcome> SaveStartRuleAsync(
+        int? ruleId, int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, IReadOnlyCollection<int> startRings, string actor, CancellationToken cancellationToken)
     {
         classification = Normalize(classification);
         msrcSeverity = Normalize(msrcSeverity);
@@ -189,18 +199,41 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
             return new Outcome("The title pattern may have at most 128 characters and no control characters.");
         }
 
-        db.StartRules.Add(new StartRuleEntity
+        var rings = await db.Rings.AsNoTracking().OrderBy(r => r.Order).Select(r => r.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (startRings.Any(id => !rings.Contains(id)))
         {
-            Priority = priority,
-            Classification = classification,
-            MsrcSeverity = msrcSeverity,
-            TitlePattern = titlePattern,
-            Mode = mode,
-            Delay = TimeSpan.FromHours(delayHours),
-        });
+            return new Outcome("A selected ring does not exist.");
+        }
+
+        StartRuleEntity rule;
+        if (ruleId is { } id)
+        {
+            var existing = await db.StartRules.SingleOrDefaultAsync(r => r.Id == id, cancellationToken).ConfigureAwait(false);
+            if (existing is null)
+            {
+                return new Outcome("The rule no longer exists.");
+            }
+
+            rule = existing;
+        }
+        else
+        {
+            rule = new StartRuleEntity();
+            db.StartRules.Add(rule);
+        }
+
+        rule.Priority = priority;
+        rule.Classification = classification;
+        rule.MsrcSeverity = msrcSeverity;
+        rule.TitlePattern = titlePattern;
+        rule.Mode = mode;
+        rule.Delay = TimeSpan.FromHours(delayHours);
+
+        // The first ring always starts; storing it would only repeat the default.
+        rule.StartRingIds = StartRings.Format(startRings.Where(r => r != rings[0]));
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        var details = string.Create(CultureInfo.InvariantCulture, $"priority {priority}, classification {classification ?? "-"}, severity {msrcSeverity ?? "-"}, title {titlePattern ?? "-"}, {mode}, delay {delayHours} hours");
-        await audit.WriteAsync(actor, "StartRule.Created", mode.ToString(), details, cancellationToken).ConfigureAwait(false);
+        var details = string.Create(CultureInfo.InvariantCulture, $"priority {priority}, classification {classification ?? "-"}, severity {msrcSeverity ?? "-"}, title {titlePattern ?? "-"}, {mode}, delay {delayHours} hours, also starts in rings {rule.StartRingIds ?? "-"}");
+        await audit.WriteAsync(actor, ruleId is null ? "StartRule.Created" : "StartRule.Changed", mode.ToString(), details, cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
     }
 

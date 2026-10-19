@@ -30,11 +30,14 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
         var ids = clients.Select(c => c.Id).ToList();
         var memberships = await db.ClientGroups.Where(m => ids.Contains(m.ClientId)).ToListAsync(cancellationToken).ConfigureAwait(false);
 
+        // The final ring (highest order) is the fallback for servers without manual or rule-based ring.
+        var fallback = await db.Rings.AsNoTracking().OrderByDescending(r => r.Order).Select(r => r.Id).FirstAsync(cancellationToken).ConfigureAwait(false);
+
         foreach (var client in clients)
         {
             client.RingId = client.ManualRingId
                 ?? rules.FirstOrDefault(r => r.Target == AssignmentTarget.Ring && Matches(r, client))?.TargetId
-                ?? RingEntity.FallbackId;
+                ?? fallback;
 
             // Rule-based memberships are recalculated; manual memberships stay untouched.
             var mine = memberships.Where(m => m.ClientId == client.Id).ToList();

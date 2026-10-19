@@ -1,201 +1,350 @@
 @page "/administration/release-rules"
 @attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
 @inherits DashboardPageBase
+@using UpdateCoordinator.Contracts.Agents
 @using UpdateCoordinator.Server.Rollouts
 @inject ServerDbContext Db
 @inject RolloutAdministration Administration
+@inject RingAdministration Rings
 
 <PageTitle>Release rules</PageTitle>
 
-<h1>Release rules</h1>
+<PageHeader Title="Release rules" Subtitle="How updates enter the rings (start rules) and when they move on to the next ring (transitions)" Crumbs="@([("Administration", null), ("Release rules", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-<h2>Ring transitions</h2>
-<p>
-    The next ring gets an update when the minimum wait time has passed, enough servers reported (feedback rate) and enough of the reports
-    were successful (success rate). At the maximum wait time a good success rate is enough. A poor success rate raises an alarm instead.
-    With a manual gate, an operator approves the transition under Pending approvals.
-</p>
+<ActionBand>
+    <a class="btn primary" href="@Path?dialog=rule-new">New start rule</a>
+    <a class="btn" href="@Path?dialog=ring-new">New ring</a>
+</ActionBand>
 
-<form method="post" @formname="transition" @onsubmit="SaveTransitionAsync">
-    <AntiforgeryToken />
-    <table>
-        <thead>
-            <tr><th>Transition</th><th>Minimum wait (days)</th><th>Maximum wait (days)</th><th>Feedback rate (%)</th><th>Success rate (%)</th><th>Manual gate</th><th></th></tr>
-        </thead>
-        <tbody>
-            @foreach (var transition in _transitions)
-            {
-                var id = transition.FromRingId;
-                <tr>
-                    <td>@RingName(id) → @NextRingName(id)</td>
-                    <td><input name="MinWait_@id" type="number" min="0" max="@RingTransitionEntity.MaxWaitDays" value="@((int)transition.MinimumWait.TotalDays)" /></td>
-                    <td><input name="MaxWait_@id" type="number" min="0" max="@RingTransitionEntity.MaxWaitDays" value="@((int)transition.MaximumWait.TotalDays)" /></td>
-                    <td><input name="Feedback_@id" type="number" min="0" max="100" value="@transition.MinimumFeedbackPercent" /></td>
-                    <td><input name="Success_@id" type="number" min="0" max="100" value="@transition.MinimumSuccessPercent" /></td>
-                    <td><input name="Gate_@id" type="checkbox" value="true" checked="@transition.ManualGate" /></td>
-                    <td><button type="submit" name="FromRing" value="@id">Save</button></td>
-                </tr>
-            }
-        </tbody>
-    </table>
-</form>
+<Box Title="Rings and transitions" Flush="true" Hint="The next ring gets an update after the minimum wait when enough servers reported and enough succeeded; at the maximum wait a good success rate is enough; a poor success rate raises an alarm">
+    <div class="scroll">
+        <table>
+            <thead><tr><th>Ring</th><th class="n">Servers</th><th>Transition to the next ring</th><th class="n">Actions</th></tr></thead>
+            <tbody>
+                @for (var i = 0; i < _rings.Count; i++)
+                {
+                    var ring = _rings[i];
+                    var final = i == _rings.Count - 1;
+                    <tr>
+                        <td class="nowrap"><a href="/rings/@ring.Id">@ring.Order · @ring.Name</a></td>
+                        <td class="n">@_servers.GetValueOrDefault(ring.Id)</td>
+                        <td>
+                            @if (final)
+                            {
+                                <span class="note">Final ring; servers without manual or rule-based assignment land here</span>
+                            }
+                            else if (_transitions.GetValueOrDefault(ring.Id) is { } t)
+                            {
+                                <span>to @_rings[i + 1].Name after @Days(t.MinimumWait)–@Days(t.MaximumWait) days, feedback ≥ @t.MinimumFeedbackPercent %, success ≥ @t.MinimumSuccessPercent %</span>
+                                @if (t.ManualGate)
+                                {
+                                    <span class="pill queue">manual gate</span>
+                                }
+                            }
+                        </td>
+                        <td class="n"><span class="row-actions">
+                            <a class="btn" href="@Path?dialog=ring&amp;id=@ring.Id">Edit</a>
+                            @if (!final)
+                            {
+                                <a class="btn danger" href="@Path?dialog=ring-delete&amp;id=@ring.Id">Delete</a>
+                            }
+                        </span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</Box>
 
-<h2>Start rules</h2>
-<p>
-    Decide how a newly reported update enters the first ring. The matching rule with the lowest priority number applies; all filled conditions must match,
-    a rule without conditions matches every update. "Automatic" starts the rollout, optionally with a delay before servers of the first ring may install it;
-    "Manual" keeps the update queued until an operator starts it. Without a matching rule the update stays queued.
-</p>
+<Box Title="Start rules" Flush="true" Hint="The matching rule with the lowest priority number decides how a newly reported update starts; without a matching rule it stays queued">
+    <div class="scroll">
+        <table>
+            <thead><tr><th class="n">Priority</th><th>Classification</th><th>Severity</th><th>Title pattern</th><th>Start</th><th>Starts in</th><th class="n">Actions</th></tr></thead>
+            <tbody>
+                @if (_startRules.Count == 0)
+                {
+                    <tr><td colspan="7" class="note">No start rule: every update waits for a manual start.</td></tr>
+                }
+                @foreach (var rule in _startRules)
+                {
+                    <tr>
+                        <td class="n">@rule.Priority</td>
+                        <td>@(rule.Classification ?? "any")</td>
+                        <td>@(rule.MsrcSeverity ?? "any")</td>
+                        <td class="mono">@(rule.TitlePattern ?? "any")</td>
+                        <td>@(rule.Mode == StartMode.Automatic ? (rule.Delay == TimeSpan.Zero ? "Automatically" : $"Automatically after {(int)rule.Delay.TotalHours} hours") : "Manually")</td>
+                        <td>@foreach (var name in StartRingNames(rule)) { <span class="tag">@name</span> }</td>
+                        <td class="n"><span class="row-actions">
+                            <a class="btn" href="@Path?dialog=rule&amp;id=@rule.Id">Edit</a>
+                            <a class="btn danger" href="@Path?dialog=rule-delete&amp;id=@rule.Id">Delete</a>
+                        </span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</Box>
 
-<form method="post" @formname="startrules" @onsubmit="HandleStartRuleAsync">
-    <AntiforgeryToken />
-    <table>
-        <thead>
-            <tr><th>Priority</th><th>Classification</th><th>Severity</th><th>Title pattern</th><th>Start</th><th>Delay (hours)</th><th></th></tr>
-        </thead>
-        <tbody>
-            @foreach (var rule in _startRules)
-            {
-                <tr>
-                    <td>@rule.Priority</td>
-                    <td>@(rule.Classification ?? "any")</td>
-                    <td>@(rule.MsrcSeverity ?? "any")</td>
-                    <td>@(rule.TitlePattern ?? "any")</td>
-                    <td>@rule.Mode</td>
-                    <td>@((int)rule.Delay.TotalHours)</td>
-                    <td><button type="submit" name="StartAction" value="delete:@rule.Id">Delete</button></td>
-                </tr>
-            }
-        </tbody>
-    </table>
-
-    <h3>New start rule</h3>
-    <label>Priority <input name="StartPriority" type="number" min="0" max="10000" value="100" /></label>
-    <label>Classification (e.g. Security Updates) <input name="StartClassification" maxlength="64" /></label>
-    <label>Severity (e.g. Critical) <input name="StartSeverity" maxlength="32" /></label>
-    <label>Title pattern (* and ? allowed) <input name="StartTitle" maxlength="128" /></label>
-    <label>
-        Start
-        <select name="StartMode">
-            <option value="automatic">Automatic</option>
-            <option value="manual">Manual</option>
-        </select>
-    </label>
-    <label>Delay (hours) <input name="StartDelay" type="number" min="0" max="@StartRuleEntity.MaxDelayHours" value="0" /></label>
-    <button type="submit" name="StartAction" value="create">Create rule</button>
-</form>
+@if (_dialog is "rule-new" or "rule" && (_dialog == "rule-new" || EditingRule is not null))
+{
+    var rule = _dialog == "rule" ? EditingRule : null;
+    var classification = Classification ?? rule?.Classification ?? (_dialog == "rule-new" ? PrefillClassification : null);
+    var severity = Severity ?? rule?.MsrcSeverity ?? (_dialog == "rule-new" ? PrefillSeverity : null);
+    var selected = StartRingsSelected?.ToList() ?? (rule is null ? [] : [.. StartRings.Parse(rule.StartRingIds)]);
+    <Dialog Title="@(rule is null ? "New start rule" : "Edit start rule")" CloseHref="@Path" Wide="true">
+        <form method="post" @formname="release-dialog" @onsubmit="SaveAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Mode" value="@(rule is null ? "rule-create" : "rule-edit")" />
+            <input type="hidden" name="Id" value="@rule?.Id" />
+            <div class="dialog-body">
+                @if (MessageIsError)
+                {
+                    <p class="error" role="alert">@Message</p>
+                }
+                @if (rule is null && PrefillTitle is not null)
+                {
+                    <p class="notice">Pre-filled from the update; narrow the title pattern with * and ? as needed.</p>
+                }
+                <div class="form-row">
+                    <label class="field"><span>Classification</span>
+                        <select name="Classification">
+                            <option value="" selected="@string.IsNullOrEmpty(classification)">Any classification</option>
+                            @foreach (var value in Classifications(classification))
+                            {
+                                <option value="@value" selected="@(value == classification)">@value</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="field"><span>Severity</span>
+                        <select name="Severity">
+                            <option value="" selected="@string.IsNullOrEmpty(severity)">Any severity</option>
+                            @foreach (var value in Severities(severity))
+                            {
+                                <option value="@value" selected="@(value == severity)">@value</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="field"><span>Priority (lower wins)</span><input name="Priority" type="number" min="0" max="10000" value="@(Priority ?? rule?.Priority.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "100")" /></label>
+                </div>
+                <label class="field"><span>Title pattern (* and ? allowed)</span><input name="TitlePattern" maxlength="128" value="@(TitlePattern ?? rule?.TitlePattern ?? (_dialog == "rule-new" ? PrefillTitle : null))" placeholder="e.g. *Cumulative Update*" /></label>
+                <div class="form-row">
+                    <label class="field"><span>Start</span>
+                        <select name="StartMode">
+                            <option value="automatic" selected="@((StartModeText ?? rule?.Mode.ToString().ToLowerInvariant() ?? "automatic") == "automatic")">Automatically</option>
+                            <option value="manual" selected="@((StartModeText ?? rule?.Mode.ToString().ToLowerInvariant()) == "manual")">Manually (stays queued until an operator starts it)</option>
+                        </select>
+                    </label>
+                    <label class="field"><span>Delay before the first installation (hours)</span><input name="Delay" type="number" min="0" max="@StartRuleEntity.MaxDelayHours" value="@(Delay ?? ((int)(rule?.Delay.TotalHours ?? 0)).ToString(System.Globalization.CultureInfo.InvariantCulture))" /></label>
+                </div>
+                <fieldset>
+                    <legend>Starts in</legend>
+                    @for (var i = 0; i < _rings.Count; i++)
+                    {
+                        var ring = _rings[i];
+                        @if (i == 0)
+                        {
+                            <label class="check"><input type="checkbox" checked disabled /> @ring.Name (always)</label>
+                        }
+                        else
+                        {
+                            <label class="check"><input type="checkbox" name="StartRingsSelected" value="@ring.Id" checked="@selected.Contains(ring.Id)" /> @ring.Name</label>
+                        }
+                    }
+                    <p class="help">Further rings get the update at once, e.g. definition updates in every ring. Rings not selected follow their transition rules.</p>
+                </fieldset>
+            </div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(rule is null ? "Create start rule" : "Save")</button></div>
+        </form>
+    </Dialog>
+}
+else if (_dialog is "ring-new" or "ring" && (_dialog == "ring-new" || EditingRing is not null))
+{
+    var ring = _dialog == "ring" ? EditingRing : null;
+    var transition = ring is null ? null : _transitions.GetValueOrDefault(ring.Id);
+    var final = ring is not null && ring.Id == _rings[^1].Id;
+    <Dialog Title="@(ring is null ? "New ring" : $"Edit ring {ring.Name}")" CloseHref="@Path">
+        <form method="post" @formname="release-dialog" @onsubmit="SaveAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Mode" value="@(ring is null ? "ring-create" : "ring-edit")" />
+            <input type="hidden" name="Id" value="@ring?.Id" />
+            <div class="dialog-body">
+                @if (MessageIsError)
+                {
+                    <p class="error" role="alert">@Message</p>
+                }
+                <label class="field"><span>Name</span><input name="Name" maxlength="32" required value="@(Name ?? ring?.Name)" /></label>
+                @if (ring is null)
+                {
+                    <p class="help">The new ring is added before @_rings[^1].Name, the final ring. Its transition to the final ring starts with 2–7 days, feedback ≥ 80 % and success ≥ 95 %; edit it afterwards.</p>
+                }
+                else if (final)
+                {
+                    <p class="help">The final ring has no transition: servers without manual or rule-based assignment land here.</p>
+                }
+                else if (transition is not null)
+                {
+                    <div class="form-row">
+                        <label class="field"><span>Minimum wait (days)</span><input name="MinWait" type="number" min="0" max="@RingTransitionEntity.MaxWaitDays" value="@Days(transition.MinimumWait)" /></label>
+                        <label class="field"><span>Maximum wait (days)</span><input name="MaxWait" type="number" min="0" max="@RingTransitionEntity.MaxWaitDays" value="@Days(transition.MaximumWait)" /></label>
+                    </div>
+                    <div class="form-row">
+                        <label class="field"><span>Feedback rate (%)</span><input name="Feedback" type="number" min="0" max="100" value="@transition.MinimumFeedbackPercent" /></label>
+                        <label class="field"><span>Success rate (%)</span><input name="Success" type="number" min="0" max="100" value="@transition.MinimumSuccessPercent" /></label>
+                    </div>
+                    <label class="check"><input type="checkbox" name="Gate" value="true" checked="@transition.ManualGate" /> Manual gate: an operator approves the transition under Approvals</label>
+                }
+            </div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(ring is null ? "Create ring" : "Save")</button></div>
+        </form>
+    </Dialog>
+}
+else if (_dialog == "ring-delete" && EditingRing is { } doomedRing)
+{
+    <Dialog Title="@($"Delete ring {doomedRing.Name}?")" CloseHref="@Path">
+        <form method="post" @formname="release-dialog" @onsubmit="SaveAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Mode" value="ring-delete" />
+            <input type="hidden" name="Id" value="@doomedRing.Id" />
+            <div class="dialog-body"><p>Only a ring without servers and without assignment rules can be deleted. Running rollouts skip it from now on.</p></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="danger">Delete ring</button></div>
+        </form>
+    </Dialog>
+}
+else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
+{
+    <Dialog Title="Delete start rule?" CloseHref="@Path">
+        <form method="post" @formname="release-dialog" @onsubmit="SaveAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Mode" value="rule-delete" />
+            <input type="hidden" name="Id" value="@doomedRule.Id" />
+            <div class="dialog-body"><p>Updates this rule would start are handled by the next matching rule, or stay queued.</p></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="danger">Delete start rule</button></div>
+        </form>
+    </Dialog>
+}
 
 @code {
-    [SupplyParameterFromForm(FormName = "transition")]
-    private string? FromRing { get; set; }
+    private const string Path = "/administration/release-rules";
 
-    [SupplyParameterFromForm(FormName = "startrules")]
-    private string? StartAction { get; set; }
+    /// <summary>Classifications Windows Update uses; values seen in the catalog are added.</summary>
+    private static readonly string[] KnownClassifications = ["Critical Updates", "Definition Updates", "Drivers", "Feature Packs", "Security Updates", "Service Packs", "Tools", "Update Rollups", "Updates", "Upgrades"];
 
-    [SupplyParameterFromForm(FormName = "startrules")]
-    private string? StartPriority { get; set; }
+    private static readonly string[] KnownSeverities = ["Critical", "Important", "Moderate", "Low"];
 
-    [SupplyParameterFromForm(FormName = "startrules")]
-    private string? StartClassification { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Mode { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Id { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Name { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? MinWait { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? MaxWait { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Feedback { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Success { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Gate { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Priority { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Classification { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Severity { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? TitlePattern { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog", Name = "StartMode")] private string? StartModeText { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Delay { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private int[]? StartRingsSelected { get; set; }
 
-    [SupplyParameterFromForm(FormName = "startrules")]
-    private string? StartSeverity { get; set; }
+    [SupplyParameterFromQuery(Name = "dialog")] private string? DialogName { get; set; }
+    [SupplyParameterFromQuery(Name = "id")] private string? DialogId { get; set; }
 
-    [SupplyParameterFromForm(FormName = "startrules")]
-    private string? StartTitle { get; set; }
+    /// <summary>Pre-filled values when the dialog is opened from an update ("Create release rule from this update").</summary>
+    [SupplyParameterFromQuery(Name = "classification")] private string? PrefillClassification { get; set; }
+    [SupplyParameterFromQuery(Name = "severity")] private string? PrefillSeverity { get; set; }
+    [SupplyParameterFromQuery(Name = "title")] private string? PrefillTitle { get; set; }
 
-    [SupplyParameterFromForm(FormName = "startrules", Name = "StartMode")]
-    private string? StartModeText { get; set; }
-
-    [SupplyParameterFromForm(FormName = "startrules")]
-    private string? StartDelay { get; set; }
-
-
-    [CascadingParameter]
-    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
-
+    private string? _dialog;
     private List<RingEntity> _rings = [];
-    private List<RingTransitionEntity> _transitions = [];
+    private Dictionary<int, RingTransitionEntity> _transitions = [];
     private List<StartRuleEntity> _startRules = [];
+    private Dictionary<int, int> _servers = [];
+    private List<string> _catalogClassifications = [];
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private int? DialogNumber => int.TryParse(DialogId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) ? id : null;
 
-    private async Task SaveTransitionAsync()
+    private RingEntity? EditingRing => _rings.FirstOrDefault(r => r.Id == DialogNumber);
+
+    private StartRuleEntity? EditingRule => _startRules.FirstOrDefault(r => r.Id == DialogNumber);
+
+    protected override async Task OnInitializedAsync()
     {
-        var invariant = System.Globalization.CultureInfo.InvariantCulture;
-        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
-        int? Number(string name) =>
-            form is not null && int.TryParse(form[name].ToString(), System.Globalization.NumberStyles.None, invariant, out var value) ? value : null;
-
-        Outcome outcome;
-        if (form is null || !int.TryParse(FromRing, System.Globalization.NumberStyles.None, invariant, out var id)
-            || Number($"MinWait_{id}") is not { } minWait || Number($"MaxWait_{id}") is not { } maxWait
-            || Number($"Feedback_{id}") is not { } feedback || Number($"Success_{id}") is not { } success)
-        {
-            outcome = new Outcome("Every value must be a whole number.");
-        }
-        else
-        {
-            var gate = form[$"Gate_{id}"].ToString() == "true";
-            outcome = await Administration.SetTransitionAsync(id, minWait, maxWait, feedback, success, gate, await GetActorAsync(), CancellationToken.None);
-        }
-
-        ShowResult(outcome.Error, "The transition rule was saved.");
+        _dialog = DialogName;
         await LoadAsync();
     }
 
+    private IEnumerable<string> Classifications(string? current) =>
+        KnownClassifications.Concat(_catalogClassifications).Append(current ?? string.Empty).Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase);
 
-    private async Task HandleStartRuleAsync()
+    private static IEnumerable<string> Severities(string? current) =>
+        KnownSeverities.Append(current ?? string.Empty).Where(s => s.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase);
+
+    private IEnumerable<string> StartRingNames(StartRuleEntity rule) =>
+        _rings.Where((r, i) => i == 0 || StartRings.Parse(rule.StartRingIds).Contains(r.Id)).Select(r => r.Name);
+
+    private static string Days(TimeSpan value) => ((int)value.TotalDays).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private async Task SaveAsync()
     {
-        var invariant = System.Globalization.CultureInfo.InvariantCulture;
         var actor = await GetActorAsync();
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        int? id = int.TryParse(Id, System.Globalization.NumberStyles.None, invariant, out var parsedId) ? parsedId : null;
+        int Number(string? value) => int.TryParse(value, System.Globalization.NumberStyles.None, invariant, out var number) ? number : -1;
         Outcome outcome;
         string success;
-        if (StartAction == "create")
+        switch (Mode)
         {
-            StartMode? mode = StartModeText switch { "automatic" => StartMode.Automatic, "manual" => StartMode.Manual, _ => null };
-            if (!int.TryParse(StartPriority, System.Globalization.NumberStyles.None, invariant, out var priority)
-                || !int.TryParse(string.IsNullOrEmpty(StartDelay) ? "0" : StartDelay, System.Globalization.NumberStyles.None, invariant, out var delay)
-                || mode is null)
-            {
-                outcome = new Outcome("Priority and delay must be whole numbers and the start mode Automatic or Manual.");
-                success = string.Empty;
-            }
-            else
-            {
-                outcome = await Administration.CreateStartRuleAsync(priority, StartClassification, StartSeverity, StartTitle, mode.Value, delay, actor, CancellationToken.None);
-                success = "The start rule was created.";
-            }
-        }
-        else if (StartAction?.Split(':', 2) is ["delete", var deleteId] && int.TryParse(deleteId, System.Globalization.NumberStyles.None, invariant, out var ruleId))
-        {
-            outcome = await Administration.DeleteStartRuleAsync(ruleId, actor, CancellationToken.None);
-            success = "The start rule was deleted.";
-        }
-        else
-        {
-            outcome = new Outcome("Invalid request.");
-            success = string.Empty;
+            case "ring-create":
+                (outcome, success) = (await Rings.CreateAsync(Name, actor, CancellationToken.None), "The ring was created.");
+                break;
+            case "ring-edit" when id is { } ringId:
+                outcome = await Rings.RenameAsync(ringId, Name, actor, CancellationToken.None);
+                if (outcome.Succeeded && MinWait is not null)
+                {
+                    outcome = await Administration.SetTransitionAsync(ringId, Number(MinWait), Number(MaxWait), Number(Feedback), Number(Success), Gate == "true", actor, CancellationToken.None);
+                }
+
+                success = "The ring was saved.";
+                break;
+            case "ring-delete" when id is { } ringId:
+                (outcome, success) = (await Rings.DeleteAsync(ringId, actor, CancellationToken.None), "The ring was deleted.");
+                break;
+            case "rule-create" or "rule-edit":
+                var mode = StartModeText switch { "automatic" => StartMode.Automatic, "manual" => StartMode.Manual, _ => (StartMode)(-1) };
+                var rings = (StartRingsSelected ?? []).Distinct().Take(20).ToList();
+                if (Mode == "rule-create")
+                {
+                    (outcome, success) = (await Administration.CreateStartRuleAsync(Number(Priority), Classification, Severity, TitlePattern, mode, Number(Delay), actor, CancellationToken.None, rings), "The start rule was created.");
+                }
+                else
+                {
+                    (outcome, success) = id is { } ruleId
+                        ? (await Administration.UpdateStartRuleAsync(ruleId, Number(Priority), Classification, Severity, TitlePattern, mode, Number(Delay), rings, actor, CancellationToken.None), "The start rule was saved.")
+                        : (new Outcome("Invalid request."), string.Empty);
+                }
+
+                break;
+            case "rule-delete" when id is { } ruleId:
+                (outcome, success) = (await Administration.DeleteStartRuleAsync(ruleId, actor, CancellationToken.None), "The start rule was deleted.");
+                break;
+            default:
+                (outcome, success) = (new Outcome("Invalid request."), string.Empty);
+                break;
         }
 
         ShowResult(outcome.Error, success);
+        _dialog = outcome.Succeeded ? null : DialogName;
         await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
-        _transitions = await Db.RingTransitions.AsNoTracking().ToListAsync();
-        _transitions = [.. _transitions.OrderBy(t => _rings.FindIndex(r => r.Id == t.FromRingId))];
+        _transitions = await Db.RingTransitions.AsNoTracking().ToDictionaryAsync(t => t.FromRingId);
         _startRules = await Db.StartRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync();
-    }
-
-    private string RingName(int id) => _rings.FirstOrDefault(r => r.Id == id)?.Name ?? "?";
-
-    private string NextRingName(int id)
-    {
-        var index = _rings.FindIndex(r => r.Id == id);
-        return index >= 0 && index + 1 < _rings.Count ? _rings[index + 1].Name : "?";
+        _servers = await Db.Clients.Where(c => c.RingId != null && c.State == RegistrationState.Approved).GroupBy(c => c.RingId!.Value).ToDictionaryAsync(g => g.Key, g => g.Count());
+        _catalogClassifications = await Db.Updates.AsNoTracking().Where(u => u.Classification != null).Select(u => u.Classification!).Distinct().Take(50).ToListAsync();
     }
 }
