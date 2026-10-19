@@ -6,141 +6,136 @@
 @inject DeploymentStatus Deployment
 @inject RolloutService Rollouts
 @inject RolloutAdministration Administration
+@inject NavigationManager Navigation
 @inject TimeProvider Time
 
 <PageTitle>@(_update is null ? "Update" : UpdateText.Title(_update, UpdateId))</PageTitle>
 
 @if (_update is null)
 {
-    <h1>Update not found</h1>
+    <PageHeader Title="Update not found" Crumbs="@([("Updates", "/updates"), ("Not found", null)])" />
+    <Box><p>The update is not in the catalog. <a href="/updates">Back to the update list</a></p></Box>
 }
 else
 {
-    <div class="crumbs"><a href="/">Overview</a> / <a href="/updates">Updates</a> / @UpdateText.Title(_update.KbArticle, string.Empty).Trim()</div>
-    <div class="page-head">
-        <div>
-            <h1>@UpdateText.Title(_update, UpdateId)</h1>
-            <div class="subtitle">@(_update.Classification ?? "Unclassified")@(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}") · revision @Revision · first seen @Format(_update.FirstSeenAtUtc) UTC</div>
-        </div>
+    <PageHeader Title="@UpdateText.Title(_update, UpdateId)" Subtitle="@($"{_update.Classification ?? "Unclassified"}{(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}")} · revision {Revision} · first reported {Format(_update.FirstSeenAtUtc)} UTC")" Crumbs="@([("Updates", "/updates"), (_update.KbArticle is null ? "Update" : $"KB{_update.KbArticle}", null)])">
         <span class="pill @_stateClass">@_stateLabel</span>
-    </div>
+    </PageHeader>
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-    @if (_canOperate)
-    {
-        <form method="post" @formname="update" @onsubmit="HandleAsync" class="actions">
-            <AntiforgeryToken />
-            @if (_rollout is null || _rollout.State == RolloutState.Stopped)
-            {
-                <button type="submit" name="Action" value="start">@(_rollout is null ? "Start rollout" : "Resume")</button>
-            }
-            else
-            {
-                <button type="submit" name="Action" value="stop">Stop</button>
-            }
-            @if (_rollout is null || !_rollout.Override || _rollout.State == RolloutState.Stopped)
-            {
-                <button type="submit" name="Action" value="override">Release to all rings</button>
-            }
-            @foreach (var ring in _ringRows.Where(r => r.State is RingRolloutState.AwaitingApproval or RingRolloutState.Alarm))
-            {
-                <button type="submit" class="primary" name="Action" value="approve:@ring.RingId">@(ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve") for @ring.Name</button>
-            }
-        </form>
-    }
+    <ActionBand>
+        @if (_canOperate)
+        {
+            <form id="update-actions" method="post" @formname="update" @onsubmit="HandleAsync">
+                <AntiforgeryToken />
+                @foreach (var ring in _ringRows.Where(r => r.State is RingRolloutState.AwaitingApproval or RingRolloutState.Alarm))
+                {
+                    <button type="submit" class="primary" name="Action" value="approve:@ring.RingId">@(ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve") for @ring.Name</button>
+                }
+                @if (_rollout is null || _rollout.State == RolloutState.Stopped)
+                {
+                    <button type="submit" name="Action" value="start" class="@(_ringRows.Any(r => r.State is RingRolloutState.AwaitingApproval or RingRolloutState.Alarm) ? null : "primary")">@(_rollout is null ? "Start rollout" : "Resume rollout")</button>
+                }
+                @if (_rollout is null || !_rollout.Override || _rollout.State == RolloutState.Stopped)
+                {
+                    <button type="submit" name="Action" value="override">Release to all rings</button>
+                }
+            </form>
+        }
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer">
+            <a class="btn" href="@ReleaseRuleLink">Create release rule from this update…</a>
+        </AuthorizeView>
+        @if (_canOperate && _rollout is { State: not RolloutState.Stopped })
+        {
+            <div class="spacer"></div>
+            <button type="submit" form="update-actions" name="Action" value="stop" class="danger">Stop rollout</button>
+        }
+    </ActionBand>
 
-    <div class="columns">
-        <section class="card narrow" aria-labelledby="total-h">
-            <h2 id="total-h">All servers</h2>
-            <div class="ring-status">
-                <Donut Counts="@_total" />
-                <Legend Counts="@_total" Vertical="true" />
-            </div>
-        </section>
-
-        <section class="card flush wide" aria-labelledby="rings-h">
-            <h2 id="rings-h">Progress by ring</h2>
+    <div class="grid-side">
+        <Box Title="Progress by ring" Flush="true">
             <div class="scroll">
                 <table>
-                    <thead><tr><th>Ring</th><th>State</th><th>Released (UTC)</th><th>Feedback</th><th>Success</th><th>Status (servers)</th></tr></thead>
+                    <thead><tr><th>Ring</th><th>State</th><th>Released (UTC)</th><th class="n">Feedback</th><th class="n">Success</th><th>Status (servers)</th></tr></thead>
                     <tbody>
                         @foreach (var ring in _ringRows)
                         {
                             <tr>
-                                <td><a href="/rings/@ring.RingId?update=@Key">@ring.Order · @ring.Name</a></td>
+                                <td class="nowrap"><a href="/rings/@ring.RingId?update=@Key&amp;tab=update">@ring.Order · @ring.Name</a></td>
                                 <td><span class="pill @RingStateClass(ring.State)">@RingStateLabel(ring)</span></td>
-                                <td>@Format(ring.ReleasedAtUtc)</td>
-                                <td>@Percent(ring.Statistics.FeedbackPercent) (@ring.Statistics.Reported/@ring.Statistics.Targeted)</td>
-                                <td>@Percent(ring.Statistics.SuccessPercent)</td>
+                                <td class="nowrap">@Format(ring.ReleasedAtUtc)</td>
+                                <td class="n">@Percent(ring.Statistics.FeedbackPercent) <span class="note">(@ring.Statistics.Reported/@ring.Statistics.Targeted)</span></td>
+                                <td class="n">@Percent(ring.Statistics.SuccessPercent)</td>
                                 <td><StackedBar Counts="@ring.Counts" /></td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
-        </section>
+        </Box>
+
+        <Box Title="All servers" Hint="servers that reported this update">
+            <div class="ring-status">
+                <Donut Counts="@_total" />
+                <Legend Counts="@_total" Vertical="true" />
+            </div>
+        </Box>
     </div>
 
-    <section class="card flush" aria-labelledby="timeline-h">
-        <h2 id="timeline-h">Timeline</h2>
+    <Box Title="Servers" Flush="true">
+        <TableTools Table="_table" Placeholder="Search server" Labels="ServerLabels" />
         <div class="scroll">
             <table>
-                <thead><tr><th>Time (UTC)</th><th>Event</th><th>By</th></tr></thead>
+                <thead>
+                    <tr>
+                        <SortHeader Table="_table" Column="name" Label="Server" />
+                        <SortHeader Table="_table" Column="ring" Label="Ring" Options="@_serverPage.Options.GetValueOrDefault("ring")" />
+                        <SortHeader Table="_table" Column="status" Label="Status" Options="@_serverPage.Options.GetValueOrDefault("status")" />
+                        <SortHeader Table="_table" Column="earliest" Label="Earliest installation (UTC)" />
+                        <th>Result</th>
+                    </tr>
+                </thead>
                 <tbody>
-                    @if (_timeline.Count == 0)
+                    @if (_serverPage.Rows.Count == 0)
                     {
-                        <tr><td colspan="3">No rollout yet: the update is queued.</td></tr>
+                        <tr><td colspan="5" class="note">No server matches.</td></tr>
                     }
-                    @foreach (var item in _timeline)
-                    {
-                        <tr><td>@Format(item.AtUtc)</td><td>@item.Text</td><td>@item.Actor</td></tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="card flush" aria-labelledby="servers-h">
-        <h2 id="servers-h">Servers</h2>
-        <form method="get" class="filters" role="search">
-            <label>
-                Status
-                <select name="state">
-                    <option value="">Any</option>
-                    @foreach (var state in Enum.GetValues<DeploymentState>())
-                    {
-                        <option value="@state" selected="@(state == _stateFilter)">@state</option>
-                    }
-                </select>
-            </label>
-            <button type="submit">Filter</button>
-        </form>
-        <div class="scroll">
-            <table>
-                <thead><tr><th>Server</th><th>Ring</th><th>Status</th><th>Earliest installation (UTC)</th><th>Result</th></tr></thead>
-                <tbody>
-                    @if (_servers.Count == 0)
-                    {
-                        <tr><td colspan="5">No server matches.</td></tr>
-                    }
-                    @foreach (var row in _servers)
+                    @foreach (var row in _serverPage.Rows)
                     {
                         <tr>
                             <td><a href="/servers/@row.Entry.ClientId">@row.HostName</a></td>
                             <td>@row.Ring</td>
                             <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@row.Entry.State</span></td>
-                            <td>@Format(row.Entry.EarliestInstallAtUtc)</td>
+                            <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
                             <td>@DeploymentText.Result(row.Entry)</td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
-    </section>
+        <Pager Table="_table" Page="PageInfo.Of(_serverPage)" Noun="servers" />
+    </Box>
+
+    <Box Title="Timeline" Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Time (UTC)</th><th>Event</th><th>By</th></tr></thead>
+                <tbody>
+                    @if (_timeline.Count == 0)
+                    {
+                        <tr><td colspan="3" class="note">No rollout yet: the update is queued.</td></tr>
+                    }
+                    @foreach (var item in _timeline)
+                    {
+                        <tr><td class="nowrap">@Format(item.AtUtc)</td><td>@item.Text</td><td>@item.Actor</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
 }
 
 @code {
-    private const int MaxServerRows = 1000;
 
     private sealed record RingRow(int RingId, int Order, string Name, RingRolloutState? State, string? Reason, DateTime? ReleasedAtUtc, RingStatistics Statistics, DeploymentCounts Counts);
 
@@ -154,8 +149,26 @@ else
     [Parameter]
     public int Revision { get; set; }
 
-    [SupplyParameterFromQuery(Name = "state")]
-    public string? StateFilter { get; set; }
+    private static readonly IReadOnlyDictionary<string, string> ServerLabels = new Dictionary<string, string> { ["ring"] = "Ring", ["status"] = "Status" };
+
+    private static readonly IReadOnlyList<TableColumn<ServerRow>> ServerColumns =
+    [
+        new("status", "Status", r => r.Entry.State == DeploymentState.Failed ? 0 : 1 + (int)r.Entry.State, r => [r.Entry.State.ToString()]),
+        new("name", "Server", r => r.HostName),
+        new("ring", "Ring", r => r.Ring, r => [r.Ring]),
+        new("earliest", "Earliest installation", r => r.Entry.EarliestInstallAtUtc),
+    ];
+
+    private TableQuery _table = default!;
+    private TablePage<ServerRow> _serverPage = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
+
+    /// <summary>Opens the new release rule dialog pre-filled with this update's classification, severity and title.</summary>
+    private string ReleaseRuleLink => _update is null
+        ? "/administration/release-rules"
+        : "/administration/release-rules?dialog=new"
+            + (_update.Classification is { } classification ? $"&classification={Uri.EscapeDataString(classification)}" : string.Empty)
+            + (_update.MsrcSeverity is { } severity ? $"&severity={Uri.EscapeDataString(severity)}" : string.Empty)
+            + $"&title={Uri.EscapeDataString(_update.Title.Length > 60 ? _update.Title[..60] : _update.Title)}";
 
     [SupplyParameterFromForm(FormName = "update")]
     private string? Action { get; set; }
@@ -166,9 +179,7 @@ else
     private string _stateLabel = string.Empty;
     private string _stateClass = "neutral";
     private DeploymentCounts _total = DeploymentCounts.Empty;
-    private DeploymentState? _stateFilter;
     private List<RingRow> _ringRows = [];
-    private List<ServerRow> _servers = [];
     private List<TimelineItem> _timeline = [];
 
     private string Key => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{UpdateId:D}:{Revision}");
@@ -215,7 +226,6 @@ else
             return;
         }
 
-        _stateFilter = Enum.TryParse<DeploymentState>(StateFilter, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
         _rollout = await Db.Rollouts.AsNoTracking().SingleOrDefaultAsync(r => r.UpdateId == UpdateId && r.Revision == Revision);
         (_stateLabel, _stateClass) = _rollout switch
         {
@@ -242,11 +252,9 @@ else
         var ids = entries.Select(e => e.ClientId).ToList();
         var hosts = await Db.Clients.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.HostName);
         var ringNames = rings.ToDictionary(r => r.Id, r => r.Name);
-        _servers = [.. entries
-            .Where(e => _stateFilter is null || e.State == _stateFilter)
-            .Select(e => new ServerRow(hosts.GetValueOrDefault(e.ClientId) ?? "?", e.RingId is { } r ? ringNames.GetValueOrDefault(r) ?? "–" : "–", e))
-            .OrderBy(r => r.Entry.State == DeploymentState.Failed ? 0 : 1).ThenBy(r => r.HostName)
-            .Take(MaxServerRows)];
+        _table = TableQuery.From(Navigation, "status");
+        List<ServerRow> servers = [.. entries.Select(e => new ServerRow(hosts.GetValueOrDefault(e.ClientId) ?? "?", e.RingId is { } r ? ringNames.GetValueOrDefault(r) ?? "–" : "–", e))];
+        _serverPage = TablePaging.Apply(servers, _table, ServerColumns, s => s.HostName);
 
         await LoadTimelineAsync(rings, states);
     }

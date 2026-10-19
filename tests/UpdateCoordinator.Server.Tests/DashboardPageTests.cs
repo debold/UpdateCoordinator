@@ -468,7 +468,7 @@ public sealed class UpdateDetailTests
         var html = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1");
 
         Assert.Contains("Progress by ring", html, StringComparison.Ordinal);
-        Assert.Contains("50 % (1/2)", html, StringComparison.Ordinal);
+        Assert.Contains("(1/2)", html, StringComparison.Ordinal);
         Assert.Contains("Released for ring Pilot", html, StringComparison.Ordinal);
         Assert.Contains("Rollout started", html, StringComparison.Ordinal);
         Assert.Contains("PILOT02", html, StringComparison.Ordinal);
@@ -490,12 +490,13 @@ public sealed class UpdateDetailTests
         await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Failed);
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
-        var failed = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?state=Failed");
-        var unknown = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?state=%3Cscript%3E");
+        var failed = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?f.status=Failed");
+        var unknown = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?f.status=%3Cscript%3E&sort=%27");
 
         Assert.Contains("PILOT01", failed, StringComparison.Ordinal);
         Assert.DoesNotContain("PILOT02", failed, StringComparison.Ordinal);
-        Assert.Contains("PILOT02", unknown, StringComparison.Ordinal);
+        // An unknown filter value matches no server instead of being ignored, so a filtered link never shows more than it names.
+        Assert.Contains("No server matches.", unknown, StringComparison.Ordinal);
         Assert.DoesNotContain("<script>", unknown, StringComparison.Ordinal);
     }
 
