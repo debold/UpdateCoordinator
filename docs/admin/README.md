@@ -282,7 +282,12 @@ Every start, stop, override, approval and rule change is recorded in the audit l
 
 | Key | Default | Meaning |
 |---|---|---|
+**Archive:** an update that no approved server has reported as missing for 90 days, and that no server still has to install, leaves the update lists ("Show archived updates" lists it; its history stays). If a server reports it as missing again, it returns. One year after archiving it is deleted together with its rollout, releases and installation history. Updates that Microsoft replaced drop out of the agents' search results and are archived the same way; Windows Update does not report the replacement itself.
+
 | `Rollout:EvaluationInterval` | `00:01:00` | how often the central server evaluates rollouts (10 s to 1 h) |
+| `Updates:ArchiveAfter` | `90.00:00:00` | archive an update no server needed for this long (1 to 730 days) |
+| `Updates:DeleteAfter` | `365.00:00:00` | delete an archived update after this long (30 days to 10 years) |
+| `Updates:Interval` | `06:00:00` | how often the archive check runs |
 
 ## 13. Dashboard pages
 

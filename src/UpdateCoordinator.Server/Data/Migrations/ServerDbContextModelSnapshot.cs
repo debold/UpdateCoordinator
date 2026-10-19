@@ -965,6 +965,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<int>("Revision")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("ArchivedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Classification")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
@@ -974,6 +977,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
 
                     b.Property<string>("KbArticle")
                         .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastNeededAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<long?>("MaxDownloadSizeBytes")

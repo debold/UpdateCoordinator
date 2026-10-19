@@ -42,6 +42,9 @@ internal sealed class UpdateCatalog(ServerDbContext db)
 
             if (update is AvailableUpdate available)
             {
+                // Needed again: back in the lists.
+                entry.LastNeededAtUtc = now;
+                entry.ArchivedAtUtc = null;
                 entry.MaxDownloadSizeBytes ??= available.MaxDownloadSizeBytes;
                 entry.RebootBehavior ??= (int?)available.RebootBehavior;
                 entry.MsrcSeverity ??= available.MsrcSeverity;

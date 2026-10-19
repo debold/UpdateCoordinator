@@ -10,7 +10,7 @@
 
 <PageTitle>Updates</PageTitle>
 
-<PageHeader Title="Updates" Subtitle="Updates reported as missing by approved servers or in a rollout. Each update runs through the rings on its own." />
+<PageHeader Title="@(ShowArchived ? "Archived updates" : "Updates")" Subtitle="@(ShowArchived ? "Updates no server has needed for a while. They return to the list when a server reports them as missing again." : "Updates reported as missing by approved servers or in a rollout. Each update runs through the rings on its own.")" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <AuthorizeView Policy="@AdminRoles.Policies.Operate">
@@ -23,6 +23,7 @@
         <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
             <a class="btn" href="/administration/release-rules">Release rules</a>
         </AuthorizeView>
+        <a class="btn" href="@(ShowArchived ? "/updates" : "/updates?archived=1")">@(ShowArchived ? "Show current updates" : "Show archived updates")</a>
         <div class="spacer"></div>
         <button type="submit" form="bulk" name="Bulk" value="stop" class="danger">Stop rollout</button>
     </ActionBand>
@@ -90,6 +91,12 @@
         new("missing", "Servers missing it", r => r.Missing),
         new("installed", "Installed", r => r.Counts.Total == 0 ? 0 : (double)r.Counts.Successful / r.Counts.Total),
     ];
+
+    /// <summary>True lists the archived updates: no server needed them for a while; they return when a server needs them again.</summary>
+    [SupplyParameterFromQuery(Name = "archived")]
+    private string? Archived { get; set; }
+
+    private bool ShowArchived => Archived == "1";
 
     [SupplyParameterFromForm(FormName = "updates-bulk")]
     private string? Bulk { get; set; }
@@ -167,11 +174,13 @@
             .ToDictionaryAsync(g => (g.UpdateId, g.Revision), g => g.Servers);
         var keys = rollouts.Keys.Concat(missing.Keys).Distinct().ToHashSet();
         var ids = keys.Select(k => k.Item1).Distinct().ToList();
-        var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync();
+        var updates = ShowArchived
+            ? await Db.Updates.AsNoTracking().Where(u => u.ArchivedAtUtc != null).Take(MaxRows).ToListAsync()
+            : await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId) && u.ArchivedAtUtc == null).ToListAsync();
         var counts = (await Deployment.GetAsync(null, null, null, CancellationToken.None)).ToLookup(e => (e.UpdateId, e.Revision));
 
         List<Row> rows = [.. updates
-            .Where(u => keys.Contains((u.UpdateId, u.Revision)))
+            .Where(u => ShowArchived || keys.Contains((u.UpdateId, u.Revision)))
             .Take(MaxRows)
             .Select(u =>
             {

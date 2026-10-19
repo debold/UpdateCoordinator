@@ -88,6 +88,12 @@ internal static class DashboardServiceCollectionExtensions
         services.AddScoped<RolloutService>();
         services.AddScoped<RolloutAdministration>();
         services.AddScoped<RingAdministration>();
+        services.AddOptions<UpdateArchiveOptions>()
+            .Bind(configuration.GetSection(UpdateArchiveOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<UpdateArchive>();
+        services.AddHostedService<UpdateArchiveWorker>();
         services.AddScoped<DeploymentStatus>();
         services.AddScoped<ComplianceHistory>();
         services.AddHostedService<RolloutWorker>();

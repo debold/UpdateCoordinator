@@ -17,6 +17,11 @@
 - No automatic external transfer needed. The servers are backed up externally anyway and include the local image.
 - Litestream was deliberately rejected (disaster recovery only with manual failover, no real HA).
 
+### Update lifecycle
+
+- An update is archived (hidden from the lists, history kept) when no approved server has reported it as missing for 90 days and no server still has to install a release of it. Reported as missing again, it returns. One year after archiving it is deleted with its rollout, releases and installation history. Both times are configurable (`Updates:*`). Decided by Marc on 2026-10-19.
+- Updates replaced by Microsoft drop out of the search results of the agents and are archived by the same rule; Windows Update does not report the replacement, so a faster archive of replaced updates would need the agent to report superseded update IDs (not implemented).
+
 ### Deployment
 
 - Classic Windows installer that installs and starts the service with a default configuration.

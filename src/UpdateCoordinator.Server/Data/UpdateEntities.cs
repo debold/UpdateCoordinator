@@ -24,6 +24,12 @@ internal sealed class UpdateEntity
     public string? MsrcSeverity { get; set; }
 
     public DateTime FirstSeenAtUtc { get; set; }
+
+    /// <summary>Last time an approved server reported the update as missing; null if none ever did.</summary>
+    public DateTime? LastNeededAtUtc { get; set; }
+
+    /// <summary>Hidden from the update lists because no server has needed it for a while; the history stays.</summary>
+    public DateTime? ArchivedAtUtc { get; set; }
 }
 
 /// <summary>
