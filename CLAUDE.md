@@ -61,3 +61,4 @@ Guidelines (always apply):
 - Escalation of notifications (channels decided: e-mail via SMTP and a generic webhook, Marc 2026-10-19)
 - Encryption of the trust anchor in the backup
 - Whether the download file name also carries the trust anchor fingerprint (`docs/03-communication-protocol.md` 3.3)
+- Whether the agent may set the local Automatic Updates setting to "notify" on servers without group policy (opt-in per group); until then it only detects and warns (`docs/05-agent-design.md`, section 3)

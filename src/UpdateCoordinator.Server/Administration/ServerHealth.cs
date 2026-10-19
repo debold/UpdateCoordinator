@@ -49,7 +49,7 @@ internal static class ServerHealth
             return ServerHealthState.RebootPending;
         }
 
-        return client.HealthChecks.Any(c => c.Status == (int)HealthStatus.Warning) || client.WsusServer is not null
+        return client.HealthChecks.Any(c => c.Status == (int)HealthStatus.Warning) || client.WsusServer is not null || client.AutomaticUpdatesBypass
             ? ServerHealthState.Warning
             : ServerHealthState.Ok;
     }

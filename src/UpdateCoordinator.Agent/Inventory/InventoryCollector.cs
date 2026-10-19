@@ -16,7 +16,7 @@ internal sealed partial class InventoryCollector(
     IAgentEnvironment environment)
 {
     private const string CurrentVersionPath = AgentEnvironment.CurrentVersionPath;
-    private const string WindowsUpdatePolicyPath = @"SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate";
+    private const string WindowsUpdatePolicyPath = AutomaticUpdatesReader.PolicyPath;
 
     public async Task<InventoryRequest> CollectAsync(CancellationToken cancellationToken)
     {
@@ -41,12 +41,12 @@ internal sealed partial class InventoryCollector(
         Version = environment.OsVersion,
     };
 
-    /// <summary>WSUS configured by group policy; shared with the pre-flight check.</summary>
+    /// <summary>WSUS and Automatic Updates configuration; shared with the pre-flight check.</summary>
     internal static UpdateSourceInfo ReadUpdateSource(ISystemProbe probe)
     {
         var useWsus = probe.GetRegistryValue(WindowsUpdatePolicyPath + @"\AU", "UseWUServer") == "1";
         var server = WireFormat.Text(probe.GetRegistryValue(WindowsUpdatePolicyPath, "WUServer"), 255);
-        return new UpdateSourceInfo { UsesWsus = useWsus && server is not null, WsusServer = useWsus ? server : null };
+        return new UpdateSourceInfo { UsesWsus = useWsus && server is not null, WsusServer = useWsus ? server : null, AutomaticUpdates = AutomaticUpdatesReader.Read(probe) };
     }
 
     [GeneratedRegex("^[A-Za-z0-9]+$")]

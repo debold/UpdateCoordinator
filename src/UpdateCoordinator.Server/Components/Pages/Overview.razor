@@ -52,7 +52,7 @@
         <span class="go">Open ›</span>
         <div class="label">Servers with warnings</div>
         <div class="value">@_warningServers</div>
-        <div class="detail">@_wsus WSUS source · @_diskWarnings low disk · @_rebootPending reboot pending</div>
+        <div class="detail">@_wsus WSUS source · @_selfInstalling Windows installs itself · @_diskWarnings low disk · @_rebootPending reboot pending</div>
     </a>
     <a class="tile" href="@Servers.Link("pending", Servers.PendingNo)">
         <span class="go">Open ›</span>
@@ -140,6 +140,7 @@
     private int _pendingUpdates;
     private int _pendingServers;
     private int _wsus;
+    private int _selfInstalling;
     private int _diskWarnings;
     private int _rebootPending;
     private int _compliancePercent;
@@ -197,6 +198,7 @@
         _pendingUpdates = released.Count;
         _pendingServers = released.Select(e => e.ClientId).Distinct().Count();
         _wsus = clients.Count(c => c.WsusServer is not null);
+        _selfInstalling = clients.Count(c => c.AutomaticUpdatesBypass);
         _diskWarnings = clients.Count(c => c.HealthChecks.Any(h => h.Name == "DiskSpace" && h.Status != (int)HealthStatus.Ok));
         _rebootPending = clients.Count(c => c.RebootPending);
         _failedServers = health.Values.Count(h => h == ServerHealthState.Failed);

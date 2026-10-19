@@ -387,6 +387,15 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("AutoUpdateMode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AutomaticUpdatesByPolicy")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("AutomaticUpdatesBypass")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("DomainName")
                         .HasMaxLength(253)
                         .HasColumnType("TEXT");

@@ -63,6 +63,30 @@ public sealed class InventoryTests(ServerFactory factory) : IClassFixture<Server
     }
 
     [Fact]
+    public async Task Inventory_StoresAutomaticUpdates_AndOlderAgentsSendNone()
+    {
+        using var client = factory.CreateClient();
+        var credentials = await RegisterTests.RegisterAsync(client);
+        var automatic = new AutomaticUpdatesInfo { Mode = AutomaticUpdateMode.ScheduledInstall, ByPolicy = true };
+
+        using (var response = await SendAsync(client, credentials, ValidInventory() with { UpdateSource = new UpdateSourceInfo { AutomaticUpdates = automatic } }))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        }
+
+        var stored = await factory.WithDbAsync(db => db.Clients.SingleAsync(c => c.Id == credentials.ClientId, TestContext.Current.CancellationToken));
+        Assert.Equal(AutomaticUpdateMode.ScheduledInstall, stored.AutoUpdateMode);
+        Assert.True(stored.AutomaticUpdatesByPolicy);
+        Assert.True(stored.AutomaticUpdatesBypass);
+
+        // An agent before 0.3 sends no value: nothing is assumed.
+        await SendAsync(client, credentials, ValidInventory());
+        stored = await factory.WithDbAsync(db => db.Clients.SingleAsync(c => c.Id == credentials.ClientId, TestContext.Current.CancellationToken));
+        Assert.Null(stored.AutoUpdateMode);
+        Assert.False(stored.AutomaticUpdatesBypass);
+    }
+
+    [Fact]
     public async Task Inventory_IsAcceptedBeforeApproval()
     {
         using var client = factory.CreateClient();

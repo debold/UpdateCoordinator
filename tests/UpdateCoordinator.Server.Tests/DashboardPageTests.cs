@@ -67,6 +67,13 @@ public sealed class ServerHealthTests
         var warning = Client(c => c.HealthChecks = [new HealthCheckEntry { Name = "DiskSpace", Status = (int)HealthStatus.Warning }]);
         Assert.Equal(ServerHealthState.Warning, ServerHealth.Evaluate(warning, false, Now));
     }
+
+    [Fact]
+    public void WindowsInstallingOnItsOwn_IsWarning()
+    {
+        Assert.Equal(ServerHealthState.Warning, ServerHealth.Evaluate(Client(c => c.AutomaticUpdatesBypass = true), false, Now));
+        Assert.Equal(ServerHealthState.Ok, ServerHealth.Evaluate(Client(c => c.AutoUpdateMode = AutomaticUpdateMode.AutoDownloadNotifyInstall), false, Now));
+    }
 }
 
 public sealed class ChartTests

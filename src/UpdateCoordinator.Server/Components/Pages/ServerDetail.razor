@@ -148,6 +148,7 @@ else
                 <dt>Domain</dt><dd>@(_client.DomainName ?? "–")</dd>
                 <dt>Roles</dt><dd>@(_client.Roles.Count > 0 ? string.Join(", ", _client.Roles) : "–")</dd>
                 <dt>Update source</dt><dd>@(_client.WsusServer is { } wsus ? $"WSUS {wsus}" : "Windows Update")</dd>
+                <dt>Automatic updates</dt><dd>@AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy)@if (_client.AutomaticUpdatesBypass) { <span class="pill queue">bypasses rings</span> }</dd>
                 <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
                 <dt>Registered (UTC)</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
             </dl>

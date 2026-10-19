@@ -76,6 +76,51 @@ public sealed record UpdateSourceInfo
     [StringLength(255)]
     [RegularExpression(ValidationPatterns.PrintableText)]
     public string? WsusServer { get; init; }
+
+    /// <summary>How Windows itself installs updates; null from agents before version 0.3.</summary>
+    public AutomaticUpdatesInfo? AutomaticUpdates { get; init; }
+}
+
+/// <summary>
+/// The Windows Automatic Updates mode, values as in the policy value AUOptions
+/// (see docs/05-agent-design.md, section 3, "Windows Automatic Updates").
+/// </summary>
+public enum AutomaticUpdateMode
+{
+    /// <summary>Neither policy nor local setting: Windows Server 2016 and later does not install on its own.</summary>
+    NotConfigured = 0,
+
+    /// <summary>NoAutoUpdate = 1.</summary>
+    Disabled = 1,
+
+    NotifyDownload = 2,
+
+    AutoDownloadNotifyInstall = 3,
+
+    /// <summary>Windows downloads and installs on its own schedule, outside the coordination.</summary>
+    ScheduledInstall = 4,
+
+    LocalAdminChooses = 5,
+
+    NotifyInstallAndRestart = 7,
+}
+
+public sealed record AutomaticUpdatesInfo
+{
+    [EnumDataType(typeof(AutomaticUpdateMode))]
+    public AutomaticUpdateMode Mode { get; init; }
+
+    /// <summary>True if set by group policy (or the policy registry key), false for the local setting.</summary>
+    public bool ByPolicy { get; init; }
+
+    /// <summary>Policy "Always automatically restart at the scheduled time".</summary>
+    public bool ScheduledRestart { get; init; }
+
+    /// <summary>A compliance deadline policy forces installation and restart after a deadline.</summary>
+    public bool Deadline { get; init; }
+
+    /// <summary>True if Windows installs or restarts on its own, bypassing rings and maintenance windows.</summary>
+    public bool BypassesCoordination() => Mode == AutomaticUpdateMode.ScheduledInstall || ScheduledRestart || Deadline;
 }
 
 /// <summary>

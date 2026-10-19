@@ -36,6 +36,9 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
         client.Roles = [.. inventory.Roles.Distinct(StringComparer.OrdinalIgnoreCase)];
         client.UsesWsus = inventory.UpdateSource.UsesWsus;
         client.WsusServer = inventory.UpdateSource.WsusServer;
+        client.AutoUpdateMode = inventory.UpdateSource.AutomaticUpdates?.Mode;
+        client.AutomaticUpdatesByPolicy = inventory.UpdateSource.AutomaticUpdates?.ByPolicy == true;
+        client.AutomaticUpdatesBypass = inventory.UpdateSource.AutomaticUpdates?.BypassesCoordination() == true;
         client.InventoryAtUtc = now;
 
         // Null means "could not be read": keep the previous list instead of wiping it.

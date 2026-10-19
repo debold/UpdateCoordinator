@@ -44,11 +44,12 @@ internal sealed class PreFlightCheck(ISystemProbe probe, IDiskSpace disk, IOptio
     public const string DiskSpaceCheck = "DiskSpace";
     public const string UpdateServiceCheck = "UpdateService";
     public const string UpdateSourceCheck = "UpdateSource";
+    public const string AutomaticUpdatesCheck = "AutomaticUpdates";
 
     private const string UpdateServicePath = @"SYSTEM\CurrentControlSet\Services\wuauserv";
     private const string ServiceStartDisabled = "4";
 
-    public IReadOnlyList<HealthCheckResult> Run() => [CheckDiskSpace(), CheckUpdateService(), CheckUpdateSource()];
+    public IReadOnlyList<HealthCheckResult> Run() => [CheckDiskSpace(), CheckUpdateService(), CheckUpdateSource(), CheckAutomaticUpdates()];
 
     private HealthCheckResult CheckDiskSpace()
     {
@@ -93,5 +94,37 @@ internal sealed class PreFlightCheck(ISystemProbe probe, IDiskSpace disk, IOptio
             ? $"WSUS configured by policy ({source.WsusServer}); the agent searches Windows Update directly."
             : $"WSUS configured by policy ({source.WsusServer}); updates are searched there.";
         return new HealthCheckResult { Name = UpdateSourceCheck, Status = HealthStatus.Warning, Detail = detail.Length <= 512 ? detail : detail[..512] };
+    }
+    /// <summary>
+    /// Windows installing or restarting on its own bypasses rings and maintenance windows: a warning, since the agent only reads
+    /// the setting and never changes it (see docs/05-agent-design.md, section 3, "Windows Automatic Updates").
+    /// </summary>
+    private HealthCheckResult CheckAutomaticUpdates()
+    {
+        var automatic = AutomaticUpdatesReader.Read(probe);
+        var origin = automatic.ByPolicy ? "group policy" : "local setting";
+        if (!automatic.BypassesCoordination())
+        {
+            return new HealthCheckResult { Name = AutomaticUpdatesCheck, Status = HealthStatus.Ok, Detail = $"Windows does not install on its own ({automatic.Mode}, {origin})." };
+        }
+
+        var reasons = new List<string>();
+        if (automatic.Mode == AutomaticUpdateMode.ScheduledInstall)
+        {
+            reasons.Add($"Automatic Updates installs on its own schedule (AUOptions 4, {origin})");
+        }
+
+        if (automatic.ScheduledRestart)
+        {
+            reasons.Add("restarts automatically at the scheduled time");
+        }
+
+        if (automatic.Deadline)
+        {
+            reasons.Add("a compliance deadline forces installation and restart");
+        }
+
+        var detail = string.Join("; ", reasons) + ". Updates may be installed outside rings and maintenance windows; recommended: Configure Automatic Updates 3 or 7, or disabled.";
+        return new HealthCheckResult { Name = AutomaticUpdatesCheck, Status = HealthStatus.Warning, Detail = detail.Length <= 512 ? detail : detail[..512] };
     }
 }

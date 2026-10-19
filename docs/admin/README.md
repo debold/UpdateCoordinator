@@ -421,3 +421,26 @@ If no channel is configured, nothing is sent and nothing is lost: the events go 
 | `Notifications:Enabled` | `true` | switches all notifications off |
 | `Notifications:Interval` | `00:01:00` | how often the conditions are checked (10 seconds to 1 hour) |
 | `Notifications:SecretsPath` | `%ProgramData%\UpdateCoordinator\Server\notification-secrets.dat` | protected file with SMTP password and webhook secret |
+
+## 21. Windows Automatic Updates and group policy
+
+The coordination only works if Windows does not install updates on its own. The agent reads the Automatic Updates setting (group policy first, then the local setting) and reports it; it never changes it.
+
+| Setting on the server | Effect | Shown as |
+|---|---|---|
+| Not configured | Windows Server 2016 and later does not install on its own | OK |
+| Configure Automatic Updates: disabled, 2, 3 or 7 | Windows notifies or only downloads; the agent installs | OK |
+| Configure Automatic Updates: 4 (auto download and schedule the install) | Windows installs on its own schedule, outside rings and maintenance windows | Warning |
+| Always automatically restart at the scheduled time | Windows restarts on its own | Warning |
+| Compliance deadlines (Windows Update for Business) | Windows forces installation and restart after the deadline | Warning |
+
+Where to see it: server detail ("Automatic updates" in the System box, tag "bypasses rings"), pre-flight check `AutomaticUpdates`, server status "Warning" and the overview tile "Servers with warnings".
+
+**Recommended group policy** for servers managed by UpdateCoordinator (Computer Configuration > Administrative Templates > Windows Components > Windows Update):
+
+- **Configure Automatic Updates**: enabled, option **3 – Auto download and notify for install** (Defender signatures keep updating) or **7 – Notify for install and notify for restart**.
+- **Always automatically restart at the scheduled time**: not configured or disabled.
+- No compliance deadlines for these servers.
+- **Specify intranet Microsoft update service location**: not configured, unless WSUS is used on purpose (reported as a warning, see `Updates:Source`).
+
+Note: on Windows Server 2016 and 2019 a group policy refresh can briefly reset the setting to the Windows default (Microsoft known issue "Windows unexpectedly installs updates when automatic updates are disabled by Group Policy"). With option 3 or 7 and no configured schedule this has no effect.

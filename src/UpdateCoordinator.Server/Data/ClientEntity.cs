@@ -44,6 +44,14 @@ internal sealed class ClientEntity
 
     public string? WsusServer { get; set; }
 
+    /// <summary>Windows Automatic Updates mode from the inventory; null until an agent 0.3 or later reports it.</summary>
+    public AutomaticUpdateMode? AutoUpdateMode { get; set; }
+
+    public bool AutomaticUpdatesByPolicy { get; set; }
+
+    /// <summary>Windows installs or restarts on its own (scheduled install, scheduled restart or compliance deadline).</summary>
+    public bool AutomaticUpdatesBypass { get; set; }
+
     public DateTime? InventoryAtUtc { get; set; }
 
     // Update runs (see docs/05-agent-design.md, section 3).

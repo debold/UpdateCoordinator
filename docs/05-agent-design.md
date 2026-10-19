@@ -55,7 +55,7 @@ In addition the agent reports its domain membership. It deliberately reports no 
 ### Implementation (step A, 2026-10-18)
 
 - The update run (pre-flight check, search, report) starts every `Updates:SearchInterval` (default 4 hours) and only on approved clients. A run counts only once its report was delivered; otherwise the next cycle tries again.
-- Pre-flight checks: `DiskSpace` (free space on the system drive below `Updates:MinFreeDiskSpaceMegabytes`, default 4096, is `Failed`; unknown is `Warning`), `UpdateService` (Windows Update service missing or disabled is `Failed`), `UpdateSource` (WSUS by policy is `Warning`). A `Failed` check skips the search.
+- Pre-flight checks: `DiskSpace` (free space on the system drive below `Updates:MinFreeDiskSpaceMegabytes`, default 4096, is `Failed`; unknown is `Warning`), `UpdateService` (Windows Update service missing or disabled is `Failed`), `UpdateSource` (WSUS by policy is `Warning`), `AutomaticUpdates` (Windows installs or restarts on its own is `Warning`, see below). A `Failed` check skips the search.
 - Search: WUA `IsInstalled=0 and IsHidden=0 and Type='Software'`, online, against the configured source (`Updates:Source`: `System` = as configured on the server, `WindowsUpdate` = always Windows Update directly). The same COM access and the same value shaping are used as for the inventory. A failed search is reported with its WUA error code.
 - Releases: the agent keeps the release list of the central server in memory and fetches it when the version announced in the heartbeat changes; without approval the list is empty.
 
@@ -66,6 +66,14 @@ Before every update run: internet connectivity or reachability of the update sou
 ### Update source
 
 Configurable per server whether to search directly against Windows Update or against WSUS (technically via `ServerSelection` of `IUpdateSearcher`).
+
+### Windows Automatic Updates
+
+Windows can install updates by itself, independent of the agent. Then updates arrive outside rings and maintenance windows and the coordination is bypassed. The agent **reads** the setting and reports it with the inventory (`updateSource.automaticUpdates`) and as pre-flight check `AutomaticUpdates`; it **never changes** it (decision pending whether an opt-in may set the local setting on servers without policy).
+
+- Mode: `NoAutoUpdate = 1` in `HKLMSOFTWAREPoliciesMicrosoftWindowsWindowsUpdateAU` is `Disabled`; otherwise `AUOptions` from the policy key, and with option 5 (local administrator chooses) or without policy the local value in `HKLMSOFTWAREMicrosoftWindowsCurrentVersionWindowsUpdateAuto Update`. Unknown values count as not configured. Windows Server 2016 and later does not install on its own without configuration.
+- Bypasses the coordination (warning, server status "Warning"): `AUOptions = 4` (download and install on a schedule), `AlwaysAutoRebootAtScheduledTime = 1` or a compliance deadline (`SetComplianceDeadline = 1` in the WindowsUpdate policy key).
+- Recommended: "Configure Automatic Updates" option 3 (download, notify before install; Defender signatures keep updating) or 7 (notify before install and restart), or disabled. On Windows Server 2016 and 2019 a group policy refresh can briefly reset the setting to the default (Microsoft known issue); option 3 or 7 keeps that harmless.
 
 ## 4. Installation
 
