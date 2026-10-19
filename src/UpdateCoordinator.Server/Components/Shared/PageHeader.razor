@@ -6,7 +6,7 @@
         {
             @if (href is null)
             {
-                <span>@label</span>
+                <span>@label</span>@if (!ReferenceEquals(label, Crumbs[^1].Label)) { <span aria-hidden="true">/</span> }
             }
             else
             {
