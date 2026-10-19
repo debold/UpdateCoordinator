@@ -7,6 +7,7 @@
     Installs the central server and the agent (version 1) with a self-signed certificate, checks services, registry,
     service recovery, firewall and the health endpoint, waits until the agent registered, upgrades both to version 2
     (settings and data must survive) and uninstalls both (nothing may remain except the data under ProgramData).
+    Finally installs the central server without CERTTHUMBPRINT: it must create, use and reuse its own certificate.
 #>
 [CmdletBinding()]
 param(
@@ -103,6 +104,20 @@ Check 'firewall rule removed' { -not (Get-NetFirewallRule -DisplayName 'UpdateCo
 Check 'data under ProgramData kept' { Test-Path "$env:ProgramData\UpdateCoordinator\Server\server.db" }
 
 Remove-Item -Path "Cert:\LocalMachine\My\$($certificate.Thumbprint)"
+
+# --- Without CERTTHUMBPRINT: the central server creates its own certificate --------------------------------------
+function Get-OwnCertificate { Get-ChildItem 'Cert:\LocalMachine\My' | Where-Object FriendlyName -eq 'UpdateCoordinator self-signed' }
+Check 'server installs without certificate' { (Invoke-Msi "/i `"$Version2Directory\UpdateCoordinator.Server.msi`" HTTPSPORT=$Port" 'server-install-own-certificate.log') -eq 0 }
+Check 'server service runs without certificate' { Wait-Until { (Get-Service UpdateCoordinator.Server).Status -eq 'Running' } 60 }
+Check 'server creates a self-signed certificate' { Wait-Until { @(Get-OwnCertificate).Count -eq 1 } 90 }
+Check 'own certificate key cannot be exported' { [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey((Get-OwnCertificate)).Key.ExportPolicy -eq [System.Security.Cryptography.CngExportPolicies]::None }
+Check 'health endpoint answers with own certificate' { Wait-Until { (Invoke-WebRequest $healthUrl -SkipCertificateCheck -UseBasicParsing).StatusCode -eq 200 } 90 }
+Check 'server reuses its certificate after restart' {
+    Restart-Service UpdateCoordinator.Server
+    (Wait-Until { (Invoke-WebRequest $healthUrl -SkipCertificateCheck -UseBasicParsing).StatusCode -eq 200 } 90) -and @(Get-OwnCertificate).Count -eq 1
+}
+Check 'server uninstalls again' { (Invoke-Msi "/x `"$Version2Directory\UpdateCoordinator.Server.msi`"" 'server-uninstall-own-certificate.log') -eq 0 }
+Get-OwnCertificate | Remove-Item -DeleteKey
 
 if ($failures.Count -gt 0) {
     throw "$($failures.Count) installer checks failed: $($failures -join ', ')"

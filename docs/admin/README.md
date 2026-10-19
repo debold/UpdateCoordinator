@@ -31,13 +31,34 @@ Agents authenticate every request except registration and the trust binding with
 
 ## 3. TLS certificate of the central server
 
-The central server only listens on HTTPS. Its certificate comes from the Windows certificate store, so no certificate password is stored in configuration.
+The central server only listens on HTTPS. Its certificate comes from the Windows certificate store, so no certificate password is stored in configuration. Agents never rely on a CA: they accept exactly the certificate the trust anchor has signed, so every certificate change below is followed by all agents automatically on their next contact.
 
-1. Import a certificate with private key into `LocalMachine\My` (any CA, also self-signed: agents do not rely on the CA but on the trust anchor). The service account needs read access to the private key.
+**First start.** With `CERTTHUMBPRINT` (or a selection in the dashboard) the central server uses that certificate. Without one it creates a self-signed certificate for itself:
+
+- CN is the fully qualified name of the machine, the SAN contains the fully qualified name and the host name.
+- RSA 3072 key in the machine key store, not exportable; friendly name `UpdateCoordinator self-signed`; stored in `LocalMachine\My`.
+- Valid for one year (`Certificate:SelfSignedLifetime`). After a restart the existing certificate is reused.
+
+Browsers do not trust a self-signed certificate and warn on every rollover. For the dashboard a certificate from an internal CA is recommended (step by step below); agents work with either.
+
+**Using a CA certificate.**
+
+1. Enroll a server authentication certificate with private key into `LocalMachine\My`, ideally through autoenrollment. LocalSystem (the service account) can read machine keys.
 2. Select it under Administration → TLS certificate (role `Admin`, with confirmation), or set it at installation with `CERTTHUMBPRINT`. The selection is stored in `HKLM\SOFTWARE\UpdateCoordinator\Server\CertificateThumbprint`; `Trust:CertificateThumbprint` in the configuration works as well.
-3. The central server presents the new certificate at once (no restart) and signs a new trust binding for it (next serial). Agents accept the new certificate automatically on their next contact.
+3. The central server presents the new certificate at once (no restart) and signs a new trust binding for it (next serial).
 
-Selecting the certificate is its approval; the change is recorded in the audit log. Renewing a certificate with the same key does not even need a new binding.
+Selecting the certificate is its approval; the change is recorded in the audit log.
+
+**Renewal and rollover.** Every 15 minutes (`Certificate:CheckInterval`) the central server checks the store:
+
+| Situation | Reaction | Audit entry |
+|---|---|---|
+| A renewal of the current certificate appears: same subject and issuer, at least the same DNS names, later expiry (autoenrollment or a manual renewal at the CA) | switches to it without restart, stores its thumbprint, signs a new binding | `Certificate.Renewed` |
+| The own self-signed certificate expires within 30 days (`Certificate:RenewBefore`) | creates a new one with a new key and switches to it | `Certificate.RolledOver` |
+| A CA certificate expires within 30 days and no renewal is in the store | warning in the log once a day; the certificate stays in use | none |
+| At start the configured certificate is missing | error in the log, the own self-signed certificate is used; the setting is kept | `Certificate.FallBack` |
+
+A renewal that happened while the service was stopped is found at the next start (also when Windows archived the old certificate). An expired CA certificate stays in use, since agents pin its key and keep working; browsers warn until a valid certificate is selected. A foreign self-signed certificate with the same subject is never taken over automatically, it must be selected in the dashboard.
 
 ## 4. Configuration
 
@@ -48,7 +69,10 @@ Both services use the standard .NET configuration: `appsettings.json` next to th
 | Key | Default | Meaning |
 |---|---|---|
 | `Kestrel:Endpoints:Https:Url` | `https://*:8443` | HTTPS endpoint for agents and administration |
-| `Trust:CertificateThumbprint` | none (required in production) | thumbprint of the TLS certificate in `LocalMachine\My` (fallback `CurrentUser\My`) |
+| `Trust:CertificateThumbprint` | none | thumbprint of the TLS certificate in `LocalMachine\My`; without it the central server uses its own self-signed certificate (section 3). In development `CurrentUser\My` or the ASP.NET Core development certificate. |
+| `Certificate:SelfSignedLifetime` | `365.00:00:00` | validity of the own self-signed certificate (30 days to 10 years) |
+| `Certificate:RenewBefore` | `30.00:00:00` | rollover of the own certificate and expiry warning for a CA certificate this long before expiry (at most half the lifetime) |
+| `Certificate:CheckInterval` | `00:15:00` | how often the store is checked for a renewed certificate |
 | `Trust:AnchorPath` | `%ProgramData%\UpdateCoordinator\Server\trust-anchor.key` | private key of the trust anchor, DPAPI-protected for the service account; **include in backups** |
 | `Database:Path` | `%ProgramData%\UpdateCoordinator\Server\server.db` | SQLite database file; the folder is created and the schema migrated on startup |
 | `Agents:RateLimit:RegisterPermitLimit` | `10` | registrations allowed per IP address and window |
@@ -299,14 +323,14 @@ If the central server is a domain member, it reads the enabled server computer a
 
 Both components ship as MSI packages (WiX Toolset 7) for Windows Server 2016 or newer. They are self-contained: no .NET runtime needs to be installed. They can be distributed by group policy, Configuration Manager or Intune, or installed manually.
 
-**Central server** (run as administrator; the certificate must be in `LocalMachine\My` with its private key):
+**Central server** (run as administrator; a CA certificate must be in `LocalMachine\My` with its private key, or leave out `CERTTHUMBPRINT` and the central server creates its own self-signed certificate, section 3):
 
 ```powershell
 msiexec /i UpdateCoordinator.Server.msi CERTTHUMBPRINT=<thumbprint> HTTPSPORT=8443 /qn /l*v server-install.log
 ```
 
 - Installs to `%ProgramFiles%\UpdateCoordinator\Server` and registers the service `UpdateCoordinator.Server` (LocalSystem, automatic start, restart on failure).
-- `CERTTHUMBPRINT` and `HTTPSPORT` (default 8443) are stored under `HKLM\SOFTWARE\UpdateCoordinator\Server` (`CertificateThumbprint`, `HttpsUrl`) and override `appsettings.json`. Without a thumbprint the service is installed but not started.
+- `CERTTHUMBPRINT` and `HTTPSPORT` (default 8443) are stored under `HKLM\SOFTWARE\UpdateCoordinator\Server` (`CertificateThumbprint`, `HttpsUrl`) and override `appsettings.json`. The service is started right away, with or without a thumbprint.
 - Opens the HTTPS port in the Windows firewall for the service.
 - Database, trust anchor, setup token and logs stay under `%ProgramData%\UpdateCoordinator\Server`, also on uninstall. Back them up before removing a server for good.
 

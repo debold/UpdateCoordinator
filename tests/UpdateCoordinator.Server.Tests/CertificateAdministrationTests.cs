@@ -1,7 +1,5 @@
 using System.Net;
-using System.Security.Cryptography.X509Certificates;
 
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,9 +16,9 @@ public sealed class CertificateAdministrationTests
     [Fact]
     public async Task SwitchingCertificate_PresentsIt_AndSignsTheNextBinding()
     {
-        var store = new FakeCertificateStore();
+        await using var factory = new ServerFactory();
+        var store = factory.CertificateStore;
         var renewed = store.Add(TestCertificates.Create("uc01.lab.local"));
-        await using var factory = new CertificateFactory(store);
         var before = await SerialAsync(factory);
 
         var outcome = await UseAsync(factory, renewed.Thumbprint, "admin");
@@ -40,7 +38,7 @@ public sealed class CertificateAdministrationTests
     [InlineData("0123456789ABCDEF0123456789ABCDEF0123456789")]
     public async Task MalformedThumbprint_IsRefused(string? thumbprint)
     {
-        await using var factory = new CertificateFactory(new FakeCertificateStore());
+        await using var factory = new ServerFactory();
 
         Assert.False((await UseAsync(factory, thumbprint, "admin")).Succeeded);
     }
@@ -48,8 +46,8 @@ public sealed class CertificateAdministrationTests
     [Fact]
     public async Task UnknownOrCurrentCertificate_IsRefused()
     {
-        var store = new FakeCertificateStore();
-        await using var factory = new CertificateFactory(store);
+        await using var factory = new ServerFactory();
+        var store = factory.CertificateStore;
         factory.StartServer();
 
         Assert.False((await UseAsync(factory, new string('A', 40), "admin")).Succeeded);
@@ -61,9 +59,9 @@ public sealed class CertificateAdministrationTests
     [Fact]
     public async Task Page_NeedsAdministratorAndConfirmation()
     {
-        var store = new FakeCertificateStore();
+        await using var factory = new ServerFactory();
+        var store = factory.CertificateStore;
         var renewed = store.Add(TestCertificates.Create("uc01.lab.local"));
-        await using var factory = new CertificateFactory(store);
         await factory.CreateUserAsync("operator", Password, AdminRoles.Operator);
         await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
 
@@ -113,35 +111,5 @@ public sealed class CertificateAdministrationTests
         factory.StartServer();
         await using var scope = factory.Services.CreateAsyncScope();
         return (await scope.ServiceProvider.GetRequiredService<TrustBindingService>().GetCurrentAsync(CancellationToken.None))!.Serial;
-    }
-
-    private sealed class CertificateFactory(FakeCertificateStore store) : ServerFactory
-    {
-        protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
-        {
-            base.ConfigureWebHost(builder);
-            builder.ConfigureTestServices(services => services.AddSingleton<IServerCertificateStore>(store));
-        }
-    }
-
-    private sealed class FakeCertificateStore : IServerCertificateStore
-    {
-        private readonly List<X509Certificate2> _certificates = [];
-
-        public string? Saved { get; private set; }
-
-        public X509Certificate2 Add(X509Certificate2 certificate)
-        {
-            _certificates.Add(certificate);
-            return certificate;
-        }
-
-        public IReadOnlyList<CertificateCandidate> ListCandidates() =>
-            [.. _certificates.Select(c => new CertificateCandidate(c.Thumbprint, c.Subject, c.Issuer, c.NotBefore.ToUniversalTime(), c.NotAfter.ToUniversalTime(), []))];
-
-        public X509Certificate2? Load(string thumbprint) =>
-            _certificates.FirstOrDefault(c => string.Equals(c.Thumbprint, thumbprint, StringComparison.OrdinalIgnoreCase));
-
-        public void SaveThumbprint(string thumbprint) => Saved = thumbprint;
     }
 }

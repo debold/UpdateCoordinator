@@ -4,8 +4,9 @@
 
   <!--
     Central server installer. Installs the self-contained central server as a Windows service running as LocalSystem.
-    CERTTHUMBPRINT selects the TLS certificate in LocalMachine\My and HTTPSPORT the port (default 8443); both are kept in
-    HKLM\SOFTWARE\UpdateCoordinator\Server, which the central server reads as configuration and upgrades keep.
+    CERTTHUMBPRINT selects the TLS certificate in LocalMachine\My (optional: without it the central server creates a
+    self-signed one) and HTTPSPORT the port (default 8443); both are kept in HKLM\SOFTWARE\UpdateCoordinator\Server,
+    which the central server reads as configuration and upgrades keep.
     The database, trust anchor and logs under %ProgramData%\UpdateCoordinator\Server are kept on uninstall and upgrade.
   -->
   <Package Name="UpdateCoordinator Central Server"
@@ -94,8 +95,8 @@
       <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="CertificateThumbprint" Type="string" Value="[CERTTHUMBPRINT]" KeyPath="yes" />
     </Component>
 
-    <!-- Started only when a certificate is configured; without one the central server cannot serve HTTPS. -->
-    <Component Id="ServerServiceStart" Directory="INSTALLFOLDER" Condition="CERTTHUMBPRINT" Guid="8C3D7E52-1A9B-4F0C-B6D2-7E5A3C9F1B48">
+    <!-- Always started: without CERTTHUMBPRINT the central server creates and renews a self-signed certificate itself. -->
+    <Component Id="ServerServiceStart" Directory="INSTALLFOLDER" Guid="8C3D7E52-1A9B-4F0C-B6D2-7E5A3C9F1B48">
       <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
       <ServiceControl Id="ServerServiceStartControl" Name="UpdateCoordinator.Server" Start="install" Wait="no" />
     </Component>

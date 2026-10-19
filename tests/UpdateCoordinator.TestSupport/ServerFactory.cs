@@ -20,6 +20,9 @@ public class ServerFactory : WebApplicationFactory<Program>
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "UpdateCoordinator.Tests", Guid.NewGuid().ToString("N"));
     private readonly MutableCertificateProvider _certificates = new(TestCertificates.Create());
 
+    /// <summary>Certificate store of this server instance; the machine store is never used in tests.</summary>
+    internal FakeCertificateStore CertificateStore { get; } = new();
+
     /// <summary>Registrations allowed per IP and minute; high by default so tests do not interfere.</summary>
     protected virtual int RegisterPermitLimit => 1_000;
 
@@ -47,7 +50,13 @@ public class ServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Rollout:EvaluationInterval", "01:00:00");
         // Never read a real Active Directory from tests; coverage tests use a fake directory.
         builder.UseSetting("Coverage:Enabled", "false");
-        builder.ConfigureTestServices(services => services.AddSingleton<ITlsCertificateProvider>(_certificates));
+        // Tests run the certificate check explicitly.
+        builder.UseSetting("Certificate:CheckInterval", "1.00:00:00");
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<ITlsCertificateProvider>(_certificates);
+            services.AddSingleton<IServerCertificateStore>(CertificateStore);
+        });
     }
 
     /// <summary>Simulates an admin configuring a new TLS certificate and restarting the trust binding step.</summary>

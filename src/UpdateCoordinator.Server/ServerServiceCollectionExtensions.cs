@@ -47,6 +47,12 @@ internal static class ServerServiceCollectionExtensions
         services.AddSingleton<TrustAnchor>();
         services.AddSingleton<ITlsCertificateProvider, StoreTlsCertificateProvider>();
         services.AddSingleton<IServerCertificateStore, WindowsServerCertificateStore>();
+        services.AddOptions<CertificateOptions>()
+            .Bind(configuration.GetSection(CertificateOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<CertificateLifecycle>();
+        services.AddHostedService<CertificateWorker>();
         services.AddScoped<CertificateAdministration>();
         services.AddScoped<TrustBindingService>();
         services.AddScoped<UpdateCatalog>();
@@ -92,7 +98,7 @@ internal static class ServerServiceCollectionExtensions
 
     /// <summary>
     /// Startup work before requests are served: applies pending schema migrations and makes sure
-    /// a trust binding for the current TLS certificate exists.
+    /// a trust binding for the current TLS certificate exists; a certificate the start created or switched to is audited.
     /// </summary>
     public static async Task InitializeCentralServerAsync(this IServiceProvider services, CancellationToken cancellationToken = default)
     {
@@ -100,6 +106,7 @@ internal static class ServerServiceCollectionExtensions
 
         await using var scope = services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<TrustBindingService>().EnsureCurrentAsync(cancellationToken).ConfigureAwait(false);
+        await scope.ServiceProvider.GetRequiredService<CertificateAdministration>().AuditStartupChangeAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Creates the database directory if needed and applies pending schema migrations.</summary>

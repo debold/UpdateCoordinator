@@ -65,10 +65,11 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - User management for administrators (create, role, password, lock, delete; the last administrator is protected), server removal (delete keeping the history, delete with history) and clone detection (credentials used by two hosts in turn block the server until an operator decides).
 - TLS certificate change in the dashboard (Admin, with confirmation): lists suitable certificates from LocalMachine\My, switches without restart and signs the next trust binding, so agents accept it automatically; audited.
 - Windows Update error codes are translated into plain English text centrally.
+- Own TLS certificate: without a configured certificate the central server creates a self-signed one (RSA 3072, non-exportable machine key, one year) and rolls it over 30 days before expiry with a new key. Renewals of a CA certificate (autoenrollment or manual) are picked up every 15 minutes and at start, also after Windows archived the old certificate. A missing configured certificate falls back to the own one instead of stopping the service. Every change signs the next trust binding and is audited; lifetimes and interval under `Certificate:*`.
 
 ### Installers and CI
 
-- MSI packages for agent and central server (WiX Toolset 7, self-contained publish, Windows Server 2016 or newer): Windows services under LocalSystem with restart on failure (agent also on error exit codes), options `SERVERURL` (agent) and `CERTTHUMBPRINT`/`HTTPSPORT` (central server, read from `HKLM\SOFTWARE\UpdateCoordinator\Server`), firewall rule for the HTTPS port, upgrades keep options and data, data under ProgramData kept on uninstall.
+- MSI packages for agent and central server (WiX Toolset 7, self-contained publish, Windows Server 2016 or newer): Windows services under LocalSystem with restart on failure (agent also on error exit codes), options `SERVERURL` (agent) and `CERTTHUMBPRINT`/`HTTPSPORT` (central server, read from `HKLM\SOFTWARE\UpdateCoordinator\Server`), firewall rule for the HTTPS port, upgrades keep options and data, data under ProgramData kept on uninstall. The central server service also starts without `CERTTHUMBPRINT` (own certificate); the CI install test covers that path.
 - `build/Build-Installers.ps1` builds both MSIs; the GitHub Actions workflow builds and tests every push and installs, upgrades and uninstalls both MSIs on the runner (`build/Test-Installers.ps1`).
 
 ### Shared

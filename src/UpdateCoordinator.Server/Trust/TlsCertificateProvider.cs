@@ -16,9 +16,9 @@ internal interface ITlsCertificateProvider
 }
 
 /// <summary>
-/// Loads the certificate from the Windows certificate store, so no certificate password has to be stored in configuration.
+/// Holds the certificate from the Windows certificate store (chosen by <see cref="CertificateLifecycle"/>), so no certificate password has to be stored in configuration.
 /// </summary>
-internal sealed class StoreTlsCertificateProvider(IOptions<TrustOptions> options, IHostEnvironment environment) : ITlsCertificateProvider, IDisposable
+internal sealed class StoreTlsCertificateProvider(IOptions<TrustOptions> options, IHostEnvironment environment, CertificateLifecycle lifecycle) : ITlsCertificateProvider, IDisposable
 {
     /// <summary>Extension that marks the ASP.NET Core HTTPS development certificate.</summary>
     private const string DevelopmentCertificateOid = "1.3.6.1.4.1.311.84.1.1";
@@ -33,7 +33,7 @@ internal sealed class StoreTlsCertificateProvider(IOptions<TrustOptions> options
         {
             lock (_gate)
             {
-                return _certificate ??= Load(options.Value.CertificateThumbprint, environment);
+                return _certificate ??= Load();
             }
         }
     }
@@ -49,22 +49,19 @@ internal sealed class StoreTlsCertificateProvider(IOptions<TrustOptions> options
         }
     }
 
-    private static X509Certificate2 Load(string? thumbprint, IHostEnvironment environment)
+    private X509Certificate2 Load()
     {
-        if (!string.IsNullOrEmpty(thumbprint))
-        {
-            return Find(StoreLocation.LocalMachine, c => c.Thumbprint.Equals(thumbprint, StringComparison.OrdinalIgnoreCase))
-                ?? Find(StoreLocation.CurrentUser, c => c.Thumbprint.Equals(thumbprint, StringComparison.OrdinalIgnoreCase))
-                ?? throw new InvalidOperationException($"No valid TLS certificate with private key and thumbprint {thumbprint} was found in LocalMachine\\My or CurrentUser\\My.");
-        }
-
+        // A developer runs without administrator rights: certificates from CurrentUser\My, or the ASP.NET Core development certificate.
         if (environment.IsDevelopment())
         {
-            return Find(StoreLocation.CurrentUser, c => c.Extensions[DevelopmentCertificateOid] is not null)
-                ?? throw new InvalidOperationException("No ASP.NET Core development certificate found. Run 'dotnet dev-certs https --trust'.");
+            var thumbprint = options.Value.CertificateThumbprint;
+            return string.IsNullOrEmpty(thumbprint)
+                ? Find(StoreLocation.CurrentUser, c => c.Extensions[DevelopmentCertificateOid] is not null)
+                    ?? throw new InvalidOperationException("No ASP.NET Core development certificate found. Run 'dotnet dev-certs https --trust'.")
+                : Find(StoreLocation.CurrentUser, c => c.Thumbprint.Equals(thumbprint, StringComparison.OrdinalIgnoreCase)) ?? lifecycle.SelectInitial();
         }
 
-        throw new InvalidOperationException("No TLS certificate configured. Set Trust:CertificateThumbprint to a certificate in LocalMachine\\My.");
+        return lifecycle.SelectInitial();
     }
 
     internal static X509Certificate2? Find(StoreLocation location, Func<X509Certificate2, bool> match)

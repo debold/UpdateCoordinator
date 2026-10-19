@@ -16,8 +16,8 @@ Snapshots before the first installation make it easy to repeat updates.
 
 ## 2. Central server
 
-1. Create a TLS certificate for `uc01.lab.local` in `LocalMachine\My` (from the lab CA, or for a quick test `New-SelfSignedCertificate -DnsName uc01.lab.local -CertStoreLocation Cert:\LocalMachine\My`).
-2. Install: `msiexec /i UpdateCoordinator.Server.msi CERTTHUMBPRINT=<thumbprint> /qn /l*v server.log`
+1. Optional: enroll a TLS certificate for `uc01.lab.local` from the lab CA into `LocalMachine\My`. Without one the central server creates its own self-signed certificate (browsers warn; agents do not care).
+2. Install: `msiexec /i UpdateCoordinator.Server.msi CERTTHUMBPRINT=<thumbprint> /qn /l*v server.log`, or without `CERTTHUMBPRINT` for the own certificate. Version 0.1.0 still needs `CERTTHUMBPRINT`; the own certificate comes with the next version.
 3. Check: service `UpdateCoordinator.Server` runs; `https://uc01.lab.local:8443/health` answers; firewall rule "UpdateCoordinator Central Server (HTTPS)" exists.
 4. Open `https://uc01.lab.local:8443/setup`, enter the token from `%ProgramData%\UpdateCoordinator\Server\setup-token.txt` (readable by administrators only) and create the first administrator. The token file disappears.
 5. Administration → Users: create an Operator and a Reader account for the role tests.
