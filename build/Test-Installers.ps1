@@ -99,7 +99,11 @@ Copy-Item $anchor "$anchor.backup"
 Set-Content -Path $anchor -Value 'unreadable'
 Restart-Service UpdateCoordinator.Server -ErrorAction SilentlyContinue
 Check 'server crashes before the upgrade (test setup)' { Wait-Until { (Get-Service UpdateCoordinator.Server).Status -eq 'Stopped' } 60 }
-Check 'server upgrades over a crashing service' { (Invoke-Msi "/i `"$Version2Directory\UpdateCoordinator.Server.msi`"" 'server-upgrade.log') -eq 0 }
+# Upgraded from a copy named like a browser's second download, since the file name must never matter.
+$renamed = Join-Path $LogDirectory 'renamed'
+New-Item -ItemType Directory -Force -Path $renamed | Out-Null
+Copy-Item "$Version2Directory\UpdateCoordinator.Server.msi" (Join-Path $renamed 'UpdateCoordinator.Server (1).msi')
+Check 'server upgrades over a crashing service from a renamed file' { (Invoke-Msi "/i `"$renamed\UpdateCoordinator.Server (1).msi`"" 'server-upgrade.log') -eq 0 }
 Move-Item "$anchor.backup" $anchor -Force
 Start-Service UpdateCoordinator.Server -ErrorAction SilentlyContinue
 Check 'server version 2 installed once' { (Get-ProductVersion 'UpdateCoordinator Central Server') -eq '0.2.0' }

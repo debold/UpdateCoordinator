@@ -45,9 +45,13 @@ jobs:
         shell: pwsh
         run: ./build/Build-Installers.ps1 -AgentVersion ${{ steps.version.outputs.version }} -ServerVersion ${{ steps.version.outputs.version }} -OutputDirectory artifacts/release
 
-      - name: Checksums
+      - name: Versioned file names and checksums
         shell: pwsh
         run: |
+          # Versioned names, so a browser never renames a second download (e.g. "UpdateCoordinator.Server (1).msi").
+          foreach ($name in "Agent", "Server") {
+            Move-Item "artifacts/release/UpdateCoordinator.$name.msi" "artifacts/release/UpdateCoordinator.$name-${{ steps.version.outputs.version }}.msi"
+          }
           Get-ChildItem artifacts/release/*.msi | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)" } |
             Set-Content artifacts/release/SHA256SUMS.txt
 
@@ -56,7 +60,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $arguments = @('release', 'create', '${{ github.ref_name }}', 'artifacts/release/UpdateCoordinator.Agent.msi', 'artifacts/release/UpdateCoordinator.Server.msi', 'artifacts/release/SHA256SUMS.txt',
+          $arguments = @('release', 'create', '${{ github.ref_name }}', 'artifacts/release/UpdateCoordinator.Agent-${{ steps.version.outputs.version }}.msi', 'artifacts/release/UpdateCoordinator.Server-${{ steps.version.outputs.version }}.msi', 'artifacts/release/SHA256SUMS.txt',
             '--title', 'UpdateCoordinator ${{ steps.version.outputs.version }}', '--notes', 'Unsigned test build. See CHANGELOG.md and docs/admin/test-guide.md.')
           if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $arguments += '--prerelease' }
           gh @arguments

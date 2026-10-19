@@ -74,6 +74,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 ### Installers and CI
 
 - MSI packages for agent and central server (WiX Toolset 7, self-contained publish, Windows Server 2016 or newer): Windows services under LocalSystem with restart on failure (agent also on error exit codes), options `SERVERURL` (agent) and `CERTTHUMBPRINT`/`HTTPSPORT` (central server, read from `HKLM\SOFTWARE\UpdateCoordinator\Server`), firewall rule for the HTTPS port, upgrades keep options and data, data under ProgramData kept on uninstall. The central server service also starts without `CERTTHUMBPRINT` (own certificate); the CI install test covers that path.
+- Release files carry the version in their name (e.g. `UpdateCoordinator.Server-0.3.0.msi`), so browsers do not rename repeated downloads; the CI install test upgrades from a renamed file and over a crashing old service.
 - Central server MSI with installer interface (license, progress, final page with dashboard address, setup token note and "Open the dashboard") and a Start menu entry for the dashboard.
 - Central server: startup errors are written to the log before the service ends; the expected SQLite migration warning is no longer logged.
 - `build/Build-Installers.ps1` builds both MSIs; the GitHub Actions workflow builds and tests every push and installs, upgrades and uninstalls both MSIs on the runner (`build/Test-Installers.ps1`).
