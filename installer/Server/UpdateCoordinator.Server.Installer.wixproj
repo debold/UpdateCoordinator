@@ -12,11 +12,7 @@
     <SuppressIces>ICE61;ICE60;ICE38;ICE43;ICE57</SuppressIces>
     <PublishDir Condition="'$(PublishDir)' == ''">..\..\artifacts\publish\server</PublishDir>
     <ProductVersion Condition="'$(ProductVersion)' == ''">0.0.0</ProductVersion>
-    <!-- A new product code for every build. Without it WiX derives the same code for every version, so an "upgrade" becomes
-         a reconfiguration of the installed product that looks for the package under its original file name and fails
-         when the download was renamed (e.g. "... (1).msi"). -->
-    <ProductCode Condition="'$(ProductCode)' == ''">$([System.Guid]::NewGuid().ToString("B").ToUpperInvariant())</ProductCode>
-    <DefineConstants>PublishDir=$(PublishDir);ProductVersion=$(ProductVersion);ProductCode=$(ProductCode)</DefineConstants>
+    <DefineConstants>PublishDir=$(PublishDir);ProductVersion=$(ProductVersion)</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

@@ -37,8 +37,14 @@ function Build-Component([string] $Name, [string] $Project, [string] $Installer,
     $fileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe.FullName).FileVersion
     $productVersion = ($fileVersion.Split('.')[0..2]) -join '.'
 
-    & dotnet build $Installer -c $Configuration "-p:PublishDir=$publish" "-p:ProductVersion=$productVersion" "-p:OutputPath=$output\"
+    # The WiX build hard-links its output to the intermediate file, which the next build overwrites in place; copying
+    # gives every output folder its own file (an upgrade test otherwise compares a package with itself).
+    $staging = Join-Path $artifacts "staging\$Name"
+    if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
+    & dotnet build $Installer -c $Configuration "-p:PublishDir=$publish" "-p:ProductVersion=$productVersion" "-p:OutputPath=$staging\"
     if ($LASTEXITCODE -ne 0) { throw "Building the $Name installer failed." }
+    Get-ChildItem $staging -Filter '*.msi' | ForEach-Object { Copy-Item $_.FullName (Join-Path $output $_.Name) -Force }
+    Remove-Item -Recurse -Force $staging
     Write-Host "$Name $productVersion -> $output"
 }
 
