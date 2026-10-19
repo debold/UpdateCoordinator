@@ -473,9 +473,9 @@ public sealed class RolloutPageTests
         {
         }
 
-        using (var started = await browser.PostFormAsync("/updates", new Dictionary<string, string> { ["Action"] = $"start:{update.UpdateId:D}:1" }))
+        using (var started = await browser.PostFormAsync("/updates", new Dictionary<string, string> { ["_handler"] = "updates-bulk", ["Bulk"] = "start", ["Selected"] = $"{update.UpdateId:D}:1" }))
         {
-            Assert.Contains("The rollout runs.", await started.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            Assert.Contains("Started the rollout of 1 updates.", await started.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
         await scenario.AdvanceAsync();
@@ -491,11 +491,11 @@ public sealed class RolloutPageTests
     }
 
     [Theory]
-    [InlineData("start:not-a-guid:1")]
-    [InlineData("start:00000000-0000-0000-0000-000000000001:-1")]
-    [InlineData("delete:00000000-0000-0000-0000-000000000001:1")]
-    [InlineData("start")]
-    public async Task Operator_MalformedAction_IsRefused(string action)
+    [InlineData("start", "not-a-guid:1", "Invalid selection.")]
+    [InlineData("start", "00000000-0000-0000-0000-000000000001:-1", "Invalid selection.")]
+    [InlineData("delete", "00000000-0000-0000-0000-000000000001:1", "Select at least one update")]
+    [InlineData("start", "", "Select at least one update")]
+    public async Task Operator_MalformedAction_IsRefused(string action, string selected, string expected)
     {
         await using var scenario = await RolloutScenario.CreateAsync();
         await scenario.Factory.CreateUserAsync("operator", Password, AdminRoles.Operator);
@@ -504,9 +504,9 @@ public sealed class RolloutPageTests
         {
         }
 
-        using var response = await browser.PostFormAsync("/updates", new Dictionary<string, string> { ["Action"] = action });
+        using var response = await browser.PostFormAsync("/updates", new Dictionary<string, string> { ["_handler"] = "updates-bulk", ["Bulk"] = action, ["Selected"] = selected });
 
-        Assert.Contains("Invalid request.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains(expected, await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
     [Fact]

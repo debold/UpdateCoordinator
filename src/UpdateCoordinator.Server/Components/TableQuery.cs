@@ -21,13 +21,13 @@ public sealed class TableQuery
     private readonly string _path;
     private readonly Dictionary<string, StringValues> _values;
 
-    private TableQuery(string path, Dictionary<string, StringValues> values, string defaultSort)
+    private TableQuery(string path, Dictionary<string, StringValues> values, string defaultSort, bool defaultDescending = false)
     {
         _path = path;
         _values = values;
         var sort = Get("sort");
         Sort = string.IsNullOrEmpty(sort) ? defaultSort : sort;
-        Descending = Get("dir") == "desc";
+        Descending = Get("dir") is { } dir ? dir == "desc" : string.IsNullOrEmpty(sort) && defaultDescending;
         Page = int.TryParse(Get("page"), NumberStyles.None, CultureInfo.InvariantCulture, out var page) && page > 0 ? page : 1;
         var search = Get("q")?.Trim();
         Search = string.IsNullOrEmpty(search) ? null : search.Length > MaxSearchLength ? search[..MaxSearchLength] : search;
@@ -44,11 +44,14 @@ public sealed class TableQuery
 
     public string? Group { get; }
 
-    public static TableQuery From(NavigationManager navigation, string defaultSort)
+    /// <param name="navigation">Current address.</param>
+    /// <param name="defaultSort">Column sorted by when the address names none.</param>
+    /// <param name="defaultDescending">True to list the default column newest or largest first.</param>
+    public static TableQuery From(NavigationManager navigation, string defaultSort, bool defaultDescending = false)
     {
         ArgumentNullException.ThrowIfNull(navigation);
         var uri = new Uri(navigation.Uri);
-        return new TableQuery(uri.AbsolutePath, QueryHelpers.ParseQuery(uri.Query), defaultSort);
+        return new TableQuery(uri.AbsolutePath, QueryHelpers.ParseQuery(uri.Query), defaultSort, defaultDescending);
     }
 
     /// <summary>For tests and pages that build a query from known values.</summary>

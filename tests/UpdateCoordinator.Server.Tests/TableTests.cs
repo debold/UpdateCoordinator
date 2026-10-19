@@ -147,6 +147,30 @@ public sealed class TableTests
         Assert.Contains("of 3 servers", reporting, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task UpdateList_ShowsRuleColumnsStatusAndFiltersByClassification()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var server = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        var security = RolloutScenario.Update("Security Updates");
+        var definition = RolloutScenario.Update("Definition Updates") with { UpdateId = Guid.NewGuid(), KbArticle = "2267602", Title = "Security Intelligence Update" };
+        await scenario.ReportAsync(server, security, definition);
+        await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        var all = await (await reader.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var filtered = await (await reader.GetAsync("/updates?f.classification=Definition%20Updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("Classification", all, StringComparison.Ordinal);
+        Assert.Contains("Severity", all, StringComparison.Ordinal);
+        Assert.Contains("class=\"donut small\"", all, StringComparison.Ordinal);
+        Assert.Contains("KB2267602", filtered, StringComparison.Ordinal);
+        Assert.DoesNotContain("KB5040000", filtered, StringComparison.Ordinal);
+    }
+
     private static Task<List<Guid>> SeedAsync(ServerFactory factory)
     {
         factory.StartServer();
