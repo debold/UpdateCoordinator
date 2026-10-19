@@ -91,6 +91,31 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         return await CompleteAsync(actor, "Group.WindowsChanged", group.Name, MaintenanceWindowFormat.Format(windows), null, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<Outcome> SetGroupDescriptionAsync(int groupId, string? description, string actor, CancellationToken cancellationToken)
+    {
+        if (description is { Length: > 256 })
+        {
+            return new Outcome("The description may have at most 256 characters.");
+        }
+
+        var group = await db.Groups.SingleOrDefaultAsync(g => g.Id == groupId, cancellationToken).ConfigureAwait(false);
+        if (group is null)
+        {
+            return new Outcome("The group no longer exists.");
+        }
+
+        var value = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        if (group.Description == value)
+        {
+            return Outcome.Ok;
+        }
+
+        group.Description = value;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Group.DescriptionChanged", group.Name, value, cancellationToken).ConfigureAwait(false);
+        return Outcome.Ok;
+    }
+
     public async Task<Outcome> DeleteGroupAsync(int groupId, string actor, CancellationToken cancellationToken)
     {
         var group = await db.Groups.SingleOrDefaultAsync(g => g.Id == groupId, cancellationToken).ConfigureAwait(false);

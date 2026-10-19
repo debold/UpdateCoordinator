@@ -185,17 +185,20 @@ public sealed class LeaseTests
         {
         }
 
-        using (await browser.PostFormAsync("/administration/groups", new Dictionary<string, string>
+        using (await browser.PostFormAsync($"/administration/groups?dialog=edit&id={groupId}", new Dictionary<string, string>
         {
-            ["Action"] = $"save:{groupId}",
-            [$"Coordinated_{groupId}"] = "true",
-            [$"Percent_{groupId}"] = "50",
-            [$"Max_{groupId}"] = "3",
+            ["_handler"] = "group-dialog",
+            ["Mode"] = "edit",
+            ["Id"] = groupId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["Windows.inherit"] = "yes",
+            ["Coordinated"] = "true",
+            ["Percent"] = "50",
+            ["Max"] = "3",
         }))
         {
         }
 
-        using (var refused = await browser.PostFormAsync("/administration/groups", new Dictionary<string, string> { ["Action"] = $"save:{groupId}", [$"Percent_{groupId}"] = "fifty", [$"Max_{groupId}"] = "3" }))
+        using (var refused = await browser.PostFormAsync($"/administration/groups?dialog=edit&id={groupId}", new Dictionary<string, string> { ["_handler"] = "group-dialog", ["Mode"] = "edit", ["Id"] = groupId.ToString(System.Globalization.CultureInfo.InvariantCulture), ["Percent"] = "fifty", ["Max"] = "3" }))
         {
             Assert.Contains("Share and maximum must be whole numbers.", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }

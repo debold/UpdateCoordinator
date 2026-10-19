@@ -125,11 +125,11 @@ public sealed class RebootPolicyTests
         var group = await scenario.Factory.WithDbAsync(db => db.Groups.Select(g => g.Id).SingleAsync(TestContext.Current.CancellationToken));
         using var browser = await LoginAsync(scenario, AdminRoles.Admin);
 
-        using (await browser.PostFormAsync("/administration/groups", new Dictionary<string, string> { ["Action"] = $"save:{group}", [$"Windows_{group}"] = "", [$"Reboot_{group}"] = "InsideMaintenanceWindow" }))
+        using (await browser.PostFormAsync($"/administration/groups?dialog=edit&id={group}", new Dictionary<string, string> { ["_handler"] = "group-dialog", ["Mode"] = "edit", ["Id"] = group.ToString(System.Globalization.CultureInfo.InvariantCulture), ["Windows.inherit"] = "yes", ["Reboot"] = "InsideMaintenanceWindow", ["Percent"] = "25", ["Max"] = "5" }))
         {
         }
 
-        using (var refused = await browser.PostFormAsync("/administration/groups", new Dictionary<string, string> { ["Action"] = $"save:{group}", [$"Reboot_{group}"] = "Always" }))
+        using (var refused = await browser.PostFormAsync($"/administration/groups?dialog=edit&id={group}", new Dictionary<string, string> { ["_handler"] = "group-dialog", ["Mode"] = "edit", ["Id"] = group.ToString(System.Globalization.CultureInfo.InvariantCulture), ["Reboot"] = "Always", ["Percent"] = "25", ["Max"] = "5" }))
         {
             Assert.Contains("The reboot policy is invalid.", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }

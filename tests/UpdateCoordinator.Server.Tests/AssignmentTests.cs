@@ -383,7 +383,7 @@ public sealed class AssignmentPageTests
         {
         }
 
-        using var response = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "maintenance", ["Windows"] = "Mon 25:00-01:00" });
+        using var response = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "maintenance", ["Windows.0.days"] = "1", ["Windows.0.from"] = "25:00", ["Windows.0.to"] = "01:00" });
 
         Assert.Contains("Invalid window", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
@@ -398,7 +398,7 @@ public sealed class AssignmentPageTests
         {
         }
 
-        using (await browser.PostFormAsync("/administration/groups", new Dictionary<string, string> { ["Action"] = "create", ["NewName"] = "SQL servers", ["NewWindows"] = "Sun 02:00-05:00" }))
+        using (await browser.PostFormAsync("/administration/groups?dialog=new", new Dictionary<string, string> { ["_handler"] = "group-dialog", ["Mode"] = "create", ["Name"] = "SQL servers", ["Windows.0.days"] = "0", ["Windows.0.from"] = "02:00", ["Windows.0.to"] = "05:00", ["Percent"] = "25", ["Max"] = "5" }))
         {
         }
 

@@ -8,62 +8,60 @@
 
 <PageTitle>Maintenance windows</PageTitle>
 
-<h1>Maintenance windows and reboots</h1>
+<PageHeader Title="Maintenance windows and reboots" Subtitle="System defaults for every server without own or group settings" Crumbs="@([("Administration", null), ("Maintenance windows", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-<section class="card">
-    <h2>Maintenance windows</h2>
-    <p>
-        The system default applies to every server without own windows and without group windows.
-        One window per line in local server time, e.g. "Mon-Fri 19:00-05:00" (over midnight) or "Sat,Sun 00:00-24:00".
-    </p>
-
-    <form method="post" @formname="maintenance" @onsubmit="SaveAsync">
+<div class="grid-side">
+    <form method="post" @formname="maintenance" @onsubmit="SaveAsync" class="box">
         <AntiforgeryToken />
-        <label>System default <textarea name="Windows" rows="5">@_current</textarea></label>
-        <button type="submit">Save</button>
+        <header class="box-head"><h2>Maintenance windows</h2><span class="hint">Local server time; a window that ends before it starts runs past midnight</span></header>
+        <div class="box-body">
+            <WindowPicker Prefix="Windows" Windows="@_current" />
+        </div>
+        <footer class="box-foot">
+            <span class="note">Delivered to the agents with their next heartbeat.</span>
+            <span class="actions"><a class="btn" href="/administration/maintenance">Discard changes</a><button type="submit" class="primary">Save windows</button></span>
+        </footer>
     </form>
-</section>
 
-<section class="card">
-    <h2>Reboots</h2>
-    <p>
-        Agents never restart a server unless its effective policy allows it: the server's own policy, otherwise the policy of its groups
-        (if one group says "Never", it wins), otherwise this system default. With "inside the maintenance window" the agent restarts only
-        while a window is open for at least 30 more minutes, warns signed-in users 5 minutes ahead and restarts at most once per 6 hours.
-        A server can always forbid reboots locally with the registry value AllowReboot = 0.
-    </p>
-
-    <form method="post" @formname="reboot" @onsubmit="SaveRebootAsync">
+    <form method="post" @formname="reboot" @onsubmit="SaveRebootAsync" class="box">
         <AntiforgeryToken />
-        <label>
-            System default
-            <select name="Reboot">
-                @foreach (var policy in Enum.GetValues<RebootPolicy>())
-                {
-                    <option value="@policy" selected="@(policy == _reboot)">@RebootPolicyText.Label(policy)</option>
-                }
-            </select>
-        </label>
-        <button type="submit">Save</button>
+        <header class="box-head"><h2>Reboots</h2></header>
+        <div class="box-body form">
+            <label class="field"><span>System default</span>
+                <select name="Reboot">
+                    @foreach (var policy in Enum.GetValues<RebootPolicy>())
+                    {
+                        <option value="@policy" selected="@(policy == _reboot)">@RebootPolicyText.Label(policy)</option>
+                    }
+                </select>
+            </label>
+            <p class="note">
+                Agents never restart a server unless its effective policy allows it: the server's own policy, otherwise its groups (one group with "Never" wins),
+                otherwise this default. Inside the maintenance window the agent restarts only while the window stays open for 30 more minutes, warns 5 minutes ahead and
+                restarts at most once per 6 hours. A server can always forbid reboots locally with the registry value AllowReboot = 0.
+            </p>
+        </div>
+        <footer class="box-foot"><span></span><button type="submit" class="primary">Save reboot policy</button></footer>
     </form>
-</section>
+</div>
 
 @code {
-    [SupplyParameterFromForm(FormName = "maintenance")]
-    private string? Windows { get; set; }
-
     [SupplyParameterFromForm(FormName = "reboot")]
     private string? Reboot { get; set; }
 
-    private string _current = string.Empty;
+    [CascadingParameter]
+    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    private IReadOnlyList<MaintenanceWindow> _current = [];
     private RebootPolicy _reboot;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task SaveAsync()
     {
-        var outcome = await Administration.SetSystemWindowsAsync(Windows, await GetActorAsync(), CancellationToken.None);
+        var windows = HttpContext?.Request.HasFormContentType == true ? WindowPickerForm.Read(HttpContext.Request.Form, "Windows", out _) : string.Empty;
+        var outcome = await Administration.SetSystemWindowsAsync(windows, await GetActorAsync(), CancellationToken.None);
         ShowResult(outcome.Error, "The system default was saved and is delivered to the agents.");
         await LoadAsync();
     }
@@ -79,7 +77,7 @@
 
     private async Task LoadAsync()
     {
-        _current = MaintenanceWindowFormat.Format(await Assignment.GetSystemWindowsAsync(CancellationToken.None));
+        _current = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
         _reboot = await Assignment.GetSystemRebootPolicyAsync(CancellationToken.None);
     }
 }
