@@ -70,6 +70,7 @@ internal static class DashboardServiceCollectionExtensions
         services.AddScoped<ClientApprovalService>();
         services.AddScoped<AssignmentService>();
         services.AddScoped<AssignmentAdministration>();
+        services.AddScoped<LeaseService>();
 
         services.AddOptions<RolloutOptions>()
             .Bind(configuration.GetSection(RolloutOptions.SectionName))

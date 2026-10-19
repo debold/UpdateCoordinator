@@ -411,6 +411,78 @@ public sealed class InstallationRunnerTests
         Assert.Single(_restart.Requests);
     }
 
+    [Fact]
+    public async Task CoordinatedServer_WithoutFreeLease_DoesNotInstall()
+    {
+        _releases.Current = new ReleaseList(1, [_release], null, null, RequiresLease: true);
+        _client.LeaseAnswer = new LeaseResponse(false, null, "All leases of group DCs are taken.");
+
+        Assert.True(await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken));
+
+        Assert.Empty(_installer.Batches);
+        Assert.Equal(1, _client.LeaseRequests);
+        Assert.Null(_store.State.Lease);
+    }
+
+    [Fact]
+    public async Task CoordinatedServer_InstallsWithLease_AndReleasesIt()
+    {
+        _releases.Current = new ReleaseList(1, [_release], null, null, RequiresLease: true);
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_installer.Batches);
+        Assert.Equal([true], _client.LeaseReleases);
+        Assert.Null(_store.State.Lease);
+    }
+
+    [Fact]
+    public async Task LeaseIsKeptForTheReboot_AndReleasedAfterTheServerCameBack()
+    {
+        _releases.Current = new ReleaseList(1, [_release], null, RebootPolicy.InsideMaintenanceWindow, RequiresLease: true);
+        _environment.RebootPending = true;
+        var runner = Create();
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_restart.Requests);
+        Assert.Empty(_client.LeaseReleases);
+        Assert.True(_store.State.Lease!.AwaitingReboot);
+
+        // After the restart: booted after the lease was granted, nothing pending any more.
+        _environment.RebootPending = false;
+        _environment.LastBootAt = _time.GetUtcNow().AddMinutes(10);
+        _time.Advance(TimeSpan.FromMinutes(20));
+        _updates.LastMissingUpdates = new HashSet<(Guid, int)>();
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal([true], _client.LeaseReleases);
+        Assert.Null(_store.State.Lease);
+    }
+
+    [Fact]
+    public async Task WithoutRebootPermission_LeaseIsReleasedRightAfterInstallation()
+    {
+        _releases.Current = new ReleaseList(1, [_release], null, RebootPolicy.Never, RequiresLease: true);
+        _environment.RebootPending = true;
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Empty(_restart.Requests);
+        Assert.Equal([true], _client.LeaseReleases);
+    }
+
+    [Fact]
+    public async Task FailedInstallation_ReleasesLeaseAsFailed()
+    {
+        _releases.Current = new ReleaseList(1, [_release], null, null, RequiresLease: true);
+        _installer.ResultCode = InstallResultCode.Failed;
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal([false], _client.LeaseReleases);
+    }
+
     private static InstallReport Report() => new()
     {
         RunId = Guid.NewGuid(),
@@ -441,11 +513,13 @@ public sealed class InstallationRunnerTests
     {
         public List<IReadOnlyList<Release>> Batches { get; } = [];
 
+        public InstallResultCode ResultCode { get; set; } = InstallResultCode.Succeeded;
+
         public Task<IReadOnlyList<InstallResult>> InstallAsync(IReadOnlyList<Release> batch, CancellationToken cancellationToken)
         {
             Batches.Add(batch);
             return Task.FromResult<IReadOnlyList<InstallResult>>(
-                [.. batch.Select(r => new InstallResult { UpdateId = r.UpdateId, Revision = r.Revision, ResultCode = InstallResultCode.Succeeded, RebootRequired = true })]);
+                [.. batch.Select(r => new InstallResult { UpdateId = r.UpdateId, Revision = r.Revision, ResultCode = ResultCode, RebootRequired = true })]);
         }
     }
 

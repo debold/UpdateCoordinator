@@ -52,7 +52,7 @@
             var transitions = await Db.RolloutRings
                 .Where(r => r.State == RingRolloutState.AwaitingApproval || r.State == RingRolloutState.Alarm)
                 .CountAsync(r => Db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.State == RolloutState.Active));
-            _waiting = servers + transitions;
+            _waiting = servers + transitions + await Db.Groups.CountAsync(g => g.LeasesHalted);
         }
     }
 }

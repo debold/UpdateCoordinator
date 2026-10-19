@@ -5,6 +5,7 @@
 @inject ServerDbContext Db
 @inject ClientApprovalService Approvals
 @inject UpdateCoordinator.Server.Rollouts.RolloutAdministration Rollouts
+@inject UpdateCoordinator.Server.Assignment.LeaseService Leases
 @inject NavigationManager Navigation
 
 <PageTitle>Pending approvals</PageTitle>
@@ -89,6 +90,34 @@
     }
 </form>
 
+<h2>Stopped coordinated groups</h2>
+
+<p>A coordinated group stops issuing leases after failed or expired leases in a row. Check the servers of the group, then resume it.</p>
+
+<form method="post" @formname="halted" @onsubmit="ResumeGroupAsync">
+    <AntiforgeryToken />
+    @if (_halted.Count == 0)
+    {
+        <p>No coordinated group is stopped.</p>
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Group</th><th>Failed leases in a row</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var group in _halted)
+                {
+                    <tr>
+                        <td>@group.Name</td>
+                        <td>@group.ConsecutiveLeaseFailures</td>
+                        <td><button type="submit" name="ResumeGroup" value="@group.Id">Resume</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</form>
+
 @code {
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationState { get; set; }
@@ -103,6 +132,10 @@
 
     private List<ClientEntity> _pending = [];
     private List<(RolloutRingEntity Ring, string Title, string RingName)> _gates = [];
+    private List<GroupEntity> _halted = [];
+
+    [SupplyParameterFromForm(FormName = "halted")]
+    private string? ResumeGroup { get; set; }
     private string? _message;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
@@ -139,6 +172,8 @@
             .Take(500)
             .ToListAsync();
 
+        _halted = await Db.Groups.AsNoTracking().Where(g => g.LeasesHalted).OrderBy(g => g.Name).ToListAsync();
+
         var waiting = await Db.RolloutRings.AsNoTracking()
             .Where(r => r.State == RingRolloutState.AwaitingApproval || r.State == RingRolloutState.Alarm)
             .Join(Db.Rollouts.Where(o => o.State == RolloutState.Active), r => new { r.UpdateId, r.Revision }, o => new { o.UpdateId, o.Revision }, (r, _) => r)
@@ -154,6 +189,16 @@
             var title = UpdateCoordinator.Server.Rollouts.UpdateText.Title(update, r.UpdateId);
             return (r, title, rings.GetValueOrDefault(r.RingId) ?? "?");
         })];
+    }
+
+    private async Task ResumeGroupAsync()
+    {
+        var actor = AuthenticationState is null ? "unknown" : (await AuthenticationState).User.Identity?.Name ?? "unknown";
+        var outcome = int.TryParse(ResumeGroup, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var groupId)
+            ? await Leases.ResumeAsync(groupId, actor, CancellationToken.None)
+            : new Outcome("Invalid request.");
+        _message = outcome.Error ?? "The group issues leases again.";
+        await LoadAsync();
     }
 
     private async Task DecideTransitionAsync()

@@ -60,6 +60,7 @@ internal sealed partial class RolloutWorker(
         var actions = scope.ServiceProvider.GetRequiredService<UpdateCoordinator.Server.Agents.AgentActionService>();
         await actions.ExpireAsync(cancellationToken).ConfigureAwait(false);
         await actions.DeleteOldLogsAsync(cancellationToken).ConfigureAwait(false);
+        await scope.ServiceProvider.GetRequiredService<UpdateCoordinator.Server.Assignment.LeaseService>().ExpireAsync(cancellationToken).ConfigureAwait(false);
         return changes;
     }
 

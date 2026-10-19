@@ -75,6 +75,8 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             return false;
         }
 
+        CompleteLeaseAfterReboot();
+
         var batch = PlanBatch();
         if (batch.Count > 0)
         {
@@ -85,16 +87,31 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             }
             else
             {
-                await InstallAsync(batch, cancellationToken).ConfigureAwait(false);
-                if (!await FlushOutboxAsync(identity, cancellationToken).ConfigureAwait(false))
+                // In a coordinated group only a lease holder may install; without a free lease the batch waits.
+                var lease = await EnsureLeaseAsync(identity, cancellationToken).ConfigureAwait(false);
+                if (lease is null)
                 {
                     return false;
+                }
+
+                if (lease.Value)
+                {
+                    var succeeded = await InstallAsync(batch, cancellationToken).ConfigureAwait(false);
+                    if (_state.Lease is { } hold)
+                    {
+                        Save(_state with { Lease = hold with { InstallationSucceeded = hold.InstallationSucceeded && succeeded, AwaitingReboot = _environment.RebootPending } });
+                    }
+
+                    if (!await FlushOutboxAsync(identity, cancellationToken).ConfigureAwait(false))
+                    {
+                        return false;
+                    }
                 }
             }
         }
 
-        RebootIfAllowed();
-        return true;
+        return await RebootIfAllowedAsync(identity, cancellationToken).ConfigureAwait(false) is not null
+            && await ReleaseLeaseIfDoneAsync(identity, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Maintenance windows from the central server, or the local ones while it sends none.</summary>
@@ -102,11 +119,70 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         _releases.Current.MaintenanceWindows is { Count: > 0 } central ? central : _options.Value.LocalWindows;
 
     /// <summary>
-    /// Restarts the server when a reboot is pending and the central policy, the local veto, the global pause and the
-    /// maintenance window allow it (see <see cref="RebootPlanner"/>). Every request is recorded, so it is not repeated
-    /// within the cooldown even if Windows refused it.
+    /// True if the server may install or reboot now: no coordination needed, a lease is already held or one was granted.
+    /// Null if the central server rejected the credentials.
     /// </summary>
-    internal RebootDecision RebootIfAllowed()
+    private async Task<bool?> EnsureLeaseAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        if (!_releases.Current.RequiresLease || _state.Lease is not null)
+        {
+            return true;
+        }
+
+        var response = await _client.AcquireLeaseAsync(identity, cancellationToken).ConfigureAwait(false);
+        if (response is null)
+        {
+            return null;
+        }
+
+        if (!response.Granted)
+        {
+            LogLeaseWaiting(response.Reason ?? "no lease available");
+            return false;
+        }
+
+        Save(_state with { Lease = new LeaseHold(_timeProvider.GetUtcNow(), InstallationSucceeded: true, AwaitingReboot: false) });
+        return true;
+    }
+
+    /// <summary>A lease kept for a reboot ends once the server has started again and no reboot is pending any more.</summary>
+    private void CompleteLeaseAfterReboot()
+    {
+        if (_state.Lease is { AwaitingReboot: true } hold && _environment.LastBootAt > hold.AcquiredAt && !_environment.RebootPending)
+        {
+            Save(_state with { Lease = hold with { AwaitingReboot = false } });
+        }
+    }
+
+    /// <summary>Releases a held lease unless it is kept for a reboot that is still allowed to happen.</summary>
+    private async Task<bool> ReleaseLeaseIfDoneAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        if (_state.Lease is not { } hold || (hold.AwaitingReboot && RebootMayFollow()))
+        {
+            return true;
+        }
+
+        if (!await _client.ReleaseLeaseAsync(identity, hold.InstallationSucceeded, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        Save(_state with { Lease = null });
+        LogLeaseReleased(hold.InstallationSucceeded);
+        return true;
+    }
+
+    /// <summary>A reboot can still come from this agent: the policy allows reboots and no local veto applies.</summary>
+    private bool RebootMayFollow() =>
+        _releases.Current.RebootPolicy == RebootPolicy.InsideMaintenanceWindow && _options.Value.AllowReboot && _options.Value.Enabled;
+
+    /// <summary>
+    /// Restarts the server when a reboot is pending and the central policy, the local veto, the global pause and the
+    /// maintenance window allow it (see <see cref="RebootPlanner"/>). In a coordinated group the restart needs a lease.
+    /// Every request is recorded, so it is not repeated within the cooldown even if Windows refused it.
+    /// Null if the central server rejected the credentials.
+    /// </summary>
+    internal async Task<RebootDecision?> RebootIfAllowedAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow();
         var decision = RebootPlanner.Decide(
@@ -123,7 +199,18 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             return decision;
         }
 
-        Save(_state with { LastRebootRequestAt = now });
+        var lease = await EnsureLeaseAsync(identity, cancellationToken).ConfigureAwait(false);
+        if (lease is null)
+        {
+            return null;
+        }
+
+        if (!lease.Value)
+        {
+            return RebootDecision.WaitingForLease;
+        }
+
+        Save(_state with { LastRebootRequestAt = now, Lease = _state.Lease is { } hold ? hold with { AwaitingReboot = true } : null });
         if (_restart.Schedule(RebootPlanner.WarningPeriod))
         {
             LogRebootScheduled(RebootPlanner.WarningPeriod);
@@ -147,7 +234,8 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         return InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options);
     }
 
-    private async Task InstallAsync(IReadOnlyList<Release> batch, CancellationToken cancellationToken)
+    /// <summary>Installs a batch, buffers the report and returns true if every update succeeded and the server is healthy afterwards.</summary>
+    private async Task<bool> InstallAsync(IReadOnlyList<Release> batch, CancellationToken cancellationToken)
     {
         var started = _timeProvider.GetUtcNow();
         LogInstalling(batch.Count);
@@ -178,6 +266,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
         var failed = results.Count(r => r.ResultCode is not (InstallResultCode.Succeeded or InstallResultCode.SucceededWithErrors));
         LogInstalled(results.Count - failed, failed, report.RebootRequired);
+        return failed == 0 && report.PostInstallChecks.All(check => check.Status != HealthStatus.Failed);
     }
 
     private async Task<bool> FlushOutboxAsync(AgentIdentity identity, CancellationToken cancellationToken)
@@ -213,4 +302,10 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "A reboot is pending and allowed in this maintenance window: the server restarts in {Warning}.")]
     private partial void LogRebootScheduled(TimeSpan warning);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Waiting for a lease of the coordinated group: {Reason}.")]
+    private partial void LogLeaseWaiting(string reason);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Lease of the coordinated group released (succeeded: {Succeeded}).")]
+    private partial void LogLeaseReleased(bool succeeded);
 }

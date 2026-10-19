@@ -89,4 +89,7 @@ internal sealed class ClientEntity
 
     /// <summary>Effective reboot policy delivered to the agent.</summary>
     public UpdateCoordinator.Contracts.Agents.RebootPolicy EffectiveRebootPolicy { get; set; }
+
+    /// <summary>The server is in at least one coordinated group and needs a lease before installing or rebooting.</summary>
+    public bool RequiresLease { get; set; }
 }

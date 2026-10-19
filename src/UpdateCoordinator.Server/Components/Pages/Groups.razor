@@ -16,7 +16,7 @@
     <AntiforgeryToken />
     <table>
         <thead>
-            <tr><th>Name</th><th>Description</th><th>Members</th><th>Maintenance windows</th><th>Reboots</th><th></th></tr>
+            <tr><th>Name</th><th>Description</th><th>Members</th><th>Maintenance windows</th><th>Reboots</th><th>Coordination (leases)</th><th></th></tr>
         </thead>
         <tbody>
             @foreach (var group in _groups)
@@ -34,6 +34,15 @@
                                 <option value="@policy" selected="@(group.RebootPolicy == policy)">@RebootPolicyText.Label(policy)</option>
                             }
                         </select>
+                    </td>
+                    <td>
+                        <label class="inline"><input type="checkbox" name="Coordinated_@group.Id" value="true" checked="@group.Coordinated" /> coordinated</label>
+                        <label class="inline">% <input name="Percent_@group.Id" type="number" min="1" max="100" value="@group.LeasePercent" aria-label="Share of members at once" /></label>
+                        <label class="inline">max <input name="Max_@group.Id" type="number" min="1" max="1000" value="@group.LeaseMaximum" aria-label="Most members at once" /></label>
+                        @if (group.LeasesHalted)
+                        {
+                            <span class="pill fail">Stopped</span>
+                        }
                     </td>
                     <td class="actions">
                         <button type="submit" name="Action" value="save:@group.Id">Save</button>
@@ -95,7 +104,17 @@
                 outcome = await Administration.SetGroupRebootPolicyAsync(groupId, reboot, actor, CancellationToken.None);
             }
 
-            success = "The maintenance windows and the reboot policy were saved.";
+            var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+            if (outcome.Succeeded && form is not null && form.ContainsKey($"Percent_{groupId}"))
+            {
+                var invariant = System.Globalization.CultureInfo.InvariantCulture;
+                outcome = int.TryParse(form[$"Percent_{groupId}"].ToString(), System.Globalization.NumberStyles.None, invariant, out var percent)
+                    && int.TryParse(form[$"Max_{groupId}"].ToString(), System.Globalization.NumberStyles.None, invariant, out var maximum)
+                    ? await Administration.SetGroupCoordinationAsync(groupId, form[$"Coordinated_{groupId}"].ToString() == "true", percent, maximum, actor, CancellationToken.None)
+                    : new Outcome("Share and maximum must be whole numbers.");
+            }
+
+            success = "The group settings were saved.";
         }
         else if (parts is ["delete", var deleteId] && int.TryParse(deleteId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var deleteGroupId))
         {

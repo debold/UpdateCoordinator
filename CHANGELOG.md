@@ -25,6 +25,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Uses the maintenance windows delivered by the central server; local `Installation:Windows` is only the fallback. Invalid central windows are rejected.
 - Reboots inside the maintenance window when the central reboot policy allows it: pending reboot detected from Windows (also after updates installed by others), at least 30 minutes left in the window, 5-minute warning via shutdown.exe, at most one request per 6 hours, never during a global pause; local veto via registry value `AllowReboot` (only 1/true allows). Heartbeat reports pending reboot and last boot time.
 - Runs remote actions announced in the heartbeat and confirms each one; unknown actions are rejected. Reports its Windows time zone with the inventory.
+- In coordinated groups installs and reboots only with a lease; keeps it across its own restart and releases it with the outcome.
 
 ### Central server
 
@@ -58,6 +59,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Reboot policy per system default, group and server ("Never" or "inside the maintenance window", default Never; among groups "Never" wins), delivered with the release list; server detail shows effective policy, last boot and whether a required reboot happened.
 - Remote action queue: operators queue "search now", "full resync", "restart agent service" and "request agent logs" (ZIP of the last 3 days, at most 10 MB, stored with restricted access for 14 days, audited download), administrators "restart server" with confirmation, per server (audited, at most 10 open, cancellable until fetched, expiry after 24 h / 1 h); the heartbeat announces pending actions, `GET /api/v1/agents/actions` and `POST /api/v1/agents/actions/{id}/result` deliver and confirm them.
 - Server time zone from the inventory (known IDs only); the server detail page shows the next maintenance window as a date.
+- Coordinated groups with leases: share in percent with an upper bound (default 25 %, at most 5, at least 1), 2-hour leases, all-or-nothing across several coordinated groups, stop after failed or expired leases in a row (capped by group size), resume by operators, audited.
 - Windows Update error codes are translated into plain English text centrally.
 
 ### Shared

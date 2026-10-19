@@ -97,6 +97,7 @@ Implemented (2026-10-18): the rings `Pilot`, `Test` and `Production` are fixed. 
 - For coordinated groups (e.g. domain controllers) where not all members may install/reboot at the same time, coordination runs **centrally in the central server** (not server to server). No single hanging server may block the group (lease with expiry).
 - **Quality gate:** if several leases in a row fail or expire without feedback, the central server stops issuing leases for this group.
 - Leases apply only to explicitly coordinated groups. All other servers install on their own.
+- Implemented (2026-10-19): a group is marked as coordinated with a share in percent and a maximum (default 25 %, at most 5; Marc: percent plus absolute, at least 1 so small groups still progress). Members learn from the release list (`requiresLease`) that they need a lease before installing or rebooting (`POST /api/v1/agents/lease`; a member of several coordinated groups gets leases in all of them or none). A lease lasts 2 hours. The agent releases it with the outcome (`POST /api/v1/agents/lease/release`) right after the installation, or after the server has restarted if the agent itself restarts it; without reboot permission the lease is released right away. Failed or expired leases in a row stop the group after 2 (or as many as the group has members, if fewer); a success resets the count. An Operator resumes a stopped group under Pending approvals; the overview lists it under Needs attention.
 
 ## 4. Maintenance windows
 

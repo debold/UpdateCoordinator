@@ -210,6 +210,11 @@
             _attention.Add(new AttentionItem("Registration", "pend", $"{pending} new servers wait for approval", null, "/approvals", "Review"));
         }
 
+        foreach (var group in await Db.Groups.AsNoTracking().Where(g => g.LeasesHalted).ToListAsync())
+        {
+            _attention.Add(new AttentionItem("Lease", "fail", $"Group {group.Name}: {group.ConsecutiveLeaseFailures} leases in a row failed or expired", "The central server issues no leases for this group until an operator resumes it.", "/approvals", "Review"));
+        }
+
         AddServers(health, ServerHealthState.Failed, "Failed", "fail", "servers with a failed installation or pre-flight check");
         AddServers(health, ServerHealthState.Offline, "Offline", "fail", "servers without heartbeat for over an hour");
     }

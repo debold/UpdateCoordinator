@@ -39,6 +39,21 @@ internal sealed class GroupEntity
 
     /// <summary>Reboot policy of the group; null leaves it to other groups or the system default.</summary>
     public UpdateCoordinator.Contracts.Agents.RebootPolicy? RebootPolicy { get; set; }
+
+    /// <summary>Members install and reboot only with a lease, so not all of them are down at the same time.</summary>
+    public bool Coordinated { get; set; }
+
+    /// <summary>Share of members that may hold a lease at the same time, in percent.</summary>
+    public int LeasePercent { get; set; } = 25;
+
+    /// <summary>Upper bound of members holding a lease at the same time.</summary>
+    public int LeaseMaximum { get; set; } = 5;
+
+    /// <summary>Failed or expired leases in a row; a success resets it.</summary>
+    public int ConsecutiveLeaseFailures { get; set; }
+
+    /// <summary>Set when too many leases failed in a row: no leases until an operator resumes the group.</summary>
+    public bool LeasesHalted { get; set; }
 }
 
 /// <summary>

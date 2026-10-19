@@ -59,10 +59,13 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
                 ?? systemReboot;
 
             var json = MaintenanceWindowFormat.ToJson(windows);
-            if (json != client.EffectiveWindowsJson || reboot != client.EffectiveRebootPolicy)
+            var requiresLease = groupIds.Any(g => groups.TryGetValue(g, out var group) && group.Coordinated);
+
+            if (json != client.EffectiveWindowsJson || reboot != client.EffectiveRebootPolicy || requiresLease != client.RequiresLease)
             {
                 client.EffectiveWindowsJson = json;
                 client.EffectiveRebootPolicy = reboot;
+                client.RequiresLease = requiresLease;
                 client.ReleasesVersion++;
             }
         }

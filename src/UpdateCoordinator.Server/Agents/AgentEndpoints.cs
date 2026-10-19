@@ -67,8 +67,33 @@ internal static class AgentEndpoints
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.ActionResult))
             .WithName("AgentActionLogs");
 
+        endpoints.MapPost(ApiRoutes.AgentLease, LeaseAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.Lease))
+            .WithName("AgentLease");
+
+        endpoints.MapPost(ApiRoutes.AgentLeaseRelease, LeaseReleaseAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.Lease))
+            .WithName("AgentLeaseRelease");
+
         return endpoints;
     }
+
+    internal static async Task<Ok<LeaseResponse>> LeaseAsync(
+        HttpContext httpContext,
+        Assignment.LeaseService leases,
+        CancellationToken cancellationToken) =>
+        TypedResults.Ok(await leases.AcquireAsync(httpContext.User.GetClientId(), cancellationToken).ConfigureAwait(false));
+
+    internal static async Task<Results<NoContent, NotFound>> LeaseReleaseAsync(
+        LeaseRelease release,
+        HttpContext httpContext,
+        Assignment.LeaseService leases,
+        CancellationToken cancellationToken) =>
+        await leases.ReleaseAsync(httpContext.User.GetClientId(), release.Succeeded, cancellationToken).ConfigureAwait(false)
+            ? TypedResults.NoContent()
+            : TypedResults.NotFound();
 
     /// <summary>Accepts a ZIP archive of at most <see cref="AgentActionList.MaxLogBytes"/> for a delivered "UploadLogs" action.</summary>
     internal static async Task<IResult> ActionLogsAsync(

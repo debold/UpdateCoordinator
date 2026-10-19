@@ -33,4 +33,10 @@ internal interface ICentralServerClient
 
     /// <summary>Uploads a log archive for a remote action. Returns false if the central server no longer accepts the credentials.</summary>
     Task<bool> UploadLogsAsync(AgentIdentity identity, Guid actionId, byte[] archive, CancellationToken cancellationToken);
+
+    /// <summary>Requests a lease for a coordinated group. Returns null if the central server no longer accepts the credentials.</summary>
+    Task<LeaseResponse?> AcquireLeaseAsync(AgentIdentity identity, CancellationToken cancellationToken);
+
+    /// <summary>Releases the lease with its outcome. Returns false if the central server no longer accepts the credentials.</summary>
+    Task<bool> ReleaseLeaseAsync(AgentIdentity identity, bool succeeded, CancellationToken cancellationToken);
 }

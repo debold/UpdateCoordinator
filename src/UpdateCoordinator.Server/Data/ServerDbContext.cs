@@ -44,6 +44,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<AgentActionEntity> AgentActions => Set<AgentActionEntity>();
 
+    public DbSet<LeaseEntity> Leases => Set<LeaseEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -106,6 +108,15 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         // Default: every update starts automatically and without delay (decided 2026-10-18).
         startRule.HasData(new StartRuleEntity { Id = StartRuleEntity.CatchAllId, Priority = 1000, Mode = StartMode.Automatic, Delay = TimeSpan.Zero });
 
+        var lease = modelBuilder.Entity<LeaseEntity>();
+        lease.ToTable("Leases");
+        lease.HasKey(l => l.Id);
+        lease.Property(l => l.State).HasConversion<int>();
+        lease.HasIndex(l => new { l.GroupId, l.State });
+        lease.HasIndex(l => new { l.ClientId, l.State });
+        lease.HasOne<GroupEntity>().WithMany().HasForeignKey(l => l.GroupId).OnDelete(DeleteBehavior.Cascade);
+        lease.HasOne<ClientEntity>().WithMany().HasForeignKey(l => l.ClientId).OnDelete(DeleteBehavior.Cascade);
+
         var action = modelBuilder.Entity<AgentActionEntity>();
         action.ToTable("AgentActions");
         action.HasKey(a => a.Id);
@@ -144,6 +155,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         group.Property(g => g.Description).HasMaxLength(256);
         group.Property(g => g.MaintenanceWindowsJson).HasMaxLength(4096);
         group.HasIndex(g => g.Name).IsUnique();
+        group.Property(g => g.LeasePercent).HasDefaultValue(25);
+        group.Property(g => g.LeaseMaximum).HasDefaultValue(5);
 
         var membership = modelBuilder.Entity<ClientGroupEntity>();
         membership.ToTable("ClientGroups");

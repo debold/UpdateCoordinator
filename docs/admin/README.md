@@ -280,3 +280,7 @@ Restarting the agent service relies on the service recovery settings: the agent 
 The server detail page also shows the time zone the agent reports and the next maintenance window as a date in server time and UTC.
 
 **Agent logs:** the agent packs its own log files (`agent-*.log`) of the last 3 days into a ZIP archive of at most 10 MB (older files are left out if needed) and uploads it. The central server checks that it is a ZIP archive, stores it under `Administration:AgentLogDirectory` (default `%ProgramData%\UpdateCoordinator\Server\AgentLogs`, readable only by SYSTEM, administrators and the service account) and deletes it after `Administration:AgentLogRetentionDays` (default 14). Operators download it from the server detail page; every download is audited.
+
+## 15. Coordinated groups (leases)
+
+For groups whose members must not all install or restart at the same time (e.g. domain controllers), tick **coordinated** on the Groups page and set the share in percent and the maximum (default 25 %, at most 5, always at least 1). Members then install and reboot only while they hold a lease from the central server. A lease ends when the agent reports the outcome, at the latest after 2 hours. After 2 failed or expired leases in a row (fewer in smaller groups) the group stops; the overview shows it, and an Operator resumes it under Pending approvals after checking the servers. All changes and resumes are audited.

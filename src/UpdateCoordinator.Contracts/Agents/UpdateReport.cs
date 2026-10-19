@@ -97,7 +97,8 @@ public sealed record AvailableUpdate : UpdateInfo
 /// <param name="Releases">Released updates with earliest installation time.</param>
 /// <param name="MaintenanceWindows">Effective maintenance windows (server, group or system default); null lets the agent use its local configuration.</param>
 /// <param name="RebootPolicy">Effective reboot policy (server, group or system default); null means the agent never reboots.</param>
-public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, IReadOnlyList<MaintenanceWindow>? MaintenanceWindows = null, RebootPolicy? RebootPolicy = null);
+/// <param name="RequiresLease">The server is in a coordinated group: it installs and reboots only with a lease.</param>
+public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, IReadOnlyList<MaintenanceWindow>? MaintenanceWindows = null, RebootPolicy? RebootPolicy = null, bool RequiresLease = false);
 
 /// <summary>
 /// A released update and the earliest time it may be installed.

@@ -139,6 +139,32 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
         return response is not null;
     }
 
+    public async Task<LeaseResponse?> AcquireLeaseAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        using var response = await PostAuthenticatedAsync(ApiRoutes.AgentLease, identity, new { }, cancellationToken).ConfigureAwait(false);
+        if (response is null)
+        {
+            return null;
+        }
+
+        return await response.Content.ReadFromJsonAsync<LeaseResponse>(cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidDataException("The central server returned an invalid lease response.");
+    }
+
+    public async Task<bool> ReleaseLeaseAsync(AgentIdentity identity, bool succeeded, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await PostAuthenticatedAsync(ApiRoutes.AgentLeaseRelease, identity, new LeaseRelease { Succeeded = succeeded }, cancellationToken).ConfigureAwait(false);
+            return response is not null;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            // The lease already expired on the central server; nothing left to release.
+            return true;
+        }
+    }
+
     private static bool IsValid(MaintenanceWindow? window) =>
         window is { Days: not null }
         && System.ComponentModel.DataAnnotations.Validator.TryValidateObject(window, new System.ComponentModel.DataAnnotations.ValidationContext(window), null, validateAllProperties: true);

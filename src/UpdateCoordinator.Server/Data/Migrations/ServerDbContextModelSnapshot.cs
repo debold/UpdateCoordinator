@@ -435,6 +435,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<long>("ReleasesVersion")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("RequiresLease")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("RingId")
                         .HasColumnType("INTEGER");
 
@@ -533,9 +536,28 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("ConsecutiveLeaseFailures")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Coordinated")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Description")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("LeaseMaximum")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(5);
+
+                    b.Property<int>("LeasePercent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(25);
+
+                    b.Property<bool>("LeasesHalted")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("MaintenanceWindowsJson")
                         .HasMaxLength(4096)
@@ -603,6 +625,39 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Installations", (string)null);
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.LeaseEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EndedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("GroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("IssuedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId", "State");
+
+                    b.HasIndex("GroupId", "State");
+
+                    b.ToTable("Leases", (string)null);
                 });
 
             modelBuilder.Entity("UpdateCoordinator.Server.Data.ReleaseEntity", b =>
@@ -1057,6 +1112,21 @@ namespace UpdateCoordinator.Server.Data.Migrations
                         .WithMany()
                         .HasForeignKey("UpdateId", "Revision")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("UpdateCoordinator.Server.Data.LeaseEntity", b =>
+                {
+                    b.HasOne("UpdateCoordinator.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UpdateCoordinator.Server.Data.GroupEntity", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

@@ -115,6 +115,8 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 | Releases | `GET /api/v1/agents/releases` | Basic, approved only | `200` release list with version, `401`, `403` not approved |
 | Install report | `POST /api/v1/agents/installations` | Basic, approved only | `204` stored, `400` invalid input, `401`, `403` not approved |
 | Actions | `GET /api/v1/agents/actions` | Basic, approved only | `200` up to 20 queued actions (marked as delivered), `401`, `403` not approved |
+| Lease | `POST /api/v1/agents/lease` | Basic, approved only | `200` granted with end time, or not granted with reason |
+| Lease release | `POST /api/v1/agents/lease/release` | Basic, approved only | `204` released, `404` no active lease |
 | Action result | `POST /api/v1/agents/actions/{id}/result` | Basic, approved only | `204` stored, `400` invalid input, `401`, `403`, `404` unknown, not delivered or not this client's action |
 | Trust binding | `GET /api/v1/trust/binding` | none (public, signed) | `200` binding (see 3.2), `503` no binding yet |
 

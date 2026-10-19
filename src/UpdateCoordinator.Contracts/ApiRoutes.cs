@@ -41,6 +41,12 @@ public static class ApiRoutes
     /// <summary>Result route for a concrete action.</summary>
     public static string AgentActionResultFor(Guid id) => $"/api/v1/agents/actions/{id:D}/result";
 
+    /// <summary>Lease request of a server in a coordinated group.</summary>
+    public const string AgentLease = "/api/v1/agents/lease";
+
+    /// <summary>Release of the lease with its outcome.</summary>
+    public const string AgentLeaseRelease = "/api/v1/agents/lease/release";
+
     /// <summary>Signed binding between trust anchor and TLS certificate; public, self-authenticating data.</summary>
     public const string TrustBinding = "/api/v1/trust/binding";
 }

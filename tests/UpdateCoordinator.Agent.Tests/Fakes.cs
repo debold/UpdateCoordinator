@@ -118,6 +118,24 @@ internal sealed class FakeCentralServerClient : ICentralServerClient
 
     public Task<AgentActionList?> GetActionsAsync(AgentIdentity identity, CancellationToken cancellationToken) => Task.FromResult(ActionList);
 
+    public LeaseResponse? LeaseAnswer { get; set; } = new(true, DateTimeOffset.UtcNow.AddHours(2));
+
+    public int LeaseRequests { get; private set; }
+
+    public List<bool> LeaseReleases { get; } = [];
+
+    public Task<LeaseResponse?> AcquireLeaseAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        LeaseRequests++;
+        return Task.FromResult(LeaseAnswer);
+    }
+
+    public Task<bool> ReleaseLeaseAsync(AgentIdentity identity, bool succeeded, CancellationToken cancellationToken)
+    {
+        LeaseReleases.Add(succeeded);
+        return Task.FromResult(true);
+    }
+
     public Dictionary<Guid, byte[]> UploadedLogs { get; } = [];
 
     public Task<bool> UploadLogsAsync(AgentIdentity identity, Guid actionId, byte[] archive, CancellationToken cancellationToken)

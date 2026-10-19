@@ -12,6 +12,9 @@ internal enum RebootDecision
     OutsideWindow,
     WindowEndsSoon,
     RecentlyRequested,
+
+    /// <summary>Allowed, but all leases of the coordinated group are taken.</summary>
+    WaitingForLease,
 }
 
 /// <summary>

@@ -176,3 +176,29 @@ internal sealed class AgentActionEntity
     /// <summary>Size of the uploaded log archive while it is kept; null if there is none (any more).</summary>
     public long? LogFileSize { get; set; }
 }
+
+internal enum LeaseState
+{
+    Active = 0,
+    Succeeded = 1,
+    Failed = 2,
+    Expired = 3,
+}
+
+/// <summary>Permission of one server to install and reboot inside a coordinated group (docs/04-central-server.md, leases).</summary>
+internal sealed class LeaseEntity
+{
+    public long Id { get; set; }
+
+    public int GroupId { get; set; }
+
+    public Guid ClientId { get; set; }
+
+    public LeaseState State { get; set; }
+
+    public DateTime IssuedAtUtc { get; set; }
+
+    public DateTime ExpiresAtUtc { get; set; }
+
+    public DateTime? EndedAtUtc { get; set; }
+}

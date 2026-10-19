@@ -260,6 +260,33 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         return await CompleteAsync(actor, "Group.RebootPolicyChanged", group.Name, policy?.ToString() ?? "inherited", null, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Turns lease coordination of a group on or off and sets how many members may hold a lease at once.</summary>
+    public async Task<Outcome> SetGroupCoordinationAsync(int groupId, bool coordinated, int percent, int maximum, string actor, CancellationToken cancellationToken)
+    {
+        if (percent is < 1 or > 100 || maximum is < 1 or > 1_000)
+        {
+            return new Outcome("The share must be 1 to 100 percent and the maximum 1 to 1000 servers.");
+        }
+
+        var group = await db.Groups.SingleOrDefaultAsync(g => g.Id == groupId, cancellationToken).ConfigureAwait(false);
+        if (group is null)
+        {
+            return new Outcome("The group no longer exists.");
+        }
+
+        if (group.Coordinated == coordinated && group.LeasePercent == percent && group.LeaseMaximum == maximum)
+        {
+            return Outcome.Ok;
+        }
+
+        group.Coordinated = coordinated;
+        group.LeasePercent = percent;
+        group.LeaseMaximum = maximum;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        var details = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(coordinated ? "coordinated" : "not coordinated")}, {percent}%, at most {maximum}");
+        return await CompleteAsync(actor, "Group.CoordinationChanged", group.Name, details, null, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Sets the reboot policy of a server; null uses its groups or the system default.</summary>
     public async Task<Outcome> SetClientRebootPolicyAsync(Guid clientId, RebootPolicy? policy, string actor, CancellationToken cancellationToken)
     {
