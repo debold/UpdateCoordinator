@@ -86,6 +86,13 @@ internal static class DashboardServiceCollectionExtensions
         services.AddSingleton<IDnsLookup, SystemDnsLookup>();
         services.AddScoped<RuleBasedApprover>();
         services.AddHostedService<RuleBasedApprovalWorker>();
+
+        services.AddOptions<CoverageOptions>()
+            .Bind(configuration.GetSection(CoverageOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<DirectoryCoverage>();
+        services.AddHostedService<CoverageWorker>();
         return services;
     }
 

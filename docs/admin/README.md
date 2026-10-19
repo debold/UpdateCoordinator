@@ -284,3 +284,13 @@ The server detail page also shows the time zone the agent reports and the next m
 ## 15. Coordinated groups (leases)
 
 For groups whose members must not all install or restart at the same time (e.g. domain controllers), tick **coordinated** on the Groups page and set the share in percent and the maximum (default 25 %, at most 5, always at least 1). Members then install and reboot only while they hold a lease from the central server. A lease ends when the agent reports the outcome, at the latest after 2 hours. After 2 failed or expired leases in a row (fewer in smaller groups) the group stops; the overview shows it, and an Operator resumes it under Pending approvals after checking the servers. All changes and resumes are audited.
+
+## 16. AD coverage
+
+If the central server is a domain member, it reads the enabled server computer accounts of its domain every 6 hours with its service account and compares them with the registered agents. Only Windows Server 2016 or newer counts; older servers appear separately as not supported. The overview shows the coverage rate; **AD coverage** lists every supported server without agent.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Coverage:Enabled` | `true` | turns the AD comparison off |
+| `Coverage:Domain` | own domain | domain to read |
+| `Coverage:Interval` | `06:00:00` | how often AD is read (10 minutes to 7 days) |

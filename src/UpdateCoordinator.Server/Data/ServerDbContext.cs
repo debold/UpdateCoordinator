@@ -46,6 +46,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<LeaseEntity> Leases => Set<LeaseEntity>();
 
+    public DbSet<UpdateCoordinator.Server.Approval.DirectoryComputerEntity> DirectoryComputers => Set<UpdateCoordinator.Server.Approval.DirectoryComputerEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -107,6 +109,13 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
         // Default: every update starts automatically and without delay (decided 2026-10-18).
         startRule.HasData(new StartRuleEntity { Id = StartRuleEntity.CatchAllId, Priority = 1000, Mode = StartMode.Automatic, Delay = TimeSpan.Zero });
+
+        var computer = modelBuilder.Entity<UpdateCoordinator.Server.Approval.DirectoryComputerEntity>();
+        computer.ToTable("DirectoryComputers");
+        computer.HasKey(c => c.Name);
+        computer.Property(c => c.Name).HasMaxLength(64).UseCollation("NOCASE");
+        computer.Property(c => c.DnsHostName).HasMaxLength(255);
+        computer.Property(c => c.OperatingSystem).HasMaxLength(128);
 
         var lease = modelBuilder.Entity<LeaseEntity>();
         lease.ToTable("Leases");

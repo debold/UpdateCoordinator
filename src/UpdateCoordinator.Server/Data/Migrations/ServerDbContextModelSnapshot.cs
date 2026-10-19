@@ -209,6 +209,35 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("UpdateCoordinator.Server.Approval.DirectoryComputerEntity", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<int?>("Build")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DnsHostName")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OperatingSystem")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ReadAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Supported")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Name");
+
+                    b.ToTable("DirectoryComputers", (string)null);
+                });
+
             modelBuilder.Entity("UpdateCoordinator.Server.Data.AgentActionEntity", b =>
                 {
                     b.Property<Guid>("Id")

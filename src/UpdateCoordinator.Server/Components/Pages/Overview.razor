@@ -9,6 +9,7 @@
 @inject ComplianceHistory Compliance
 @inject GlobalPause Pause
 @inject TimeProvider Time
+@inject UpdateCoordinator.Server.Approval.DirectoryCoverage CoverageReader
 
 <PageTitle>Overview</PageTitle>
 
@@ -68,6 +69,14 @@
         <div class="value">@(_wsus + _diskWarnings + _rebootPending)</div>
         <div class="detail">@_wsus WSUS source · @_diskWarnings low disk · @_rebootPending reboot pending</div>
     </div>
+    @if (_coverage.ReadAtUtc is not null)
+    {
+        <div class="card figure">
+            <div class="label">AD coverage</div>
+            <div class="value">@(_coverage.Percent is { } percent ? $"{percent} %" : "–")</div>
+            <div class="detail">@_coverage.Covered of @_coverage.Supported supported server accounts · <a href="/coverage">@_coverage.Missing.Count without agent</a></div>
+        </div>
+    }
     <div class="card figure">
         <div class="label">Patch compliance</div>
         <div class="value">@_compliancePercent %</div>
@@ -125,6 +134,7 @@
     private int _diskWarnings;
     private int _rebootPending;
     private int _compliancePercent;
+    private UpdateCoordinator.Server.Approval.CoverageReport _coverage = new(null, 0, 0, [], []);
 
     protected override async Task OnInitializedAsync()
     {
@@ -179,6 +189,7 @@
 
         await LoadAttentionAsync(health);
         await LoadRingsAsync(clients, entries);
+        _coverage = await CoverageReader.GetReportAsync(CancellationToken.None);
         _trend = [.. (await Compliance.GetAsync(90, CancellationToken.None)).Select(s => (s.Day, s.Servers == 0 ? 100.0 : s.Compliant * 100.0 / s.Servers))];
     }
 

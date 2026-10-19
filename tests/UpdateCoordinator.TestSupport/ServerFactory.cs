@@ -45,6 +45,8 @@ public class ServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Agents:RateLimit:RegisterPermitLimit", RegisterPermitLimit.ToString(CultureInfo.InvariantCulture));
         // Tests drive the ring logic explicitly; the worker only runs once at start.
         builder.UseSetting("Rollout:EvaluationInterval", "01:00:00");
+        // Never read a real Active Directory from tests; coverage tests use a fake directory.
+        builder.UseSetting("Coverage:Enabled", "false");
         builder.ConfigureTestServices(services => services.AddSingleton<ITlsCertificateProvider>(_certificates));
     }
 

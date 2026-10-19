@@ -60,6 +60,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Remote action queue: operators queue "search now", "full resync", "restart agent service" and "request agent logs" (ZIP of the last 3 days, at most 10 MB, stored with restricted access for 14 days, audited download), administrators "restart server" with confirmation, per server (audited, at most 10 open, cancellable until fetched, expiry after 24 h / 1 h); the heartbeat announces pending actions, `GET /api/v1/agents/actions` and `POST /api/v1/agents/actions/{id}/result` deliver and confirm them.
 - Server time zone from the inventory (known IDs only); the server detail page shows the next maintenance window as a date.
 - Coordinated groups with leases: share in percent with an upper bound (default 25 %, at most 5, at least 1), 2-hour leases, all-or-nothing across several coordinated groups, stop after failed or expired leases in a row (capped by group size), resume by operators, audited.
+- AD coverage: enabled server accounts of the domain (Windows Server 2016 or newer only; older ones listed separately) compared with registered agents every 6 hours; coverage rate on the overview, page with servers without agent.
 - Windows Update error codes are translated into plain English text centrally.
 
 ### Shared

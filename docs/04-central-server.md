@@ -139,6 +139,7 @@ Two options: **soft delete** (marked as retired/deactivated, history is kept) or
 ## 7. AD comparison
 
 If the central server is AD-joined, it reads the computer objects (filtered to servers) via LDAP as the **target** and compares them with the registered/reporting agents as the **actual** state. This yields a coverage rate with delta.
+Implemented (2026-10-19): every `Coverage:Interval` (default 6 hours) the central server reads the enabled computer accounts with a Windows Server operating system from its own domain (or `Coverage:Domain`) over signed and sealed LDAP with paging. Only supported versions count (Windows Server 2016 or newer, build 14393 from `operatingSystemVersion`; Marc, 2026-10-19); older servers are listed separately. An account is covered when an approved or pending agent has its DNS name or host name. The overview shows the coverage rate, the page AD coverage lists servers without agent and unsupported servers. If AD is unreachable the previous list stays.
 
 ## 8. Open points
 

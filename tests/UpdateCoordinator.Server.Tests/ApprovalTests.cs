@@ -147,6 +147,11 @@ internal sealed class FakeDirectory : IDirectoryLookup
 
     public Task<ComputerAccountState> FindComputerAsync(string domain, string hostName, CancellationToken cancellationToken) =>
         Failure is null ? Task.FromResult(State) : Task.FromException<ComputerAccountState>(Failure);
+
+    public List<DirectoryComputer> Servers { get; } = [];
+
+    public Task<IReadOnlyList<DirectoryComputer>> ListServersAsync(string domain, CancellationToken cancellationToken) =>
+        Failure is null ? Task.FromResult<IReadOnlyList<DirectoryComputer>>(Servers) : Task.FromException<IReadOnlyList<DirectoryComputer>>(Failure);
 }
 
 internal sealed class FakeDns : IDnsLookup
