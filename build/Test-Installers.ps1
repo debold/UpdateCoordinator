@@ -92,7 +92,16 @@ Check 'agent stays below its memory limit after registration and inventory' {
 }
 
 # --- Version 2: upgrade without options keeps settings and data ------------------------------------------------
-Check 'server upgrades' { (Invoke-Msi "/i `"$Version2Directory\UpdateCoordinator.Server.msi`"" 'server-upgrade.log') -eq 0 }
+# The upgrade runs over a crashing service that service recovery restarts every minute (seen in a lab with 0.1.0
+# without certificate): an unreadable trust anchor stops the service at start until the original file is back.
+$anchor = "$env:ProgramData\UpdateCoordinator\Server\trust-anchor.key"
+Copy-Item $anchor "$anchor.backup"
+Set-Content -Path $anchor -Value 'unreadable'
+Restart-Service UpdateCoordinator.Server -ErrorAction SilentlyContinue
+Check 'server crashes before the upgrade (test setup)' { Wait-Until { (Get-Service UpdateCoordinator.Server).Status -eq 'Stopped' } 60 }
+Check 'server upgrades over a crashing service' { (Invoke-Msi "/i `"$Version2Directory\UpdateCoordinator.Server.msi`"" 'server-upgrade.log') -eq 0 }
+Move-Item "$anchor.backup" $anchor -Force
+Start-Service UpdateCoordinator.Server -ErrorAction SilentlyContinue
 Check 'server version 2 installed once' { (Get-ProductVersion 'UpdateCoordinator Central Server') -eq '0.2.0' }
 Check 'server keeps certificate setting' { (Get-ItemProperty $serverKey).CertificateThumbprint -eq $certificate.Thumbprint }
 Check 'server keeps its database' { Test-Path "$env:ProgramData\UpdateCoordinator\Server\server.db" }
