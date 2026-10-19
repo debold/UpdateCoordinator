@@ -14,6 +14,9 @@ public static class ValidationPatterns
     /// <summary>Windows version with two to four numeric parts, e.g. 10.0.20348.2700.</summary>
     public const string OsVersion = @"^[0-9]{1,5}(?:\.[0-9]{1,5}){1,3}$";
 
+    /// <summary>Windows time zone ID, e.g. "W. Europe Standard Time" or "UTC-11".</summary>
+    public const string TimeZoneId = @"^[A-Za-z0-9][A-Za-z0-9 ().+\-_]{0,63}$";
+
     /// <summary>Role identifier, e.g. "DomainController" or "Custom.BackupServer".</summary>
     public const string RoleName = @"^[A-Za-z][A-Za-z0-9.\-]{0,63}$";
 

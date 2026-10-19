@@ -25,6 +25,7 @@ internal sealed partial class InventoryCollector(
         {
             HostName = environment.HostName,
             DomainName = environment.DomainName,
+            TimeZoneId = TimeZoneInfo.Local.Id,
             OperatingSystem = ReadOperatingSystem(),
             Roles = roles.Detect(),
             UpdateSource = ReadUpdateSource(probe),

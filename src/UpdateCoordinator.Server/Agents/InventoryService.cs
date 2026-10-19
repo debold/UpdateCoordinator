@@ -26,6 +26,9 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
         LogIdentityChanges(client, inventory);
         client.HostName = inventory.HostName;
         client.DomainName = inventory.DomainName;
+
+        // Only IDs this central server knows are kept, so the next window can be calculated.
+        client.TimeZoneId = inventory.TimeZoneId is { } zone && TimeZoneInfo.TryFindSystemTimeZoneById(zone, out _) ? zone : null;
         client.OsProductName = inventory.OperatingSystem.ProductName;
         client.OsEditionId = inventory.OperatingSystem.EditionId;
         client.OsDisplayVersion = inventory.OperatingSystem.DisplayVersion;

@@ -109,6 +109,24 @@ internal sealed class FakeCentralServerClient : ICentralServerClient
 
         return Task.FromResult(accepted);
     }
+
+    public AgentActionList? ActionList { get; set; } = new([]);
+
+    public Dictionary<Guid, AgentActionResult> ActionResults { get; } = [];
+
+    public bool AcceptActionResults { get; set; } = true;
+
+    public Task<AgentActionList?> GetActionsAsync(AgentIdentity identity, CancellationToken cancellationToken) => Task.FromResult(ActionList);
+
+    public Task<bool> SendActionResultAsync(AgentIdentity identity, Guid actionId, AgentActionResult result, CancellationToken cancellationToken)
+    {
+        if (AcceptActionResults)
+        {
+            ActionResults[actionId] = result;
+        }
+
+        return Task.FromResult(AcceptActionResults);
+    }
 }
 
 internal sealed class FakeUpdateReporter : IUpdateReporter
@@ -204,4 +222,11 @@ internal sealed class FakeRestart : UpdateCoordinator.Agent.Installation.ISystem
         Requests.Add(warning);
         return Accept;
     }
+}
+
+internal sealed class FakeServiceRestarter : UpdateCoordinator.Agent.Actions.IServiceRestarter
+{
+    public int Requests { get; private set; }
+
+    public void RequestRestart() => Requests++;
 }

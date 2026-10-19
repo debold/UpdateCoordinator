@@ -14,6 +14,8 @@ internal enum MessageType
     UpdateReport,
     ReleaseRequest,
     InstallReport,
+    ActionRequest,
+    ActionResult,
 }
 
 /// <summary>
@@ -25,7 +27,8 @@ internal static class MessagePolicy
     {
         MessageType.Register => state is null,
         MessageType.Heartbeat or MessageType.Inventory => state is RegistrationState.Pending or RegistrationState.Approved,
-        MessageType.UpdateReport or MessageType.ReleaseRequest or MessageType.InstallReport => state is RegistrationState.Approved,
+        MessageType.UpdateReport or MessageType.ReleaseRequest or MessageType.InstallReport or MessageType.ActionRequest or MessageType.ActionResult
+            => state is RegistrationState.Approved,
         _ => false,
     };
 }

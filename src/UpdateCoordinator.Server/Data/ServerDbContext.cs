@@ -42,6 +42,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<ComplianceSnapshotEntity> ComplianceSnapshots => Set<ComplianceSnapshotEntity>();
 
+    public DbSet<AgentActionEntity> AgentActions => Set<AgentActionEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -103,6 +105,17 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
         // Default: every update starts automatically and without delay (decided 2026-10-18).
         startRule.HasData(new StartRuleEntity { Id = StartRuleEntity.CatchAllId, Priority = 1000, Mode = StartMode.Automatic, Delay = TimeSpan.Zero });
+
+        var action = modelBuilder.Entity<AgentActionEntity>();
+        action.ToTable("AgentActions");
+        action.HasKey(a => a.Id);
+        action.Property(a => a.Id).ValueGeneratedNever();
+        action.Property(a => a.Kind).HasConversion<int>();
+        action.Property(a => a.State).HasConversion<int>();
+        action.Property(a => a.RequestedBy).HasMaxLength(256).IsRequired();
+        action.Property(a => a.Detail).HasMaxLength(512);
+        action.HasIndex(a => new { a.ClientId, a.State });
+        action.HasOne<ClientEntity>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Cascade);
 
         var compliance = modelBuilder.Entity<ComplianceSnapshotEntity>();
         compliance.ToTable("ComplianceSnapshots");
@@ -167,6 +180,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         client.Property(c => c.OsEditionId).HasMaxLength(64);
         client.Property(c => c.OsDisplayVersion).HasMaxLength(16);
         client.Property(c => c.WsusServer).HasMaxLength(255);
+        client.Property(c => c.TimeZoneId).HasMaxLength(64);
         client.OwnsMany(c => c.HealthChecks, health => health.ToJson());
         client.Property(c => c.MaintenanceWindowsJson).HasMaxLength(4096);
         client.Property(c => c.EffectiveWindowsJson).HasMaxLength(8192);

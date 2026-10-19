@@ -15,7 +15,7 @@ internal sealed class RolloutOptions
 }
 
 /// <summary>
-/// Evaluates the ring transitions of all active rollouts and records the patch compliance periodically. A failed run is logged and retried with the
+/// Evaluates the ring transitions of all active rollouts, records the patch compliance and expires stale remote actions periodically. A failed run is logged and retried with the
 /// next interval; it never stops the service.
 /// </summary>
 internal sealed partial class RolloutWorker(
@@ -57,6 +57,7 @@ internal sealed partial class RolloutWorker(
         await using var scope = scopes.CreateAsyncScope();
         var changes = await scope.ServiceProvider.GetRequiredService<RolloutService>().AdvanceAsync(cancellationToken).ConfigureAwait(false);
         await scope.ServiceProvider.GetRequiredService<ComplianceHistory>().RecordAsync(cancellationToken).ConfigureAwait(false);
+        await scope.ServiceProvider.GetRequiredService<UpdateCoordinator.Server.Agents.AgentActionService>().ExpireAsync(cancellationToken).ConfigureAwait(false);
         return changes;
     }
 

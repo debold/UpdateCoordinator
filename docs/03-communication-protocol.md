@@ -114,9 +114,11 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 | Update report | `POST /api/v1/agents/updates` | Basic, approved only | `204` stored, `400` invalid input, `401`, `403` not approved, `413` larger than 4 MB |
 | Releases | `GET /api/v1/agents/releases` | Basic, approved only | `200` release list with version, `401`, `403` not approved |
 | Install report | `POST /api/v1/agents/installations` | Basic, approved only | `204` stored, `400` invalid input, `401`, `403` not approved |
+| Actions | `GET /api/v1/agents/actions` | Basic, approved only | `200` up to 20 queued actions (marked as delivered), `401`, `403` not approved |
+| Action result | `POST /api/v1/agents/actions/{id}/result` | Basic, approved only | `204` stored, `400` invalid input, `401`, `403`, `404` unknown, not delivered or not this client's action |
 | Trust binding | `GET /api/v1/trust/binding` | none (public, signed) | `200` binding (see 3.2), `503` no binding yet |
 
-The inventory contains host name, domain, operating system (product name, edition, display version, version with UBR), detected roles, the configured update source and up to 5,000 installed updates (update ID, revision, KB, title, classification). `installedUpdates: null` means "could not be read": the central server keeps the previous list. The heartbeat additionally carries the current OS version including UBR.
+The inventory contains host name, domain, Windows time zone ID (kept only if the central server knows it; maintenance windows are in this time), operating system (product name, edition, display version, version with UBR), detected roles, the configured update source and up to 5,000 installed updates (update ID, revision, KB, title, classification). `installedUpdates: null` means "could not be read": the central server keeps the previous list. The heartbeat additionally carries the current OS version including UBR.
 
 The protocol version is part of the route (`/api/v1/...`). An incompatible change introduces a new version, and the central server serves both during a transition period. All input is validated against the shared contracts (`UpdateCoordinator.Contracts`); error answers use RFC 9457 problem details.
 
@@ -148,6 +150,7 @@ The following actions are planned:
 - Later: log retrieval
 
 Restart actions are subject to the operational rules in `02-guidelines.md` (never endanger operation without explicit configuration).
+Implemented (2026-10-19): an Operator queues an action on the server detail page (audited; at most 10 open actions per server, approved servers only). The heartbeat answer carries the number of queued actions (`pendingActions`); when it is above zero the agent fetches them (`GET /api/v1/agents/actions`, which marks them as delivered), runs them in order and confirms each one (`Succeeded`, `Failed` or `Rejected` with a short detail of at most 512 characters; control characters are removed). An action that was never fetched expires after 24 hours, one without result one hour after delivery; a queued action can be cancelled until the agent fetches it. Implemented actions: search for updates now, full resync (inventory and search) and restart the agent service (the agent confirms first and then ends with exit code 1, so the service recovery settings restart it; the installer must configure restart on failure including non-crash failures). An agent that does not know an action rejects it.
 
 ## 9. Evaluation by the central server
 

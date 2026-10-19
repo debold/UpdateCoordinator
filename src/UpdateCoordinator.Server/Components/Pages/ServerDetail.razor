@@ -6,6 +6,7 @@
 @inject ServerDbContext Db
 @inject AssignmentAdministration Administration
 @inject DeploymentStatus Deployment
+@inject UpdateCoordinator.Server.Agents.AgentActionService Actions
 @inject TimeProvider Time
 
 <PageTitle>Server</PageTitle>
@@ -32,6 +33,8 @@ else
         <dt>Ring</dt><dd>@RingName(_client.RingId) @(_client.ManualRingId is null ? "(automatic)" : "(manual)")</dd>
         <dt>Groups</dt><dd>@(_memberships.Count > 0 ? string.Join(", ", _memberships.Select(m => $"{GroupName(m.GroupId)}{(m.Manual ? " (manual)" : "")}")) : "–")</dd>
         <dt>Effective maintenance windows</dt><dd><pre>@MaintenanceWindowFormat.Format(MaintenanceWindowFormat.FromJson(_client.EffectiveWindowsJson) ?? [])</pre></dd>
+        <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "unknown (reported with the next inventory)")</dd>
+        <dt>Next maintenance window</dt><dd>@NextWindowText</dd>
         <dt>Reboot pending</dt><dd>@(_client.RebootPending ? "yes" : "no")</dd>
         <dt>Reboots</dt><dd>@RebootPolicyText.Label(_client.EffectiveRebootPolicy)@(_client.RebootPolicy is null ? " (inherited)" : " (server setting)")</dd>
         <dt>Last boot (UTC)</dt><dd>@Format(_client.LastBootAtUtc)</dd>
@@ -116,6 +119,48 @@ else
         </div>
     </section>
 
+    <section class="card flush" aria-labelledby="actions-h">
+        <h2 id="actions-h">Remote actions</h2>
+        <form method="post" @formname="action" @onsubmit="HandleActionAsync">
+            <AntiforgeryToken />
+            <p class="sub card-text">The agent picks actions up with its next heartbeat and runs them in order; the central server never connects to the agent.</p>
+            <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
+                <div class="actions card-text">
+                    <button type="submit" name="RemoteAction" value="queue:SearchNow">Search for updates now</button>
+                    <button type="submit" name="RemoteAction" value="queue:FullResync">Full resync</button>
+                    <button type="submit" name="RemoteAction" value="queue:RestartService">Restart agent service</button>
+                </div>
+            </AuthorizeView>
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>Requested (UTC)</th><th>Action</th><th>By</th><th>State</th><th>Detail</th><th></th></tr></thead>
+                    <tbody>
+                        @if (_actions.Count == 0)
+                        {
+                            <tr><td colspan="6">No action requested yet.</td></tr>
+                        }
+                        @foreach (var action in _actions)
+                        {
+                            <tr>
+                                <td>@Format(action.RequestedAtUtc)</td>
+                                <td>@action.Kind</td>
+                                <td>@action.RequestedBy</td>
+                                <td><span class="pill @ActionClass(action.State)">@action.State</span></td>
+                                <td>@action.Detail</td>
+                                <td>
+                                    @if (action.State == AgentActionState.Queued && _canOperate)
+                                    {
+                                        <button type="submit" name="RemoteAction" value="cancel:@action.Id">Cancel</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </form>
+    </section>
+
     <AuthorizeView Policy="@AdminRoles.Policies.Administer">
         <h2>Assignment</h2>
         <form method="post" @formname="assignment" @onsubmit="SaveAsync">
@@ -177,7 +222,11 @@ else
     private List<GroupEntity> _groups = [];
     private List<ClientGroupEntity> _memberships = [];
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        _canOperate = await IsAuthorizedAsync(AdminRoles.Policies.Operate);
+        await LoadAsync();
+    }
 
     private async Task SaveAsync()
     {
@@ -227,12 +276,56 @@ else
         await LoadAsync();
     }
 
+    /// <summary>Value of the pressed action button: "queue:{kind}" or "cancel:{action id}".</summary>
+    [SupplyParameterFromForm(FormName = "action")]
+    private string? RemoteAction { get; set; }
+
+    private bool _canOperate;
+    private List<AgentActionEntity> _actions = [];
+
+    private async Task HandleActionAsync()
+    {
+        Outcome outcome;
+        string success;
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate))
+        {
+            (outcome, success) = (new Outcome("Only operators and administrators can request remote actions."), string.Empty);
+        }
+        else if (RemoteAction?.Split(':', 2) is ["queue", var kindText]
+            && Enum.TryParse<UpdateCoordinator.Contracts.Agents.AgentActionKind>(kindText, ignoreCase: false, out var kind)
+            && Enum.IsDefined(kind)
+            && !int.TryParse(kindText, out _))
+        {
+            (outcome, success) = (await Actions.QueueAsync(Id, kind, await GetActorAsync(), CancellationToken.None), "The action was queued; the agent picks it up with its next heartbeat.");
+        }
+        else if (RemoteAction?.Split(':', 2) is ["cancel", var idText] && Guid.TryParse(idText, out var actionId))
+        {
+            (outcome, success) = (await Actions.CancelAsync(Id, actionId, await GetActorAsync(), CancellationToken.None), "The action was cancelled.");
+        }
+        else
+        {
+            (outcome, success) = (new Outcome("Invalid request."), string.Empty);
+        }
+
+        ShowResult(outcome.Error, success);
+        await LoadAsync();
+    }
+
+    private static string ActionClass(AgentActionState state) => state switch
+    {
+        AgentActionState.Succeeded => "ok",
+        AgentActionState.Queued or AgentActionState.Delivered => "pend",
+        AgentActionState.Failed or AgentActionState.Rejected or AgentActionState.Expired => "fail",
+        _ => "neutral",
+    };
+
     private async Task LoadAsync()
     {
         _client = await Db.Clients.AsNoTracking().SingleOrDefaultAsync(c => c.Id == Id);
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         _memberships = await Db.ClientGroups.AsNoTracking().Where(m => m.ClientId == Id).ToListAsync();
+        _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(20).ToListAsync();
         if (_client is null)
         {
             return;
@@ -276,6 +369,33 @@ else
         installation.ResultCode is (int)UpdateCoordinator.Contracts.Agents.InstallResultCode.Succeeded or (int)UpdateCoordinator.Contracts.Agents.InstallResultCode.SucceededWithErrors
             ? ((UpdateCoordinator.Contracts.Agents.InstallResultCode)installation.ResultCode).ToString()
             : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(UpdateCoordinator.Contracts.Agents.InstallResultCode)installation.ResultCode}, 0x{installation.HResult:X8}: {UpdateCoordinator.Server.Agents.HResultCatalog.Describe(installation.HResult)}");
+
+    /// <summary>Next opening of the effective windows in the server's time zone, with the UTC time for comparison.</summary>
+    private string NextWindowText
+    {
+        get
+        {
+            if (_client?.TimeZoneId is not { } zoneId || !TimeZoneInfo.TryFindSystemTimeZoneById(zoneId, out var zone))
+            {
+                return "unknown until the server reports its time zone";
+            }
+
+            var windows = MaintenanceWindowFormat.FromJson(_client.EffectiveWindowsJson) ?? [];
+            var localNow = TimeZoneInfo.ConvertTimeFromUtc(Time.GetUtcNow().UtcDateTime, zone);
+            if (UpdateCoordinator.Contracts.Agents.MaintenanceSchedule.NextOpening(windows, localNow) is not { } next)
+            {
+                return "no window";
+            }
+
+            if (next == localNow)
+            {
+                return "open now";
+            }
+
+            var utc = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(next, DateTimeKind.Unspecified), zone);
+            return $"{next.ToString("ddd yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} server time ({Format(utc)} UTC)";
+        }
+    }
 
     private string RebootText(InstallationEntity installation) => !installation.RebootRequired
         ? "No"

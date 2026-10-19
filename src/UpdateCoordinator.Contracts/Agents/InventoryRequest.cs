@@ -33,6 +33,11 @@ public sealed record InventoryRequest
     [Required]
     public required UpdateSourceInfo UpdateSource { get; init; }
 
+    /// <summary>Windows time zone ID of the server (e.g. "W. Europe Standard Time"); maintenance windows are in this time.</summary>
+    [StringLength(64, MinimumLength = 1)]
+    [RegularExpression(ValidationPatterns.TimeZoneId)]
+    public string? TimeZoneId { get; init; }
+
     /// <summary>Installed updates; null if they could not be read (the central server then keeps the previous list).</summary>
     [MaxLength(MaxInstalledUpdates)]
     public IReadOnlyList<InstalledUpdate>? InstalledUpdates { get; init; }

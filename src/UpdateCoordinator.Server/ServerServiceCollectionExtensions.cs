@@ -53,6 +53,7 @@ internal static class ServerServiceCollectionExtensions
         services.AddScoped<InstallationService>();
         services.AddOptions<InstallationControlOptions>().Bind(configuration.GetSection(InstallationControlOptions.SectionName));
         services.AddScoped<GlobalPause>();
+        services.AddScoped<AgentActionService>();
 
         // Kestrel presents the certificate the trust binding was signed for.
         services.AddOptions<KestrelServerOptions>()

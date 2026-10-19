@@ -8,16 +8,7 @@ namespace UpdateCoordinator.Agent.Installation;
 internal static class InstallationPlanner
 {
     /// <summary>True if <paramref name="localTime"/> lies in one of the windows (local server time).</summary>
-    public static bool IsInWindow(IReadOnlyList<MaintenanceWindow> windows, DateTime localTime)
-    {
-        var time = localTime.TimeOfDay;
-        var today = localTime.DayOfWeek;
-        var yesterday = localTime.AddDays(-1).DayOfWeek;
-
-        return windows.Any(window => window.End > window.Start
-            ? window.Days.Contains(today) && time >= window.Start && time < window.End
-            : (window.Days.Contains(today) && time >= window.Start) || (window.Days.Contains(yesterday) && time < window.End));
-    }
+    public static bool IsInWindow(IReadOnlyList<MaintenanceWindow> windows, DateTime localTime) => MaintenanceSchedule.IsOpen(windows, localTime);
 
     /// <summary>
     /// Releases to install now: released, still missing on the server, not attempted recently, and due.

@@ -161,3 +161,4 @@ fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0.75rem 
     main table { display: block; overflow-x: auto; }
     .facts { grid-template-columns: 1fr; }
 }
+.card-text { padding: 0.75rem 1.25rem 0; margin: 0; }

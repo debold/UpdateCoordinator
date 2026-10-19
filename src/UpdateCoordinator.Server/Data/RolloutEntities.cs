@@ -140,3 +140,36 @@ internal sealed class ComplianceSnapshotEntity
 
     public int Compliant { get; set; }
 }
+
+internal enum AgentActionState
+{
+    Queued = 0,
+    Delivered = 1,
+    Succeeded = 2,
+    Failed = 3,
+    Rejected = 4,
+    Cancelled = 5,
+    Expired = 6,
+}
+
+/// <summary>A remote action queued for one server, with its progress (docs/04-central-server.md, entity "Remote action").</summary>
+internal sealed class AgentActionEntity
+{
+    public Guid Id { get; set; }
+
+    public Guid ClientId { get; set; }
+
+    public UpdateCoordinator.Contracts.Agents.AgentActionKind Kind { get; set; }
+
+    public AgentActionState State { get; set; }
+
+    public DateTime RequestedAtUtc { get; set; }
+
+    public required string RequestedBy { get; set; }
+
+    public DateTime? DeliveredAtUtc { get; set; }
+
+    public DateTime? CompletedAtUtc { get; set; }
+
+    public string? Detail { get; set; }
+}

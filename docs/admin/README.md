@@ -270,3 +270,11 @@ Every start, stop, override, approval and rule change is recorded in the audit l
 - **Rings** (role `Reader`): one page per ring with the state of every server × update pair (successful, pending = released and waiting for the window, queued = missing but not released, failed), the active updates with their rates and the servers of a selected update.
 - **Servers** (role `Reader`): list with health and filters for name or domain, ring and health; the detail page shows pre-flight checks, missing updates with their release state, assignment, maintenance windows and the update history with error codes in plain text.
 - A server counts as **offline** after one hour without heartbeat. **Patch compliance** is the share of approved servers without any released update left to install; the central server stores one value per day for 400 days.
+
+## 14. Remote actions
+
+On the server detail page an `Operator` queues actions for an approved server: **Search for updates now**, **Full resync** (inventory and search) and **Restart agent service**. The agent picks them up with its next heartbeat (the central server never connects to the agent), runs them in order and reports the result, which the page shows with the state of each action. A queued action can be cancelled until the agent fetched it; actions expire after 24 hours unfetched or one hour without result. Every request is recorded in the audit log.
+
+Restarting the agent service relies on the service recovery settings: the agent ends with exit code 1 after confirming the action, so the service must be configured to restart on failure (including non-crash failures). The installer will set this; until then configure it with `sc.exe failure` and `sc.exe failureflag <service> 1`.
+
+The server detail page also shows the time zone the agent reports and the next maintenance window as a date in server time and UTC.

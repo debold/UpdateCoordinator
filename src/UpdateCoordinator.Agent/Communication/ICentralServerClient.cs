@@ -24,4 +24,10 @@ internal interface ICentralServerClient
 
     /// <summary>Sends the result of an installation run. Returns false if the central server no longer accepts the credentials.</summary>
     Task<bool> SendInstallReportAsync(AgentIdentity identity, InstallReport report, CancellationToken cancellationToken);
+
+    /// <summary>Fetches the queued remote actions. Returns null if the central server no longer accepts the credentials.</summary>
+    Task<AgentActionList?> GetActionsAsync(AgentIdentity identity, CancellationToken cancellationToken);
+
+    /// <summary>Sends the result of a remote action. Returns false if the central server no longer accepts the credentials.</summary>
+    Task<bool> SendActionResultAsync(AgentIdentity identity, Guid actionId, AgentActionResult result, CancellationToken cancellationToken);
 }

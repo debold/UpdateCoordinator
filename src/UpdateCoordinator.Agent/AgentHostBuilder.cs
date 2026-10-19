@@ -2,6 +2,7 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Microsoft.Win32;
 
+using UpdateCoordinator.Agent.Actions;
 using UpdateCoordinator.Agent.Communication;
 using UpdateCoordinator.Agent.Configuration;
 using UpdateCoordinator.Agent.Identity;
@@ -71,6 +72,8 @@ internal static class AgentHostBuilder
             ProtectedInstallationStateStore.DefaultPath,
             provider.GetRequiredService<ILogger<ProtectedInstallationStateStore>>()));
         services.AddSingleton<ISystemRestart, ShutdownToolRestart>();
+        services.AddSingleton<IServiceRestarter, HostServiceRestarter>();
+        services.AddSingleton<IActionRunner, ActionRunner>();
         services.AddSingleton<IInstallationRunner, InstallationRunner>();
         services.AddSingleton<IAgentIdentityStore>(provider => new DpapiAgentIdentityStore(
             DpapiAgentIdentityStore.DefaultPath,

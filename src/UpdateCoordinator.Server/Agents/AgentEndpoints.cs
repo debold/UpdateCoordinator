@@ -52,8 +52,34 @@ internal static class AgentEndpoints
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.ReleaseRequest))
             .WithName("AgentReleases");
 
+        endpoints.MapGet(ApiRoutes.AgentActions, ActionsAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.ActionRequest))
+            .WithName("AgentActions");
+
+        endpoints.MapPost(ApiRoutes.AgentActionResult, ActionResultAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.ActionResult))
+            .WithName("AgentActionResult");
+
         return endpoints;
     }
+
+    internal static async Task<Ok<AgentActionList>> ActionsAsync(
+        HttpContext httpContext,
+        AgentActionService actions,
+        CancellationToken cancellationToken) =>
+        TypedResults.Ok(await actions.FetchAsync(httpContext.User.GetClientId(), cancellationToken).ConfigureAwait(false));
+
+    internal static async Task<Results<NoContent, NotFound>> ActionResultAsync(
+        Guid id,
+        AgentActionResult result,
+        HttpContext httpContext,
+        AgentActionService actions,
+        CancellationToken cancellationToken) =>
+        await actions.CompleteAsync(httpContext.User.GetClientId(), id, result, cancellationToken).ConfigureAwait(false)
+            ? TypedResults.NoContent()
+            : TypedResults.NotFound();
 
     /// <summary>Upper bound for inventory and update report requests; 5,000 updates with long titles fit comfortably.</summary>
     public const long MaxInventoryBytes = 4 * 1024 * 1024;
@@ -133,6 +159,7 @@ internal static class AgentEndpoints
         TimeProvider timeProvider,
         ILoggerFactory loggerFactory,
         GlobalPause globalPause,
+        AgentActionService actions,
         CancellationToken cancellationToken)
     {
         var clientId = httpContext.User.GetClientId();
@@ -175,7 +202,11 @@ internal static class AgentEndpoints
         }
 
         var releasesVersion = await db.Clients.Where(c => c.Id == clientId).Select(c => c.ReleasesVersion).SingleAsync(cancellationToken).ConfigureAwait(false);
-        return TypedResults.Ok(new HeartbeatResponse(state, releasesVersion, await globalPause.IsActiveAsync(cancellationToken).ConfigureAwait(false)));
+        return TypedResults.Ok(new HeartbeatResponse(
+            state,
+            releasesVersion,
+            await globalPause.IsActiveAsync(cancellationToken).ConfigureAwait(false),
+            await actions.CountQueuedAsync(clientId, cancellationToken).ConfigureAwait(false)));
     }
 }
 

@@ -20,6 +20,7 @@ public sealed class AgentWorkerTests
     private readonly FakeReleaseSync _releases = new();
     private readonly FakeUpdateReporter _updates = new();
     private readonly FakeInstallationRunner _installation = new();
+    private readonly FakeServiceRestarter _restarter = new();
 
     [Fact]
     public async Task RunCycle_WithoutIdentity_RegistersStoresIdentityAndSendsHeartbeat()
@@ -237,6 +238,7 @@ public sealed class AgentWorkerTests
         _releases,
         _updates,
         _installation,
+        new UpdateCoordinator.Agent.Actions.ActionRunner(_client, _updates, _inventory, _restarter, NullLogger<UpdateCoordinator.Agent.Actions.ActionRunner>.Instance),
         Options.Create(new CentralServerOptions
         {
             BaseAddress = new Uri("https://central.example.local/"),

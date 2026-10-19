@@ -96,6 +96,40 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
         return response is not null;
     }
 
+    public async Task<AgentActionList?> GetActionsAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Get, new Uri(ApiRoutes.AgentActions, UriKind.Relative));
+        using var response = await SendAuthenticatedAsync(message, identity, cancellationToken).ConfigureAwait(false);
+        if (response is null)
+        {
+            return null;
+        }
+
+        var body = await response.Content.ReadFromJsonAsync<AgentActionList>(cancellationToken).ConfigureAwait(false);
+        if (body?.Actions is null
+            || body.Actions.Count > AgentActionList.MaxActions
+            || body.Actions.Any(a => a is null || a.Id == Guid.Empty))
+        {
+            throw new InvalidDataException("The central server returned an invalid action list.");
+        }
+
+        return body;
+    }
+
+    public async Task<bool> SendActionResultAsync(AgentIdentity identity, Guid actionId, AgentActionResult result, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await PostAuthenticatedAsync(ApiRoutes.AgentActionResultFor(actionId), identity, result, cancellationToken).ConfigureAwait(false);
+            return response is not null;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            // The action expired or was not ours; nothing left to report.
+            return true;
+        }
+    }
+
     private static bool IsValid(MaintenanceWindow? window) =>
         window is { Days: not null }
         && System.ComponentModel.DataAnnotations.Validator.TryValidateObject(window, new System.ComponentModel.DataAnnotations.ValidationContext(window), null, validateAllProperties: true);

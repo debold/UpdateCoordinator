@@ -67,6 +67,9 @@ internal sealed class ClientEntity
     /// <summary>Last start of the operating system reported by the agent.</summary>
     public DateTime? LastBootAtUtc { get; set; }
 
+    /// <summary>Windows time zone of the server from the inventory; null if unknown.</summary>
+    public string? TimeZoneId { get; set; }
+
     // Assignment (docs/04-central-server.md, section 3).
 
     /// <summary>Effective ring: manual override, matching ring rule or the fallback ring Production.</summary>
