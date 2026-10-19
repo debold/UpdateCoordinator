@@ -12,47 +12,65 @@
 <PageHeader Title="Notifications" Subtitle="Every minute the central server sends each new event once, collected in one message: new servers, suspected clones, rollout alarms, waiting gates, stopped groups and certificate events. Passwords and secrets are stored encrypted on this server and are not part of the backup." Crumbs="@([("Administration", null), ("Notifications", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-<form method="post" @formname="notifications" @onsubmit="HandleAsync">
+<form method="post" @formname="notifications" @onsubmit="HandleAsync" class="stack">
     <AntiforgeryToken />
-    <section class="card">
-        <h2>E-mail</h2>
-        <label class="inline"><input type="checkbox" name="EmailEnabled" value="yes" checked="@_settings.EmailEnabled" /> Send e-mails</label>
-        <label>SMTP server <input name="SmtpHost" value="@_settings.SmtpHost" maxlength="253" autocomplete="off" /></label>
-        <label>Port <input name="SmtpPort" type="number" min="1" max="65535" value="@_settings.SmtpPort" /></label>
-        <label>
-            Encryption
-            <select name="SecurityMode">
-                <option value="StartTls" selected="@(_settings.SmtpSecurity == SmtpSecurity.StartTls)">STARTTLS (port 587)</option>
-                <option value="SslOnConnect" selected="@(_settings.SmtpSecurity == SmtpSecurity.SslOnConnect)">TLS (port 465)</option>
-                <option value="None" selected="@(_settings.SmtpSecurity == SmtpSecurity.None)">None (internal relay only)</option>
-            </select>
-        </label>
-        <label>User name (empty: no authentication) <input name="SmtpUser" value="@_settings.SmtpUser" maxlength="256" autocomplete="off" /></label>
-        <label>Password (empty: keep the stored one) <input name="SmtpPassword" type="password" maxlength="@NotificationSettingsStore.MaxSecretLength" autocomplete="new-password" /></label>
-        <label class="inline"><input type="checkbox" name="ClearSmtpPassword" value="yes" /> Remove the stored password</label>
-        <label>Sender address <input name="From" type="email" value="@_settings.From" maxlength="254" autocomplete="off" /></label>
-        <label>Recipients (comma, semicolon or one per line) <textarea name="Recipients" rows="3" maxlength="4000">@_settings.Recipients</textarea></label>
-    </section>
+    <ActionBand>
+        <button type="submit" name="Action" value="save" class="primary">Save</button>
+        <button type="submit" name="Action" value="test">Send a test notification</button>
+        <div class="spacer"></div>
+        <span class="note">The test uses the saved settings.</span>
+    </ActionBand>
 
-    <section class="card">
-        <h2>Webhook</h2>
-        <label class="inline"><input type="checkbox" name="WebhookEnabled" value="yes" checked="@_settings.WebhookEnabled" /> Call a webhook</label>
-        <label>Address (https://) <input name="WebhookUrl" type="url" value="@_settings.WebhookUrl" maxlength="2000" autocomplete="off" /></label>
-        <label>Signature secret (empty: keep the stored one) <input name="WebhookSecret" type="password" maxlength="@NotificationSettingsStore.MaxSecretLength" autocomplete="new-password" /></label>
-        <label class="inline"><input type="checkbox" name="ClearWebhookSecret" value="yes" /> Remove the stored secret</label>
-        <p class="sub">
-            The webhook receives a JSON document with subject, time and events (kind, key, text, link). With a secret, the header
-            <code>@WebhookChannel.SignatureHeader</code> carries <code>sha256=</code> and the HMAC-SHA256 of the body.
-        </p>
-    </section>
+    <div class="grid-2">
+        <Box Title="E-mail">
+            <Header><span class="pill @(_settings.EmailEnabled ? "ok" : "neutral")">@(_settings.EmailEnabled ? "on" : "off")</span></Header>
+            <ChildContent>
+                <div class="form">
+                    <label class="check"><input type="checkbox" name="EmailEnabled" value="yes" checked="@_settings.EmailEnabled" /> Send e-mails</label>
+                    <div class="form-row">
+                        <label class="field"><span>SMTP server</span><input name="SmtpHost" value="@_settings.SmtpHost" maxlength="253" autocomplete="off" /></label>
+                        <label class="field"><span>Port</span><input name="SmtpPort" type="number" min="1" max="65535" value="@_settings.SmtpPort" /></label>
+                    </div>
+                    <label class="field">
+                        <span>Encryption</span>
+                        <select name="SecurityMode">
+                            <option value="StartTls" selected="@(_settings.SmtpSecurity == SmtpSecurity.StartTls)">STARTTLS (port 587)</option>
+                            <option value="SslOnConnect" selected="@(_settings.SmtpSecurity == SmtpSecurity.SslOnConnect)">TLS (port 465)</option>
+                            <option value="None" selected="@(_settings.SmtpSecurity == SmtpSecurity.None)">None (internal relay only)</option>
+                        </select>
+                    </label>
+                    <div class="form-row">
+                        <label class="field"><span>User name</span><input name="SmtpUser" value="@_settings.SmtpUser" maxlength="256" autocomplete="off" /><span class="help">Empty: no authentication</span></label>
+                        <label class="field"><span>Password</span><input name="SmtpPassword" type="password" maxlength="@NotificationSettingsStore.MaxSecretLength" autocomplete="new-password" /><span class="help">Empty: keep the stored one</span></label>
+                    </div>
+                    <label class="check"><input type="checkbox" name="ClearSmtpPassword" value="yes" /> Remove the stored password</label>
+                    <label class="field"><span>Sender address</span><input name="From" type="email" value="@_settings.From" maxlength="254" autocomplete="off" /></label>
+                    <label class="field"><span>Recipients</span><textarea name="Recipients" rows="3" maxlength="4000">@_settings.Recipients</textarea><span class="help">Comma, semicolon or one per line</span></label>
+                </div>
+            </ChildContent>
+        </Box>
 
-    <section class="card">
-        <h2>Links</h2>
-        <label>Dashboard address for links (optional) <input name="DashboardUrl" type="url" value="@_settings.DashboardUrl" maxlength="2000" placeholder="https://uc01.example.local:8443/" autocomplete="off" /></label>
-    </section>
-
-    <button type="submit" name="Action" value="save" class="primary">Save</button>
-    <button type="submit" name="Action" value="test">Send a test notification</button>
+        <div class="stack">
+            <Box Title="Webhook">
+                <Header><span class="pill @(_settings.WebhookEnabled ? "ok" : "neutral")">@(_settings.WebhookEnabled ? "on" : "off")</span></Header>
+                <ChildContent>
+                    <div class="form">
+                        <label class="check"><input type="checkbox" name="WebhookEnabled" value="yes" checked="@_settings.WebhookEnabled" /> Call a webhook</label>
+                        <label class="field"><span>Address (https://)</span><input name="WebhookUrl" type="url" value="@_settings.WebhookUrl" maxlength="2000" autocomplete="off" /></label>
+                        <label class="field"><span>Signature secret</span><input name="WebhookSecret" type="password" maxlength="@NotificationSettingsStore.MaxSecretLength" autocomplete="new-password" /><span class="help">Empty: keep the stored one</span></label>
+                        <label class="check"><input type="checkbox" name="ClearWebhookSecret" value="yes" /> Remove the stored secret</label>
+                        <p class="note">
+                            The webhook receives a JSON document with subject, time and events (kind, key, text, link). With a secret, the header
+                            <code>@WebhookChannel.SignatureHeader</code> carries <code>sha256=</code> and the HMAC-SHA256 of the body.
+                        </p>
+                    </div>
+                </ChildContent>
+            </Box>
+            <Box Title="Links">
+                <label class="field"><span>Dashboard address for links (optional)</span><input name="DashboardUrl" type="url" value="@_settings.DashboardUrl" maxlength="2000" placeholder="https://uc01.example.local:8443/" autocomplete="off" /></label>
+            </Box>
+        </div>
+    </div>
 </form>
 
 @code {

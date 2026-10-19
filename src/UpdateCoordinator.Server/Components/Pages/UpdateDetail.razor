@@ -103,11 +103,11 @@ else
                     @foreach (var row in _serverPage.Rows)
                     {
                         <tr>
-                            <td><a href="/servers/@row.Entry.ClientId">@row.HostName</a></td>
+                            <td><a href="/servers/@row.ClientId">@row.HostName</a></td>
                             <td>@row.Ring</td>
-                            <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@row.Entry.State</span></td>
-                            <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
-                            <td>@DeploymentText.Result(row.Entry)</td>
+                            <td><span class="pill @StatusClass(row.Status)">@StatusLabel(row.Status)</span></td>
+                            <td class="nowrap">@Format(row.Entry?.EarliestInstallAtUtc)</td>
+                            <td>@(row.Entry is { } entry ? DeploymentText.Result(entry) : row.Status == ServerUpdateStatus.Installed ? "Installed outside a release (reported by the inventory)" : null)</td>
                         </tr>
                     }
                 </tbody>
@@ -139,7 +139,37 @@ else
 
     private sealed record RingRow(int RingId, int Order, string Name, RingRolloutState? State, string? Reason, DateTime? ReleasedAtUtc, RingStatistics Statistics, DeploymentCounts Counts);
 
-    private sealed record ServerRow(string HostName, string Ring, DeploymentEntry Entry);
+    /// <summary>State of the update on one server, as the server table shows it.</summary>
+    private enum ServerUpdateStatus
+    {
+        Failed,
+        Pending,
+        Planned,
+        WaitingForRelease,
+        Installed,
+        NotNeeded,
+    }
+
+    private sealed record ServerRow(Guid ClientId, string HostName, string Ring, ServerUpdateStatus Status, DeploymentEntry? Entry);
+
+    private static string StatusLabel(ServerUpdateStatus status) => status switch
+    {
+        ServerUpdateStatus.Failed => "Failed",
+        ServerUpdateStatus.Pending => "Pending: window or installing",
+        ServerUpdateStatus.Planned => "Planned",
+        ServerUpdateStatus.WaitingForRelease => "Waiting for release",
+        ServerUpdateStatus.Installed => "Installed",
+        _ => "Not needed",
+    };
+
+    private static string StatusClass(ServerUpdateStatus status) => status switch
+    {
+        ServerUpdateStatus.Failed => "fail",
+        ServerUpdateStatus.Pending or ServerUpdateStatus.Planned => "pend",
+        ServerUpdateStatus.WaitingForRelease => "queue",
+        ServerUpdateStatus.Installed => "ok",
+        _ => "neutral",
+    };
 
     private sealed record TimelineItem(DateTime AtUtc, string Text, string Actor);
 
@@ -153,10 +183,10 @@ else
 
     private static readonly IReadOnlyList<TableColumn<ServerRow>> ServerColumns =
     [
-        new("status", "Status", r => r.Entry.State == DeploymentState.Failed ? 0 : 1 + (int)r.Entry.State, r => [r.Entry.State.ToString()]),
+        new("status", "Status", r => (int)r.Status, r => [StatusLabel(r.Status)]),
         new("name", "Server", r => r.HostName),
         new("ring", "Ring", r => r.Ring, r => [r.Ring]),
-        new("earliest", "Earliest installation", r => r.Entry.EarliestInstallAtUtc),
+        new("earliest", "Earliest installation", r => r.Entry?.EarliestInstallAtUtc),
     ];
 
     private TableQuery _table = default!;
@@ -249,11 +279,29 @@ else
             _ringRows.Add(new RingRow(ring.Id, ring.Order, ring.Name, state?.State, state?.Reason, state?.ReleasedAtUtc, statistics, DeploymentCounts.Of(entries.Where(e => e.RingId == ring.Id))));
         }
 
-        var ids = entries.Select(e => e.ClientId).ToList();
-        var hosts = await Db.Clients.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.HostName);
+        // Every approved server gets a row: from its deployment entry, else installed per inventory, else not needed.
+        var clients = await Db.Clients.AsNoTracking()
+            .Where(c => c.State == UpdateCoordinator.Contracts.Agents.RegistrationState.Approved)
+            .Select(c => new { c.Id, c.HostName, c.RingId })
+            .ToListAsync();
+        var installed = (await Db.ClientUpdates.AsNoTracking().Where(u => u.UpdateId == UpdateId && u.Revision == Revision).Select(u => u.ClientId).ToListAsync()).ToHashSet();
+        var byClient = entries.ToDictionary(e => e.ClientId);
         var ringNames = rings.ToDictionary(r => r.Id, r => r.Name);
+        var now = Time.GetUtcNow().UtcDateTime;
         _table = TableQuery.From(Navigation, "status");
-        List<ServerRow> servers = [.. entries.Select(e => new ServerRow(hosts.GetValueOrDefault(e.ClientId) ?? "?", e.RingId is { } r ? ringNames.GetValueOrDefault(r) ?? "–" : "–", e))];
+        List<ServerRow> servers = [.. clients.Select(c =>
+        {
+            var entry = byClient.GetValueOrDefault(c.Id);
+            var status = entry?.State switch
+            {
+                DeploymentState.Successful => ServerUpdateStatus.Installed,
+                DeploymentState.Failed => ServerUpdateStatus.Failed,
+                DeploymentState.Pending => entry.EarliestInstallAtUtc > now ? ServerUpdateStatus.Planned : ServerUpdateStatus.Pending,
+                DeploymentState.Queued => ServerUpdateStatus.WaitingForRelease,
+                _ => installed.Contains(c.Id) ? ServerUpdateStatus.Installed : ServerUpdateStatus.NotNeeded,
+            };
+            return new ServerRow(c.Id, c.HostName, c.RingId is { } r ? ringNames.GetValueOrDefault(r) ?? "–" : "–", status, entry);
+        })];
         _serverPage = TablePaging.Apply(servers, _table, ServerColumns, s => s.HostName);
 
         await LoadTimelineAsync(rings, states);

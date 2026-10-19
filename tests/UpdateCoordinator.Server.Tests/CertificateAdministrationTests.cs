@@ -85,14 +85,22 @@ public sealed class CertificateAdministrationTests
             Assert.Contains(renewed.Thumbprint, await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
-        using (var unconfirmed = await admin.PostFormAsync("/administration/certificate", new Dictionary<string, string> { ["Thumbprint"] = renewed.Thumbprint }))
+        // An unknown thumbprint in the link opens no dialog, so nothing can be switched to a certificate the list does not offer.
+        using (var unknown = await admin.GetAsync("/administration/certificate?dialog=use&thumbprint=%3Cscript%3E"))
+        {
+            var html = await unknown.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.DoesNotContain("Switch certificate", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("<script>", html, StringComparison.Ordinal);
+        }
+
+        using (var unconfirmed = await admin.PostFormAsync($"/administration/certificate?dialog=use&thumbprint={renewed.Thumbprint}", new Dictionary<string, string> { ["Thumbprint"] = renewed.Thumbprint }))
         {
             Assert.Contains("Confirm the change", await unconfirmed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
         Assert.Null(store.Saved);
 
-        using (await admin.PostFormAsync("/administration/certificate", new Dictionary<string, string> { ["Thumbprint"] = renewed.Thumbprint, ["ConfirmChange"] = "yes" }))
+        using (await admin.PostFormAsync($"/administration/certificate?dialog=use&thumbprint={renewed.Thumbprint}", new Dictionary<string, string> { ["Thumbprint"] = renewed.Thumbprint, ["ConfirmChange"] = "yes" }))
         {
         }
 

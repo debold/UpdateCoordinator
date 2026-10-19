@@ -8,17 +8,17 @@
 <PageHeader Title="AD coverage" Subtitle="@CoverageSubtitle" Crumbs="@([("Overview", "/"), ("AD coverage", null)])" />
 
 <section class="figures" aria-label="Coverage">
-    <div class="card figure">
+    <div class="tile">
         <div class="label">Supported servers with an agent</div>
         <div class="value">@(_report.Percent is { } percent ? $"{percent} %" : "–")</div>
         <div class="detail">@_report.Covered of @_report.Supported enabled server accounts (Windows Server 2016 or newer)</div>
     </div>
-    <div class="card figure">
+    <div class="tile">
         <div class="label">Without agent</div>
         <div class="value">@_report.Missing.Count</div>
         <div class="detail">supported servers no registered agent reports for</div>
     </div>
-    <div class="card figure">
+    <div class="tile">
         <div class="label">Not supported</div>
         <div class="value">@_report.Unsupported.Count</div>
         <div class="detail">older Windows Server versions, not counted</div>

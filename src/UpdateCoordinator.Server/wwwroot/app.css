@@ -111,21 +111,23 @@ button:disabled, .btn.disabled { opacity: 0.5; cursor: not-allowed; }
 .figures, .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem; }
 .grid-side { display: grid; grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr); gap: 1rem; align-items: start; }
+.stack { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.grid-2 { align-items: start; }
 .columns { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
 .columns > .wide { flex: 2 1 30rem; min-width: 0; }
 .columns > .narrow { flex: 1 1 18rem; min-width: 0; }
 
 /* Figures and clickable tiles. */
-.figure .label, .tile .label { color: var(--muted); font-size: 0.88rem; }
-.figure .value, .tile .value { font-size: 1.8rem; font-weight: 650; margin-top: 0.35rem; font-variant-numeric: tabular-nums; }
-.figure .value small, .tile .value small { font-size: 1rem; color: var(--muted); font-weight: 400; }
-.figure .value.small-value, .tile .value.small-value { font-size: 1.05rem; font-weight: 600; }
-.figure .detail, .tile .detail { color: var(--muted); font-size: 0.82rem; margin-top: 0.2rem; }
-a.tile { display: block; position: relative; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.15rem; box-shadow: var(--shadow); }
+.tile .label { color: var(--muted); font-size: 0.88rem; }
+.tile .value { font-size: 1.8rem; font-weight: 650; margin-top: 0.35rem; font-variant-numeric: tabular-nums; }
+.tile .value small { font-size: 1rem; color: var(--muted); font-weight: 400; }
+.tile .value.small-value { font-size: 1.05rem; font-weight: 600; }
+.tile .detail { color: var(--muted); font-size: 0.82rem; margin-top: 0.2rem; }
+.tile { display: block; position: relative; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 1rem 1.15rem; box-shadow: var(--shadow); }
 a.tile:hover { border-color: var(--accent); text-decoration: none; }
 a.tile .go { position: absolute; right: 1rem; top: 1rem; color: var(--muted); font-size: 0.82rem; }
 a.tile .label { padding-right: 3rem; }
-a.tile.attention-tile { border-left: 4px solid var(--queue); }
+.tile.attention-tile { border-left: 4px solid var(--queue); }
 
 /* Pills (state in form, not only in text). */
 .pill { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.12rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; white-space: nowrap; background: var(--line); color: var(--muted); }

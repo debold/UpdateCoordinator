@@ -501,6 +501,33 @@ public sealed class UpdateDetailTests
     }
 
     [Fact]
+    public async Task ServerTable_ListsEveryApprovedServerWithItsStatus()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var test = await scenario.AddClientAsync("TEST01", RingEntity.TestId);
+        await scenario.AddClientAsync("OTHER01", RingEntity.TestId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(pilot, update);
+        await scenario.ReportAsync(test, update);
+        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Succeeded);
+        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
+        var path = $"/updates/{update.UpdateId:D}/1";
+
+        var waiting = await GetHtmlAsync(browser, path + "?f.status=Waiting%20for%20release");
+        var notNeeded = await GetHtmlAsync(browser, path + "?f.status=Not%20needed");
+        var installed = await GetHtmlAsync(browser, path + "?f.status=Installed");
+
+        Assert.Contains("TEST01", waiting, StringComparison.Ordinal);
+        Assert.DoesNotContain("PILOT01", waiting, StringComparison.Ordinal);
+        // A server that never reported the update still appears, so the table covers the whole fleet.
+        Assert.Contains("OTHER01", notNeeded, StringComparison.Ordinal);
+        Assert.DoesNotContain("TEST01", notNeeded, StringComparison.Ordinal);
+        Assert.Contains("PILOT01", installed, StringComparison.Ordinal);
+        Assert.DoesNotContain("OTHER01", installed, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Operator_ApprovesGateAndStopsRolloutOnThePage()
     {
         await using var scenario = await RolloutScenario.CreateAsync();

@@ -4,63 +4,74 @@
 @using UpdateCoordinator.Server.Trust
 @inject CertificateAdministration Administration
 @inject TrustBindingService Bindings
+@inject TimeProvider Time
 
 <PageTitle>TLS certificate</PageTitle>
 
 <PageHeader Title="TLS certificate" Subtitle="Agents pin the trust anchor, not the certificate: after a switch the trust anchor signs a binding for the new certificate and every agent accepts it on its next contact. Renewals in the LocalMachine certificate store are picked up automatically." Crumbs="@([("Administration", null), ("TLS certificate", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-<section class="card">
-    <h2>In use</h2>
-    <dl class="facts">
-        <dt>Subject</dt><dd>@_current.Subject</dd>
-        <dt>Issuer</dt><dd>@_current.Issuer</dd>
-        <dt>Thumbprint</dt><dd class="mono">@_current.Thumbprint</dd>
-        <dt>Valid until (UTC)</dt><dd>@_current.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)</dd>
-        <dt>Binding serial</dt><dd>@(_serial?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "–")</dd>
-    </dl>
-</section>
+<Box Title="In use">
+    <Header><span class="pill @(_daysLeft < 30 ? "queue" : "ok")">@_daysLeft days left</span></Header>
+    <ChildContent>
+        <dl class="facts">
+            <dt>Subject</dt><dd>@_current.Subject</dd>
+            <dt>Issuer</dt><dd>@_current.Issuer</dd>
+            <dt>Thumbprint</dt><dd class="mono">@_current.Thumbprint</dd>
+            <dt>Valid until (UTC)</dt><dd>@_current.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)</dd>
+            <dt>Binding serial</dt><dd>@(_serial?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "–")</dd>
+        </dl>
+    </ChildContent>
+</Box>
 
-<section class="card flush" aria-labelledby="candidates-h">
-    <h2 id="candidates-h">Available certificates</h2>
-    <form method="post" @formname="certificate" @onsubmit="UseAsync">
-        <AntiforgeryToken />
-        <p class="sub card-text">Certificates in LocalMachine\My with private key, currently valid and allowed for server authentication.</p>
-        <div class="card-text"><label class="inline"><input type="checkbox" name="ConfirmChange" value="yes" /> Switch the central server to the selected certificate now</label></div>
-        <div class="scroll">
-            <table>
-                <thead><tr><th>Subject</th><th>DNS names</th><th>Issuer</th><th>Valid until (UTC)</th><th>Thumbprint</th><th></th></tr></thead>
-                <tbody>
-                    @if (_candidates.Count == 0)
-                    {
-                        <tr><td colspan="6">No suitable certificate found.</td></tr>
-                    }
-                    @foreach (var candidate in _candidates)
-                    {
-                        var inUse = string.Equals(candidate.Thumbprint, _current.Thumbprint, StringComparison.OrdinalIgnoreCase);
-                        <tr>
-                            <td>@candidate.Subject</td>
-                            <td>@string.Join(", ", candidate.DnsNames)</td>
-                            <td>@candidate.Issuer</td>
-                            <td>@candidate.NotAfterUtc.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)</td>
-                            <td class="mono">@candidate.Thumbprint</td>
-                            <td>
-                                @if (inUse)
-                                {
-                                    <span class="pill ok">In use</span>
-                                }
-                                else
-                                {
-                                    <button type="submit" name="Thumbprint" value="@candidate.Thumbprint">Use</button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </form>
-</section>
+<Box Title="Available certificates" Hint="LocalMachine\My with private key, currently valid and allowed for server authentication" Flush="true">
+    <div class="scroll">
+        <table>
+            <thead><tr><th>Subject</th><th>DNS names</th><th>Issuer</th><th>Valid until (UTC)</th><th>Thumbprint</th><th class="num">Actions</th></tr></thead>
+            <tbody>
+                @if (_candidates.Count == 0)
+                {
+                    <tr><td colspan="6" class="note">No suitable certificate found.</td></tr>
+                }
+                @foreach (var candidate in _candidates)
+                {
+                    <tr>
+                        <td>@candidate.Subject</td>
+                        <td>@foreach (var name in candidate.DnsNames) { <span class="tag">@name</span> }</td>
+                        <td>@candidate.Issuer</td>
+                        <td>@candidate.NotAfterUtc.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)</td>
+                        <td class="mono">@candidate.Thumbprint</td>
+                        <td class="num">
+                            @if (IsInUse(candidate))
+                            {
+                                <span class="pill ok">In use</span>
+                            }
+                            else
+                            {
+                                <a class="btn" href="@DialogLink(candidate)">Use…</a>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</Box>
+
+@if (DialogName == "use" && !_switched && _candidates.FirstOrDefault(c => string.Equals(c.Thumbprint, DialogThumbprint, StringComparison.OrdinalIgnoreCase)) is { } selected)
+{
+    <Dialog Title="Switch the TLS certificate?" CloseHref="/administration/certificate">
+        <form method="post" @formname="certificate" @onsubmit="UseAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Thumbprint" value="@selected.Thumbprint" />
+            <div class="dialog-body">
+                <p>The central server presents <strong>@selected.Subject</strong> (<span class="mono">@selected.Thumbprint</span>) from now on. The trust anchor signs a binding for it, and every agent accepts it on its next contact.</p>
+                <label class="check"><input type="checkbox" name="ConfirmChange" value="yes" required /> Switch the central server to this certificate now</label>
+            </div>
+            <div class="dialog-foot"><a class="btn" href="/administration/certificate">Cancel</a><button type="submit" class="primary">Switch certificate</button></div>
+        </form>
+    </Dialog>
+}
 
 @code {
     [SupplyParameterFromForm(FormName = "certificate")]
@@ -72,6 +83,14 @@
     private System.Security.Cryptography.X509Certificates.X509Certificate2 _current = default!;
     private IReadOnlyList<CertificateCandidate> _candidates = [];
     private long? _serial;
+    private int _daysLeft;
+    private bool _switched;
+
+    [SupplyParameterFromQuery(Name = "dialog")]
+    public string? DialogName { get; set; }
+
+    [SupplyParameterFromQuery(Name = "thumbprint")]
+    public string? DialogThumbprint { get; set; }
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -81,6 +100,7 @@
             ? await Administration.UseAsync(Thumbprint, await GetActorAsync(), CancellationToken.None)
             : new Outcome("Confirm the change with the checkbox first.");
         ShowResult(outcome.Error, "The central server presents the new certificate; agents accept it through the new trust binding.");
+        _switched = outcome.Error is null;
         await LoadAsync();
     }
 
@@ -88,6 +108,11 @@
     {
         _current = Administration.Current;
         _candidates = Administration.ListCandidates();
+        _daysLeft = (int)Math.Floor((_current.NotAfter.ToUniversalTime() - Time.GetUtcNow().UtcDateTime).TotalDays);
         _serial = (await Bindings.GetCurrentAsync(CancellationToken.None))?.Serial;
     }
+
+    private bool IsInUse(CertificateCandidate candidate) => string.Equals(candidate.Thumbprint, _current.Thumbprint, StringComparison.OrdinalIgnoreCase);
+
+    private static string DialogLink(CertificateCandidate candidate) => $"/administration/certificate?dialog=use&thumbprint={Uri.EscapeDataString(candidate.Thumbprint)}";
 }

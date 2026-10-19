@@ -1,5 +1,5 @@
 @* A content box: header with title, hint and optional extras, body, optional footer. *@
-<section class="box" aria-labelledby="@(Title is null ? null : _id)">
+<section class="box" id="@Anchor" aria-labelledby="@(Title is null ? null : _id)">
     @if (Title is not null || Header is not null)
     {
         <header class="box-head">
@@ -36,6 +36,10 @@
 
     [Parameter]
     public string? Hint { get; set; }
+
+    /// <summary>Optional element id so tiles and links can jump to this box.</summary>
+    [Parameter]
+    public string? Anchor { get; set; }
 
     /// <summary>Extra header content, e.g. tabs or a link.</summary>
     [Parameter]

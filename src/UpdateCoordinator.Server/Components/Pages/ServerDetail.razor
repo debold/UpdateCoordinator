@@ -42,21 +42,23 @@ else
     </AuthorizeView>
 
     <section class="figures" aria-label="Status">
-        <div class="card figure">
+        <a class="tile @(_health == ServerHealthState.Failed ? "attention-tile" : null)" href="/servers/@Id#checks">
+            <span class="go">Show ›</span>
             <div class="label">Status</div>
             <div class="value"><span class="pill @ServerHealth.PillClass(_health)">@ServerHealth.Label(_health)</span></div>
             <div class="detail">@_client.State · agent @_client.AgentVersion</div>
-        </div>
-        <div class="card figure">
+        </a>
+        <a class="tile" href="/servers/@Id#missing">
+            <span class="go">Show ›</span>
             <div class="label">Pending updates</div>
             <div class="value">@_open.Count(o => o.Entry.EarliestInstallAtUtc is not null && o.Entry.State != DeploymentState.Successful)</div>
             <div class="detail">released for this server, not installed yet</div>
-        </div>
-        <div class="card figure">
+        </a>
+        <div class="tile">
             <div class="label">Next maintenance window</div>
             <div class="value small-value">@NextWindowText</div>
         </div>
-        <div class="card figure">
+        <div class="tile">
             <div class="label">Last heartbeat</div>
             <div class="value small-value">@Format(_client.LastHeartbeatAtUtc) UTC</div>
             <div class="detail">last boot @Format(_client.LastBootAtUtc) UTC@(_client.RebootPending ? " · reboot pending" : string.Empty)</div>
@@ -152,7 +154,7 @@ else
         </Box>
     </div>
 
-    <Box Title="Missing updates" Flush="true">
+    <Box Title="Missing updates" Anchor="missing" Flush="true">
         <div class="scroll">
             <table>
                 <thead><tr><th>Update</th><th>Status</th><th>Earliest installation (UTC)</th><th>Result</th></tr></thead>
@@ -176,7 +178,7 @@ else
     </Box>
 
     <div class="grid-side">
-        <Box Title="Update history" Flush="true">
+        <Box Title="Update history" Anchor="history" Flush="true">
             <div class="scroll">
                 <table>
                     <thead><tr><th>Finished (UTC)</th><th>Update</th><th>Source</th><th>Result</th><th>Reboot</th></tr></thead>
@@ -200,7 +202,7 @@ else
             </div>
         </Box>
 
-        <Box Title="Pre-flight checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)} UTC" : null)" Flush="true">
+        <Box Title="Pre-flight checks" Anchor="checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)} UTC" : null)" Flush="true">
             @if (_client.HealthChecks.Count == 0)
             {
                 <div class="empty-state">No update run reported yet.</div>
