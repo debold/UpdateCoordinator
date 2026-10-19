@@ -30,6 +30,8 @@ foreach ($directory in $Version1Directory, $Version2Directory) {
     }
 }
 New-Item -ItemType Directory -Force -Path $LogDirectory | Out-Null
+# Windows Installer cannot resolve source paths with ".." segments in maintenance operations.
+$LogDirectory = [System.IO.Path]::GetFullPath($LogDirectory)
 $failures = [System.Collections.Generic.List[string]]::new()
 
 function Check([string] $Name, [scriptblock] $Condition) {
@@ -51,6 +53,17 @@ function Wait-Until([scriptblock] $Condition, [int] $Seconds) {
     return $false
 }
 
+function Get-MsiProperty([string] $Path, [string] $Property) {
+    $installer = New-Object -ComObject WindowsInstaller.Installer
+    $database = $installer.GetType().InvokeMember('OpenDatabase', 'InvokeMethod', $null, $installer, @($Path, 0))
+    $view = $database.GetType().InvokeMember('OpenView', 'InvokeMethod', $null, $database, @("SELECT Value FROM Property WHERE Property='$Property'"))
+    $view.GetType().InvokeMember('Execute', 'InvokeMethod', $null, $view, $null)
+    $record = $view.GetType().InvokeMember('Fetch', 'InvokeMethod', $null, $view, $null)
+    $value = $record.GetType().InvokeMember('StringData', 'GetProperty', $null, $record, 1)
+    $view.GetType().InvokeMember('Close', 'InvokeMethod', $null, $view, $null)
+    return $value
+}
+
 function Get-ProductVersion([string] $Name) {
     Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' |
         ForEach-Object { Get-ItemProperty $_.PSPath } |
@@ -63,6 +76,18 @@ $agentKey = 'HKLM:\SOFTWARE\UpdateCoordinator\Agent'
 $healthUrl = "https://localhost:$Port/health"
 $dashboardShortcut = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\UpdateCoordinator\UpdateCoordinator Dashboard.url"
 $certificate = New-SelfSignedCertificate -DnsName 'localhost' -CertStoreLocation 'Cert:\LocalMachine\My' -NotAfter (Get-Date).AddDays(7)
+
+# --- Packages: every build needs its own product code, otherwise an upgrade becomes a failing reconfiguration ----
+foreach ($name in 'Server', 'Agent') {
+    Check "$name versions have different product codes and versions" {
+        $old = Get-MsiProperty "$Version1Directory\UpdateCoordinator.$name.msi" 'ProductCode'
+        $new = Get-MsiProperty "$Version2Directory\UpdateCoordinator.$name.msi" 'ProductCode'
+        $oldVersion = Get-MsiProperty "$Version1Directory\UpdateCoordinator.$name.msi" 'ProductVersion'
+        $newVersion = Get-MsiProperty "$Version2Directory\UpdateCoordinator.$name.msi" 'ProductVersion'
+        Write-Host "  $name $oldVersion $old -> $newVersion $new"
+        $old -ne $new -and $oldVersion -eq '0.1.0' -and $newVersion -eq '0.2.0'
+    }
+}
 
 # --- Version 1: fresh installation ------------------------------------------------------------------------------
 Check 'server installs' { (Invoke-Msi "/i `"$Version1Directory\UpdateCoordinator.Server.msi`" CERTTHUMBPRINT=$($certificate.Thumbprint) HTTPSPORT=$Port" 'server-install.log') -eq 0 }
