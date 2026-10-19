@@ -1,0 +1,42 @@
+@* Page header: breadcrumbs, title, one line of context. *@
+@if (Crumbs is { Count: > 0 })
+{
+    <nav class="crumbs" aria-label="Breadcrumb">
+        @foreach (var (label, href) in Crumbs)
+        {
+            @if (href is null)
+            {
+                <span>@label</span>
+            }
+            else
+            {
+                <a href="@href">@label</a><span aria-hidden="true">/</span>
+            }
+        }
+    </nav>
+}
+<div class="page-head">
+    <div>
+        <h1>@Title</h1>
+        @if (!string.IsNullOrEmpty(Subtitle))
+        {
+            <div class="sub">@Subtitle</div>
+        }
+    </div>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    /// <summary>Breadcrumb trail; the last entry (without link) is the current page.</summary>
+    [Parameter]
+    public IReadOnlyList<(string Label, string? Href)>? Crumbs { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

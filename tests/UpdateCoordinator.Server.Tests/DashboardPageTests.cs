@@ -349,9 +349,9 @@ public sealed class DashboardViewTests
         await scenario.Factory.WithDbAsync(db => db.Clients.ExecuteUpdateAsync(s => s.SetProperty(c => c.LastHeartbeatAtUtc, DateTime.UtcNow), TestContext.Current.CancellationToken));
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
-        var byHealth = await GetHtmlAsync(browser, "/servers?health=Failed");
+        var byHealth = await GetHtmlAsync(browser, "/servers?f.status=Failed");
         var byName = await GetHtmlAsync(browser, "/servers?q=healthy");
-        var byRing = await GetHtmlAsync(browser, $"/servers?ring={RingEntity.PilotId}");
+        var byRing = await GetHtmlAsync(browser, "/servers?f.ring=Pilot");
 
         Assert.Contains("FAILED01", byHealth, StringComparison.Ordinal);
         Assert.DoesNotContain("HEALTHY01", byHealth, StringComparison.Ordinal);
@@ -362,8 +362,8 @@ public sealed class DashboardViewTests
     }
 
     [Theory]
-    [InlineData("/servers?health=Broken")]
-    [InlineData("/servers?health=99")]
+    [InlineData("/servers?f.status=Broken&sort=nonsense&dir=sideways&page=abc&group=%3Cx%3E")]
+    [InlineData("/servers?page=99999&f.ring=%27%3B--")]
     [InlineData("/servers?q=%25%27%3B--")]
     [InlineData("/servers?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E")]
     public async Task ServerList_MalformedFilters_AreHandled(string path)
@@ -391,7 +391,7 @@ public sealed class DashboardViewTests
 
         var html = await GetHtmlAsync(browser, $"/servers?q={query}");
 
-        Assert.Contains("No server matches the filter.", html, StringComparison.Ordinal);
+        Assert.Contains("No server matches the search and filters.", html, StringComparison.Ordinal);
     }
 
     [Fact]

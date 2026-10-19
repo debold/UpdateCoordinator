@@ -1,0 +1,42 @@
+@* Column header: sorts by link; an optional column filter sits next to the label. *@
+<th class="@Class" aria-sort="@AriaSort">
+    <span class="th-inner">
+        @if (Sortable)
+        {
+            <a class="sort @(Active ? "active" : null)" href="@Table.SortLink(Column)">@Label@if (Active) { <span class="sort-mark" aria-hidden="true">@(Table.Descending ? "▼" : "▲")</span> }</a>
+        }
+        else
+        {
+            @Label
+        }
+        @if (Options is not null)
+        {
+            <ColumnFilter Table="Table" Column="@Column" Label="@Label" Options="Options" />
+        }
+    </span>
+</th>
+
+@code {
+    [Parameter, EditorRequired]
+    public TableQuery Table { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Column { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Sortable { get; set; } = true;
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>Filter values with counts; null for a column without filter.</summary>
+    [Parameter]
+    public IReadOnlyList<FilterOption>? Options { get; set; }
+
+    private bool Active => Sortable && Table.Sort == Column;
+
+    private string? AriaSort => Active ? (Table.Descending ? "descending" : "ascending") : null;
+}

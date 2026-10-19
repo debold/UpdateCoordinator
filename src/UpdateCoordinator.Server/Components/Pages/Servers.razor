@@ -1,145 +1,198 @@
 @page "/servers"
 @attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using UpdateCoordinator.Contracts.Agents
+@using UpdateCoordinator.Server.Agents
 @inject ServerDbContext Db
 @inject DeploymentStatus Deployment
+@inject AgentActionService Actions
+@inject NavigationManager Navigation
 @inject TimeProvider Time
 
 <PageTitle>Servers</PageTitle>
 
-<div class="page-head">
-    <div>
-        <h1>Servers</h1>
-        <div class="subtitle">@_rows.Count of @_total servers@(_truncated ? $" (first {MaxRows} shown)" : string.Empty)</div>
-    </div>
-</div>
+<PageHeader Title="Servers" Subtitle="@($"{_page.Total} registered servers")" />
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-@* GET form: filters are part of the address, so a filtered list can be bookmarked and shared. *@
-<form method="get" class="filters card" role="search">
-    <label>Name or domain <input name="q" value="@Query" maxlength="253" /></label>
-    <label>
-        Ring
-        <select name="ring">
-            <option value="">All rings</option>
-            @foreach (var ring in _rings)
-            {
-                <option value="@ring.Id" selected="@(ring.Id == Ring)">@ring.Name</option>
-            }
-        </select>
-    </label>
-    <label>
-        Health
-        <select name="health">
-            <option value="">Any</option>
-            @foreach (var state in Enum.GetValues<ServerHealthState>())
-            {
-                <option value="@state" selected="@(state == _health)">@ServerHealth.Label(state)</option>
-            }
-        </select>
-    </label>
-    <button type="submit">Filter</button>
-</form>
+<AuthorizeView Policy="@AdminRoles.Policies.Operate">
+    <ActionBand>
+        <form id="bulk" method="post" @formname="servers-bulk" @onsubmit="BulkAsync">
+            <AntiforgeryToken />
+            <button type="submit" name="Bulk" value="search" class="primary">Search for updates now</button>
+            <button type="submit" name="Bulk" value="resync">Sync inventory</button>
+        </form>
+        <div class="spacer"></div>
+        <span class="note">Applies to the servers selected in the list</span>
+    </ActionBand>
+</AuthorizeView>
 
-<div class="card flush scroll">
-    <table>
-        <thead>
-            <tr><th>Server</th><th>Domain</th><th>Health</th><th>Ring</th><th>Groups</th><th>Open updates</th><th>OS version</th><th>Last heartbeat (UTC)</th></tr>
-        </thead>
-        <tbody>
-            @if (_rows.Count == 0)
-            {
-                <tr><td colspan="8">No server matches the filter.</td></tr>
-            }
-            @foreach (var row in _rows)
-            {
+<Box Flush="true">
+    <TableTools Table="_table" Placeholder="Search name or domain" GroupOptions="GroupOptions" Labels="Labels" />
+    <div class="scroll">
+        <table>
+            <thead>
                 <tr>
-                    <td><a href="/servers/@row.Id">@row.HostName</a></td>
-                    <td>@row.DomainName</td>
-                    <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span></td>
-                    <td>@row.Ring@(row.Manual ? " (manual)" : "")</td>
-                    <td>@string.Join(", ", row.Groups)</td>
-                    <td>@row.OpenUpdates</td>
-                    <td>@row.OsVersion</td>
-                    <td>@row.LastHeartbeat</td>
+                    <th><span class="visually-hidden">Select</span></th>
+                    <SortHeader Table="_table" Column="name" Label="Server" />
+                    <SortHeader Table="_table" Column="domain" Label="Domain" Options="@Options("domain")" />
+                    <SortHeader Table="_table" Column="os" Label="Operating system" Options="@Options("os")" />
+                    <SortHeader Table="_table" Column="build" Label="Build" />
+                    <SortHeader Table="_table" Column="ring" Label="Ring" Options="@Options("ring")" />
+                    <SortHeader Table="_table" Column="group" Label="Groups" Options="@Options("group")" />
+                    <SortHeader Table="_table" Column="status" Label="Status" Options="@Options("status")" />
+                    <SortHeader Table="_table" Column="pending" Label="Pending updates" Class="n" />
+                    <SortHeader Table="_table" Column="seen" Label="Last heartbeat (UTC)" />
                 </tr>
-            }
-        </tbody>
-    </table>
-</div>
+            </thead>
+            <tbody>
+                @if (_page.Rows.Count == 0)
+                {
+                    <tr><td colspan="10" class="note">No server matches the search and filters.</td></tr>
+                }
+                @foreach (var (group, rows) in Groups())
+                {
+                    @if (group is not null)
+                    {
+                        <tr class="group-row"><td colspan="10">@(group.Length == 0 ? "(none)" : group) · @rows.Count</td></tr>
+                    }
+                    @foreach (var row in rows)
+                    {
+                        <tr>
+                            <td><input type="checkbox" form="bulk" name="Selected" value="@row.Id" aria-label="Select @row.HostName" /></td>
+                            <td><a href="/servers/@row.Id">@row.HostName</a></td>
+                            <td>@row.Domain</td>
+                            <td class="nowrap">@row.Os</td>
+                            <td class="mono">@row.Build</td>
+                            <td>@row.Ring@(row.ManualRing ? " (manual)" : "")</td>
+                            <td class="nowrap">@string.Join(", ", row.Groups)</td>
+                            <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span></td>
+                            <td class="n">@row.Pending</td>
+                            <td class="nowrap">@(row.LastHeartbeat?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+    <Pager Table="_table" Page="PageInfo.Of(_page)" Noun="servers" />
+</Box>
 
 @code {
-    private const int MaxRows = 2000;
+    private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("os", "Operating system"), ("ring", "Ring"), ("group", "Group"), ("status", "Status"), ("domain", "Domain")];
+    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["domain"] = "Domain", ["os"] = "Operating system", ["ring"] = "Ring", ["group"] = "Group", ["status"] = "Status" };
 
-    private sealed record Row(Guid Id, string HostName, string? DomainName, ServerHealthState Health, string Ring, bool Manual, IReadOnlyList<string> Groups, int OpenUpdates, string OsVersion, string LastHeartbeat);
+    private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, ServerHealthState Health, int Pending, DateTime? LastHeartbeat);
 
-    [SupplyParameterFromQuery(Name = "q")]
-    public string? Query { get; set; }
+    private static readonly IReadOnlyList<TableColumn<Row>> Columns =
+    [
+        new("name", "Server", r => r.HostName),
+        new("domain", "Domain", r => r.Domain, r => [r.Domain]),
+        new("os", "Operating system", r => r.BuildNumber, r => [r.Os]),
+        new("build", "Build", r => r.Build),
+        new("ring", "Ring", r => r.RingOrder, r => [r.Ring]),
+        new("group", "Groups", r => r.Groups.FirstOrDefault(), r => r.Groups.Count == 0 ? [string.Empty] : r.Groups),
+        new("status", "Status", r => (int)r.Health, r => [ServerHealth.Label(r.Health)]),
+        new("pending", "Pending updates", r => r.Pending),
+        new("seen", "Last heartbeat", r => r.LastHeartbeat),
+    ];
 
-    [SupplyParameterFromQuery(Name = "ring")]
-    public string? RingFilter { get; set; }
+    [SupplyParameterFromForm(FormName = "servers-bulk")]
+    private string? Bulk { get; set; }
 
-    [SupplyParameterFromQuery(Name = "health")]
-    public string? Health { get; set; }
+    [SupplyParameterFromForm(FormName = "servers-bulk")]
+    private Guid[]? Selected { get; set; }
 
-    private List<RingEntity> _rings = [];
-    private List<Row> _rows = [];
-    private ServerHealthState? _health;
+    private TableQuery _table = default!;
+    private TablePage<Row> _page = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
 
-    /// <summary>Ring filter; a value that is not a ring ID is ignored.</summary>
-    private int? Ring => int.TryParse(RingFilter, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) ? id : null;
-    private int _total;
-    private bool _truncated;
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
 
-    protected override async Task OnParametersSetAsync()
+    private IReadOnlyList<FilterOption>? Options(string column) => _page.Options.GetValueOrDefault(column);
+
+    /// <summary>Rows of the current page, grouped when the address asks for it.</summary>
+    private IEnumerable<(string? Group, List<Row> Rows)> Groups()
     {
-        // Unknown filter values are ignored instead of failing the page.
-        _health = Enum.TryParse<ServerHealthState>(Health, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
-        var query = Query?.Trim();
-        if (query is { Length: > 253 })
+        var column = Columns.FirstOrDefault(c => c.Key == _table.Group && c.FilterValues is not null);
+        if (column is null)
         {
-            query = query[..253];
+            yield return (null, [.. _page.Rows]);
+            yield break;
         }
 
-        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
-        var ringNames = _rings.ToDictionary(r => r.Id, r => r.Name);
+        foreach (var group in _page.Rows.GroupBy(column.GroupKey))
+        {
+            yield return (group.Key, [.. group]);
+        }
+    }
+
+    private async Task BulkAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate))
+        {
+            ShowResult("Only operators and administrators can send actions to servers.", string.Empty);
+            return;
+        }
+
+        var kind = Bulk switch { "search" => AgentActionKind.SearchNow, "resync" => AgentActionKind.FullResync, _ => (AgentActionKind?)null };
+        var selected = (Selected ?? []).Distinct().Take(500).ToList();
+        if (kind is null || selected.Count == 0)
+        {
+            ShowResult("Select at least one server in the list first.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var actor = await GetActorAsync();
+        var queued = 0;
+        var errors = new List<string>();
+        foreach (var id in selected)
+        {
+            var outcome = await Actions.QueueAsync(id, kind.Value, actor, CancellationToken.None);
+            if (outcome.Succeeded)
+            {
+                queued++;
+            }
+            else if (!errors.Contains(outcome.Error!))
+            {
+                errors.Add(outcome.Error!);
+            }
+        }
+
+        ShowResult(queued == 0 ? string.Join(" ", errors) : null, $"Queued for {queued} servers; each runs it with its next heartbeat.{(errors.Count > 0 ? " Not queued for the others: " + string.Join(" ", errors) : string.Empty)}");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _table = TableQuery.From(Navigation, "name");
+        var rings = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id);
         var groups = await Db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, g => g.Name);
-        _total = await Db.Clients.CountAsync();
-
-        var clientQuery = Db.Clients.AsNoTracking();
-        if (!string.IsNullOrEmpty(query))
-        {
-            // Case-insensitive substring match; the value is a parameter and its LIKE wildcards are escaped.
-            var pattern = "%" + query.Replace(@"\", @"\\", StringComparison.Ordinal).Replace("%", @"\%", StringComparison.Ordinal).Replace("_", @"\_", StringComparison.Ordinal) + "%";
-            clientQuery = clientQuery.Where(c => EF.Functions.Like(c.HostName, pattern, @"\") || (c.DomainName != null && EF.Functions.Like(c.DomainName, pattern, @"\")));
-        }
-
-        if (Ring is { } ringId)
-        {
-            clientQuery = clientQuery.Where(c => c.RingId == ringId);
-        }
-
-        var clients = await clientQuery.OrderBy(c => c.HostName).Take(MaxRows + 1).ToListAsync();
-        _truncated = clients.Count > MaxRows;
-        clients = [.. clients.Take(MaxRows)];
-
-        var ids = clients.Select(c => c.Id).ToList();
-        var memberships = await Db.ClientGroups.AsNoTracking().Where(m => ids.Contains(m.ClientId)).ToListAsync();
+        var memberships = (await Db.ClientGroups.AsNoTracking().ToListAsync()).ToLookup(m => m.ClientId, m => m.GroupId);
+        var clients = await Db.Clients.AsNoTracking().Where(c => c.State != RegistrationState.Deleted).ToListAsync();
         var entries = await Deployment.GetAsync(null, null, null, CancellationToken.None);
         var failed = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
-        var open = entries.Where(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful).GroupBy(e => e.ClientId).ToDictionary(g => g.Key, g => g.Count());
+        var pending = entries.Where(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful).GroupBy(e => e.ClientId).ToDictionary(g => g.Key, g => g.Count());
         var now = Time.GetUtcNow().UtcDateTime;
 
-        _rows = [.. clients
-            .Select(c => new Row(
+        List<Row> rows = [.. clients.Select(c =>
+        {
+            var ring = c.RingId is { } id && rings.TryGetValue(id, out var r) ? r : null;
+            return new Row(
                 c.Id,
                 c.HostName,
-                c.DomainName,
-                ServerHealth.Evaluate(c, failed.Contains(c.Id), now),
-                c.RingId is { } ring && ringNames.TryGetValue(ring, out var name) ? name : "–",
+                c.DomainName ?? string.Empty,
+                OperatingSystems.Name(c.OsProductName, c.OsVersion),
+                OperatingSystems.Build(c.OsVersion),
+                OperatingSystems.BuildNumber(c.OsVersion) ?? 0,
+                ring?.Name ?? "–",
+                ring?.Order ?? int.MaxValue,
                 c.ManualRingId is not null,
-                [.. memberships.Where(m => m.ClientId == c.Id && groups.ContainsKey(m.GroupId)).Select(m => groups[m.GroupId]).Order()],
-                open.GetValueOrDefault(c.Id),
-                c.OsVersion,
-                c.LastHeartbeatAtUtc?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–"))
-            .Where(r => _health is null || r.Health == _health)];
+                [.. memberships[c.Id].Where(groups.ContainsKey).Select(g => groups[g]).Order(StringComparer.CurrentCulture)],
+                ServerHealth.Evaluate(c, failed.Contains(c.Id), now),
+                pending.GetValueOrDefault(c.Id),
+                c.LastHeartbeatAtUtc);
+        })];
+
+        _page = TablePaging.Apply(rows, _table, Columns, r => $"{r.HostName} {r.Domain}");
     }
 }

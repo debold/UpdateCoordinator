@@ -1,0 +1,47 @@
+@* Search, optional grouping and the active filters as removable chips. *@
+<div class="table-tools">
+    <form method="get" role="search">
+        @foreach (var field in Table.HiddenFieldsExcept("q", "group"))
+        {
+            <input type="hidden" name="@field.Key" value="@field.Value" />
+        }
+        <label class="visually-hidden" for="table-search">Search</label>
+        <input id="table-search" type="search" name="q" value="@Table.Search" maxlength="@TableQuery.MaxSearchLength" placeholder="@Placeholder" />
+        @if (GroupOptions is { Count: > 0 })
+        {
+            <label class="visually-hidden" for="table-group">Group by</label>
+            <select id="table-group" name="group">
+                <option value="">No grouping</option>
+                @foreach (var (key, label) in GroupOptions)
+                {
+                    <option value="@key" selected="@(Table.Group == key)">Group by @label.ToLowerInvariant()</option>
+                }
+            </select>
+        }
+        <button type="submit">Apply</button>
+    </form>
+    @foreach (var (column, value) in Table.ActiveFilters)
+    {
+        <span class="chip">@(Labels?.GetValueOrDefault(column) ?? column): @(value.Length == 0 ? "(none)" : value)<a href="@Table.WithoutFilter(column, value)" aria-label="Remove filter @value">×</a></span>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public TableQuery Table { get; set; } = default!;
+
+    [Parameter]
+    public string Placeholder { get; set; } = "Search";
+
+    /// <summary>Columns a list can be grouped by (key, label).</summary>
+    [Parameter]
+    public IReadOnlyList<(string Key, string Label)>? GroupOptions { get; set; }
+
+    /// <summary>Column labels for the filter chips.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, string>? Labels { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,84 @@
+@* Paging links; a range of pages around the current one. *@
+<div class="pager">
+    <span>@Summary</span>
+    @if (Page.Pages > 1)
+    {
+        <nav class="pages" aria-label="Pages">
+            @if (Page.Page > 1)
+            {
+                <a href="@Table.PageLink(Page.Page - 1)" aria-label="Previous page">‹</a>
+            }
+            @foreach (var number in Numbers())
+            {
+                @if (number == 0)
+                {
+                    <span class="gap">…</span>
+                }
+                else if (number == Page.Page)
+                {
+                    <span class="current" aria-current="page">@number</span>
+                }
+                else
+                {
+                    <a href="@Table.PageLink(number)">@number</a>
+                }
+            }
+            @if (Page.Page < Page.Pages)
+            {
+                <a href="@Table.PageLink(Page.Page + 1)" aria-label="Next page">›</a>
+            }
+        </nav>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public TableQuery Table { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public PageInfo Page { get; set; } = default!;
+
+    [Parameter]
+    public string Noun { get; set; } = "entries";
+
+    private string Summary
+    {
+        get
+        {
+            if (Page.Matching == 0)
+            {
+                return Page.Total == 0 ? $"No {Noun}" : $"No match among {Page.Total} {Noun}";
+            }
+
+            var first = ((Page.Page - 1) * Page.PageSize) + 1;
+            var last = Math.Min(Page.Page * Page.PageSize, Page.Matching);
+            var filtered = Page.Matching < Page.Total ? $" (filtered from {Page.Total})" : string.Empty;
+            return $"{first}–{last} of {Page.Matching} {Noun}{filtered}";
+        }
+    }
+
+    /// <summary>1, the current page with two neighbours, the last page; 0 marks a gap.</summary>
+    private IEnumerable<int> Numbers()
+    {
+        var shown = new SortedSet<int> { 1, Page.Pages };
+        for (var n = Page.Page - 2; n <= Page.Page + 2; n++)
+        {
+            if (n >= 1 && n <= Page.Pages)
+            {
+                shown.Add(n);
+            }
+        }
+
+        var previous = 0;
+        foreach (var n in shown)
+        {
+            if (n - previous > 1)
+            {
+                yield return 0;
+            }
+
+            yield return n;
+            previous = n;
+        }
+    }
+}

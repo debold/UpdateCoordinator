@@ -1,0 +1,12 @@
+@* The single place for page actions: primary first, destructive ones after a <div class="spacer"></div>. *@
+<div class="band" role="toolbar" aria-label="@Label">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public string Label { get; set; } = "Page actions";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

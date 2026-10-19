@@ -1,0 +1,25 @@
+@* Overlay dialog rendered by the server when the address asks for it (e.g. ?dialog=new); closing is a plain link. *@
+<div class="overlay">
+    <div class="dialog @(Wide ? "wide" : null)" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+        <header class="dialog-head">
+            <h2 id="dialog-title">@Title</h2>
+            <a class="close" href="@CloseHref" aria-label="Close">×</a>
+        </header>
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string CloseHref { get; set; } = "/";
+
+    [Parameter]
+    public bool Wide { get; set; }
+
+    /// <summary>Usually a form with a <c>dialog-body</c> and a <c>dialog-foot</c>.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

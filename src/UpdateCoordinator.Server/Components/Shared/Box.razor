@@ -1,0 +1,53 @@
+@* A content box: header with title, hint and optional extras, body, optional footer. *@
+<section class="box" aria-labelledby="@(Title is null ? null : _id)">
+    @if (Title is not null || Header is not null)
+    {
+        <header class="box-head">
+            @if (Title is not null)
+            {
+                <h2 id="@_id">@Title</h2>
+            }
+            @Header
+            @if (Hint is not null)
+            {
+                <span class="hint">@Hint</span>
+            }
+        </header>
+    }
+    @if (Flush)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <div class="box-body">@ChildContent</div>
+    }
+    @if (Footer is not null)
+    {
+        <footer class="box-foot">@Footer</footer>
+    }
+</section>
+
+@code {
+    private readonly string _id = "box-" + Guid.NewGuid().ToString("N")[..8];
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Hint { get; set; }
+
+    /// <summary>Extra header content, e.g. tabs or a link.</summary>
+    [Parameter]
+    public RenderFragment? Header { get; set; }
+
+    /// <summary>True for tables that run to the box edges.</summary>
+    [Parameter]
+    public bool Flush { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Footer { get; set; }
+}

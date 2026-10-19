@@ -1,0 +1,38 @@
+@* Filter icon in a column header: a disclosure with clickable criteria and their counts, applied by a GET form. *@
+<details class="col-filter @(_selected.Count > 0 ? "active" : null)">
+    <summary aria-label="Filter @Label" title="Filter @Label">&#x23F7;</summary>
+    <div class="filter-pop">
+        <form method="get">
+            @foreach (var field in Table.HiddenFieldsExcept(TableQuery.FilterField(Column)))
+            {
+                <input type="hidden" name="@field.Key" value="@field.Value" />
+            }
+            @foreach (var option in Options)
+            {
+                <label><input type="checkbox" name="@TableQuery.FilterField(Column)" value="@option.Value" checked="@_selected.Contains(option.Value)" /> @(option.Value.Length == 0 ? "(none)" : option.Value)<span class="count">@option.Count</span></label>
+            }
+            <div class="pop-foot">
+                <a class="btn ghost" href="@Table.WithFilter(Column)">Clear</a>
+                <button type="submit" class="primary">Apply</button>
+            </div>
+        </form>
+    </div>
+</details>
+
+@code {
+    private IReadOnlyList<string> _selected = [];
+
+    [Parameter, EditorRequired]
+    public TableQuery Table { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Column { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<FilterOption> Options { get; set; } = [];
+
+    protected override void OnParametersSet() => _selected = Table.Filter(Column);
+}
