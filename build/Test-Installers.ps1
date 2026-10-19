@@ -83,6 +83,14 @@ Check 'agent registers at the central server' {
     Wait-Until { Select-String -Path "$env:ProgramData\UpdateCoordinator\Agent\Logs\agent-*.log" -Pattern 'Registered at the central server' -Quiet } 120
 }
 
+Check 'agent stays below its memory limit after registration and inventory' {
+    Start-Sleep -Seconds 30
+    $agentMb = [math]::Round((Get-Process UpdateCoordinator.Agent).PrivateMemorySize64 / 1MB)
+    $serverMb = [math]::Round((Get-Process UpdateCoordinator.Server).PrivateMemorySize64 / 1MB)
+    Write-Host "  measured private memory: agent $agentMb MB, central server $serverMb MB"
+    $agentMb -lt 200
+}
+
 # --- Version 2: upgrade without options keeps settings and data ------------------------------------------------
 Check 'server upgrades' { (Invoke-Msi "/i `"$Version2Directory\UpdateCoordinator.Server.msi`"" 'server-upgrade.log') -eq 0 }
 Check 'server version 2 installed once' { (Get-ProductVersion 'UpdateCoordinator Central Server') -eq '0.2.0' }

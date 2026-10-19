@@ -33,9 +33,26 @@ internal sealed class LogCollector(string directory, TimeProvider timeProvider) 
             .OrderByDescending(f => f.LastWriteTimeUtc)
             .ToList();
 
-        for (var count = files.Count; count > 0; count--)
+        // Measure first, pack once: building candidate archives in memory would need several times the upload limit
+        // (measured: about 370 MB for 80 MB of poorly compressible logs), far beyond the agent's memory limit.
+        var selected = new List<FileInfo>();
+        long size = EmptyArchiveBytes;
+        foreach (var file in files)
         {
-            var archive = Pack(files.Take(count).ToList());
+            var entry = CompressedSize(file) + EntryOverheadBytes + (2L * file.Name.Length);
+            if (size + entry > AgentActionList.MaxLogBytes)
+            {
+                break;
+            }
+
+            selected.Add(file);
+            size += entry;
+        }
+
+        // A file still being written may have grown since it was measured; then the oldest files are left out.
+        for (var count = selected.Count; count > 0; count--)
+        {
+            var archive = Pack(selected[..count]);
             if (archive.Length <= AgentActionList.MaxLogBytes)
             {
                 return (archive, count);
@@ -43,6 +60,56 @@ internal sealed class LogCollector(string directory, TimeProvider timeProvider) 
         }
 
         return (Pack([]), 0);
+    }
+
+    private const long EmptyArchiveBytes = 64;
+    private const long EntryOverheadBytes = 128;
+
+    /// <summary>Size of the file after compression, without keeping the compressed bytes.</summary>
+    private static long CompressedSize(FileInfo file)
+    {
+        using var counter = new CountingStream();
+        using (var deflate = new DeflateStream(counter, CompressionLevel.Optimal, leaveOpen: true))
+        using (var source = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+        {
+            source.CopyTo(deflate);
+        }
+
+        return counter.Length;
+    }
+
+    /// <summary>Write-only stream that only counts the bytes written to it.</summary>
+    private sealed class CountingStream : Stream
+    {
+        private long _length;
+
+        public override bool CanRead => false;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => true;
+
+        public override long Length => _length;
+
+        public override long Position
+        {
+            get => _length;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count) => _length += count;
+
+        public override void Write(ReadOnlySpan<byte> buffer) => _length += buffer.Length;
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
     }
 
     private static byte[] Pack(IReadOnlyList<FileInfo> files)

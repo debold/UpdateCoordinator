@@ -61,6 +61,30 @@ public sealed class LogCollectorTests : IDisposable
     }
 
     [Fact]
+    public void ManyLargeLogs_ArePackedWithoutBuildingSeveralArchives()
+    {
+        var random = new Random(2);
+        for (var age = 1; age <= 5; age++)
+        {
+            var bytes = new byte[AgentActionList.MaxLogBytes / 2];
+            random.NextBytes(bytes);
+            var path = Path.Combine(_directory, $"agent-{age}.log");
+            File.WriteAllBytes(path, bytes);
+            File.SetLastWriteTimeUtc(path, _time.GetUtcNow().UtcDateTime.AddHours(-age));
+        }
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var (archive, files) = new LogCollector(_directory, _time).Collect();
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(1, files);
+        Assert.True(archive.Length <= AgentActionList.MaxLogBytes);
+
+        // One archive (with stream growth and the final copy) at most; repacking would allocate several times the limit.
+        Assert.True(allocated < 5L * AgentActionList.MaxLogBytes, $"Allocated {allocated / (1024 * 1024)} MB.");
+    }
+
+    [Fact]
     public void MissingFolder_GivesEmptyArchive()
     {
         var (archive, files) = new LogCollector(Path.Combine(_directory, "missing"), _time).Collect();

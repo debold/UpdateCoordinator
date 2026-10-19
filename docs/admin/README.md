@@ -100,7 +100,7 @@ Registry values are read when the agent service starts. The product name in the 
 | `CentralServer:BaseAddress` | none (required) | address of the central server; set via `CentralServerUrl` |
 | `CentralServer:HeartbeatInterval` | `00:00:10` | interval between heartbeats (1 s to 10 min) |
 | `CentralServer:MaxBackoff` | `00:05:00` | longest wait between attempts while the central server is unreachable |
-| `Resources:MaxPrivateMemoryMegabytes` | `200` | private memory limit (64 to 4096 MB): above it, after a full garbage collection, the agent logs an error and restarts its service through service recovery |
+| `Resources:MaxPrivateMemoryMegabytes` | `200` | private memory limit (64 to 4096 MB): above it, after a full garbage collection, the agent logs an error and restarts its service through service recovery. Measured: about 30 MB idle in a test process, about 70 MB while packing 80 MB of logs for upload; the CI install test checks the real agent service after registration and inventory |
 | `Resources:LowPriority` | `true` | runs the agent process with below-normal priority. The Windows Update search and installation run in the Windows Update service, not in the agent, so their CPU use is governed by Windows. |
 
 | `Inventory:CollectInterval` | `06:00:00` | how often the inventory is collected (5 min to 1 day) |
