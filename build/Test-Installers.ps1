@@ -23,6 +23,11 @@ if ($env:GITHUB_ACTIONS -ne 'true' -and $env:UPDATECOORDINATOR_INSTALL_TEST -ne 
 
 $Version1Directory = (Resolve-Path $Version1Directory).Path
 $Version2Directory = (Resolve-Path $Version2Directory).Path
+foreach ($directory in $Version1Directory, $Version2Directory) {
+    foreach ($name in 'UpdateCoordinator.Server.msi', 'UpdateCoordinator.Agent.msi') {
+        if (-not (Test-Path (Join-Path $directory $name))) { throw "Installer not found: $(Join-Path $directory $name)" }
+    }
+}
 New-Item -ItemType Directory -Force -Path $LogDirectory | Out-Null
 $failures = [System.Collections.Generic.List[string]]::new()
 

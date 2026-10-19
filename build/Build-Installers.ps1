@@ -19,6 +19,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $artifacts = Join-Path $root 'artifacts'
 $output = if ($OutputDirectory) { $OutputDirectory } else { Join-Path $artifacts "installers" }
+# Absolute, because the WiX build resolves relative output paths against the installer project.
+$output = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($output)
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 
 function Build-Component([string] $Name, [string] $Project, [string] $Installer, [string] $Version) {
