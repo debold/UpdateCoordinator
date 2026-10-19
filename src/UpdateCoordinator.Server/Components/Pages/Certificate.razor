@@ -7,14 +7,8 @@
 
 <PageTitle>TLS certificate</PageTitle>
 
-<h1>TLS certificate</h1>
+<PageHeader Title="TLS certificate" Subtitle="Agents pin the trust anchor, not the certificate: after a switch the trust anchor signs a binding for the new certificate and every agent accepts it on its next contact. Renewals in the LocalMachine certificate store are picked up automatically." Crumbs="@([("Administration", null), ("TLS certificate", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
-
-<p>
-    Agents do not pin the TLS certificate but the trust anchor of the central server. When you switch to another certificate,
-    the trust anchor signs a binding for it, and every agent accepts the new certificate on its next contact; nothing changes on
-    the servers. Renew the certificate in the Windows certificate store (LocalMachine\My) first, then select it here.
-</p>
 
 <section class="card">
     <h2>In use</h2>

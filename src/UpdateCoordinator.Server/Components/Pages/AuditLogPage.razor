@@ -2,10 +2,11 @@
 @attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
 @inject ServerDbContext Db
 @inject AuditLog Audit
+@inject NavigationManager Navigation
 
 <PageTitle>Audit log</PageTitle>
 
-<h1>Audit log</h1>
+<PageHeader Title="Audit log" Subtitle="Every change in the administration and every decision, protected by a hash chain" Crumbs="@([("Administration", null), ("Audit log", null)])" />
 
 @if (_broken is null)
 {
@@ -16,33 +17,85 @@ else
     <p class="error" role="alert">Integrity check failed at entry @_broken. The audit log was modified outside the application.</p>
 }
 
-<table>
-    <thead>
-        <tr><th>Time (UTC)</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr>
-    </thead>
-    <tbody>
-        @foreach (var entry in _entries)
-        {
-            <tr>
-                <td>@entry.AtUtc.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)</td>
-                <td>@entry.Actor</td>
-                <td>@entry.Action</td>
-                <td>@entry.Target</td>
-                <td>@entry.Details</td>
-            </tr>
-        }
-    </tbody>
-</table>
+<Box Flush="true">
+    <TableTools Table="_table" Placeholder="Search target or details" Labels="Labels" />
+    <div class="scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Time (UTC)</th>
+                    <SortHeader Table="_table" Column="actor" Label="Actor" Sortable="false" Options="_actors" />
+                    <SortHeader Table="_table" Column="action" Label="Action" Sortable="false" Options="_actions" />
+                    <th>Target</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_entries.Count == 0)
+                {
+                    <tr><td colspan="5" class="note">No entry matches.</td></tr>
+                }
+                @foreach (var entry in _entries)
+                {
+                    <tr>
+                        <td class="nowrap">@entry.AtUtc.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)</td>
+                        <td>@entry.Actor</td>
+                        <td class="nowrap">@entry.Action</td>
+                        <td>@entry.Target</td>
+                        <td>@entry.Details</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <Pager Table="_table" Page="_pageInfo" Noun="entries" />
+</Box>
 
 @code {
-    private const int PageSize = 200;
+    private const int PageSize = 50;
 
+    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["actor"] = "Actor", ["action"] = "Action" };
+
+    private TableQuery _table = default!;
     private List<AuditEntryEntity> _entries = [];
+    private IReadOnlyList<FilterOption> _actors = [];
+    private IReadOnlyList<FilterOption> _actions = [];
+    private PageInfo _pageInfo = new(1, 1, 0, 0, PageSize);
     private long? _broken;
 
     protected override async Task OnInitializedAsync()
     {
-        _entries = await Db.AuditEntries.AsNoTracking().OrderByDescending(e => e.Id).Take(PageSize).ToListAsync();
+        _table = TableQuery.From(Navigation, "time", defaultDescending: true);
+
+        // The audit log grows without limit, so filtering and paging run in the database; values are parameters.
+        var all = Db.AuditEntries.AsNoTracking();
+        var query = all;
+        var actors = _table.Filter("actor");
+        var actions = _table.Filter("action");
+        if (actors.Count > 0)
+        {
+            query = query.Where(e => actors.Contains(e.Actor));
+        }
+
+        if (actions.Count > 0)
+        {
+            query = query.Where(e => actions.Contains(e.Action));
+        }
+
+        if (_table.Search is { } search)
+        {
+            var pattern = "%" + search.Replace(@"\", @"\\", StringComparison.Ordinal).Replace("%", @"\%", StringComparison.Ordinal).Replace("_", @"\_", StringComparison.Ordinal) + "%";
+            query = query.Where(e => (e.Target != null && EF.Functions.Like(e.Target, pattern, @"\")) || (e.Details != null && EF.Functions.Like(e.Details, pattern, @"\")));
+        }
+
+        var total = await all.CountAsync();
+        var matching = await query.CountAsync();
+        var pages = Math.Max(1, (matching + PageSize - 1) / PageSize);
+        var page = Math.Min(_table.Page, pages);
+        _entries = await query.OrderByDescending(e => e.Id).Skip((page - 1) * PageSize).Take(PageSize).ToListAsync();
+        _pageInfo = new PageInfo(page, pages, matching, total, PageSize);
+        _actors = await all.GroupBy(e => e.Actor).OrderBy(g => g.Key).Select(g => new FilterOption(g.Key, g.Count())).Take(200).ToListAsync();
+        _actions = await all.GroupBy(e => e.Action).OrderBy(g => g.Key).Select(g => new FilterOption(g.Key, g.Count())).Take(200).ToListAsync();
         _broken = await Audit.FindFirstBrokenEntryAsync();
     }
 }

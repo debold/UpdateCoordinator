@@ -5,22 +5,7 @@
 
 <PageTitle>AD coverage</PageTitle>
 
-<div class="crumbs"><a href="/">Overview</a> / AD coverage</div>
-<div class="page-head">
-    <div>
-        <h1>AD coverage</h1>
-        <div class="subtitle">
-            @if (_report.ReadAtUtc is { } read)
-            {
-                @($"Server accounts read from Active Directory at {read.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} UTC")
-            }
-            else
-            {
-                @("Active Directory has not been read yet. The central server must be a domain member, or a domain must be configured under Coverage:Domain.")
-            }
-        </div>
-    </div>
-</div>
+<PageHeader Title="AD coverage" Subtitle="@CoverageSubtitle" Crumbs="@([("Overview", "/"), ("AD coverage", null)])" />
 
 <section class="figures" aria-label="Coverage">
     <div class="card figure">
@@ -82,6 +67,10 @@
     private const int MaxRows = 2000;
 
     private CoverageReport _report = new(null, 0, 0, [], []);
+
+    private string CoverageSubtitle => _report.ReadAtUtc is { } read
+        ? $"Server accounts read from Active Directory at {read.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} UTC"
+        : "Active Directory has not been read yet. The central server must be a domain member, or a domain must be configured under Coverage:Domain.";
 
     protected override async Task OnInitializedAsync() => _report = await Coverage.GetReportAsync(CancellationToken.None);
 }
