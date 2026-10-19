@@ -13,8 +13,8 @@ internal sealed class CertificateOptions : IValidatableObject
     public const string SectionName = "Certificate";
 
     /// <summary>Validity of a self-signed certificate created by the central server.</summary>
-    [Range(typeof(TimeSpan), "30.00:00:00", "3650.00:00:00")]
-    public TimeSpan SelfSignedLifetime { get; set; } = TimeSpan.FromDays(365);
+    [Range(typeof(TimeSpan), "7.00:00:00", "3650.00:00:00")]
+    public TimeSpan SelfSignedLifetime { get; set; } = TimeSpan.FromDays(180);
 
     /// <summary>A self-signed certificate is replaced this long before it expires; a CA certificate is reported as expiring.</summary>
     [Range(typeof(TimeSpan), "1.00:00:00", "180.00:00:00")]

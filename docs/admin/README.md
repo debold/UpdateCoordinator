@@ -37,7 +37,7 @@ The central server only listens on HTTPS. Its certificate comes from the Windows
 
 - CN is the fully qualified name of the machine, the SAN contains the fully qualified name and the host name.
 - RSA 3072 key in the machine key store, not exportable; friendly name `UpdateCoordinator self-signed`; stored in `LocalMachine\My`.
-- Valid for one year (`Certificate:SelfSignedLifetime`). After a restart the existing certificate is reused.
+- Valid for 180 days (`Certificate:SelfSignedLifetime`). After a restart the existing certificate is reused.
 
 Browsers do not trust a self-signed certificate and warn on every rollover. For the dashboard a certificate from an internal CA is recommended (step by step below); agents work with either.
 
@@ -70,7 +70,7 @@ Both services use the standard .NET configuration: `appsettings.json` next to th
 |---|---|---|
 | `Kestrel:Endpoints:Https:Url` | `https://*:8443` | HTTPS endpoint for agents and administration |
 | `Trust:CertificateThumbprint` | none | thumbprint of the TLS certificate in `LocalMachine\My`; without it the central server uses its own self-signed certificate (section 3). In development `CurrentUser\My` or the ASP.NET Core development certificate. |
-| `Certificate:SelfSignedLifetime` | `365.00:00:00` | validity of the own self-signed certificate (30 days to 10 years) |
+| `Certificate:SelfSignedLifetime` | `180.00:00:00` | validity of the own self-signed certificate (7 days to 10 years); shorter is possible since the rollover is automatic |
 | `Certificate:RenewBefore` | `30.00:00:00` | rollover of the own certificate and expiry warning for a CA certificate this long before expiry (at most half the lifetime) |
 | `Certificate:CheckInterval` | `00:15:00` | how often the store is checked for a renewed certificate |
 | `Trust:AnchorPath` | `%ProgramData%\UpdateCoordinator\Server\trust-anchor.key` | private key of the trust anchor, DPAPI-protected for the service account; **include in backups** |

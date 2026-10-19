@@ -30,7 +30,7 @@ public sealed class CertificateLifecycleTests
 
         Assert.True(ServerCertificates.IsSelfGenerated(certificate));
         Assert.Equal(CertificateLifecycle.Created, first.StartupChange?.Action);
-        Assert.True(certificate.NotAfter.ToUniversalTime() - _time.GetUtcNow().UtcDateTime > TimeSpan.FromDays(364));
+        Assert.True(certificate.NotAfter.ToUniversalTime() - _time.GetUtcNow().UtcDateTime > TimeSpan.FromDays(179));
         Assert.Null(_store.Saved);
 
         var restarted = Lifecycle();
@@ -131,10 +131,10 @@ public sealed class CertificateLifecycleTests
         var lifecycle = Lifecycle();
         var current = lifecycle.SelectInitial();
 
-        _time.Advance(TimeSpan.FromDays(300));
+        _time.Advance(TimeSpan.FromDays(140));
         Assert.Null(lifecycle.Check(current));
 
-        _time.Advance(TimeSpan.FromDays(36));
+        _time.Advance(TimeSpan.FromDays(11));
         var change = lifecycle.Check(current);
 
         Assert.Equal(CertificateLifecycle.RolledOver, change?.Action);
@@ -161,7 +161,8 @@ public sealed class CertificateLifecycleTests
     [Theory]
     [InlineData(365, 30, 15, true)]
     [InlineData(30, 15, 1, true)]
-    [InlineData(29, 10, 15, false)]
+    [InlineData(6, 1, 15, false)]
+    [InlineData(7, 3, 15, true)]
     [InlineData(3651, 30, 15, false)]
     [InlineData(365, 0, 15, false)]
     [InlineData(60, 31, 15, false)]
