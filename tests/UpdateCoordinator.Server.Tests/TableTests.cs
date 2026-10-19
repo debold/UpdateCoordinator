@@ -171,7 +171,35 @@ public sealed class TableTests
         Assert.DoesNotContain("KB5040000", filtered, StringComparison.Ordinal);
     }
 
-    private static Task<List<Guid>> SeedAsync(ServerFactory factory)
+    [Fact]
+    public async Task Approvals_ApproveSelectedServersAtOnce()
+    {
+        await using var factory = new ServerFactory();
+        await factory.CreateUserAsync("operator", Password, AdminRoles.Operator);
+        var ids = await SeedAsync(factory, RegistrationState.Pending);
+        using var operatorBrowser = new DashboardClient(factory);
+        using (await operatorBrowser.LoginAsync("operator", Password))
+        {
+        }
+
+        var page = await (await operatorBrowser.GetAsync("/approvals")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Approve selected servers", page, StringComparison.Ordinal);
+        Assert.Contains("class=\"active\"", page, StringComparison.Ordinal);
+
+        using (var none = await operatorBrowser.PostFormAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "decision", ["Action"] = "approve-selected" }))
+        {
+            Assert.Contains("Select at least one server", await none.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        using (var approved = await operatorBrowser.PostFormAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "decision", ["Action"] = "approve-selected", ["Selected"] = ids[1].ToString() }))
+        {
+            Assert.Contains("Approved 1 servers.", await approved.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.Equal(1, await factory.WithDbAsync(db => db.Clients.CountAsync(c => c.State == RegistrationState.Approved, TestContext.Current.CancellationToken)));
+    }
+
+    private static Task<List<Guid>> SeedAsync(ServerFactory factory, RegistrationState state = RegistrationState.Approved)
     {
         factory.StartServer();
         return factory.WithDbAsync(async db =>
@@ -181,7 +209,7 @@ public sealed class TableTests
             {
                 var id = Guid.NewGuid();
                 ids.Add(id);
-                db.Clients.Add(new ClientEntity { Id = id, SecretHash = [1], HostName = host, OsVersion = version, AgentVersion = "0.2.0", State = RegistrationState.Approved, RingId = RingEntity.ProductionId, LastHeartbeatAtUtc = DateTime.UtcNow });
+                db.Clients.Add(new ClientEntity { Id = id, SecretHash = [1], HostName = host, OsVersion = version, AgentVersion = "0.2.0", State = state, RingId = RingEntity.ProductionId, LastHeartbeatAtUtc = DateTime.UtcNow });
             }
 
             await db.SaveChangesAsync();

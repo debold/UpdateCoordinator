@@ -7,24 +7,24 @@
         <Authorized>
             <nav class="nav" aria-label="Main">
                 <span class="brand">UpdateCoordinator</span>
-                <a href="/">Overview</a>
-                <a href="/rings/@RingEntity.PilotId">Rings</a>
-                <a href="/servers">Servers</a>
-                <a href="/updates">Updates</a>
+                <NavLink href="/" Match="NavLinkMatch.All">Overview</NavLink>
+                <NavLink href="@($"/rings/{RingEntity.PilotId}")" Match="NavLinkMatch.Prefix">Rings</NavLink>
+                <NavLink href="/servers">Servers</NavLink>
+                <NavLink href="/updates">Updates</NavLink>
                 <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
-                    <a href="/approvals">Pending approvals @if (_waiting > 0) { <span class="pill">@_waiting</span> }</a>
+                    <NavLink href="/approvals">Approvals @if (_waiting > 0) { <span class="pill">@_waiting</span> }</NavLink>
                 </AuthorizeView>
                 <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
                     <span class="section">Administration</span>
-                    <a href="/administration/users">Users</a>
-                    <a href="/administration/groups">Groups</a>
-                    <a href="/administration/rules">Assignment rules</a>
-                    <a href="/administration/release-rules">Release rules</a>
-                    <a href="/administration/maintenance">Maintenance windows</a>
-                    <a href="/administration/certificate">TLS certificate</a>
-                    <a href="/administration/notifications">Notifications</a>
-                    <a href="/administration/backup">Backup</a>
-                    <a href="/administration/audit">Audit log</a>
+                    <NavLink href="/administration/users">Users</NavLink>
+                    <NavLink href="/administration/groups">Groups</NavLink>
+                    <NavLink href="/administration/rules">Assignment rules</NavLink>
+                    <NavLink href="/administration/release-rules">Release rules</NavLink>
+                    <NavLink href="/administration/maintenance">Maintenance windows</NavLink>
+                    <NavLink href="/administration/certificate">TLS certificate</NavLink>
+                    <NavLink href="/administration/notifications">Notifications</NavLink>
+                    <NavLink href="/administration/backup">Backup</NavLink>
+                    <NavLink href="/administration/audit">Audit log</NavLink>
                 </AuthorizeView>
                 <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="account">
                     <AntiforgeryToken />

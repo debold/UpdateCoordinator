@@ -1,6 +1,7 @@
 @page "/approvals"
 @attribute [Authorize(Policy = AdminRoles.Policies.Operate)]
 @using UpdateCoordinator.Contracts.Agents
+@using UpdateCoordinator.Server.Agents
 @using UpdateCoordinator.Server.Approval
 @inject ServerDbContext Db
 @inject ClientApprovalService Approvals
@@ -9,144 +10,160 @@
 @inject UpdateCoordinator.Server.Approval.ClientLifecycle Lifecycle
 @inject NavigationManager Navigation
 
-<PageTitle>Pending approvals</PageTitle>
+<PageTitle>Approvals</PageTitle>
 
-<h1>Pending approvals</h1>
-
-<p>New servers register without any secret. Approve only servers you expect; rejected servers cannot send anything until they are deleted.</p>
+<PageHeader Title="Approvals" Subtitle="Decisions that wait for an operator: new servers, ring transitions, stopped groups and clone suspicions" />
 
 @if (_message is not null)
 {
     <p class="notice" role="status">@_message</p>
 }
 
+<ActionBand>
+    <button type="submit" form="decision" name="Action" value="approve-selected" class="primary">Approve selected servers</button>
+    <div class="spacer"></div>
+    <span class="note">Approve only servers you expect</span>
+    <button type="submit" form="decision" name="Action" value="reject-selected" class="danger">Reject selected servers</button>
+</ActionBand>
+
 @* One form that is always rendered, so a decision posted after the list changed still reaches the handler. *@
-<form method="post" @formname="decision" @onsubmit="DecideAsync">
+<form id="decision" method="post" @formname="decision" @onsubmit="DecideAsync" class="box">
     <AntiforgeryToken />
+    <header class="box-head">
+        <h2>New servers @if (_pending.Count > 0) { <span class="pill pend">@_pending.Count</span> }</h2>
+        <span class="hint">Registered without any secret; rejected servers send nothing until they are deleted</span>
+    </header>
     @if (_pending.Count == 0)
     {
-        <p>No server is waiting for approval.</p>
+        <div class="empty-state">No server is waiting for approval.</div>
     }
     else
     {
-        <table>
-            <thead>
-                <tr><th>Server</th><th>Domain</th><th>Registered from</th><th>Operating system</th><th>Roles</th><th>Registered (UTC)</th><th>Last heartbeat (UTC)</th><th></th></tr>
-            </thead>
-            <tbody>
-                @foreach (var client in _pending)
-                {
-                    <tr>
-                        <td>@client.HostName</td>
-                        <td>@client.DomainName</td>
-                        <td>@client.RegisteredFromAddress</td>
-                        <td>@(client.OsProductName ?? client.OsVersion)</td>
-                        <td>@string.Join(", ", client.Roles)</td>
-                        <td>@Format(client.RegisteredAtUtc)</td>
-                        <td>@Format(client.LastHeartbeatAtUtc)</td>
-                        <td class="actions">
-                            <button type="submit" name="Action" value="approve:@client.Id">Approve</button>
-                            <button type="submit" name="Action" value="reject:@client.Id">Reject</button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="scroll">
+            <table>
+                <thead>
+                    <tr><th><span class="visually-hidden">Select</span></th><th>Server</th><th>Domain</th><th>Registered from</th><th>Operating system</th><th>Roles</th><th>Registered (UTC)</th><th>Last heartbeat (UTC)</th><th class="n">Decide</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var client in _pending)
+                    {
+                        <tr>
+                            <td><input type="checkbox" name="Selected" value="@client.Id" aria-label="Select @client.HostName" /></td>
+                            <td>@client.HostName</td>
+                            <td>@client.DomainName</td>
+                            <td class="mono">@client.RegisteredFromAddress</td>
+                            <td class="nowrap">@OperatingSystems.Name(client.OsProductName, client.OsVersion) <span class="note mono">@OperatingSystems.Build(client.OsVersion)</span></td>
+                            <td>@string.Join(", ", client.Roles)</td>
+                            <td class="nowrap">@Format(client.RegisteredAtUtc)</td>
+                            <td class="nowrap">@Format(client.LastHeartbeatAtUtc)</td>
+                            <td class="n"><span class="row-actions">
+                                <button type="submit" name="Action" value="approve:@client.Id">Approve</button>
+                                <button type="submit" name="Action" value="reject:@client.Id" class="danger">Reject</button>
+                            </span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
 </form>
 
-<h2>Ring transitions</h2>
-
-<p>Updates waiting at a manual gate, or stopped by an alarm because of a poor success rate or missing feedback. Approving releases the update for the ring; stopping withdraws it from servers that have not installed it.</p>
-
-<form method="post" @formname="transition" @onsubmit="DecideTransitionAsync">
+<form method="post" @formname="transition" @onsubmit="DecideTransitionAsync" class="box">
     <AntiforgeryToken />
+    <header class="box-head">
+        <h2>Ring transitions @if (_gates.Count > 0) { <span class="pill queue">@_gates.Count</span> }</h2>
+        <span class="hint">Approving releases the update for the ring; stopping withdraws it from servers that have not installed it</span>
+    </header>
     @if (_gates.Count == 0)
     {
-        <p>No ring transition is waiting.</p>
+        <div class="empty-state">No update waits at a manual gate or stopped on an alarm.</div>
     }
     else
     {
-        <table>
-            <thead>
-                <tr><th>Update</th><th>Ring</th><th>State</th><th>Since (UTC)</th><th></th></tr>
-            </thead>
-            <tbody>
-                @foreach (var gate in _gates)
-                {
-                    var key = $"{gate.Ring.UpdateId:D}:{gate.Ring.Revision}";
-                    <tr>
-                        <td>@gate.Title</td>
-                        <td>@gate.RingName</td>
-                        <td>@(gate.Ring.State == RingRolloutState.Alarm ? $"Alarm: {gate.Ring.Reason}" : "Awaiting approval")</td>
-                        <td>@Format(gate.Ring.StateChangedAtUtc)</td>
-                        <td class="actions">
-                            <button type="submit" name="Transition" value="approve:@key:@gate.Ring.RingId">@(gate.Ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve")</button>
-                            <button type="submit" name="Transition" value="stop:@key:0">Stop rollout</button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="scroll">
+            <table>
+                <thead>
+                    <tr><th>Update</th><th>Ring</th><th>State</th><th>Since (UTC)</th><th class="n">Decide</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var gate in _gates)
+                    {
+                        var key = $"{gate.Ring.UpdateId:D}:{gate.Ring.Revision}";
+                        <tr>
+                            <td class="wrap"><a href="/updates/@gate.Ring.UpdateId/@gate.Ring.Revision">@gate.Title</a></td>
+                            <td>@gate.RingName</td>
+                            <td>@if (gate.Ring.State == RingRolloutState.Alarm) { <span class="pill fail">Alarm</span> <span class="note">@gate.Ring.Reason</span> } else { <span class="pill queue">Awaiting approval</span> }</td>
+                            <td class="nowrap">@Format(gate.Ring.StateChangedAtUtc)</td>
+                            <td class="n"><span class="row-actions">
+                                <button type="submit" name="Transition" value="approve:@key:@gate.Ring.RingId" class="primary">@(gate.Ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve")</button>
+                                <button type="submit" name="Transition" value="stop:@key:0" class="danger">Stop rollout</button>
+                            </span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
 </form>
 
-<h2>Stopped coordinated groups</h2>
+<div class="grid-2">
+    <form method="post" @formname="halted" @onsubmit="ResumeGroupAsync" class="box">
+        <AntiforgeryToken />
+        <header class="box-head">
+            <h2>Stopped coordinated groups @if (_halted.Count > 0) { <span class="pill fail">@_halted.Count</span> }</h2>
+            <span class="hint">Check the servers of the group, then resume it</span>
+        </header>
+        @if (_halted.Count == 0)
+        {
+            <div class="empty-state">No coordinated group is stopped.</div>
+        }
+        else
+        {
+            <table>
+                <thead><tr><th>Group</th><th class="n">Failed leases in a row</th><th class="n"></th></tr></thead>
+                <tbody>
+                    @foreach (var group in _halted)
+                    {
+                        <tr>
+                            <td>@group.Name</td>
+                            <td class="n">@group.ConsecutiveLeaseFailures</td>
+                            <td class="n"><span class="row-actions"><button type="submit" name="ResumeGroup" value="@group.Id">Resume</button></span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </form>
 
-<p>A coordinated group stops issuing leases after failed or expired leases in a row. Check the servers of the group, then resume it.</p>
-
-<form method="post" @formname="halted" @onsubmit="ResumeGroupAsync">
-    <AntiforgeryToken />
-    @if (_halted.Count == 0)
-    {
-        <p>No coordinated group is stopped.</p>
-    }
-    else
-    {
-        <table>
-            <thead><tr><th>Group</th><th>Failed leases in a row</th><th></th></tr></thead>
-            <tbody>
-                @foreach (var group in _halted)
-                {
-                    <tr>
-                        <td>@group.Name</td>
-                        <td>@group.ConsecutiveLeaseFailures</td>
-                        <td><button type="submit" name="ResumeGroup" value="@group.Id">Resume</button></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
-</form>
-
-<h2>Clone suspicions</h2>
-
-<p>The credentials of these servers were used by two hosts in turn, most likely a copied virtual machine. They are blocked. If only one host uses them, unblock the server; otherwise delete it on its detail page so each copy registers on its own.</p>
-
-<form method="post" @formname="blocked" @onsubmit="UnblockAsync">
-    <AntiforgeryToken />
-    @if (_blocked.Count == 0)
-    {
-        <p>No clone suspicion.</p>
-    }
-    else
-    {
-        <table>
-            <thead><tr><th>Server</th><th>Host names seen</th><th>Last heartbeat (UTC)</th><th></th></tr></thead>
-            <tbody>
-                @foreach (var client in _blocked)
-                {
-                    <tr>
-                        <td><a href="/servers/@client.Id">@client.HostName</a></td>
-                        <td>@client.LastHeartbeatHostName, @client.PreviousHostName</td>
-                        <td>@Format(client.LastHeartbeatAtUtc)</td>
-                        <td><button type="submit" name="UnblockClient" value="@client.Id">Unblock</button></td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
-</form>
+    <form method="post" @formname="blocked" @onsubmit="UnblockAsync" class="box">
+        <AntiforgeryToken />
+        <header class="box-head">
+            <h2>Clone suspicions @if (_blocked.Count > 0) { <span class="pill fail">@_blocked.Count</span> }</h2>
+            <span class="hint">Credentials used by two hosts in turn; unblock if only one host uses them, else delete the server</span>
+        </header>
+        @if (_blocked.Count == 0)
+        {
+            <div class="empty-state">No clone suspicion.</div>
+        }
+        else
+        {
+            <table>
+                <thead><tr><th>Server</th><th>Host names seen</th><th>Last heartbeat (UTC)</th><th class="n"></th></tr></thead>
+                <tbody>
+                    @foreach (var client in _blocked)
+                    {
+                        <tr>
+                            <td><a href="/servers/@client.Id">@client.HostName</a></td>
+                            <td>@client.LastHeartbeatHostName, @client.PreviousHostName</td>
+                            <td class="nowrap">@Format(client.LastHeartbeatAtUtc)</td>
+                            <td class="n"><span class="row-actions"><button type="submit" name="UnblockClient" value="@client.Id">Unblock</button></span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </form>
+</div>
 
 @code {
     [CascadingParameter]
@@ -174,8 +191,17 @@
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
+    [SupplyParameterFromForm(FormName = "decision")]
+    private Guid[]? Selected { get; set; }
+
     private async Task DecideAsync()
     {
+        if (Action is "approve-selected" or "reject-selected")
+        {
+            await DecideSelectedAsync(Action == "approve-selected");
+            return;
+        }
+
         var parts = Action?.Split(':', 2);
         var decision = parts?[0];
         if (parts is not { Length: 2 } || decision is not ("approve" or "reject") || !Guid.TryParse(parts[1], out var id))
@@ -195,6 +221,30 @@
             ApprovalResult.NotPending => "The server was already decided by someone else.",
             _ => "The server no longer exists.",
         };
+        await LoadAsync();
+    }
+
+    private async Task DecideSelectedAsync(bool approve)
+    {
+        var selected = (Selected ?? []).Distinct().Take(500).ToList();
+        if (selected.Count == 0)
+        {
+            _message = "Select at least one server in the list first.";
+            await LoadAsync();
+            return;
+        }
+
+        var actor = AuthenticationState is null ? "unknown" : (await AuthenticationState).User.Identity?.Name ?? "unknown";
+        var done = 0;
+        foreach (var id in selected)
+        {
+            var result = approve
+                ? await Approvals.ApproveAsync(id, actor, null, CancellationToken.None)
+                : await Approvals.RejectAsync(id, actor, null, CancellationToken.None);
+            done += result == ApprovalResult.Done ? 1 : 0;
+        }
+
+        _message = $"{(approve ? "Approved" : "Rejected")} {done} servers.{(done < selected.Count ? $" {selected.Count - done} were already decided or no longer exist." : string.Empty)}";
         await LoadAsync();
     }
 
