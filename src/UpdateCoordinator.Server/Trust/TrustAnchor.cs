@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 
 using UpdateCoordinator.Common;
 using UpdateCoordinator.Contracts.Trust;
+using UpdateCoordinator.Server.Administration;
 
 namespace UpdateCoordinator.Server.Trust;
 
@@ -48,12 +49,50 @@ internal sealed partial class TrustAnchor : IDisposable
         return (key.ExportPkcs8PrivateKey(), key.ExportSubjectPublicKeyInfo());
     }
 
-    /// <summary>Stores a restored key DPAPI-protected at <paramref name="anchorPath"/>, where the central server loads it.</summary>
-    public static void StoreRestored(string anchorPath, byte[] pkcs8, ILogger logger) =>
-        new ProtectedFile(anchorPath, ProtectionPurpose, logger).Write(pkcs8);
+    /// <summary>Next to the anchor file: a restored key the service takes over on its next start.</summary>
+    public const string RestoreSuffix = ".restore";
+
+    /// <summary>
+    /// Stages a restored key for the central server. The restore runs as an administrator, the service as LocalSystem, so
+    /// DPAPI for the administrator's account would be unreadable for the service. The key is therefore protected for the
+    /// machine in a file only administrators and LocalSystem can open; on its next start the service protects it for its
+    /// own account at <paramref name="anchorPath"/> and deletes the staged file.
+    /// </summary>
+    public static void StoreRestored(string anchorPath, byte[] pkcs8) =>
+        RestrictedFile.Write(anchorPath + RestoreSuffix, ProtectedData.Protect(pkcs8, Entropy, DataProtectionScope.LocalMachine));
+
+    private static byte[] Entropy => System.Text.Encoding.UTF8.GetBytes(ProtectionPurpose);
+
+    private static void AdoptRestored(ProtectedFile file, ILogger logger)
+    {
+        var staged = file.Path + RestoreSuffix;
+        if (!File.Exists(staged))
+        {
+            return;
+        }
+
+        var pkcs8 = ProtectedData.Unprotect(File.ReadAllBytes(staged), Entropy, DataProtectionScope.LocalMachine);
+        try
+        {
+            using (var check = ECDsa.Create())
+            {
+                check.ImportPkcs8PrivateKey(pkcs8, out _);
+            }
+
+            file.Write(pkcs8);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(pkcs8);
+        }
+
+        File.Delete(staged);
+        LogRestored(logger, file.Path);
+    }
 
     private static ECDsa LoadOrCreate(ProtectedFile file, ILogger logger)
     {
+        AdoptRestored(file, logger);
         var key = ECDsa.Create();
         var stored = file.Read();
         if (stored is not null)
@@ -93,4 +132,7 @@ internal sealed partial class TrustAnchor : IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Created a new trust anchor at {Path}. Include this file in backups: without it all agents must be reset.")]
     private static partial void LogCreated(ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Took over the trust anchor restored from a backup at {Path}.")]
+    private static partial void LogRestored(ILogger logger, string path);
 }

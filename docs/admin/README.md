@@ -356,3 +356,25 @@ msiexec /i UpdateCoordinator.Agent.msi SERVERURL=https://central.example.local:8
 **Removing a server** (server detail page, role `Admin`, with confirmation): *Delete* keeps the history, cancels open releases, actions and leases and ends the credentials; if the agent is still running, it registers again as a new pending server. *Delete with history* removes the server and all its data.
 
 **Clone suspicion:** the agent reports its host name with every heartbeat. If the credentials of one server are used by two host names in turn within an hour (typically a copied virtual machine), the server is blocked and appears under Pending approvals and on the overview. If only one host uses it, an `Operator` unblocks it; otherwise an `Admin` deletes it so each copy registers on its own. A simple rename is no clone suspicion.
+
+## 19. Backup and restore
+
+**Backup** (Administration → Backup, role `Admin`): enter a backup password (at least 16 characters, twice) and download the archive. It contains:
+
+| Entry | Content |
+|---|---|
+| `manifest.json` | format version, creation time, central server version, public key of the trust anchor |
+| `server.db` | consistent copy of the database (SQLite online backup while the service keeps running): servers, history, rules, accounts, audit log |
+| `trust-anchor.p8` | private key of the trust anchor, encrypted with the backup password (PKCS#8, AES-256-CBC, PBKDF2 with SHA-256 and 600,000 iterations) |
+
+Keep archive and password apart. Without the password the trust anchor cannot be used; without the trust anchor every agent must be reset locally after a restore. Creating a backup is audited. The TLS certificate is not part of the backup: on new hardware the central server uses a CA certificate you select or creates its own, and agents follow through the restored trust anchor.
+
+**Restore** (on the same or new hardware):
+
+1. Install the central server (section 17) and stop the service `UpdateCoordinator.Server`.
+2. As administrator in `%ProgramFiles%\UpdateCoordinator\Server`: `UpdateCoordinator.Server.exe restore <backup.zip>`. The password is asked for without echo, or taken from the environment variable `UPDATECOORDINATOR_BACKUP_PASSWORD`; it is never passed on the command line.
+3. Start the service. Agents keep trusting the central server, because the trust anchor is the same; the database migrates to the installed version on start.
+
+The restore refuses to run while the service runs. It checks everything first (archive complete, format supported, password decrypts the trust anchor, anchor matches the manifest) and only then replaces the database and the trust anchor, so a failed restore leaves the current installation untouched. Since the restore runs under your account and the service as LocalSystem, the trust anchor is first staged as `trust-anchor.key.restore` (DPAPI machine scope, readable only by administrators and LocalSystem); on its next start the service protects it for its own account and deletes the staged file.
+
+A scheduled automatic backup is not implemented yet; create backups from the dashboard and keep them with your regular server backup.

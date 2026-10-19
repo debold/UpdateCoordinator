@@ -1,6 +1,5 @@
 using System.ServiceProcess;
 
-using Microsoft.Extensions.Logging.Abstractions;
 
 using UpdateCoordinator.Server.Administration;
 using UpdateCoordinator.Server.Data;
@@ -38,7 +37,7 @@ internal static class RestoreCommand
         var anchorPath = builder.Configuration.GetSection(TrustOptions.SectionName).Get<TrustOptions>()?.AnchorPath ?? new TrustOptions().AnchorPath;
 
         var password = Environment.GetEnvironmentVariable(PasswordVariable) ?? ReadPassword();
-        var outcome = await BackupService.RestoreAsync(args[1], password, databasePath, anchorPath, NullLogger.Instance, CancellationToken.None).ConfigureAwait(false);
+        var outcome = await BackupService.RestoreAsync(args[1], password, databasePath, anchorPath, CancellationToken.None).ConfigureAwait(false);
         if (!outcome.Succeeded)
         {
             await Console.Error.WriteLineAsync(outcome.Error).ConfigureAwait(false);

@@ -88,7 +88,7 @@ internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions
     /// (command line: <c>UpdateCoordinator.Server.exe restore</c>). Nothing is written unless the archive is complete and
     /// the password decrypts the anchor.
     /// </summary>
-    public static async Task<Outcome> RestoreAsync(string archivePath, string? password, string databasePath, string anchorPath, ILogger logger, CancellationToken cancellationToken)
+    public static async Task<Outcome> RestoreAsync(string archivePath, string? password, string databasePath, string anchorPath, CancellationToken cancellationToken)
     {
         if (CheckPassword(password) is { } error)
         {
@@ -155,7 +155,7 @@ internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions
                 }
 
                 // Everything checked: only now the current anchor and database are replaced.
-                TrustAnchor.StoreRestored(anchorPath, pkcs8, logger);
+                TrustAnchor.StoreRestored(anchorPath, pkcs8);
                 File.Move(staged, databasePath, overwrite: true);
             }
             finally

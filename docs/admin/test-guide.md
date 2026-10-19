@@ -73,6 +73,11 @@ Copy SRV01 to SRV03 (without sysprep) and rename SRV03. While both run, SRV01 is
 
 Install a newer MSI over both components without options: settings, identity and database are kept. Uninstall: services, program files, installer settings and the firewall rule disappear; data under `%ProgramData%\UpdateCoordinator` stays.
 
-## 13. What to report back
+## 13. Certificate and backup (optional)
+
+- Certificate renewal: with a CA certificate from an autoenrollment template, renew it in `certlm.msc` (Personal → Certificates → All Tasks → Renew Certificate with New Key). Within 15 minutes the audit log shows `Certificate.Renewed` and agents keep reporting.
+- Backup and restore: download a backup (Administration → Backup), install the central server on a fresh VM with the same name, stop the service, run `UpdateCoordinator.Server.exe restore <zip>` as administrator, start the service. The dashboard accounts and servers are back, and agents report to the restored server without any reset (after the DNS name points to it).
+
+## 14. What to report back
 
 For each step: works / does not work, with the agent and server logs (`%ProgramData%\UpdateCoordinator\<component>\Logs`) and, for installer problems, the MSI log (`/l*v`).
