@@ -63,6 +63,11 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - AD coverage: enabled server accounts of the domain (Windows Server 2016 or newer only; older ones listed separately) compared with registered agents every 6 hours; coverage rate on the overview, page with servers without agent.
 - Windows Update error codes are translated into plain English text centrally.
 
+### Installers and CI
+
+- MSI packages for agent and central server (WiX Toolset 6, self-contained publish, Windows Server 2016 or newer): Windows services under LocalSystem with restart on failure (agent also on error exit codes), options `SERVERURL` (agent) and `CERTTHUMBPRINT`/`HTTPSPORT` (central server, read from `HKLM\SOFTWARE\UpdateCoordinator\Server`), firewall rule for the HTTPS port, upgrades keep options and data, data under ProgramData kept on uninstall.
+- `build/Build-Installers.ps1` builds both MSIs; the GitHub Actions workflow builds and tests every push and installs, upgrades and uninstalls both MSIs on the runner (`build/Test-Installers.ps1`).
+
 ### Shared
 
 - Project skeleton on .NET 10 with shared message contracts.

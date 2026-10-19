@@ -1,0 +1,95 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <!--
+    Agent installer. Installs the self-contained agent as a Windows service running as LocalSystem.
+    SERVERURL writes the central server address to HKLM\SOFTWARE\UpdateCoordinator\Agent\CentralServerUrl
+    (docs/03-communication-protocol.md, section 3.3). No certificate, fingerprint or other runtime data is part of the
+    installer. Agent data under %ProgramData%\UpdateCoordinator\Agent (identity, trust anchor) is kept on uninstall,
+    so a reinstalled agent keeps its registration.
+  -->
+  <Package Name="UpdateCoordinator Agent"
+           Manufacturer="UpdateCoordinator"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="F94F20CA-E2D1-4F0C-8D0C-4D810C149471"
+           Scope="perMachine"
+           InstallerVersion="500"
+           Compressed="yes">
+
+    <SummaryInformation Description="UpdateCoordinator agent: coordinated Windows updates for servers." />
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of the UpdateCoordinator agent is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Windows Server 2016 (build 14393) or newer. -->
+    <Launch Condition="Installed OR WindowsBuild &gt;= 14393" Message="The UpdateCoordinator agent requires Windows Server 2016 or newer." />
+
+    <!-- The address given on the command line wins; otherwise an upgrade keeps the installed one. -->
+    <Property Id="SERVERURL" Secure="yes" />
+    <Property Id="INSTALLEDSERVERURL" Secure="yes">
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="POLICYSERVERURL" Secure="yes">
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\Policies\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
+    </Property>
+    <SetProperty Id="SERVERURL" Value="[INSTALLEDSERVERURL]" After="AppSearch" Sequence="both" Condition="NOT SERVERURL AND INSTALLEDSERVERURL" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="ProductFolder" Name="UpdateCoordinator">
+        <Directory Id="INSTALLFOLDER" Name="Agent" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Agent" Title="UpdateCoordinator agent">
+      <ComponentGroupRef Id="AgentFiles" />
+      <ComponentRef Id="AgentService" />
+      <ComponentRef Id="AgentServiceStart" />
+      <ComponentRef Id="CentralServerUrl" />
+    </Feature>
+
+    <ComponentGroup Id="AgentFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**">
+        <Exclude Files="$(var.PublishDir)\UpdateCoordinator.Agent.exe" />
+        <Exclude Files="$(var.PublishDir)\**\*.pdb" />
+        <Exclude Files="$(var.PublishDir)\appsettings.Development.json" />
+      </Files>
+    </ComponentGroup>
+
+    <Component Id="AgentService" Directory="INSTALLFOLDER">
+      <File Id="AgentExe" Source="$(var.PublishDir)\UpdateCoordinator.Agent.exe" KeyPath="yes" />
+      <ServiceInstall Id="AgentServiceInstall"
+                      Name="UpdateCoordinator.Agent"
+                      DisplayName="UpdateCoordinator Agent"
+                      Description="Searches, installs and reports Windows updates as released by the UpdateCoordinator central server."
+                      Type="ownProcess"
+                      Start="auto"
+                      Account="LocalSystem"
+                      ErrorControl="normal"
+                      Vital="yes">
+        <!-- Restart on failure; the flag below extends this to an error exit code (remote action "restart agent service"). -->
+        <util:ServiceConfig FirstFailureActionType="restart" SecondFailureActionType="restart" ThirdFailureActionType="restart"
+                            RestartServiceDelayInSeconds="60" ResetPeriodInDays="1" />
+      </ServiceInstall>
+      <ServiceControl Id="AgentServiceStop" Name="UpdateCoordinator.Agent" Stop="both" Remove="uninstall" Wait="yes" />
+    </Component>
+
+    <!-- Started only when an address is known; without one the service would only fail its option validation. -->
+    <Component Id="AgentServiceStart" Directory="INSTALLFOLDER" Condition="SERVERURL OR POLICYSERVERURL" Guid="7D4C2E31-9B7F-4A46-8F65-0E3A0D7B1C52">
+      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+      <ServiceControl Id="AgentServiceStartControl" Name="UpdateCoordinator.Agent" Start="install" Wait="no" />
+    </Component>
+
+    <!--
+      The MSI ServiceConfig table is documented as unreliable, and the util extension has no setting for failures with an
+      exit code, so the flag is set with the built-in sc.exe (fixed arguments, no user input).
+    -->
+    <SetProperty Id="SetFailureFlag" Value="&quot;[System64Folder]sc.exe&quot; failureflag UpdateCoordinator.Agent 1" Before="SetFailureFlag" Sequence="execute" />
+    <CustomAction Id="SetFailureFlag" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec" Execute="deferred" Impersonate="no" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="SetFailureFlag" After="InstallServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+
+    <Component Id="CentralServerUrl" Directory="INSTALLFOLDER" Condition="SERVERURL" Guid="2A8F4F0B-5C1D-4C77-9E1D-6B3F7A9C0E14">
+      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="string" Value="[SERVERURL]" KeyPath="yes" />
+    </Component>
+  </Package>
+</Wix>

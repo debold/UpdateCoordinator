@@ -1,0 +1,83 @@
+name: CI
+
+# Build and tests on every push and pull request; installers are built and installed for real on the disposable runner.
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'agent/v*', 'server/v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # MinVer derives the versions from the git tags
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build UpdateCoordinator.slnx -c Release
+
+      - name: Test
+        run: dotnet test --solution UpdateCoordinator.slnx -c Release --no-build
+
+  installers:
+    needs: build-and-test
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build installers (version from tag)
+        shell: pwsh
+        run: ./build/Build-Installers.ps1 -OutputDirectory artifacts/installers
+
+      - name: Build installers for the upgrade test (0.1.0 and 0.2.0)
+        shell: pwsh
+        run: |
+          ./build/Build-Installers.ps1 -AgentVersion 0.1.0 -ServerVersion 0.1.0 -OutputDirectory artifacts/test/v1
+          ./build/Build-Installers.ps1 -AgentVersion 0.2.0 -ServerVersion 0.2.0 -OutputDirectory artifacts/test/v2
+
+      - name: Install, upgrade and uninstall on the runner
+        shell: pwsh
+        run: ./build/Test-Installers.ps1 -Version1Directory artifacts/test/v1 -Version2Directory artifacts/test/v2
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: installers
+          path: artifacts/installers/*.msi
+          if-no-files-found: error
+
+      - name: Upload install logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: install-logs
+          path: |
+            artifacts/install-logs/
+            C:/ProgramData/UpdateCoordinator/**/Logs/*.log
+          if-no-files-found: ignore

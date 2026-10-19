@@ -9,6 +9,8 @@ using UpdateCoordinator.Server.Trust;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddServerRegistry(Microsoft.Win32.Registry.LocalMachine);
+
 builder.Services.AddWindowsService(options => options.ServiceName = "UpdateCoordinator.Server");
 builder.Services.AddRollingFileLogging(builder.Configuration, Path.Combine(DataPaths.Server, "Logs"), "server");
 builder.Services.AddCentralServer(builder.Configuration);

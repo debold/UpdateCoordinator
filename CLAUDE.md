@@ -48,6 +48,7 @@ Guidelines (always apply):
 - Work directly on `main` (no feature branches or pull requests) until a requirement justifies it.
 - Central server address: registry value `CentralServerUrl` (policy key before installer key), written by installer option `SERVERURL` or from the installer file name when downloaded from the central server (`docs/03-communication-protocol.md` 3.3).
 - Public repository https://github.com/debold/UpdateCoordinator under the MIT license.
+- Installers: MSI packages built with the WiX Toolset, self-contained publish; CI on GitHub Actions installs them on the runner (Marc, 2026-10-19).
 - Dashboard: Blazor with static server rendering by default (interactive only where it adds real value, e.g. live status), ASP.NET Core Identity with local accounts, first administrator via one-time browser setup with a local token, permissions as sketched in `docs/06-dashboard.md`.
 
 ## Open decisions (do not decide unilaterally)
@@ -56,6 +57,6 @@ Guidelines (always apply):
 - Concrete database schema and operating limits (memory, CPU, retry intervals)
 - Permission assignment per function for Operator and Admin
 - Notification and escalation for pending approvals and alarms
-- Windows installer technology
+- WiX version: v7 needs acceptance of the Open Source Maintenance Fee EULA (Marc decides); builds use WiX 6 until then
 - Encryption of the trust anchor in the backup
 - Whether the download file name also carries the trust anchor fingerprint (`docs/03-communication-protocol.md` 3.3)

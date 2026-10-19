@@ -1,7 +1,7 @@
 # Admin Documentation
 
 > Guide and information on setup and communication paths. Updated with every feature.
-> Status: register, heartbeat, trust anchor, inventory, update search, installation with optional reboots inside maintenance windows, web administration (accounts, roles, audit log) and approval of new servers. Installers and the dashboard follow with later features.
+> Status: register, heartbeat, trust anchor, inventory, update search, installation with optional reboots inside maintenance windows, web administration with rings, rollouts, remote actions and leases, approval of new servers, and MSI installers for both components.
 
 ## 1. Components in operation
 
@@ -294,3 +294,33 @@ If the central server is a domain member, it reads the enabled server computer a
 | `Coverage:Enabled` | `true` | turns the AD comparison off |
 | `Coverage:Domain` | own domain | domain to read |
 | `Coverage:Interval` | `06:00:00` | how often AD is read (10 minutes to 7 days) |
+
+## 17. Installation (MSI)
+
+Both components ship as MSI packages (WiX Toolset) for Windows Server 2016 or newer. They are self-contained: no .NET runtime needs to be installed. They can be distributed by group policy, Configuration Manager or Intune, or installed manually.
+
+**Central server** (run as administrator; the certificate must be in `LocalMachine\My` with its private key):
+
+```powershell
+msiexec /i UpdateCoordinator.Server.msi CERTTHUMBPRINT=<thumbprint> HTTPSPORT=8443 /qn /l*v server-install.log
+```
+
+- Installs to `%ProgramFiles%\UpdateCoordinator\Server` and registers the service `UpdateCoordinator.Server` (LocalSystem, automatic start, restart on failure).
+- `CERTTHUMBPRINT` and `HTTPSPORT` (default 8443) are stored under `HKLM\SOFTWARE\UpdateCoordinator\Server` (`CertificateThumbprint`, `HttpsUrl`) and override `appsettings.json`. Without a thumbprint the service is installed but not started.
+- Opens the HTTPS port in the Windows firewall for the service.
+- Database, trust anchor, setup token and logs stay under `%ProgramData%\UpdateCoordinator\Server`, also on uninstall. Back them up before removing a server for good.
+
+**Agent:**
+
+```powershell
+msiexec /i UpdateCoordinator.Agent.msi SERVERURL=https://central.example.local:8443/ /qn /l*v agent-install.log
+```
+
+- Installs to `%ProgramFiles%\UpdateCoordinator\Agent` and registers the service `UpdateCoordinator.Agent` (LocalSystem, automatic start). The service restarts on failure, also when it ends with an error exit code (needed for the remote action "restart agent service").
+- `SERVERURL` is written to `HKLM\SOFTWARE\UpdateCoordinator\Agent\CentralServerUrl`; a group policy value under `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` still wins. Without any address the service is installed but not started.
+- No certificate or other runtime data is part of the installer; the agent pins the central server on first contact.
+- Identity and trust state stay under `%ProgramData%\UpdateCoordinator\Agent` on uninstall, so a reinstalled agent keeps its registration. Delete the folder to register anew.
+
+**Upgrades:** install the newer MSI the same way; options can be left out, the installed values are kept. Downgrades are refused.
+
+**Building the installers:** `./build/Build-Installers.ps1` publishes both components and builds the MSIs into `artifacts\installers` (versions from the git tags; `-AgentVersion`/`-ServerVersion` override them). The CI pipeline builds them on every push, installs, upgrades and uninstalls them on the disposable runner and checks services, settings, firewall, the health endpoint and the agent registration (`build/Test-Installers.ps1`, which refuses to run outside CI because it changes the machine).

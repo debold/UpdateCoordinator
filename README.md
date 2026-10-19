@@ -39,6 +39,10 @@ The build treats warnings as errors, enforces code style and the security rules 
 
 The agent pins the trust anchor of the central server, registers, stores its identity and trust state under `%ProgramData%\UpdateCoordinator\Agent` and sends a heartbeat every 10 seconds. Both components write daily rolling logs to `%ProgramData%\UpdateCoordinator\<component>\Logs`. EF Core migrations are created with the local tool (`dotnet tool restore` once): `dotnet ef migrations add <Name> --project src/UpdateCoordinator.Server --output-dir Data/Migrations`.
 
+## Installers and CI
+
+`./build/Build-Installers.ps1` builds the MSI packages of agent and central server (WiX Toolset, self-contained) into `artifacts/installers`. The GitHub Actions workflow `.github/workflows/ci.yml` builds and tests every push and installs, upgrades and uninstalls both MSIs on the runner. Installation options: see the admin documentation, section 17.
+
 ## Versioning
 
 Agent and central server are versioned separately from git tags (`agent/v1.2.3`, `server/v1.2.3`) via MinVer; untagged builds get a pre-release version with the commit hash.

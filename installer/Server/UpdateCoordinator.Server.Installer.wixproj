@@ -1,0 +1,19 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <!-- MSI of the central server (docs/admin/README.md, installation). Built from the self-contained publish output, see build/Build-Installers.ps1. -->
+  <PropertyGroup>
+    <OutputName>UpdateCoordinator.Server</OutputName>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <SuppressValidation>false</SuppressValidation>
+    <!-- ICE61 flags AllowSameVersionUpgrades, which is intended: rebuilt packages of the same version replace each other. -->
+    <!-- ICE60 flags versioned native libraries (e.g. SQLite) that carry no language; they are not language specific. -->
+    <SuppressIces>ICE61;ICE60</SuppressIces>
+    <PublishDir Condition="'$(PublishDir)' == ''">..\..\artifacts\publish\server</PublishDir>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">0.0.0</ProductVersion>
+    <DefineConstants>PublishDir=$(PublishDir);ProductVersion=$(ProductVersion)</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" />
+    <PackageReference Include="WixToolset.Firewall.wixext" />
+  </ItemGroup>
+</Project>
