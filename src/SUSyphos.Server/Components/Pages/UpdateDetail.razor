@@ -18,7 +18,7 @@
 }
 else
 {
-    <PageHeader Title="@UpdateText.Title(_update, UpdateId)" Subtitle="@($"{_update.Classification ?? "Unclassified"}{(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}")} · revision {Revision} · first reported {Format(_update.FirstSeenAtUtc)} UTC")" Crumbs="@([("Updates", "/updates"), (_update.KbArticle is null ? "Update" : $"KB{_update.KbArticle}", null)])">
+    <PageHeader Title="@UpdateText.Title(_update, UpdateId)" Subtitle="@($"{_update.Classification ?? "Unclassified"}{(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}")} · revision {Revision} · first reported {Format(_update.FirstSeenAtUtc)}")" Crumbs="@([("Updates", "/updates"), (_update.KbArticle is null ? "Update" : $"KB{_update.KbArticle}", null)])">
         <span class="pill @_stateClass">@_stateLabel</span>
     </PageHeader>
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
@@ -53,10 +53,24 @@ else
     </ActionBand>
 
     <Box Title="Start rule" Hint="Which start rule decides how this update enters the rings">
+        @if (_rollout is { } started)
+        {
+            <p>
+                @if (started.StartRuleSummary is { } summary)
+                {
+                    <span>Rollout started @Format(started.StartedAtUtc) by start rule @(started.StartRuleId) (@summary).</span>
+                }
+                else
+                {
+                    <span>Rollout started @Format(started.StartedAtUtc) by @started.StartedBy@(started.StartedBy == RolloutService.RuleActor ? " (before the starting rule was recorded)" : string.Empty).</span>
+                }
+                <span class="note">Start rules decide only once, when the rollout starts; later changes to rules do not change running rollouts.</span>
+            </p>
+        }
         @if (_startRule is { } rule)
         {
             <p>
-                <a href="/administration/release-rules?dialog=rule&id=@rule.Id">Start rule with priority @rule.Priority</a>
+                @(_rollout is null ? "Decided by" : "Would decide now:") <a href="/administration/release-rules?dialog=rule&id=@rule.Id">start rule with priority @rule.Priority</a>
                 (@(rule.Classification ?? "any classification"), @(rule.MsrcSeverity ?? "any severity"), title @(rule.TitlePattern ?? "any"))
                 <span class="pill @(rule.Mode == StartMode.Automatic ? "ok" : "queue")">@(rule.Mode == StartMode.Automatic ? $"starts automatically, delay {rule.Delay.TotalHours:0} h" : "manual start")</span>
             </p>
@@ -70,7 +84,7 @@ else
     <div class="grid-side">
         <Box Title="Progress by ring" Flush="true">            <div class="scroll">
                 <table>
-                    <thead><tr><th>Ring</th><th>State</th><th>Released (UTC)</th><th class="n">Feedback</th><th class="n">Success</th><th>Status (servers)</th></tr></thead>
+                    <thead><tr><th>Ring</th><th>State</th><th>Released</th><th class="n">Feedback</th><th class="n">Success</th><th>Status (servers)</th></tr></thead>
                     <tbody>
                         @foreach (var ring in _ringRows)
                         {
@@ -105,7 +119,7 @@ else
                         <SortHeader Table="_table" Column="name" Label="Server" />
                         <SortHeader Table="_table" Column="ring" Label="Ring" Options="@_serverPage.Options.GetValueOrDefault("ring")" />
                         <SortHeader Table="_table" Column="status" Label="Status" Options="@_serverPage.Options.GetValueOrDefault("status")" />
-                        <SortHeader Table="_table" Column="earliest" Label="Earliest installation (UTC)" />
+                        <SortHeader Table="_table" Column="earliest" Label="Earliest installation" />
                         <th>Result</th>
                     </tr>
                 </thead>
@@ -133,7 +147,7 @@ else
     <Box Title="Timeline" Flush="true">
         <div class="scroll">
             <table>
-                <thead><tr><th>Time (UTC)</th><th>Event</th><th>By</th></tr></thead>
+                <thead><tr><th>Time</th><th>Event</th><th>By</th></tr></thead>
                 <tbody>
                     @if (_timeline.Count == 0)
                     {
@@ -394,6 +408,5 @@ else
 
     private static string Percent(int? value) => value is null ? "n/a" : $"{value} %";
 
-    private static string Format(DateTime? value) =>
-        value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";
+    private static string Format(DateTime? value) => DisplayTime.Format(value);
 }

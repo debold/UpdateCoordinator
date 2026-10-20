@@ -48,6 +48,7 @@ internal sealed partial class ActionRunner(
     IInventoryReporter inventory,
     IServiceRestarter restarter,
     ISystemRestart systemRestart,
+    IInstallationRunner installationRunner,
     ILogCollector logs,
     IOptions<InstallationOptions> installation,
     ILogger<ActionRunner> logger) : IActionRunner
@@ -108,6 +109,17 @@ internal sealed partial class ActionRunner(
                 return systemRestart.Schedule(Installation.RebootPlanner.WarningPeriod)
                     ? (Succeeded("The server restarts in 5 minutes."), false, true)
                     : (new AgentActionResult { Status = AgentActionStatus.Failed, Detail = "Windows did not accept the restart request." }, false, true);
+            case AgentActionKind.RestartServerInWindow:
+                if (!installation.Value.AllowReboot)
+                {
+                    return (new AgentActionResult { Status = AgentActionStatus.Rejected, Detail = "Reboots are forbidden on this server (AllowReboot)." }, false, true);
+                }
+
+                return (Succeeded(installationRunner.RequestRestart() is { } planned
+                    ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Restart planned for the next maintenance window, {planned.UtcDateTime:yyyy-MM-dd HH:mm} UTC (if the window still applies then).")
+                    : "Restart requested; no maintenance window is configured, so it waits until one applies."), false, true);
+            case AgentActionKind.CancelRestart:
+                return (Succeeded(installationRunner.CancelRestart()), false, true);
             case AgentActionKind.UploadLogs:
                 byte[] archive;
                 int files;

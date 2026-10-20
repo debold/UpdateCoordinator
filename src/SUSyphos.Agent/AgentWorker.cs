@@ -110,7 +110,9 @@ internal sealed partial class AgentWorker(
                     LastBootAt = environment.LastBootAt,
                     AgentUpdateError = selfUpdate.LastError,
                     Activity = activity.Current,
-                    RebootWait = environment.RebootPending ? installation.RebootWait : null,
+                    RebootWait = environment.RebootPending || installation.RestartRequested ? installation.RebootWait : null,
+                    RestartRequested = installation.RestartRequested,
+                    PlannedRestartAt = installation.PlannedRestartAt,
                 },
                 cancellationToken)
             .ConfigureAwait(false);

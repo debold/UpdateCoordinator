@@ -24,6 +24,12 @@ public enum AgentActionKind
 
     /// <summary>Upload the agent log files of the last days.</summary>
     UploadLogs = 4,
+
+    /// <summary>Restart the server in the next maintenance window that stays open long enough; the local veto still applies.</summary>
+    RestartServerInWindow = 5,
+
+    /// <summary>Cancel a restart requested for the maintenance window, or one already announced to signed-in users.</summary>
+    CancelRestart = 6,
 }
 
 /// <summary>One queued action.</summary>

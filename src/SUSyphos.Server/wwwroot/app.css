@@ -398,3 +398,11 @@ details.multi:has(input[data-i='61']:checked) .tag.pick[data-i='61'],
 details.multi:has(input[data-i='62']:checked) .tag.pick[data-i='62'],
 details.multi:has(input[data-i='63']:checked) .tag.pick[data-i='63'] { display: inline-flex; }
 
+.date-time { display: flex; gap: 0.4rem; }
+/* Fields that only matter when a switch is on (or, with .inverse, off) are greyed out and cannot be clicked; their values
+   are still submitted, so switching back loses nothing. */
+.gated:not(.inverse):has(> .gate input:not(:checked)) > .gated-body,
+.gated.inverse:has(> .gate input:checked) > .gated-body,
+.gated-select:has(select.gate option[value="manual"]:checked) .gated-body { opacity: 0.45; pointer-events: none; user-select: none; }
+.restart-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; background: var(--fail-soft); border: 1px solid var(--fail); border-radius: var(--r-sm); padding: 0.65rem 0.9rem; margin-bottom: 1rem; }
+.restart-banner button { margin-left: auto; }

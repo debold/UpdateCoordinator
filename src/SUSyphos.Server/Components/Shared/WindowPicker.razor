@@ -2,11 +2,12 @@
 @* Maintenance window picker: one row per window (weekday toggles, from, to) with remove, an add button, a week preview and
    a plain-language summary. No free text, so a window cannot be mistyped. The buttons post the enclosing form without
    saving (WindowPickerForm.ReadEdit); the page shows the rows again with the change and an updated preview. *@
-<div class="window-picker">
+<div class="window-picker gated inverse">
     @if (AllowInherit)
     {
-        <label class="check"><input type="checkbox" name="@WindowPickerForm.InheritField(Prefix)" value="yes" checked="@_inherited" /> @InheritLabel</label>
+        <label class="check gate"><input type="checkbox" name="@WindowPickerForm.InheritField(Prefix)" value="yes" checked="@_inherited" /> @InheritLabel</label>
     }
+    <div class="gated-body">
     @if (_rows.Count == 0)
     {
         <p class="note">No window of its own yet.</p>
@@ -55,6 +56,7 @@
         {
             <span class="note">Not saved yet.</span>
         }
+    </div>
     </div>
     <div class="week" aria-hidden="true">
         @foreach (var day in WindowPickerForm.WeekOrder)

@@ -46,6 +46,15 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
         return rollout;
     }
 
+    /// <summary>"priority 101, delay 0 h, starts in Pilot, Test": what the rule did when it started a rollout.</summary>
+    private async Task<string> DescribeRuleAsync(StartRuleEntity rule, CancellationToken cancellationToken)
+    {
+        var rings = await db.Rings.AsNoTracking().OrderBy(r => r.Order).Select(r => new { r.Id, r.Name }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var startRings = StartRings.Parse(rule.StartRingIds);
+        var names = rings.Where((r, index) => index == 0 || startRings.Contains(r.Id)).Select(r => r.Name);
+        return string.Create(CultureInfo.InvariantCulture, $"priority {rule.Priority}, delay {rule.Delay.TotalHours:0} h, starts in {string.Join(", ", names)}");
+    }
+
     /// <summary>The start rule for an update: the matching rule with the lowest priority number, or null.</summary>
     internal static StartRuleEntity? FindStartRule(IEnumerable<StartRuleEntity> rules, UpdateEntity update) => rules
         .OrderBy(r => r.Priority)
@@ -105,7 +114,9 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
                 continue;
             }
 
-            await CreateAsync(update.UpdateId, update.Revision, RuleActor, rule.Delay, StartRings.Parse(rule.StartRingIds), cancellationToken).ConfigureAwait(false);
+            var rollout = await CreateAsync(update.UpdateId, update.Revision, RuleActor, rule.Delay, StartRings.Parse(rule.StartRingIds), cancellationToken).ConfigureAwait(false);
+            rollout.StartRuleId = rule.Id;
+            rollout.StartRuleSummary = await DescribeRuleAsync(rule, cancellationToken).ConfigureAwait(false);
             try
             {
                 await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

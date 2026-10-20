@@ -391,6 +391,53 @@ public sealed class InstallationRunnerTests
     }
 
     [Fact]
+    public async Task RequestedRestart_WaitsForTheWindow_IgnoresPolicyNever_AndEndsAfterTheBoot()
+    {
+        // Policy "Never" and no pending reboot: only the administrator's request lets the agent restart.
+        var runner = Create();
+        Assert.NotNull(runner.RequestRestart());
+        Assert.True(runner.RestartRequested);
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal([RebootPlanner.WarningPeriod], _restart.Requests);
+        Assert.Equal(RebootWait.Restarting, runner.RebootWait);
+
+        // The server came back: the request is done.
+        _environment.LastBootAt = _time.GetUtcNow().AddMinutes(1);
+        _time.Advance(TimeSpan.FromMinutes(10));
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.False(runner.RestartRequested);
+        Assert.Single(_restart.Requests);
+    }
+
+    [Fact]
+    public async Task RequestedRestart_RespectsTheLocalVeto_AndCanBeCancelled()
+    {
+        var runner = Create(new InstallationOptions { AllowReboot = false });
+        runner.RequestRestart();
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Empty(_restart.Requests);
+        Assert.Equal(RebootWait.LocalVeto, runner.RebootWait);
+
+        Assert.Equal("The requested restart was cancelled.", runner.CancelRestart());
+        Assert.False(runner.RestartRequested);
+        Assert.Null(runner.PlannedRestartAt);
+        Assert.Equal("No restart was requested or announced.", runner.CancelRestart());
+    }
+
+    [Fact]
+    public async Task CancelRestart_AbortsARestartAlreadyAnnounced()
+    {
+        var runner = Create();
+        runner.RequestRestart();
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal("The announced restart was cancelled.", runner.CancelRestart());
+        Assert.Equal(1, _restart.Aborts);
+    }
+
+    [Fact]
     public async Task RestartRequest_SurvivesServiceRestart()
     {
         _releases.Current = new ReleaseList(1, [], null, RebootPolicy.InsideMaintenanceWindow);

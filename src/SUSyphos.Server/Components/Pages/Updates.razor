@@ -40,7 +40,7 @@
                     <SortHeader Table="_table" Column="title" Label="Title" />
                     <SortHeader Table="_table" Column="classification" Label="Classification" Options="@Options("classification")" />
                     <SortHeader Table="_table" Column="severity" Label="Severity" Options="@Options("severity")" />
-                    <SortHeader Table="_table" Column="seen" Label="First reported (UTC)" />
+                    <SortHeader Table="_table" Column="seen" Label="First reported" />
                     <SortHeader Table="_table" Column="rollout" Label="Rollout" Options="@Options("rollout")" />
                     <SortHeader Table="_table" Column="missing" Label="Servers missing it" Class="n" />
                     <SortHeader Table="_table" Column="installed" Label="Status" />
@@ -59,7 +59,7 @@
                         <td class="wrap"><a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a></td>
                         <td>@row.Classification</td>
                         <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
-                        <td class="nowrap">@row.FirstSeen.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)</td>
+                        <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
                         <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }</td>
                         <td class="n">@row.Missing</td>
                         <td><span class="donut-cell"><Donut Counts="@row.Counts" Small="true" /><span class="note num">@row.Counts.Successful / @row.Counts.Total installed</span></span></td>

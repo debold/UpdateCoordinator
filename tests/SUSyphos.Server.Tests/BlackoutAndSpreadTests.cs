@@ -80,9 +80,12 @@ public sealed class BlackoutPeriodTests
         {
         }
 
-        var start = DateTime.UtcNow.AddHours(-1).ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture);
-        var end = DateTime.UtcNow.AddDays(1).ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture);
-        using (var added = await admin.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "blackouts", ["BlackoutAction"] = "add", ["BlackoutStart"] = start, ["BlackoutEnd"] = end, ["BlackoutReason"] = "Patch freeze" }))
+        // Entered in the time zone of the central server, in 24-hour format.
+        var start = SUSyphos.Server.Components.DisplayTime.ToLocal(DateTime.UtcNow.AddHours(-1));
+        var end = SUSyphos.Server.Components.DisplayTime.ToLocal(DateTime.UtcNow.AddDays(1));
+        string Date(DateTime value) => value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        string Time(DateTime value) => value.ToString("HH:00", System.Globalization.CultureInfo.InvariantCulture);
+        using (var added = await admin.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "blackouts", ["BlackoutAction"] = "add", ["BlackoutStartDate"] = Date(start), ["BlackoutStartTime"] = Time(start), ["BlackoutEndDate"] = Date(end), ["BlackoutEndTime"] = Time(end), ["BlackoutReason"] = "Patch freeze" }))
         {
             Assert.Contains("The blackout period was added.", await added.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
@@ -90,7 +93,7 @@ public sealed class BlackoutPeriodTests
         var overview = await (await admin.GetAsync("/")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Patch freeze", overview, StringComparison.Ordinal);
 
-        using (var invalid = await admin.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "blackouts", ["BlackoutAction"] = "add", ["BlackoutStart"] = "yesterday", ["BlackoutEnd"] = end, ["BlackoutReason"] = "x" }))
+        using (var invalid = await admin.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "blackouts", ["BlackoutAction"] = "add", ["BlackoutStartDate"] = "yesterday", ["BlackoutStartTime"] = "25:00", ["BlackoutEndDate"] = Date(end), ["BlackoutEndTime"] = Time(end), ["BlackoutReason"] = "x" }))
         {
             Assert.Contains("Enter start and end", await invalid.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }

@@ -169,6 +169,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         rollout.HasKey(r => new { r.UpdateId, r.Revision });
         rollout.Property(r => r.State).HasConversion<int>();
         rollout.Property(r => r.StartedBy).HasMaxLength(256).IsRequired();
+        rollout.Property(r => r.StartRuleSummary).HasMaxLength(512);
         rollout.HasOne<UpdateEntity>().WithMany().HasForeignKey(r => new { r.UpdateId, r.Revision }).OnDelete(DeleteBehavior.Restrict);
 
         var rolloutRing = modelBuilder.Entity<RolloutRingEntity>();

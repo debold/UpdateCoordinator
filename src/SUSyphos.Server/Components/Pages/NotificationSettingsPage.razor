@@ -25,8 +25,9 @@
         <Box Title="E-mail">
             <Header><span class="pill @(_settings.EmailEnabled ? "ok" : "neutral")">@(_settings.EmailEnabled ? "on" : "off")</span></Header>
             <ChildContent>
-                <div class="form">
-                    <label class="check"><input type="checkbox" name="EmailEnabled" value="yes" checked="@_settings.EmailEnabled" /> Send e-mails</label>
+                <div class="form gated">
+                    <label class="check gate"><input type="checkbox" name="EmailEnabled" value="yes" checked="@_settings.EmailEnabled" /> Send e-mails</label>
+                    <div class="gated-body form">
                     <div class="form-row">
                         <label class="field"><span>SMTP server</span><input name="SmtpHost" value="@_settings.SmtpHost" maxlength="253" autocomplete="off" /></label>
                         <label class="field"><span>Port</span><input name="SmtpPort" type="number" min="1" max="65535" value="@_settings.SmtpPort" /></label>
@@ -46,6 +47,7 @@
                     <label class="check"><input type="checkbox" name="ClearSmtpPassword" value="yes" /> Remove the stored password</label>
                     <label class="field"><span>Sender address</span><input name="From" type="email" value="@_settings.From" maxlength="254" autocomplete="off" /></label>
                     <label class="field"><span>Recipients</span><textarea name="Recipients" rows="3" maxlength="4000">@_settings.Recipients</textarea><span class="help">Comma, semicolon or one per line</span></label>
+                    </div>
                 </div>
             </ChildContent>
         </Box>
@@ -54,11 +56,13 @@
             <Box Title="Webhook">
                 <Header><span class="pill @(_settings.WebhookEnabled ? "ok" : "neutral")">@(_settings.WebhookEnabled ? "on" : "off")</span></Header>
                 <ChildContent>
-                    <div class="form">
-                        <label class="check"><input type="checkbox" name="WebhookEnabled" value="yes" checked="@_settings.WebhookEnabled" /> Call a webhook</label>
+                    <div class="form gated">
+                        <label class="check gate"><input type="checkbox" name="WebhookEnabled" value="yes" checked="@_settings.WebhookEnabled" /> Call a webhook</label>
+                        <div class="gated-body form">
                         <label class="field"><span>Address (https://)</span><input name="WebhookUrl" type="url" value="@_settings.WebhookUrl" maxlength="2000" autocomplete="off" /></label>
                         <label class="field"><span>Signature secret</span><input name="WebhookSecret" type="password" maxlength="@NotificationSettingsStore.MaxSecretLength" autocomplete="new-password" /><span class="help">Empty: keep the stored one</span></label>
                         <label class="check"><input type="checkbox" name="ClearWebhookSecret" value="yes" /> Remove the stored secret</label>
+                        </div>
                         <p class="note">
                             The webhook receives a JSON document with subject, time and events (kind, key, text, link). With a secret, the header
                             <code>@WebhookChannel.SignatureHeader</code> carries <code>sha256=</code> and the HMAC-SHA256 of the body.
@@ -131,6 +135,14 @@
         if (!Validator.TryValidateObject(settings, new ValidationContext(settings), errors, validateAllProperties: true))
         {
             ShowResult(string.Join(" ", errors.Select(e => e.ErrorMessage)), string.Empty);
+            return;
+        }
+
+        // A user name without password would make every e-mail fail at the SMTP server.
+        if (settings.EmailEnabled && settings.SmtpUser is not null && string.IsNullOrEmpty(SmtpPassword)
+            && (ClearSmtpPassword == "yes" || string.IsNullOrEmpty(Store.LoadSecrets().SmtpPassword)))
+        {
+            ShowResult($"Enter the password for the SMTP user {settings.SmtpUser}, or leave the user name empty for a relay without authentication.", string.Empty);
             return;
         }
 

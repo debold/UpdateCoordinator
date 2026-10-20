@@ -12,7 +12,8 @@ internal sealed record InstallationState(
     List<InstallReport> Outbox,
     List<InstallAttempt> Attempts,
     DateTimeOffset? LastRebootRequestAt = null,
-    LeaseHold? Lease = null)
+    LeaseHold? Lease = null,
+    DateTimeOffset? RestartRequestedAt = null)
 {
     public static InstallationState Empty => new([], []);
 }

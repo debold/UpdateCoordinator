@@ -129,19 +129,20 @@
                             }
                         </select>
                     </label>
-                    <label class="field"><span>Priority (lower wins)</span><input name="Priority" type="number" min="0" max="10000" value="@(Priority ?? rule?.Priority.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "100")" /></label>
+                    <label class="field"><span>Priority (lower wins)</span><input name="Priority" type="number" min="0" max="10000" value="@(Priority ?? (rule?.Priority ?? NextPriority).ToString(System.Globalization.CultureInfo.InvariantCulture))" /></label>
                 </div>
                 <label class="field"><span>Title pattern (* and ? allowed)</span><input name="TitlePattern" maxlength="128" value="@(TitlePattern ?? rule?.TitlePattern ?? (_dialog == "rule-new" ? PrefillTitle : null))" placeholder="e.g. *Cumulative Update*" /></label>
+                <div class="gated-select">
                 <div class="form-row">
                     <label class="field"><span>Start</span>
-                        <select name="StartMode">
+                        <select name="StartMode" class="gate">
                             <option value="automatic" selected="@((StartModeText ?? rule?.Mode.ToString().ToLowerInvariant() ?? "automatic") == "automatic")">Automatically</option>
                             <option value="manual" selected="@((StartModeText ?? rule?.Mode.ToString().ToLowerInvariant()) == "manual")">Manually (stays queued until an operator starts it)</option>
                         </select>
                     </label>
-                    <label class="field"><span>Delay before the first installation (hours)</span><input name="Delay" type="number" min="0" max="@StartRuleEntity.MaxDelayHours" value="@(Delay ?? ((int)(rule?.Delay.TotalHours ?? 0)).ToString(System.Globalization.CultureInfo.InvariantCulture))" /></label>
+                    <label class="field gated-body"><span>Delay before the first installation (hours)</span><input name="Delay" type="number" min="0" max="@StartRuleEntity.MaxDelayHours" value="@(Delay ?? ((int)(rule?.Delay.TotalHours ?? 0)).ToString(System.Globalization.CultureInfo.InvariantCulture))" /></label>
                 </div>
-                <fieldset>
+                <fieldset class="gated-body">
                     <legend>Starts in</legend>
                     @for (var i = 0; i < _rings.Count; i++)
                     {
@@ -157,6 +158,7 @@
                     }
                     <p class="help">Further rings get the update at once, e.g. definition updates in every ring. Rings not selected follow their transition rules.</p>
                 </fieldset>
+                </div>
                 @{
                     var preview = PreviewMatches(rule, classification, severity, TitlePattern ?? rule?.TitlePattern ?? (_dialog == "rule-new" ? PrefillTitle : null));
                 }
@@ -333,12 +335,15 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
     [SupplyParameterFromForm(FormName = "release-dialog")] private string? Preview { get; set; }
 
     private List<UpdateEntity> _previewUpdates = [];
+
+    /// <summary>Priority a new rule gets by default: counts on from the existing rules and avoids conflicts.</summary>
+    private int NextPriority => RolloutAdministration.NextFreePriority([.. _startRules.Select(r => (r.Id, r.Priority))]);
     private HashSet<(Guid, int)> _started = [];
 
     /// <summary>Known updates a rule with these conditions decides, and whether another rule with a lower priority number takes them first.</summary>
     private IReadOnlyList<(UpdateEntity Update, bool TakenByOtherRule)> PreviewMatches(StartRuleEntity? rule, string? classification, string? severity, string? pattern)
     {
-        var priority = int.TryParse(Priority, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : rule?.Priority ?? 100;
+        var priority = int.TryParse(Priority, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : rule?.Priority ?? NextPriority;
         var candidate = new StartRuleEntity
         {
             Id = rule?.Id ?? int.MaxValue,
@@ -393,12 +398,12 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
                 var rings = (StartRingsSelected ?? []).Distinct().Take(20).ToList();
                 if (Mode == "rule-create")
                 {
-                    (outcome, success) = (await Administration.CreateStartRuleAsync(Number(Priority), Classification, Severity, TitlePattern, mode, Number(Delay), actor, CancellationToken.None, rings), "The start rule was created.");
+                    (outcome, success) = (await Administration.CreateStartRuleAsync(Number(Priority), Classification, Severity, TitlePattern, mode, mode == StartMode.Manual ? 0 : Number(Delay), actor, CancellationToken.None, rings), "The start rule was created.");
                 }
                 else
                 {
                     (outcome, success) = id is { } ruleId
-                        ? (await Administration.UpdateStartRuleAsync(ruleId, Number(Priority), Classification, Severity, TitlePattern, mode, Number(Delay), rings, actor, CancellationToken.None), "The start rule was saved.")
+                        ? (await Administration.UpdateStartRuleAsync(ruleId, Number(Priority), Classification, Severity, TitlePattern, mode, mode == StartMode.Manual ? 0 : Number(Delay), rings, actor, CancellationToken.None), "The start rule was saved.")
                         : (new Outcome("Invalid request."), string.Empty);
                 }
 

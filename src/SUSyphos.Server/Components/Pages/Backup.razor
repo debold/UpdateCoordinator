@@ -37,20 +37,22 @@
             <h2>Scheduled backup</h2>
             <span class="pill @(_settings.Enabled ? "ok" : "neutral")">@(_settings.Enabled ? "on" : "off")</span>
         </header>
-        <div class="box-body form">
-            <label class="check"><input type="checkbox" name="ScheduleEnabled" value="yes" checked="@_settings.Enabled" /> Create a backup every day</label>
+        <div class="box-body form gated">
+            <label class="check gate"><input type="checkbox" name="ScheduleEnabled" value="yes" checked="@_settings.Enabled" /> Create a backup every day</label>
+            <div class="gated-body form">
             <label class="field"><span>Folder</span><input name="Folder" value="@_settings.Folder" maxlength="240" placeholder="D:\Backup\SUSyphos or \\fileserver\backup\susyphos" /><span class="help">The service account (LocalSystem) writes there; for a share grant the computer account of the central server write access</span></label>
             <div class="form-row">
-                <label class="field"><span>Time (server time)</span><input name="Time" type="time" value="@_settings.TimeOfDay.ToString("hh\\:mm", System.Globalization.CultureInfo.InvariantCulture)" required /></label>
+                <label class="field"><span>Time (server time)</span><select name="Time">@foreach (var time in WindowPickerForm.Times(_settings.TimeOfDay, includeEndOfDay: false)) { <option value="@WindowPickerForm.Format(time)" selected="@(time == _settings.TimeOfDay)">@WindowPickerForm.Format(time)</option> }</select></label>
                 <label class="field"><span>Keep</span><input name="Keep" type="number" min="1" max="@ScheduledBackupSettings.MaxKeep" value="@_settings.Keep" required /><span class="help">Older scheduled archives are deleted</span></label>
             </div>
             <div class="form-row">
                 <label class="field"><span>Backup password</span><input name="SchedulePassword" type="password" autocomplete="new-password" /><span class="help">@(_hasPassword ? "Empty: keep the stored one" : $"At least {BackupService.MinimumPasswordLength} characters")</span></label>
                 <label class="field"><span>Repeat password</span><input name="SchedulePasswordRepeat" type="password" autocomplete="new-password" /></label>
             </div>
+            </div>
             <p class="note">
                 The password is stored protected on this server and is not part of any backup; keep it elsewhere too, because without it an archive cannot be restored.
-                Last run: @(_lastRun is { } run ? $"{run.AtUtc.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} UTC, {(run.Error is null ? run.FileName : "failed: " + run.Error)}" : "not yet").
+                Last run: @(_lastRun is { } run ? $"{DisplayTime.Format(run.AtUtc)}, {(run.Error is null ? run.FileName : "failed: " + run.Error)}" : "not yet").
             </p>
         </div>
         <footer class="box-foot">

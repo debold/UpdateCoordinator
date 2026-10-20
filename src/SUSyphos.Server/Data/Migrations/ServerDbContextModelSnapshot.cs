@@ -556,6 +556,9 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasMaxLength(23)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("PlannedRestartAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("PreviousHostName")
                         .HasMaxLength(63)
                         .HasColumnType("TEXT");
@@ -583,6 +586,9 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("RequiresLease")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("RestartRequested")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("RingId")
@@ -982,6 +988,13 @@ namespace SUSyphos.Server.Data.Migrations
 
                     b.Property<bool>("Override")
                         .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StartRuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StartRuleSummary")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("StartedAtUtc")
                         .HasColumnType("TEXT");

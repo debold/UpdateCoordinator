@@ -7,6 +7,9 @@ internal interface ISystemRestart
 {
     /// <summary>Schedules a restart after <paramref name="warning"/>; returns false if Windows refused it.</summary>
     bool Schedule(TimeSpan warning);
+
+    /// <summary>Cancels a restart announced with <see cref="Schedule"/>; returns false if none was pending or Windows refused.</summary>
+    bool Abort();
 }
 
 /// <summary>
@@ -18,14 +21,19 @@ internal sealed partial class ShutdownToolRestart(ILogger<ShutdownToolRestart> l
 {
     private const string Message = "SUSyphos restarts this server to complete Windows updates inside the maintenance window.";
 
-    public bool Schedule(TimeSpan warning)
+    public bool Schedule(TimeSpan warning) =>
+        Run(["/r", "/t", ((int)warning.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture), "/d", "p:2:17", "/c", Message]);
+
+    public bool Abort() => Run(["/a"]);
+
+    private bool Run(string[] arguments)
     {
         var startInfo = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "shutdown.exe"))
         {
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        foreach (var argument in new[] { "/r", "/t", ((int)warning.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture), "/d", "p:2:17", "/c", Message })
+        foreach (var argument in arguments)
         {
             startInfo.ArgumentList.Add(argument);
         }

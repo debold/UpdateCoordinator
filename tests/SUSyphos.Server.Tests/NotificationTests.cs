@@ -227,6 +227,17 @@ public sealed class NotificationTests
             Assert.Contains("valid sender address", await invalid.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
+        // A user name without any password cannot authenticate: refused before it is stored.
+        using (var noPassword = await PostAsync(admin, new() { ["Action"] = "save", ["EmailEnabled"] = "yes", ["SmtpHost"] = "mail.lab.local", ["SmtpPort"] = "587", ["SecurityMode"] = "StartTls", ["SmtpUser"] = "relay", ["From"] = "uc01@lab.local", ["Recipients"] = "ops@lab.local" }))
+        {
+            Assert.Contains("Enter the password for the SMTP user relay", await noPassword.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        // The fields of a switched-off channel are greyed out by the gated layout.
+        var page = await (await admin.GetAsync("/administration/notifications")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("class=\"check gate\"><input type=\"checkbox\" name=\"EmailEnabled\"", page, StringComparison.Ordinal);
+        Assert.Contains("class=\"gated-body form\"", page, StringComparison.Ordinal);
+
         using (var test = await PostAsync(admin, new() { ["Action"] = "test" }))
         {
             Assert.Contains("Enable e-mail or the webhook first.", await test.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);

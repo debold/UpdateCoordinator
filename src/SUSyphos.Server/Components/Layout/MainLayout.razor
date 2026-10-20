@@ -30,6 +30,7 @@
                 <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="account">
                     <AntiforgeryToken />
                     <input type="hidden" name="_handler" value="logout" />
+                    <span class="zone" title="All times in the dashboard are in the time zone of the central server">Times: @DisplayTime.ZoneLabel(DateTime.UtcNow)</span>
                     Signed in as <span class="user">@context.User.Identity?.Name</span>
                     <button type="submit">Sign out</button>
                 </form>

@@ -42,7 +42,7 @@
                     <SortHeader Table="_table" Column="agent" Label="Agent" Options="@Options("agent")" />
                     <SortHeader Table="_table" Column="status" Label="Status" Options="@Options("status")" />
                     <SortHeader Table="_table" Column="pending" Label="Pending updates" Class="n" Options="@Options("pending")" />
-                    <SortHeader Table="_table" Column="seen" Label="Last heartbeat (UTC)" />
+                    <SortHeader Table="_table" Column="seen" Label="Last heartbeat" />
                 </tr>
             </thead>
             <tbody>
@@ -69,7 +69,7 @@
                             <td class="mono nowrap" title="@row.AgentVersion">@SUSyphos.Server.AgentPackages.AgentVersion.Short(row.AgentVersion)</td>
                             <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span></td>
                             <td class="n">@row.Pending</td>
-                            <td class="nowrap">@(row.LastHeartbeat?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–")</td>
+                            <td class="nowrap">@DisplayTime.Format(row.LastHeartbeat)</td>
                         </tr>
                     }
                 }

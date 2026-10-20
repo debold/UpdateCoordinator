@@ -20,7 +20,7 @@
             <button type="submit" class="primary">Check for new versions now</button>
         </form>
         <div class="spacer"></div>
-        <span class="note">Last check: @(_lastCheck is { } check ? $"{Format(check.AtUtc)} UTC, {check.Describe()}" : "not yet")</span>
+        <span class="note">Last check: @(_lastCheck is { } check ? $"{Format(check.AtUtc)}, {check.Describe()}" : "not yet")</span>
     </ActionBand>
 </AuthorizeView>
 
@@ -29,7 +29,7 @@
         <form method="post" @formname="agents-release" @onsubmit="ReleaseAsync" class="scroll">
             <AntiforgeryToken />
             <table>
-                <thead><tr><th>Version</th><th>Source</th><th>Added (UTC)</th><th>Released for</th><th class="n">Servers</th><th class="n">Actions</th></tr></thead>
+                <thead><tr><th>Version</th><th>Source</th><th>Added</th><th>Released for</th><th class="n">Servers</th><th class="n">Actions</th></tr></thead>
                 <tbody>
                     @if (_packages.Count == 0)
                     {
@@ -227,5 +227,5 @@
     private string? NextRing(AgentPackageEntity package) =>
         _rings.FirstOrDefault(r => package.ReleasedThroughRingOrder is not { } current || r.Order > current)?.Name;
 
-    private static string Format(DateTime value) => value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Format(DateTime value) => DisplayTime.Format(value);
 }

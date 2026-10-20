@@ -285,7 +285,10 @@ internal static class AgentEndpoints
         var previous = await db.Clients.AsNoTracking().Where(c => c.Id == clientId).Select(c => new { c.LastBootAtUtc, c.AgentVersion }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
         var activity = LiveStatus.Normalize(request.Activity, now);
-        RebootWait? rebootWait = request.RebootPending && request.RebootWait is { } wait && Enum.IsDefined(wait) ? wait : null;
+        RebootWait? rebootWait = (request.RebootPending || request.RestartRequested) && request.RebootWait is { } wait && Enum.IsDefined(wait) ? wait : null;
+
+        // The agent clock is not trusted: a planned restart in the past (beyond an hour) or more than 60 days ahead is not shown.
+        DateTime? plannedRestart = request.RestartRequested && request.PlannedRestartAt is { } planned && planned.UtcDateTime > now.AddHours(-1) && planned.UtcDateTime < now.AddDays(60) ? planned.UtcDateTime : null;
 
         // Single parameterized UPDATE; no read-modify-write round trip on every heartbeat.
         var updated = await db.Clients
@@ -299,6 +302,8 @@ internal static class AgentEndpoints
                         .SetProperty(c => c.OsVersion, c => request.OsVersion ?? c.OsVersion)
                         .SetProperty(c => c.RebootPending, request.RebootPending)
                         .SetProperty(c => c.RebootWait, rebootWait)
+                        .SetProperty(c => c.RestartRequested, request.RestartRequested)
+                        .SetProperty(c => c.PlannedRestartAtUtc, plannedRestart)
                         .SetProperty(c => c.AgentUpdateError, request.AgentUpdateError)
                         .SetProperty(c => c.LastBootAtUtc, c => lastBoot ?? c.LastBootAtUtc);
                     LiveStatus.Apply(setters, activity, now);

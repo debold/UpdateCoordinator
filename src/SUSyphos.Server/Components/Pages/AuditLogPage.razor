@@ -23,7 +23,7 @@ else
         <table>
             <thead>
                 <tr>
-                    <th>Time (UTC)</th>
+                    <th>Time</th>
                     <SortHeader Table="_table" Column="actor" Label="Actor" Sortable="false" Options="_actors" />
                     <SortHeader Table="_table" Column="action" Label="Action" Sortable="false" Options="_actions" />
                     <SortHeader Table="_table" Column="target" Label="Target" Sortable="false" Options="_targets" />
@@ -38,7 +38,7 @@ else
                 @foreach (var entry in _entries)
                 {
                     <tr>
-                        <td class="nowrap">@entry.AtUtc.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)</td>
+                        <td class="nowrap">@DisplayTime.FormatSeconds(entry.AtUtc)</td>
                         <td>@entry.Actor</td>
                         <td class="nowrap">@entry.Action</td>
                         <td>@entry.Target</td>

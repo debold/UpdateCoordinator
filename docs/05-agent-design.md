@@ -147,6 +147,8 @@ Updates installed outside our own maintenance are detected and reported with the
 
 ## 6. Remote actions
 
+**Restart in the maintenance window (2026-10-20):** the agent stores the request (`installations.dat`), treats it like a pending reboot allowed by policy and restarts with the usual rules (open window for at least 30 more minutes, warning, local veto, global pause, lease in coordinated groups). It reports the planned time (start of the next window long enough) and why it waits; the request ends when the server has started after it, or with `CancelRestart`.
+
 The agent fetches actions from the queue, executes them in the given order and reports status with progress: restart service, immediate update search with report, restart server, check-in with agent update search, full resync, later log retrieval.
 
 ## 7. Agent self-update

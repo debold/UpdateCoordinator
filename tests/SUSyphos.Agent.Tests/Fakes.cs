@@ -244,6 +244,22 @@ internal sealed class FakeInstallationRunner : IInstallationRunner
 
     public RebootWait? RebootWait { get; set; }
 
+    public bool RestartRequested { get; set; }
+
+    public DateTimeOffset? PlannedRestartAt { get; set; }
+
+    public DateTimeOffset? RequestRestart()
+    {
+        RestartRequested = true;
+        return PlannedRestartAt;
+    }
+
+    public string CancelRestart()
+    {
+        RestartRequested = false;
+        return "The requested restart was cancelled.";
+    }
+
     public Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
         Runs++;
@@ -261,6 +277,14 @@ internal sealed class FakeRestart : SUSyphos.Agent.Installation.ISystemRestart
     {
         Requests.Add(warning);
         return Accept;
+    }
+
+    public int Aborts { get; private set; }
+
+    public bool Abort()
+    {
+        Aborts++;
+        return true;
     }
 }
 

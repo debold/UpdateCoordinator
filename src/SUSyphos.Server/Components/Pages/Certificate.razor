@@ -18,7 +18,7 @@
             <dt>Subject</dt><dd>@_current.Subject</dd>
             <dt>Issuer</dt><dd>@_current.Issuer</dd>
             <dt>Thumbprint</dt><dd class="mono">@_current.Thumbprint</dd>
-            <dt>Valid until (UTC)</dt><dd>@_current.NotAfter.ToUniversalTime().ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)</dd>
+            <dt>Valid until</dt><dd>@DisplayTime.Format(_current.NotAfter.ToUniversalTime())</dd>
             <dt>Binding serial</dt><dd>@(_serial?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "–")</dd>
         </dl>
     </ChildContent>
@@ -27,7 +27,7 @@
 <Box Title="Available certificates" Hint="LocalMachine\My with private key, currently valid and allowed for server authentication" Flush="true">
     <div class="scroll">
         <table>
-            <thead><tr><th>Subject</th><th>DNS names</th><th>Issuer</th><th>Valid until (UTC)</th><th>Thumbprint</th><th class="num">Actions</th></tr></thead>
+            <thead><tr><th>Subject</th><th>DNS names</th><th>Issuer</th><th>Valid until</th><th>Thumbprint</th><th class="num">Actions</th></tr></thead>
             <tbody>
                 @if (_candidates.Count == 0)
                 {
@@ -39,7 +39,7 @@
                         <td>@candidate.Subject</td>
                         <td>@foreach (var name in candidate.DnsNames) { <span class="tag">@name</span> }</td>
                         <td>@candidate.Issuer</td>
-                        <td>@candidate.NotAfterUtc.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)</td>
+                        <td>@DisplayTime.FormatDate(candidate.NotAfterUtc)</td>
                         <td class="mono">@candidate.Thumbprint</td>
                         <td class="num">
                             @if (IsInUse(candidate))

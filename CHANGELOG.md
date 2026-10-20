@@ -10,6 +10,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- New remote actions "restart in the next maintenance window" (held until a window is open long enough, regardless of the reboot policy, local veto still applies; planned time reported with the heartbeat) and "cancel restart" (also aborts an announced restart).
 - The log no longer records four lines per heartbeat: HTTP client messages (`System.Net.Http.HttpClient`) are logged from level Warning (also on the central server).
 - The inventory carries the Windows Update history of the last 90 days with the application that started each operation, so installations outside SUSyphos (Automatic Updates, Settings, Defender, wusa) become visible.
 - Live status: search, download, installation and inventory are reported to the central server while they run, with progress in percent for download and installation (asynchronous WUA jobs; falls back to the synchronous calls if Windows refuses them). The heartbeat also tells why a pending reboot waits (policy "Never", local veto, pause, outside the window, window ends soon, recently requested, waiting for a lease) or that the agent is restarting the server.
@@ -43,6 +44,10 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- All dashboard times in the time zone of the central server and in 24-hour format (blackout periods and backup time without AM/PM pickers); the zone is named in the navigation.
+- Start rules: the rollout records the rule that started it and the update page shows it; new rules count on from the existing priorities, and two rules can no longer share a priority.
+- Restart dialog with "now" or "in the next maintenance window", a prominent "Restart queued" bar with planned time and reason, and "Cancel restart".
+- Dependent fields are greyed out while their switch is off (notifications, coordination, scheduled backup, inherited maintenance windows, delay and rings of manual start rules); e-mail settings with a user name but no password are refused.
 - Server detail: uptime and last update search with its result in the System box, and a "Recent activity" list (registration, approval, inventory, update searches, installations, remote action results, restarts, agent updates; no heartbeats; kept 90 days).
 - Agent versions are shown short (e.g. 0.6.0, full version as tooltip); the server list has an agent version column with filter and grouping, and the version on the server detail and Agents pages opens the server list filtered to it.
 - Column filters use a funnel icon; sorting uses a small triangle.

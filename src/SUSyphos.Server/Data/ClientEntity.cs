@@ -81,6 +81,12 @@ internal sealed class ClientEntity
     /// <summary>Why the pending reboot waits, as decided by the agent; null if no reboot is pending or the agent does not report it.</summary>
     public RebootWait? RebootWait { get; set; }
 
+    /// <summary>The agent holds an administrator's request to restart in the maintenance window.</summary>
+    public bool RestartRequested { get; set; }
+
+    /// <summary>When the agent plans the requested restart; null if unknown.</summary>
+    public DateTime? PlannedRestartAtUtc { get; set; }
+
     // Live status (docs/05-agent-design.md, section 5); see Agents.LiveStatus.
 
     public AgentPhase? ActivityPhase { get; set; }

@@ -56,6 +56,7 @@ Guidelines (always apply):
 - Project name SUSyphos (Marc, 2026-10-20); renamed from the working title UpdateCoordinator in code, packages, services, registry and data folders. No migration of installations from before the rename (only test installations existed); they are installed anew.
 - Operating limits of the central server (Marc, 2026-10-20): none for now; evaluated over time in operation.
 - Trust anchor in the backup (Marc, 2026-10-20): the encryption with the backup password is sufficient.
+- Times (Marc, 2026-10-20): the dashboard shows and takes all times in the time zone of the central server, 24-hour format; agents, protocol and database stay in UTC.
 - Dashboard: Blazor with static server rendering by default (interactive only where it adds real value, e.g. live status), ASP.NET Core Identity with local accounts, first administrator via one-time browser setup with a local token, permissions as sketched in `docs/06-dashboard.md`.
 
 ## Open decisions (do not decide unilaterally)

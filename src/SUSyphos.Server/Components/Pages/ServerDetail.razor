@@ -25,6 +25,18 @@ else
     <PageHeader Title="@_client.HostName" Subtitle="@Subtitle" Crumbs="@([("Servers", "/servers"), (_client.HostName, null)])" />
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
+    @if (RestartQueuedText is { } restartText)
+    {
+        <form method="post" @formname="cancel-restart" @onsubmit="CancelRestartAsync" class="restart-banner" role="status">
+            <AntiforgeryToken />
+            <span class="pill fail">Restart queued</span>
+            <span>@restartText</span>
+            <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="cancelRestart">
+                <button type="submit" class="danger">Cancel restart</button>
+            </AuthorizeView>
+        </form>
+    }
+
     <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
         <ActionBand>
             <form id="actions" method="post" @formname="action" @onsubmit="HandleActionAsync">
@@ -62,8 +74,8 @@ else
         </div>
         <div class="tile">
             <div class="label">Last heartbeat</div>
-            <div class="value small-value">@Format(_client.LastHeartbeatAtUtc) UTC</div>
-            <div class="detail">last boot @Format(_client.LastBootAtUtc) UTC@(_client.RebootPending ? " · reboot pending" : string.Empty)</div>
+            <div class="value small-value">@Format(_client.LastHeartbeatAtUtc)</div>
+            <div class="detail">last boot @Format(_client.LastBootAtUtc)@(_client.RebootPending ? " · reboot pending" : string.Empty)</div>
         </div>
     </section>
 
@@ -82,7 +94,7 @@ else
                     <progress max="100" value="@percent" aria-label="Progress">@percent %</progress>
                     <span>@percent %</span>
                 }
-                <span class="note">since @Format(_client.ActivityStartedAtUtc) UTC</span>
+                <span class="note">since @Format(_client.ActivityStartedAtUtc)</span>
             </p>
             @if (_liveUpdates.Count > 0)
             {
@@ -169,8 +181,8 @@ else
                 <dt>Outside SUSyphos</dt><dd>@if (_externalInstalls > 0) { <span class="pill queue">@_externalInstalls</span> <span>installations in the last @SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays days were started by Windows or an administrator, not by SUSyphos (<a href="/servers/@Id#windows-history">history</a>)</span> } else { <span>none in the reported history</span> }</dd>
                 <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
                 <dt>Uptime</dt><dd>@UptimeText</dd>
-                <dt>Last update search</dt><dd>@if (_client.LastSearchAtUtc is null) { <span>none reported yet</span> } else if (_client.LastSearchSucceeded == true) { <span class="pill ok">OK</span> <span>@Format(_client.LastSearchAtUtc) UTC</span> } else { <span class="pill fail">failed</span> <span>@Format(_client.LastSearchAtUtc) UTC (<a href="/servers/@Id#missing">details</a>)</span> }</dd>
-                <dt>Registered (UTC)</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
+                <dt>Last update search</dt><dd>@if (_client.LastSearchAtUtc is null) { <span>none reported yet</span> } else if (_client.LastSearchSucceeded == true) { <span class="pill ok">OK</span> <span>@Format(_client.LastSearchAtUtc)</span> } else { <span class="pill fail">failed</span> <span>@Format(_client.LastSearchAtUtc) (<a href="/servers/@Id#missing">details</a>)</span> }</dd>
+                <dt>Registered</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
             </dl>
         </Box>
     </div>
@@ -186,7 +198,7 @@ else
         }
         <div class="scroll">
             <table>
-                <thead><tr><th>Update</th><th>Status</th><th>Earliest installation (UTC)</th></tr></thead>
+                <thead><tr><th>Update</th><th>Status</th><th>Earliest installation</th></tr></thead>
                 <tbody>
                     @if (_planned.Count == 0)
                     {
@@ -208,7 +220,7 @@ else
     <Box Title="Missing updates" Anchor="missing" Flush="true">
         <div class="scroll">
             <table>
-                <thead><tr><th>Update</th><th>Status</th><th>Earliest installation (UTC)</th><th>Result</th></tr></thead>
+                <thead><tr><th>Update</th><th>Status</th><th>Earliest installation</th><th>Result</th></tr></thead>
                 <tbody>
                     @if (_open.Count == 0)
                     {
@@ -228,7 +240,7 @@ else
         </div>
     </Box>
 
-    <Box Title="Pre-flight checks" Anchor="checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)} UTC" : null)" Flush="true">
+    <Box Title="Pre-flight checks" Anchor="checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)}" : null)" Flush="true">
         @if (_client.HealthChecks.Count == 0)
         {
             <div class="empty-state">No update run reported yet.</div>
@@ -260,7 +272,7 @@ else
     <Box Title="Update history" Anchor="history" Flush="true">
         <div class="scroll">
             <table>
-                <thead><tr><th>Finished (UTC)</th><th>Update</th><th>Source</th><th>Result</th><th>Reboot</th></tr></thead>
+                <thead><tr><th>Finished</th><th>Update</th><th>Source</th><th>Result</th><th>Reboot</th></tr></thead>
                 <tbody>
                     @if (_history.Count == 0)
                     {
@@ -284,7 +296,7 @@ else
     <Box Title="Windows Update history" Anchor="windows-history" Hint="@($"last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days as recorded by Windows, including installations outside SUSyphos; updated with the inventory")" Flush="true">
         <div class="scroll">
             <table>
-                <thead><tr><th>Date (UTC)</th><th>Update</th><th>Operation</th><th>Result</th><th>Started by</th></tr></thead>
+                <thead><tr><th>Date</th><th>Update</th><th>Operation</th><th>Result</th><th>Started by</th></tr></thead>
                 <tbody>
                     @if (_windowsHistory.Count == 0)
                     {
@@ -308,7 +320,7 @@ else
     <Box Title="Recent activity" Anchor="activity" Hint="@($"what the agent did and reported, newest first; kept for {ClientActivityLog.Retention.TotalDays:0} days, heartbeats are not listed")" Flush="true">
         <div class="scroll">
             <table>
-                <thead><tr><th>Time (UTC)</th><th>Activity</th><th>Detail</th></tr></thead>
+                <thead><tr><th>Time</th><th>Activity</th><th>Detail</th></tr></thead>
                 <tbody>
                     @if (_activities.Count == 0)
                     {
@@ -330,7 +342,7 @@ else
     <Box Title="Remote actions" Hint="The agent picks actions up with its next heartbeat; the central server never connects to the agent." Flush="true">
         <div class="scroll">
             <table>
-                <thead><tr><th>Requested (UTC)</th><th>Action</th><th>By</th><th>State</th><th>Detail</th><th></th></tr></thead>
+                <thead><tr><th>Requested</th><th>Action</th><th>By</th><th>State</th><th>Detail</th><th></th></tr></thead>
                 <tbody>
                     @if (_actions.Count == 0)
                     {
@@ -340,7 +352,7 @@ else
                     {
                         <tr>
                             <td class="nowrap">@Format(action.RequestedAtUtc)</td>
-                            <td>@action.Kind</td>
+                            <td>@ActionLabel(action.Kind)</td>
                             <td>@action.RequestedBy</td>
                             <td><span class="pill @ActionClass(action.State)">@action.State</span></td>
                             <td>
@@ -365,13 +377,15 @@ else
 
     @if (Dialog == "restart")
     {
-        <Dialog Title="@($"Restart {_client.HostName} now?")" CloseHref="@($"/servers/{Id}")">
+        <Dialog Title="@($"Restart {_client.HostName}?")" CloseHref="@($"/servers/{Id}")">
             <form method="post" @formname="restart" @onsubmit="RestartAsync">
                 <AntiforgeryToken />
                 <div class="dialog-body">
-                    <p>The agent restarts the server with its next heartbeat, also outside the maintenance window, after a five minute warning. A local veto on the server (registry value AllowReboot) still applies.</p>
+                    <p><b>Now:</b> the agent restarts the server with its next heartbeat, also outside the maintenance window, after a five minute warning.</p>
+                    <p><b>In the next maintenance window:</b> the agent restarts the server once a window is open for at least 30 more minutes (next window: @NextWindowText), also if its reboot policy is "Never"; in a coordinated group it waits for a free slot. It reports the planned time.</p>
+                    <p class="note">A local veto on the server (registry value AllowReboot) applies to both. A queued restart can be cancelled until it happens.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="/servers/@Id">Cancel</a><button type="submit" class="danger">Restart server</button></div>
+                <div class="dialog-foot"><a class="btn" href="/servers/@Id">Cancel</a><button type="submit" name="When" value="window">Restart in the next maintenance window</button><button type="submit" name="When" value="now" class="danger">Restart now</button></div>
             </form>
         </Dialog>
     }
@@ -427,15 +441,102 @@ else
         ? string.Empty
         : $"{(_client.DomainName is { Length: > 0 } domain ? $"{_client.HostName.ToLowerInvariant()}.{domain}" : _client.HostName)} · {OperatingSystems.Name(_client.OsProductName, _client.OsVersion)}, build {OperatingSystems.Build(_client.OsVersion)} · ring {RingName(_client.RingId)}";
 
+    [SupplyParameterFromForm(FormName = "restart")]
+    private string? When { get; set; }
+
     private async Task RestartAsync()
     {
-        var outcome = await IsAuthorizedAsync(AdminRoles.Policies.Administer)
-            ? await Actions.QueueAsync(Id, SUSyphos.Contracts.Agents.AgentActionKind.RestartServer, await GetActorAsync(), CancellationToken.None)
-            : new Outcome("Only administrators can restart a server.");
-        ShowResult(outcome.Error, "The restart was queued; the agent restarts the server after its next heartbeat and a five minute warning.");
+        var kind = When switch
+        {
+            "now" => SUSyphos.Contracts.Agents.AgentActionKind.RestartServer,
+            "window" => SUSyphos.Contracts.Agents.AgentActionKind.RestartServerInWindow,
+            _ => (SUSyphos.Contracts.Agents.AgentActionKind?)null,
+        };
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer)
+            ? new Outcome("Only administrators can restart a server.")
+            : kind is null
+                ? new Outcome("Choose when the server restarts.")
+                : await Actions.QueueAsync(Id, kind.Value, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, kind == SUSyphos.Contracts.Agents.AgentActionKind.RestartServer
+            ? "The restart was queued; the agent restarts the server after its next heartbeat and a five minute warning."
+            : "The restart was queued for the next maintenance window; the agent reports the planned time with its next heartbeat.");
         Dialog = null;
         await LoadAsync();
     }
+
+    /// <summary>Cancels a queued restart action, or asks the agent to drop a restart it holds or has announced.</summary>
+    private async Task CancelRestartAsync()
+    {
+        Outcome outcome;
+        string success;
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            (outcome, success) = (new Outcome("Only administrators can cancel a restart."), string.Empty);
+        }
+        else if (await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id && a.State == AgentActionState.Queued && RestartKinds.Contains(a.Kind)).Select(a => (Guid?)a.Id).FirstOrDefaultAsync() is { } queued)
+        {
+            (outcome, success) = (await Actions.CancelAsync(Id, queued, await GetActorAsync(), CancellationToken.None), "The restart was cancelled before the agent picked it up.");
+        }
+        else
+        {
+            (outcome, success) = (await Actions.QueueAsync(Id, SUSyphos.Contracts.Agents.AgentActionKind.CancelRestart, await GetActorAsync(), CancellationToken.None), "The cancellation was queued; the agent drops the restart with its next heartbeat.");
+        }
+
+        ShowResult(outcome.Error, success);
+        await LoadAsync();
+    }
+
+    private static readonly SUSyphos.Contracts.Agents.AgentActionKind[] RestartKinds = [SUSyphos.Contracts.Agents.AgentActionKind.RestartServer, SUSyphos.Contracts.Agents.AgentActionKind.RestartServerInWindow];
+
+    /// <summary>What is known about a queued restart: requested by whom, and when the agent will restart; null if none is queued.</summary>
+    private string? RestartQueuedText
+    {
+        get
+        {
+            if (_client is null)
+            {
+                return null;
+            }
+
+            var cancelling = _actions.Any(a => a.Kind == SUSyphos.Contracts.Agents.AgentActionKind.CancelRestart && a.State is AgentActionState.Queued or AgentActionState.Delivered);
+            var pending = _actions.FirstOrDefault(a => RestartKinds.Contains(a.Kind) && a.State is AgentActionState.Queued or AgentActionState.Delivered);
+            if (cancelling)
+            {
+                return "Cancellation requested; the agent drops the restart with its next heartbeat.";
+            }
+
+            if (pending is not null)
+            {
+                return pending.Kind == SUSyphos.Contracts.Agents.AgentActionKind.RestartServer
+                    ? $"Requested by {pending.RequestedBy} at {Format(pending.RequestedAtUtc)}: restart now, after a five minute warning. Waiting for the agent to pick it up."
+                    : $"Requested by {pending.RequestedBy} at {Format(pending.RequestedAtUtc)}: restart in the next maintenance window. Waiting for the agent to pick it up.";
+            }
+
+            if (_client.RestartRequested)
+            {
+                var requested = _actions.FirstOrDefault(a => a.Kind == SUSyphos.Contracts.Agents.AgentActionKind.RestartServerInWindow && a.State == AgentActionState.Succeeded);
+                var by = requested is null ? string.Empty : $"Requested by {requested.RequestedBy} at {Format(requested.RequestedAtUtc)}. ";
+                var when = _client.RebootWait == SUSyphos.Contracts.Agents.RebootWait.Restarting
+                    ? "The agent is restarting the server now."
+                    : _client.PlannedRestartAtUtc is { } planned ? $"The agent plans the restart for {Format(planned)}" + (_client.RebootWait is { } wait ? $"; {LiveStatus.RebootWaitText(wait)}." : ".") : "The agent has not reported a planned time (no maintenance window?).";
+                return by + when;
+            }
+
+            return null;
+        }
+    }
+
+    private static string ActionLabel(SUSyphos.Contracts.Agents.AgentActionKind kind) => kind switch
+    {
+        SUSyphos.Contracts.Agents.AgentActionKind.SearchNow => "Search for updates",
+        SUSyphos.Contracts.Agents.AgentActionKind.FullResync => "Sync inventory",
+        SUSyphos.Contracts.Agents.AgentActionKind.RestartService => "Restart agent service",
+        SUSyphos.Contracts.Agents.AgentActionKind.RestartServer => "Restart server now",
+        SUSyphos.Contracts.Agents.AgentActionKind.UploadLogs => "Request logs",
+        SUSyphos.Contracts.Agents.AgentActionKind.RestartServerInWindow => "Restart server in maintenance window",
+        SUSyphos.Contracts.Agents.AgentActionKind.CancelRestart => "Cancel restart",
+        _ => kind.ToString(),
+    };
 
     private ClientEntity? _client;
     private List<RingEntity> _rings = [];
@@ -671,7 +772,7 @@ else
     private List<ClientUpdateHistoryEntity> _windowsHistory = [];
     private List<ClientActivityEntity> _activities = [];
 
-    /// <summary>Time since the last boot the agent reported, e.g. "3 days 4 h (since 2026-10-17 08:12 UTC)".</summary>
+    /// <summary>Time since the last boot the agent reported, e.g. "3 days 4 h (since 2026-10-17 08:12)".</summary>
     private string UptimeText
     {
         get
@@ -690,7 +791,7 @@ else
             var text = up.TotalDays >= 1
                 ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(int)up.TotalDays} {((int)up.TotalDays == 1 ? "day" : "days")} {up.Hours} h")
                 : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{up.Hours} h {up.Minutes} min");
-            return $"{text} (since {Format(boot)} UTC)";
+            return $"{text} (since {Format(boot)})";
         }
     }
     private int _externalInstalls;
@@ -720,7 +821,7 @@ else
 
     private static DateTime ToUtc(DateTime local, TimeZoneInfo zone) => TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), zone);
 
-    private string PlannedHint => _window is { } window ? $"{Format(window.Start)} to {Format(window.End)} UTC" : _client?.TimeZoneId is null ? "the server has not reported its time zone yet" : "no window";
+    private string PlannedHint => _window is { } window ? $"{Format(window.Start)} to {Format(window.End)}" : _client?.TimeZoneId is null ? "the server has not reported its time zone yet" : "no window";
 
     private static string CheckName(string name) => name switch
     {
@@ -741,7 +842,7 @@ else
     private static string ResultText(InstallationEntity installation) =>
         UpdateHistoryText.Result((SUSyphos.Contracts.Agents.InstallResultCode)installation.ResultCode, installation.HResult);
 
-    /// <summary>Next opening of the effective windows in the server's time zone, with the UTC time for comparison.</summary>
+    /// <summary>Next opening of the effective windows in the server's time zone, with the time of the central server for comparison.</summary>
     private string NextWindowText
     {
         get
@@ -764,7 +865,9 @@ else
             }
 
             var utc = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(next, DateTimeKind.Unspecified), zone);
-            return $"{next.ToString("ddd yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} server time ({Format(utc)} UTC)";
+            return zone.Id == DisplayTime.Zone.Id
+                ? Format(utc)
+                : $"{next.ToString("ddd yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} server time ({Format(utc)} central server time)";
         }
     }
 
@@ -772,8 +875,7 @@ else
         ? "No"
         : _client?.LastBootAtUtc is { } boot && boot > installation.FinishedAtUtc ? $"Required, restarted {Format(boot)}" : "Required, pending";
 
-    private static string Format(DateTime? value) =>
-        value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";
+    private static string Format(DateTime? value) => DisplayTime.Format(value);
 
     private string RingName(int? id) => _rings.FirstOrDefault(r => r.Id == id)?.Name ?? "–";
 

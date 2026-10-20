@@ -69,7 +69,7 @@
     private CoverageReport _report = new(null, 0, 0, [], []);
 
     private string CoverageSubtitle => _report.ReadAtUtc is { } read
-        ? $"Server accounts read from Active Directory at {read.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} UTC"
+        ? $"Server accounts read from Active Directory at {DisplayTime.Format(read)}"
         : "Active Directory has not been read yet. The central server must be a domain member, or a domain must be configured under Coverage:Domain.";
 
     protected override async Task OnInitializedAsync() => _report = await Coverage.GetReportAsync(CancellationToken.None);

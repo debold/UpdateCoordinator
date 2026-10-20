@@ -119,6 +119,26 @@ public sealed class RolloutTests
         Assert.Equal(update.UpdateId, Assert.Single((await scenario.ReleasesAsync(pilot)).Releases).UpdateId);
         Assert.Empty((await scenario.ReleasesAsync(production)).Releases);
         Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "Rollout.Started" && e.Actor == "rule", TestContext.Current.CancellationToken)));
+
+        // The rollout remembers which rule started it and what that rule did at the time.
+        Assert.Equal(StartRuleEntity.CatchAllId, rollout.StartRuleId);
+        Assert.Equal("priority 1000, delay 0 h, starts in Pilot", rollout.StartRuleSummary);
+    }
+
+    [Fact]
+    public async Task ManualStart_RecordsNoStartRule()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await scenario.ManualStartOnlyAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(pilot, update);
+
+        Assert.True((await scenario.AdministerAsync(admin => admin.StartAsync(update.UpdateId, 1, "alice", CancellationToken.None))).Succeeded);
+
+        var rollout = await scenario.Factory.WithDbAsync(db => db.Rollouts.SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Null(rollout.StartRuleId);
+        Assert.Equal("alice", rollout.StartedBy);
     }
 
     [Fact]
@@ -398,6 +418,35 @@ public sealed class RolloutAdministrationTests
 
         Assert.False(outcome.Succeeded);
         Assert.Equal(1, await scenario.Factory.WithDbAsync(db => db.StartRules.CountAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task StartRule_WithAPriorityAlreadyInUse_IsRefused()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        Assert.True((await scenario.AdministerAsync(admin => admin.CreateStartRuleAsync(100, "Security Updates", null, null, StartMode.Automatic, 0, "admin", CancellationToken.None))).Succeeded);
+
+        var outcome = await scenario.AdministerAsync(admin => admin.CreateStartRuleAsync(100, "Definition Updates", null, null, StartMode.Automatic, 0, "admin", CancellationToken.None));
+
+        Assert.False(outcome.Succeeded);
+        Assert.Contains("e.g. 101", outcome.Error, StringComparison.Ordinal);
+
+        // Saving a rule with its own priority is no conflict.
+        var id = await scenario.Factory.WithDbAsync(db => db.StartRules.Where(r => r.Priority == 100).Select(r => r.Id).SingleAsync(TestContext.Current.CancellationToken));
+        Assert.True((await scenario.AdministerAsync(admin => admin.UpdateStartRuleAsync(id, 100, "Security Updates", "Critical", null, StartMode.Automatic, 0, [], "admin", CancellationToken.None))).Succeeded);
+    }
+
+    [Theory]
+    [InlineData(new int[0], 100)]
+    [InlineData(new[] { 100 }, 101)]
+    [InlineData(new[] { 100, 105, 101 }, 106)]
+    [InlineData(new[] { 999 }, 100)]
+    [InlineData(new[] { 50 }, 100)]
+    public void NextFreePriority_CountsOnAndStaysBelowTheCatchAllRule(int[] priorities, int expected)
+    {
+        var rules = priorities.Select((p, i) => (Id: i + 2, Priority: p)).Append((StartRuleEntity.CatchAllId, 1000)).ToList();
+
+        Assert.Equal(expected, RolloutAdministration.NextFreePriority(rules));
     }
 
     [Fact]

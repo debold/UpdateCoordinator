@@ -46,7 +46,7 @@
         <div class="scroll">
             <table>
                 <thead>
-                    <tr><th><span class="visually-hidden">Select</span></th><th>Server</th><th>Domain</th><th>Registered from</th><th>Operating system</th><th>Roles</th><th>Registered (UTC)</th><th>Last heartbeat (UTC)</th><th class="n">Decide</th></tr>
+                    <tr><th><span class="visually-hidden">Select</span></th><th>Server</th><th>Domain</th><th>Registered from</th><th>Operating system</th><th>Roles</th><th>Registered</th><th>Last heartbeat</th><th class="n">Decide</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var client in _pending)
@@ -87,7 +87,7 @@
         <div class="scroll">
             <table>
                 <thead>
-                    <tr><th>Update</th><th>Ring</th><th>State</th><th>Since (UTC)</th><th class="n">Decide</th></tr>
+                    <tr><th>Update</th><th>Ring</th><th>State</th><th>Since</th><th class="n">Decide</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var gate in _gates)
@@ -152,7 +152,7 @@
         else
         {
             <table>
-                <thead><tr><th>Server</th><th>Host names seen</th><th>Last heartbeat (UTC)</th><th class="n"></th></tr></thead>
+                <thead><tr><th>Server</th><th>Host names seen</th><th>Last heartbeat</th><th class="n"></th></tr></thead>
                 <tbody>
                     @foreach (var client in _blocked)
                     {
@@ -387,6 +387,5 @@
         await LoadAsync();
     }
 
-    private static string Format(DateTime? value) =>
-        value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";
+    private static string Format(DateTime? value) => DisplayTime.Format(value);
 }

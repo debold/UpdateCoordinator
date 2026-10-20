@@ -28,6 +28,12 @@ internal sealed class RolloutEntity
 
     /// <summary>Manual override: released to every ring at once, bypassing rates, wait times and gates.</summary>
     public bool Override { get; set; }
+
+    /// <summary>Start rule that started the rollout automatically; null for a manual start. No foreign key: the rule may be deleted later.</summary>
+    public int? StartRuleId { get; set; }
+
+    /// <summary>Description of the start rule at the time it started the rollout (priority, conditions, rings), so later changes to the rule do not rewrite history.</summary>
+    public string? StartRuleSummary { get; set; }
 }
 
 internal enum RingRolloutState

@@ -23,9 +23,10 @@ public sealed class ActionRunnerTests
 
     private readonly FakeRestart _systemRestart = new();
     private readonly FakeLogCollector _logs = new();
+    private readonly FakeInstallationRunner _runner = new();
     private InstallationOptions _installation = new();
 
-    private ActionRunner Create() => new(_client, _updates, _inventory, _restarter, _systemRestart, _logs, Microsoft.Extensions.Options.Options.Create(_installation), NullLogger<ActionRunner>.Instance);
+    private ActionRunner Create() => new(_client, _updates, _inventory, _restarter, _systemRestart, _runner, _logs, Microsoft.Extensions.Options.Options.Create(_installation), NullLogger<ActionRunner>.Instance);
 
     private static AgentAction Action(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow);
 
@@ -72,6 +73,39 @@ public sealed class ActionRunnerTests
         Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[allowed.Id].Status);
         Assert.Equal(AgentActionStatus.Rejected, _client.ActionResults[vetoed.Id].Status);
         Assert.Equal([RebootPlanner.WarningPeriod], _systemRestart.Requests);
+    }
+
+    [Fact]
+    public async Task RestartInWindow_IsHeldWithItsPlannedTime_AndCanBeCancelled()
+    {
+        _runner.PlannedRestartAt = new DateTimeOffset(2026, 10, 24, 19, 0, 0, TimeSpan.Zero);
+        var request = Action(AgentActionKind.RestartServerInWindow);
+        _client.ActionList = new AgentActionList([request]);
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.True(_runner.RestartRequested);
+        Assert.Empty(_systemRestart.Requests);
+        Assert.Contains("2026-10-24 19:00 UTC", _client.ActionResults[request.Id].Detail, StringComparison.Ordinal);
+
+        var cancel = Action(AgentActionKind.CancelRestart);
+        _client.ActionList = new AgentActionList([cancel]);
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.False(_runner.RestartRequested);
+        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[cancel.Id].Status);
+    }
+
+    [Fact]
+    public async Task RestartInWindow_IsRejectedByTheLocalVeto()
+    {
+        _installation = new InstallationOptions { AllowReboot = false };
+        var request = Action(AgentActionKind.RestartServerInWindow);
+        _client.ActionList = new AgentActionList([request]);
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Equal(AgentActionStatus.Rejected, _client.ActionResults[request.Id].Status);
+        Assert.False(_runner.RestartRequested);
     }
 
     [Fact]

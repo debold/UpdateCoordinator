@@ -107,10 +107,10 @@
                     </label>
                 </div>
                 <div class="form-row">
-                    <fieldset>
+                    <fieldset class="gated">
                         <legend>Coordination (leases)</legend>
-                        <label class="check"><input type="checkbox" name="Coordinated" value="true" checked="@(group?.Coordinated == true)" /> Only part of the group installs at the same time</label>
-                        <div class="form-row">
+                        <label class="check gate"><input type="checkbox" name="Coordinated" value="true" checked="@(group?.Coordinated == true)" /> Only part of the group installs at the same time</label>
+                        <div class="form-row gated-body">
                             <label class="field"><span>Share of members</span><input name="Percent" type="number" min="1" max="100" value="@(group?.LeasePercent ?? 25)" /></label>
                             <label class="field"><span>At most at once</span><input name="Max" type="number" min="1" max="1000" value="@(group?.LeaseMaximum ?? 5)" /></label>
                         </div>

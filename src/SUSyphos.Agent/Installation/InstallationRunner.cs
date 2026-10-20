@@ -21,6 +21,18 @@ internal interface IInstallationRunner
 
     /// <summary>Why the pending reboot waits, or that the agent restarts the server; null if no reboot is pending (live status).</summary>
     RebootWait? RebootWait { get; }
+
+    /// <summary>True while an administrator's request to restart in the maintenance window is held.</summary>
+    bool RestartRequested { get; }
+
+    /// <summary>Holds a restart for the next maintenance window that stays open long enough (remote action); returns the planned time.</summary>
+    DateTimeOffset? RequestRestart();
+
+    /// <summary>Drops a held restart request and cancels a restart already announced by this agent; returns what was cancelled.</summary>
+    string CancelRestart();
+
+    /// <summary>When the held restart is planned; null without request or without windows.</summary>
+    DateTimeOffset? PlannedRestartAt { get; }
 }
 
 internal sealed partial class InstallationRunner : IInstallationRunner
@@ -79,6 +91,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         }
 
         CompleteLeaseAfterReboot();
+        CompleteRequestedRestart();
 
         var batch = PlanBatch();
         if (batch.Count > 0)
@@ -148,6 +161,75 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         return true;
     }
 
+    public bool RestartRequested => _state.RestartRequestedAt is not null;
+
+    public DateTimeOffset? RequestRestart()
+    {
+        // An explicit request is not held back by the cooldown of an earlier, automatic request.
+        Save(_state with { RestartRequestedAt = _timeProvider.GetUtcNow(), LastRebootRequestAt = null });
+        return PlannedRestartAt;
+    }
+
+    public string CancelRestart()
+    {
+        var held = _state.RestartRequestedAt is not null;
+        var announced = _state.LastRebootRequestAt is { } last && _timeProvider.GetUtcNow() - last < RebootPlanner.WarningPeriod;
+        Save(_state with { RestartRequestedAt = null });
+        var aborted = announced && _restart.Abort();
+        return (held, aborted) switch
+        {
+            (_, true) => "The announced restart was cancelled.",
+            (true, false) => "The requested restart was cancelled.",
+            _ => "No restart was requested or announced.",
+        };
+    }
+
+    public DateTimeOffset? PlannedRestartAt
+    {
+        get
+        {
+            if (_state.RestartRequestedAt is null)
+            {
+                return null;
+            }
+
+            if (RebootWait == Contracts.Agents.RebootWait.Restarting && _state.LastRebootRequestAt is { } requested)
+            {
+                return requested + RebootPlanner.WarningPeriod;
+            }
+
+            var localNow = _timeProvider.GetLocalNow();
+            var windows = EffectiveWindows;
+            var probe = localNow.DateTime;
+            for (var i = 0; i < 14; i++)
+            {
+                if (MaintenanceSchedule.NextWindow(windows, probe) is not { } window)
+                {
+                    return null;
+                }
+
+                if (window.End - window.Start >= RebootPlanner.MinimumRemainingWindow)
+                {
+                    var start = window.Start;
+                    return new DateTimeOffset(start, _timeProvider.LocalTimeZone.GetUtcOffset(start));
+                }
+
+                probe = window.End.AddMinutes(1);
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>A held restart request is done once the server has started after it.</summary>
+    private void CompleteRequestedRestart()
+    {
+        if (_state.RestartRequestedAt is { } requested && _environment.LastBootAt > requested)
+        {
+            Save(_state with { RestartRequestedAt = null });
+        }
+    }
+
     /// <summary>A lease kept for a reboot ends once the server has started again and no reboot is pending any more.</summary>
     private void CompleteLeaseAfterReboot()
     {
@@ -177,7 +259,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
     /// <summary>A reboot can still come from this agent: the policy allows reboots and no local veto applies.</summary>
     private bool RebootMayFollow() =>
-        _releases.Current.RebootPolicy == RebootPolicy.InsideMaintenanceWindow && _options.Value.AllowReboot && _options.Value.Enabled;
+        (_releases.Current.RebootPolicy == RebootPolicy.InsideMaintenanceWindow || _state.RestartRequestedAt is not null) && _options.Value.AllowReboot && _options.Value.Enabled;
 
     /// <summary>
     /// Restarts the server when a reboot is pending and the central policy, the local veto, the global pause and the
@@ -188,11 +270,13 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     internal async Task<RebootDecision?> RebootIfAllowedAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow();
+        // A restart an administrator requested for the window counts as pending and allowed by policy.
+        var requested = _state.RestartRequestedAt is not null;
         var decision = RebootPlanner.Decide(
-            _releases.Current.RebootPolicy ?? RebootPolicy.Never,
+            requested ? RebootPolicy.InsideMaintenanceWindow : _releases.Current.RebootPolicy ?? RebootPolicy.Never,
             _options.Value,
             _releases.InstallationsPaused,
-            _environment.RebootPending,
+            _environment.RebootPending || requested,
             EffectiveWindows,
             _timeProvider.GetLocalNow().DateTime,
             _state.LastRebootRequestAt,

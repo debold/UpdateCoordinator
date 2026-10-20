@@ -71,10 +71,10 @@
 
 <form method="post" @formname="blackouts" @onsubmit="ChangeBlackoutAsync" class="box">
     <AntiforgeryToken />
-    <header class="box-head"><h2>Blackout periods</h2><span class="hint">No installation starts anywhere during these times (UTC), like a planned global pause; search and reporting continue</span></header>
+    <header class="box-head"><h2>Blackout periods</h2><span class="hint">No installation starts anywhere during these times, like a planned global pause; search and reporting continue</span></header>
     <div class="scroll">
         <table>
-            <thead><tr><th>Start (UTC)</th><th>End (UTC)</th><th>Reason</th><th>State</th><th class="n">Actions</th></tr></thead>
+            <thead><tr><th>Start</th><th>End</th><th>Reason</th><th>State</th><th class="n">Actions</th></tr></thead>
             <tbody>
                 @if (_blackouts.Count == 0)
                 {
@@ -109,8 +109,8 @@
     </div>
     <div class="box-body form">
         <div class="form-row">
-            <label class="field"><span>Start (UTC)</span><input name="BlackoutStart" type="datetime-local" /></label>
-            <label class="field"><span>End (UTC)</span><input name="BlackoutEnd" type="datetime-local" /></label>
+            <div class="field"><span class="field-label">Start</span><span class="date-time"><input name="BlackoutStartDate" type="date" aria-label="Start date" /><select name="BlackoutStartTime" aria-label="Start time">@foreach (var time in WindowPickerForm.Times(null, includeEndOfDay: false)) { <option value="@WindowPickerForm.Format(time)">@WindowPickerForm.Format(time)</option> }</select></span></div>
+            <div class="field"><span class="field-label">End</span><span class="date-time"><input name="BlackoutEndDate" type="date" aria-label="End date" /><select name="BlackoutEndTime" aria-label="End time">@foreach (var time in WindowPickerForm.Times(null, includeEndOfDay: false)) { <option value="@WindowPickerForm.Format(time)">@WindowPickerForm.Format(time)</option> }</select></span></div>
             <label class="field"><span>Reason</span><input name="BlackoutReason" maxlength="@SUSyphos.Server.Agents.BlackoutPeriods.MaxReasonLength" placeholder="e.g. year-end freeze" /></label>
         </div>
     </div>
@@ -173,8 +173,16 @@
     }
 
     [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutAction { get; set; }
-    [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutStart { get; set; }
-    [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutEnd { get; set; }
+    [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutStartDate { get; set; }
+    [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutStartTime { get; set; }
+    [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutEndDate { get; set; }
+    [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutEndTime { get; set; }
+
+    /// <summary>Date and 24-hour time entered in the time zone of the central server, as UTC; null if either is missing or invalid.</summary>
+    private static DateTime? ParseLocal(string? date, string? time) =>
+        DateTime.TryParseExact($"{date} {time}", "yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var local)
+            ? DisplayTime.ToUtc(local)
+            : null;
     [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutReason { get; set; }
 
     private IReadOnlyList<SUSyphos.Server.Agents.BlackoutPeriod> _blackouts = [];
@@ -185,9 +193,7 @@
         Outcome outcome;
         if (BlackoutAction == "add")
         {
-            var invariant = System.Globalization.CultureInfo.InvariantCulture;
-            var styles = System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal;
-            outcome = DateTime.TryParseExact(BlackoutStart, "yyyy-MM-ddTHH:mm", invariant, styles, out var start) && DateTime.TryParseExact(BlackoutEnd, "yyyy-MM-ddTHH:mm", invariant, styles, out var end)
+            outcome = ParseLocal(BlackoutStartDate, BlackoutStartTime) is { } start && ParseLocal(BlackoutEndDate, BlackoutEndTime) is { } end
                 ? await Blackouts.AddAsync(start, end, BlackoutReason, actor, CancellationToken.None)
                 : new Outcome("Enter start and end as date and time.");
         }
@@ -204,7 +210,7 @@
         await LoadAsync();
     }
 
-    private static string Format(DateTime value) => value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Format(DateTime value) => DisplayTime.Format(value);
 
     private async Task LoadAsync()
     {

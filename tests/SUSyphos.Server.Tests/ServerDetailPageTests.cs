@@ -140,11 +140,71 @@ public sealed class ServerDetailPageTests
 
         var dialog = await (await admin.GetAsync(path + "?dialog=restart")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("role=\"dialog\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("Restart in the next maintenance window", dialog, StringComparison.Ordinal);
+
+        // Without a choice nothing is queued.
         using (await admin.PostFormAsync(path + "?dialog=restart", new Dictionary<string, string> { ["_handler"] = "restart" }))
         {
         }
 
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
+
+        using (var queued = await admin.PostFormAsync(path + "?dialog=restart", new Dictionary<string, string> { ["_handler"] = "restart", ["When"] = "now" }))
+        {
+            var html = await queued.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains("Restart queued", html, StringComparison.Ordinal);
+            Assert.Contains("restart now, after a five minute warning", html, StringComparison.Ordinal);
+        }
+
         Assert.True(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(a => a.Kind == AgentActionKind.RestartServer, TestContext.Current.CancellationToken)));
+
+        // A restart the agent has not picked up yet is cancelled on the central server.
+        using (var cancelled = await admin.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "cancel-restart" }))
+        {
+            Assert.DoesNotContain("Restart queued", await cancelled.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(a => a.State == AgentActionState.Queued, TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task RestartInWindow_ShowsThePlannedTime_AndCancelGoesToTheAgent()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var admin = new DashboardClient(scenario.Factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        var path = $"/servers/{client.ClientId}";
+        using (await admin.PostFormAsync(path + "?dialog=restart", new Dictionary<string, string> { ["_handler"] = "restart", ["When"] = "window" }))
+        {
+        }
+
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(a => a.Kind == AgentActionKind.RestartServerInWindow, TestContext.Current.CancellationToken)));
+
+        // The agent took it and reports that it holds the restart with a planned time.
+        await scenario.Factory.WithDbAsync(db => db.AgentActions.ExecuteUpdateAsync(s => s.SetProperty(a => a.State, AgentActionState.Succeeded), TestContext.Current.CancellationToken));
+        var planned = DateTime.UtcNow.AddDays(1);
+        using (var request = new HttpRequestMessage(HttpMethod.Post, new Uri(SUSyphos.Contracts.ApiRoutes.AgentHeartbeat, UriKind.Relative)) { Content = System.Net.Http.Json.JsonContent.Create(new HeartbeatRequest { AgentVersion = "0.7.0", RestartRequested = true, PlannedRestartAt = planned, RebootWait = RebootWait.OutsideWindow }) })
+        {
+            request.Headers.Authorization = AgentCredentials.ToHeader(client.ClientId, client.ClientSecret);
+            using var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken);
+            Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        }
+
+        var page = await (await admin.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Restart queued", page, StringComparison.Ordinal);
+        Assert.Contains($"The agent plans the restart for {DisplayTime.Format(planned)}", page, StringComparison.Ordinal);
+        Assert.Contains("waits for the next maintenance window", page, StringComparison.Ordinal);
+
+        using (await admin.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "cancel-restart" }))
+        {
+        }
+
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(a => a.Kind == AgentActionKind.CancelRestart && a.State == AgentActionState.Queued, TestContext.Current.CancellationToken)));
     }
 
     [Fact]

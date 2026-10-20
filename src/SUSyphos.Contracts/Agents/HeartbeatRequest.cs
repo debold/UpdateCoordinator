@@ -41,4 +41,10 @@ public sealed record HeartbeatRequest
 
     /// <summary>Why a pending reboot waits, or that the agent restarts the server; null when no reboot is pending or not decided yet.</summary>
     public RebootWait? RebootWait { get; init; }
+
+    /// <summary>An administrator requested a restart in the maintenance window and the agent holds it.</summary>
+    public bool RestartRequested { get; init; }
+
+    /// <summary>When the agent plans the requested restart (start of the next suitable window); null if it cannot tell.</summary>
+    public DateTimeOffset? PlannedRestartAt { get; init; }
 }
