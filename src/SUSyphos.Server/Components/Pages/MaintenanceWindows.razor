@@ -50,7 +50,7 @@
 
     <form method="post" @formname="automatic-updates" @onsubmit="SaveAutomaticUpdatesAsync" class="box">
         <AntiforgeryToken />
-        <header class="box-head"><h2>Windows Automatic Updates</h2></header>
+        <header class="box-head"><h2>Windows Automatic Updates and update source</h2></header>
         <div class="box-body form">
             <label class="field"><span>System default</span>
                 <select name="AutomaticUpdates">
@@ -62,6 +62,17 @@
                 With "keep Windows from installing on its own" the agent sets "Configure Automatic Updates" to option 3 (download, notify before
                 install) on servers where no group policy controls it, and restores the setting when it is switched off. Group policy always wins.
                 Groups can override this default ("leave unchanged" in one group wins).
+            </p>
+            <label class="field"><span>Other Microsoft products</span>
+                <select name="MicrosoftUpdate">
+                    <option value="windows" selected="@(!_useMicrosoftUpdate)">Windows Update only</option>
+                    <option value="microsoft" selected="@_useMicrosoftUpdate">Microsoft Update: also SQL Server, Office and other Microsoft products</option>
+                </select>
+            </label>
+            <p class="note">
+                With Microsoft Update the agent registers the Microsoft Update service (like "Receive updates for other Microsoft products") and
+                searches and installs through it, also on servers that otherwise use WSUS. Switched off, it removes only a registration it made itself.
+                Groups can override this default ("Windows Update only" in one group wins).
             </p>
         </div>
         <footer class="box-foot"><span></span><button type="submit" class="primary">Save</button></footer>
@@ -124,6 +135,11 @@
     [SupplyParameterFromForm(FormName = "automatic-updates")]
     private string? AutomaticUpdates { get; set; }
 
+    [SupplyParameterFromForm(FormName = "automatic-updates")]
+    private string? MicrosoftUpdate { get; set; }
+
+    private bool _useMicrosoftUpdate;
+
     [CascadingParameter]
     private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
 
@@ -168,7 +184,18 @@
             "leave" => await Administration.SetSystemManageAutomaticUpdatesAsync(false, await GetActorAsync(), CancellationToken.None),
             _ => new Outcome("The Automatic Updates setting is invalid."),
         };
-        ShowResult(outcome.Error, "The Automatic Updates setting was saved and is delivered to the agents.");
+        if (outcome.Succeeded)
+        {
+            outcome = MicrosoftUpdate switch
+            {
+                "microsoft" => await Administration.SetSystemMicrosoftUpdateAsync(true, await GetActorAsync(), CancellationToken.None),
+                "windows" => await Administration.SetSystemMicrosoftUpdateAsync(false, await GetActorAsync(), CancellationToken.None),
+                null => Outcome.Ok,
+                _ => new Outcome("The Microsoft Update setting is invalid."),
+            };
+        }
+
+        ShowResult(outcome.Error, "The update source settings were saved and are delivered to the agents.");
         await LoadAsync();
     }
 
@@ -218,5 +245,6 @@
         _current = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
         _reboot = await Assignment.GetSystemRebootPolicyAsync(CancellationToken.None);
         _manageAutomaticUpdates = await Assignment.GetSystemManageAutomaticUpdatesAsync(CancellationToken.None);
+        _useMicrosoftUpdate = await Assignment.GetSystemMicrosoftUpdateAsync(CancellationToken.None);
     }
 }

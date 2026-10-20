@@ -21,7 +21,7 @@ public sealed class InventoryIntegrationTests(ServerFactory factory) : IClassFix
     [Fact]
     public async Task WuaApi_ReturnsInstalledUpdatesWithValidIdentity()
     {
-        var source = new WuaInstalledUpdateSource(TimeProvider.System, NullLogger<WuaInstalledUpdateSource>.Instance);
+        var source = new WuaInstalledUpdateSource(TimeProvider.System, new SUSyphos.Agent.Updates.UpdateServiceSelection(), NullLogger<WuaInstalledUpdateSource>.Instance);
 
         var updates = await source.GetInstalledUpdatesAsync(TestContext.Current.CancellationToken);
 
@@ -41,7 +41,7 @@ public sealed class InventoryIntegrationTests(ServerFactory factory) : IClassFix
         var options = Options.Create(new InventoryOptions());
         var collector = new InventoryCollector(
             probe,
-            new WuaInstalledUpdateSource(TimeProvider.System, NullLogger<WuaInstalledUpdateSource>.Instance),
+            new WuaInstalledUpdateSource(TimeProvider.System, new SUSyphos.Agent.Updates.UpdateServiceSelection(), NullLogger<WuaInstalledUpdateSource>.Instance),
             new RoleDetector(probe, options),
             new AgentEnvironment(probe));
         var inventory = await collector.CollectAsync(TestContext.Current.CancellationToken);

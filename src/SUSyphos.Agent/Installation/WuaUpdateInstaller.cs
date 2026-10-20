@@ -19,7 +19,7 @@ internal interface IUpdateInstaller
 /// installed in one cycle, so several updates share one reboot later. Download and installation run as asynchronous
 /// WUA jobs, so their progress reaches the live status; if WUA refuses the asynchronous calls, the synchronous ones are used.
 /// </summary>
-internal sealed partial class WuaUpdateInstaller(Status.ActivityTracker activity, ILogger<WuaUpdateInstaller> logger) : IUpdateInstaller
+internal sealed partial class WuaUpdateInstaller(Status.ActivityTracker activity, Updates.UpdateServiceSelection selection, ILogger<WuaUpdateInstaller> logger) : IUpdateInstaller
 {
     /// <summary>How often a running job is asked for its progress.</summary>
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
@@ -49,6 +49,12 @@ internal sealed partial class WuaUpdateInstaller(Status.ActivityTracker activity
                 batch.Select(r => string.Create(CultureInfo.InvariantCulture, $"(UpdateID='{r.UpdateId:D}' and RevisionNumber={r.Revision})")));
             dynamic searcher = com.Track(session.CreateUpdateSearcher());
             searcher.Online = true;
+            if (selection.ServiceId is { } serviceId)
+            {
+                // The released update may come from Microsoft Update; look it up where the search found it.
+                WuaSearch.ApplyService(searcher, 0, serviceId);
+            }
+
             dynamic found = com.Track(com.Track(searcher.Search(criteria)).Updates);
 
             dynamic collection = com.Track(Activator.CreateInstance(Type.GetTypeFromProgID(CollectionProgId, throwOnError: true)!)!);

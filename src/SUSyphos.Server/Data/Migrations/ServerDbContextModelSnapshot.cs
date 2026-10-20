@@ -498,6 +498,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<int>("EffectiveRebootPolicy")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("EffectiveUseMicrosoftUpdate")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("EffectiveWindowsJson")
                         .HasMaxLength(8192)
                         .HasColumnType("TEXT");
@@ -768,6 +771,9 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("RebootPolicy")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("UseMicrosoftUpdate")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");

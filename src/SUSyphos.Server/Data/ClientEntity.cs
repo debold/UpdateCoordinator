@@ -137,6 +137,9 @@ internal sealed class ClientEntity
     /// <summary>Effective setting delivered to the agent: keep Windows from installing updates on its own (docs/05-agent-design.md, section 3).</summary>
     public bool EffectiveManageAutomaticUpdates { get; set; }
 
+    /// <summary>Effective setting delivered to the agent: search and install through Microsoft Update as well.</summary>
+    public bool EffectiveUseMicrosoftUpdate { get; set; }
+
     /// <summary>The server is in at least one coordinated group and needs a lease before installing or rebooting.</summary>
     public bool RequiresLease { get; set; }
 }

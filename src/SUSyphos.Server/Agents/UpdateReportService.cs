@@ -72,7 +72,7 @@ internal sealed partial class UpdateReportService(
 
     public async Task<ReleaseList> GetReleasesAsync(Guid clientId, CancellationToken cancellationToken)
     {
-        var client = await db.Clients.Where(c => c.Id == clientId).Select(c => new { c.ReleasesVersion, c.EffectiveWindowsJson, c.EffectiveRebootPolicy, c.RequiresLease, c.EffectiveManageAutomaticUpdates }).SingleAsync(cancellationToken).ConfigureAwait(false);
+        var client = await db.Clients.Where(c => c.Id == clientId).Select(c => new { c.ReleasesVersion, c.EffectiveWindowsJson, c.EffectiveRebootPolicy, c.RequiresLease, c.EffectiveManageAutomaticUpdates, c.EffectiveUseMicrosoftUpdate }).SingleAsync(cancellationToken).ConfigureAwait(false);
         var rows = await db.Releases
             .Where(r => r.ClientId == clientId)
             .OrderBy(r => r.EarliestInstallAtUtc)
@@ -86,7 +86,8 @@ internal sealed partial class UpdateReportService(
             MaintenanceWindowFormat.FromJson(client.EffectiveWindowsJson),
             client.EffectiveRebootPolicy,
             client.RequiresLease,
-            client.EffectiveManageAutomaticUpdates);
+            client.EffectiveManageAutomaticUpdates,
+            client.EffectiveUseMicrosoftUpdate);
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Client {ClientId}: pre-flight check failed ({Checks}).")]

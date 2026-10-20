@@ -327,13 +327,20 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
     }
 
     /// <summary>System default: whether agents keep Windows from installing updates on its own (docs/05-agent-design.md, section 3).</summary>
-    public async Task<Outcome> SetSystemManageAutomaticUpdatesAsync(bool manage, string actor, CancellationToken cancellationToken)
+    public Task<Outcome> SetSystemManageAutomaticUpdatesAsync(bool manage, string actor, CancellationToken cancellationToken) =>
+        SetSystemFlagAsync(SettingEntity.SystemManageAutomaticUpdates, manage, actor, "AutomaticUpdates.SystemDefaultChanged", manage ? "prevent automatic installation" : "leave unchanged", cancellationToken);
+
+    /// <summary>System default: whether agents also search and install through Microsoft Update (other Microsoft products).</summary>
+    public Task<Outcome> SetSystemMicrosoftUpdateAsync(bool use, string actor, CancellationToken cancellationToken) =>
+        SetSystemFlagAsync(SettingEntity.SystemMicrosoftUpdate, use, actor, "MicrosoftUpdate.SystemDefaultChanged", use ? "Microsoft Update" : "Windows Update only", cancellationToken);
+
+    private async Task<Outcome> SetSystemFlagAsync(string key, bool on, string actor, string auditAction, string text, CancellationToken cancellationToken)
     {
-        var value = manage ? "true" : "false";
-        var setting = await db.Settings.SingleOrDefaultAsync(s => s.Key == SettingEntity.SystemManageAutomaticUpdates, cancellationToken).ConfigureAwait(false);
+        var value = on ? "true" : "false";
+        var setting = await db.Settings.SingleOrDefaultAsync(s => s.Key == key, cancellationToken).ConfigureAwait(false);
         if (setting is null)
         {
-            db.Settings.Add(new SettingEntity { Key = SettingEntity.SystemManageAutomaticUpdates, Value = value });
+            db.Settings.Add(new SettingEntity { Key = key, Value = value });
         }
         else
         {
@@ -341,7 +348,27 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return await CompleteAsync(actor, "AutomaticUpdates.SystemDefaultChanged", "system default", manage ? "prevent automatic installation" : "leave unchanged", null, cancellationToken).ConfigureAwait(false);
+        return await CompleteAsync(actor, auditAction, "system default", text, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Sets the Microsoft Update handling of a group; null leaves it to other groups or the system default.</summary>
+    public async Task<Outcome> SetGroupMicrosoftUpdateAsync(int groupId, bool? use, string actor, CancellationToken cancellationToken)
+    {
+        var group = await db.Groups.SingleOrDefaultAsync(g => g.Id == groupId, cancellationToken).ConfigureAwait(false);
+        if (group is null)
+        {
+            return new Outcome("The group no longer exists.");
+        }
+
+        if (group.UseMicrosoftUpdate == use)
+        {
+            return Outcome.Ok;
+        }
+
+        group.UseMicrosoftUpdate = use;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        var text = use switch { true => "Microsoft Update", false => "Windows Update only", null => "inherited" };
+        return await CompleteAsync(actor, "Group.MicrosoftUpdateChanged", group.Name, text, null, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Sets the Automatic Updates handling of a group; null leaves it to other groups or the system default.</summary>

@@ -284,6 +284,7 @@ public sealed class AgentWorkerTests
         new SUSyphos.Agent.Actions.ActionRunner(_client, _updates, _inventory, _restarter, new FakeRestart(), _installation, new FakeLogCollector(), Options.Create(new SUSyphos.Agent.Installation.InstallationOptions()), NullLogger<SUSyphos.Agent.Actions.ActionRunner>.Instance),
         AgentSelfUpdaterTests.CreateDisabled("1.2.3"),
         AutomaticUpdatesManagerTests.Create(new FakeSystemProbe(), new FakeRegistryWriter(new FakeSystemProbe())),
+        MicrosoftUpdateManagerTests.Create(new FakeSystemProbe(), new FakeUpdateServiceRegistry(), new SUSyphos.Agent.Updates.UpdateServiceSelection()),
         new ResourceGuard(_process, _restarter, Options.Create(new ResourceOptions()), NullLogger<ResourceGuard>.Instance),
         _activity,
         Options.Create(new CentralServerOptions

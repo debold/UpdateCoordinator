@@ -62,7 +62,7 @@ public sealed class AutomaticUpdatesControlTests
 
         using (var saved = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "prevent" }))
         {
-            Assert.Contains("Automatic Updates setting was saved", await saved.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            Assert.Contains("update source settings were saved", await saved.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
         Assert.Equal("true", await factory.WithDbAsync(db => db.Settings.Where(s => s.Key == SettingEntity.SystemManageAutomaticUpdates).Select(s => s.Value).SingleAsync(TestContext.Current.CancellationToken)));
@@ -71,6 +71,51 @@ public sealed class AutomaticUpdatesControlTests
         {
             Assert.Contains("setting is invalid", await invalid.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
+
+        using (var microsoft = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "leave", ["MicrosoftUpdate"] = "microsoft" }))
+        {
+            Assert.Contains("update source settings were saved", await microsoft.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.Equal("true", await factory.WithDbAsync(db => db.Settings.Where(s => s.Key == SettingEntity.SystemMicrosoftUpdate).Select(s => s.Value).SingleAsync(TestContext.Current.CancellationToken)));
+
+        using (var invalid = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "leave", ["MicrosoftUpdate"] = "bing" }))
+        {
+            Assert.Contains("Microsoft Update setting is invalid", await invalid.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task MicrosoftUpdate_DefaultIsOff_GroupsOverride_AndWindowsUpdateOnlyWins()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        Assert.False((await scenario.ReleasesAsync(client)).UseMicrosoftUpdate);
+
+        Assert.True((await scenario.WithServiceAsync<AssignmentAdministration, Outcome>(a => a.SetSystemMicrosoftUpdateAsync(true, "admin", CancellationToken.None))).Succeeded);
+        Assert.True((await scenario.ReleasesAsync(client)).UseMicrosoftUpdate);
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(a => a.Action == "MicrosoftUpdate.SystemDefaultChanged", TestContext.Current.CancellationToken)));
+
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            db.Groups.Add(new GroupEntity { Id = 30, Name = "Windows only" });
+            db.ClientGroups.Add(new ClientGroupEntity { ClientId = client.ClientId, GroupId = 30, Manual = true });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        Assert.True((await scenario.WithServiceAsync<AssignmentAdministration, Outcome>(a => a.SetGroupMicrosoftUpdateAsync(30, false, "admin", CancellationToken.None))).Succeeded);
+        Assert.False((await scenario.ReleasesAsync(client)).UseMicrosoftUpdate);
+
+        Assert.False((await scenario.WithServiceAsync<AssignmentAdministration, Outcome>(a => a.SetGroupMicrosoftUpdateAsync(999, true, "admin", CancellationToken.None))).Succeeded);
+    }
+
+    [Theory]
+    [InlineData(false, new bool[0], false)]
+    [InlineData(true, new bool[0], true)]
+    [InlineData(false, new[] { true }, true)]
+    [InlineData(true, new[] { true, false }, false)]
+    public void Effective_GroupsDecide_AndTheCautiousChoiceWins(bool system, bool[] groups, bool expected)
+    {
+        Assert.Equal(expected, AssignmentService.Effective(system, [.. groups.Select(g => (bool?)g), null]));
     }
 
     [Fact]

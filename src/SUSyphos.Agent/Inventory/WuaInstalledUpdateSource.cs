@@ -17,7 +17,7 @@ internal interface IInstalledUpdateSource
 /// <summary>
 /// Installed updates from the local WUA cache (Online = false), so no internet access is needed.
 /// </summary>
-internal sealed partial class WuaInstalledUpdateSource(TimeProvider timeProvider, ILogger<WuaInstalledUpdateSource> logger) : IInstalledUpdateSource
+internal sealed partial class WuaInstalledUpdateSource(TimeProvider timeProvider, Updates.UpdateServiceSelection selection, ILogger<WuaInstalledUpdateSource> logger) : IInstalledUpdateSource
 {
     private const string InstalledCriteria = "IsInstalled=1 and IsHidden=0";
 
@@ -28,7 +28,7 @@ internal sealed partial class WuaInstalledUpdateSource(TimeProvider timeProvider
             {
                 try
                 {
-                    return WuaSearch.Search(InstalledCriteria, online: false, serverSelection: 0);
+                    return WuaSearch.Search(InstalledCriteria, online: false, serverSelection: 0, selection.ServiceId);
                 }
                 catch (WuaException ex)
                 {

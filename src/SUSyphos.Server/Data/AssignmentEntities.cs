@@ -49,6 +49,9 @@ internal sealed class GroupEntity
     /// <summary>Whether agents in the group keep Windows from installing updates on its own; null leaves it to other groups or the system default.</summary>
     public bool? ManageAutomaticUpdates { get; set; }
 
+    /// <summary>Whether agents in the group use Microsoft Update (other Microsoft products); null leaves it to other groups or the system default.</summary>
+    public bool? UseMicrosoftUpdate { get; set; }
+
     /// <summary>Members install and reboot only with a lease, so not all of them are down at the same time.</summary>
     public bool Coordinated { get; set; }
 
@@ -117,6 +120,8 @@ internal sealed class SettingEntity
     public const string SystemRebootPolicy = "Reboot.SystemDefault";
 
     public const string SystemManageAutomaticUpdates = "AutomaticUpdates.SystemDefault";
+
+    public const string SystemMicrosoftUpdate = "MicrosoftUpdate.SystemDefault";
 
     public required string Key { get; set; }
 

@@ -57,6 +57,9 @@ internal static class AgentHostBuilder
         services.AddSingleton<IInventoryReporter, InventoryReporter>();
         services.AddSingleton<IRegistryWriter, WindowsRegistryWriter>();
         services.AddSingleton<AutomaticUpdatesManager>();
+        services.AddSingleton<UpdateServiceSelection>();
+        services.AddSingleton<IUpdateServiceRegistry, WuaUpdateServiceRegistry>();
+        services.AddSingleton<MicrosoftUpdateManager>();
 
         services.AddOptions<UpdateOptions>()
             .Bind(configuration.GetSection(UpdateOptions.SectionName))

@@ -476,6 +476,8 @@ Where to see it: server detail ("Automatic updates" in the System box, tag "bypa
 
 Note: on Windows Server 2016 and 2019 a group policy refresh can briefly reset the setting to the Windows default (Microsoft known issue "Windows unexpectedly installs updates when automatic updates are disabled by Group Policy"). With option 3 or 7 and no configured schedule this has no effect.
 
+**Microsoft Update (other Microsoft products):** Administration → Maintenance windows, box "Windows Automatic Updates and update source", sets the system default "Windows Update only" or "Microsoft Update"; groups can override it, and "Windows Update only" in one group wins. With Microsoft Update the agent registers the Microsoft Update service and searches and installs through it (also on servers that use WSUS), so SQL Server, Office and other Microsoft products are updated by the rings as well. Switched off, the agent removes only a registration it made itself (registry marker `RegisteredMicrosoftUpdate` under `HKLM\SOFTWARE\SUSyphos\Agent`).
+
 ## 22. Agents: installation and self-update
 
 Dashboard page **Agents** (role `Operator` to download, `Admin` to check and release).

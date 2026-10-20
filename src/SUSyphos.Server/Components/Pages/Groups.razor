@@ -105,6 +105,13 @@
                             <option value="prevent" selected="@(group?.ManageAutomaticUpdates == true)">Keep Windows from installing on its own</option>
                         </select>
                     </label>
+                    <label class="field"><span>Other Microsoft products</span>
+                        <select name="MicrosoftUpdate">
+                            <option value="" selected="@(group?.UseMicrosoftUpdate is null)">Inherit from the system default</option>
+                            <option value="windows" selected="@(group?.UseMicrosoftUpdate == false)">Windows Update only</option>
+                            <option value="microsoft" selected="@(group?.UseMicrosoftUpdate == true)">Microsoft Update</option>
+                        </select>
+                    </label>
                 </div>
                 <div class="form-row">
                     <fieldset class="gated">
@@ -154,6 +161,9 @@ else if (_dialog == "delete" && Editing is { } doomed)
 
     [SupplyParameterFromForm(FormName = "group-dialog")]
     private string? AutomaticUpdates { get; set; }
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? MicrosoftUpdate { get; set; }
 
     [SupplyParameterFromForm(FormName = "group-dialog")]
     private string? Coordinated { get; set; }
@@ -219,6 +229,10 @@ else if (_dialog == "delete" && Editing is { } doomed)
             {
                 outcome = new Outcome("The Automatic Updates setting is invalid.");
             }
+            else if (MicrosoftUpdate is not (null or "" or "windows" or "microsoft"))
+            {
+                outcome = new Outcome("The Microsoft Update setting is invalid.");
+            }
             else if (!int.TryParse(Percent, System.Globalization.NumberStyles.None, invariant, out var percent) || !int.TryParse(Max, System.Globalization.NumberStyles.None, invariant, out var maximum))
             {
                 outcome = new Outcome("Share and maximum must be whole numbers.");
@@ -255,6 +269,12 @@ else if (_dialog == "delete" && Editing is { } doomed)
                 {
                     bool? manage = AutomaticUpdates switch { "prevent" => true, "leave" => false, _ => null };
                     outcome = await Administration.SetGroupManageAutomaticUpdatesAsync(automaticGroup, manage, actor, CancellationToken.None);
+                }
+
+                if (outcome.Succeeded && groupId is { } sourceGroup)
+                {
+                    bool? use = MicrosoftUpdate switch { "microsoft" => true, "windows" => false, _ => null };
+                    outcome = await Administration.SetGroupMicrosoftUpdateAsync(sourceGroup, use, actor, CancellationToken.None);
                 }
 
                 if (outcome.Succeeded && groupId is { } coordinatedGroup)

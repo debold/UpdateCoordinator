@@ -12,7 +12,7 @@ internal interface IAvailableUpdateSearch
     Task<IReadOnlyList<WuaUpdate>> SearchAsync(CancellationToken cancellationToken);
 }
 
-internal sealed class WuaAvailableUpdateSearch(IOptions<UpdateOptions> options) : IAvailableUpdateSearch
+internal sealed class WuaAvailableUpdateSearch(IOptions<UpdateOptions> options, UpdateServiceSelection selection) : IAvailableUpdateSearch
 {
     /// <summary>Every update type Windows Update offers, software and drivers alike (no Type criterion).</summary>
     internal const string AvailableCriteria = "IsInstalled=0 and IsHidden=0";
@@ -20,6 +20,6 @@ internal sealed class WuaAvailableUpdateSearch(IOptions<UpdateOptions> options) 
     public Task<IReadOnlyList<WuaUpdate>> SearchAsync(CancellationToken cancellationToken) =>
         // Online search against the configured source; synchronous COM, so it runs off the caller's thread.
         Task.Run<IReadOnlyList<WuaUpdate>>(
-            () => WuaSearch.Search(AvailableCriteria, online: true, serverSelection: (int)options.Value.Source),
+            () => WuaSearch.Search(AvailableCriteria, online: true, serverSelection: (int)options.Value.Source, selection.ServiceId),
             cancellationToken);
 }

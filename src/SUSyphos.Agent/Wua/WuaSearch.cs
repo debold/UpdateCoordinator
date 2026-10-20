@@ -42,7 +42,8 @@ internal static class WuaSearch
     /// <param name="criteria">WUA search criteria, e.g. "IsInstalled=0 and IsHidden=0".</param>
     /// <param name="online">False searches only the local cache, true contacts the update source.</param>
     /// <param name="serverSelection">0 = system default (Windows Update or WSUS by policy), 2 = Windows Update.</param>
-    public static List<WuaUpdate> Search(string criteria, bool online, int serverSelection)
+    /// <param name="serviceId">Update service to search instead of the server selection (e.g. Microsoft Update); null for the selection.</param>
+    public static List<WuaUpdate> Search(string criteria, bool online, int serverSelection, string? serviceId = null)
     {
         using var com = new ComScope();
         try
@@ -54,7 +55,7 @@ internal static class WuaSearch
             session.ClientApplicationID = "SUSyphos.Agent";
             dynamic searcher = com.Track(session.CreateUpdateSearcher());
             searcher.Online = online;
-            searcher.ServerSelection = serverSelection;
+            ApplyService(searcher, serverSelection, serviceId);
             dynamic result = com.Track(searcher.Search(criteria));
             dynamic updates = com.Track(result.Updates);
 
@@ -85,6 +86,23 @@ internal static class WuaSearch
         catch (Exception ex) when (ex is InvalidCastException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException)
         {
             throw new WuaException($"Windows Update search failed: {ex.Message}", ex.HResult, ex);
+        }
+    }
+
+    /// <summary>ssOthers: search the given registered service, e.g. Microsoft Update.</summary>
+    private const int OtherServiceSelection = 3;
+
+    /// <summary>Points a searcher at the server selection, or at a registered service such as Microsoft Update.</summary>
+    internal static void ApplyService(dynamic searcher, int serverSelection, string? serviceId)
+    {
+        if (serviceId is null)
+        {
+            searcher.ServerSelection = serverSelection;
+        }
+        else
+        {
+            searcher.ServerSelection = OtherServiceSelection;
+            searcher.ServiceID = serviceId;
         }
     }
 

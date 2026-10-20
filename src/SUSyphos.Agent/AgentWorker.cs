@@ -30,6 +30,7 @@ internal sealed partial class AgentWorker(
     IActionRunner actions,
     SelfUpdate.AgentSelfUpdater selfUpdate,
     AutomaticUpdatesManager automaticUpdates,
+    MicrosoftUpdateManager microsoftUpdate,
     ResourceGuard resources,
     Status.ActivityTracker activity,
     IOptions<CentralServerOptions> options,
@@ -156,6 +157,7 @@ internal sealed partial class AgentWorker(
         try
         {
             automaticUpdates.Apply(releases.Current.ManageAutomaticUpdates);
+            microsoftUpdate.Apply(releases.Current.UseMicrosoftUpdate);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {

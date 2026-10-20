@@ -29,7 +29,7 @@ public sealed class UpdateSearchIntegrationTests(ServerFactory factory) : IClass
         var options = Options.Create(new UpdateOptions());
         var reporter = new UpdateReporter(
             new PreFlightCheck(new WindowsSystemProbe(), new DiskSpace(), options),
-            new WuaAvailableUpdateSearch(options),
+            new WuaAvailableUpdateSearch(options, new UpdateServiceSelection()),
             client,
             new SUSyphos.Agent.Status.ActivityTracker(TimeProvider.System),
             options,
