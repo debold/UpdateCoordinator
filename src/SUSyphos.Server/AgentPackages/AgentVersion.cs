@@ -47,14 +47,6 @@ internal sealed partial record AgentVersion(int Major, int Minor, int Patch, str
         ? (Math.Min(version.Major, 999_999L) * 1_000_000_000_000L) + (Math.Min(version.Minor, 999_999L) * 1_000_000L) + Math.Min(version.Patch, 999_999L)
         : -1;
 
-    /// <summary>First agent version that understands week rules of maintenance windows (monthly windows).</summary>
-    public const string WeekRulesSince = "0.7.1";
-
-    /// <summary>
-    /// True if the agent understands week rules; development builds of that version count (prerelease is ignored), unknown
-    /// versions do not.
-    /// </summary>
-    public static bool SupportsWeekRules(string? agentVersion) => SortKey(agentVersion) >= SortKey(WeekRulesSince);
 
     public int CompareTo(AgentVersion? other)
     {

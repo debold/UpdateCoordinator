@@ -72,7 +72,7 @@ internal sealed partial class UpdateReportService(
 
     public async Task<ReleaseList> GetReleasesAsync(Guid clientId, CancellationToken cancellationToken)
     {
-        var client = await db.Clients.Where(c => c.Id == clientId).Select(c => new { c.AgentVersion, c.ReleasesVersion, c.EffectiveWindowsJson, c.EffectiveRebootPolicy, c.RequiresLease, c.EffectiveManageAutomaticUpdates, c.EffectiveUseMicrosoftUpdate }).SingleAsync(cancellationToken).ConfigureAwait(false);
+        var client = await db.Clients.Where(c => c.Id == clientId).Select(c => new { c.ReleasesVersion, c.EffectiveWindowsJson, c.EffectiveRebootPolicy, c.RequiresLease, c.EffectiveManageAutomaticUpdates, c.EffectiveUseMicrosoftUpdate }).SingleAsync(cancellationToken).ConfigureAwait(false);
         var rows = await db.Releases
             .Where(r => r.ClientId == clientId)
             .OrderBy(r => r.EarliestInstallAtUtc)
@@ -80,20 +80,11 @@ internal sealed partial class UpdateReportService(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        // An agent that does not know week rules would treat a monthly window as weekly: it gets nothing to install and no
-        // permission to reboot until it is updated, so it never acts outside the intended windows.
-        var windows = MaintenanceWindowFormat.FromJson(client.EffectiveWindowsJson);
-        var held = windows is not null && windows.Any(w => w.HasWeekRule) && !AgentPackages.AgentVersion.SupportsWeekRules(client.AgentVersion);
-        if (held)
-        {
-            rows.Clear();
-        }
-
         return new ReleaseList(
             client.ReleasesVersion,
             [.. rows.Select(r => new Release(r.UpdateId, r.Revision, new DateTimeOffset(DateTime.SpecifyKind(r.EarliestInstallAtUtc, DateTimeKind.Utc))))],
-            windows,
-            held ? RebootPolicy.Never : client.EffectiveRebootPolicy,
+            MaintenanceWindowFormat.FromJson(client.EffectiveWindowsJson),
+            client.EffectiveRebootPolicy,
             client.RequiresLease,
             client.EffectiveManageAutomaticUpdates,
             client.EffectiveUseMicrosoftUpdate);

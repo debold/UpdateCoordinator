@@ -107,7 +107,7 @@ Implemented (2026-10-18): the rings `Pilot`, `Test` and `Production` are fixed. 
 
 ## 4. Maintenance windows
 
-**Weeks of the month (Marc, 2026-10-20):** a window can apply only in some occurrences of its weekday in the month (1st to 4th, last) or in all except some of them, e.g. "2nd Tuesday 22:00–02:00" or "every Saturday except the last". The occurrence of the day the window starts counts. Stored as `weeks`/`exceptWeeks` in the window; agents from 0.7.1 evaluate it (shared `MaintenanceSchedule`), older agents receive no releases and reboot policy "Never" while such windows apply.
+**Weeks of the month (Marc, 2026-10-20):** a window can apply only in some occurrences of its weekday in the month (1st to 4th, last) or in all except some of them, e.g. "2nd Tuesday 22:00–02:00" or "every Saturday except the last". The occurrence of the day the window starts counts. Stored as `weeks`/`exceptWeeks` in the window; agents from 0.7.1 evaluate it (shared `MaintenanceSchedule`). Older agents are not handled specially before the first production release (Marc, 2026-10-20).
 
 Three levels following the same pattern: **system default** (Mon–Fri 19:00–05:00, Sat/Sun all day, changeable in the dashboard) → **group level** → **individual server**.
 
