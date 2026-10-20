@@ -32,7 +32,7 @@ internal sealed class ProtectedInstallationStateStore(string filePath, ILogger<P
     public static string DefaultPath { get; } = Path.Combine(DataPaths.Agent, "installations.dat");
 
     private readonly ProtectedJsonFile<InstallationState> _file = new(
-        new ProtectedFile(filePath, "UpdateCoordinator.Agent.Installations.v1", logger),
+        new ProtectedFile(filePath, "SUSyphos.Agent.Installations.v1", logger),
         logger);
 
     public InstallationState Load()

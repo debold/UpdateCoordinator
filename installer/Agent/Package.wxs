@@ -57,15 +57,6 @@
     <SetProperty Id="SERVERURL" Value="[FILENAMESERVERURL]" After="ReadInstallerFileName" Sequence="first" Condition="NOT SERVERURL AND FILENAMESERVERURL" />
     <SetProperty Action="SetServerUrlFromInstalled" Id="SERVERURL" Value="[INSTALLEDSERVERURL]" After="SetSERVERURL" Sequence="first" Condition="NOT SERVERURL AND INSTALLEDSERVERURL" />
 
-    <!-- Installations from before the rename (UpdateCoordinator) keep their address on upgrade; their policy key still counts. -->
-    <Property Id="LEGACYSERVERURL" Secure="yes">
-      <RegistrySearch Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
-    </Property>
-    <Property Id="LEGACYPOLICYSERVERURL" Secure="yes">
-      <RegistrySearch Root="HKLM" Key="SOFTWARE\Policies\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
-    </Property>
-    <SetProperty Action="SetServerUrlFromLegacy" Id="SERVERURL" Value="[LEGACYSERVERURL]" After="SetServerUrlFromInstalled" Sequence="first" Condition="NOT SERVERURL AND LEGACYSERVERURL" />
-
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="ProductFolder" Name="SUSyphos">
         <Directory Id="INSTALLFOLDER" Name="Agent" />
@@ -107,7 +98,7 @@
     </Component>
 
     <!-- Started only when an address is known; without one the service would only fail its option validation. -->
-    <Component Id="AgentServiceStart" Directory="INSTALLFOLDER" Condition="SERVERURL OR POLICYSERVERURL OR LEGACYPOLICYSERVERURL" Guid="7D4C2E31-9B7F-4A46-8F65-0E3A0D7B1C52">
+    <Component Id="AgentServiceStart" Directory="INSTALLFOLDER" Condition="SERVERURL OR POLICYSERVERURL" Guid="7D4C2E31-9B7F-4A46-8F65-0E3A0D7B1C52">
       <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Agent" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
       <ServiceControl Id="AgentServiceStartControl" Name="SUSyphos.Agent" Start="install" Wait="no" />
     </Component>

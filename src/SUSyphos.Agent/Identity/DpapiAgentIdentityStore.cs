@@ -11,7 +11,7 @@ internal sealed partial class DpapiAgentIdentityStore(string filePath, ILogger<D
     public static string DefaultPath { get; } = Path.Combine(DataPaths.Agent, "identity.dat");
 
     private readonly ProtectedJsonFile<AgentIdentity> _file = new(
-        new ProtectedFile(filePath, "UpdateCoordinator.Agent.Identity.v1", logger),
+        new ProtectedFile(filePath, "SUSyphos.Agent.Identity.v1", logger),
         logger);
 
     public AgentIdentity? Load()

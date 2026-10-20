@@ -22,7 +22,7 @@ internal sealed partial class ProtectedTrustStateStore(string filePath, ILogger<
     public static string DefaultPath { get; } = Path.Combine(DataPaths.Agent, "trust.dat");
 
     private readonly ProtectedJsonFile<TrustState> _file = new(
-        new ProtectedFile(filePath, "UpdateCoordinator.Agent.Trust.v1", logger),
+        new ProtectedFile(filePath, "SUSyphos.Agent.Trust.v1", logger),
         logger);
 
     public TrustState Load()

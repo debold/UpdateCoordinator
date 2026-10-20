@@ -238,7 +238,7 @@ New agents register without any secret and stay `Pending` until they are approve
 
 **Manual:** Pending approvals (role `Operator` or `Admin`) lists host name, domain, source IP address, operating system, detected roles and times. Approve or reject; every decision is recorded in the audit log. A server can be decided only once; rejected servers cannot send anything.
 
-**Rule-based (optional):** list DNS domains in `Approval:AutoApproveDomains`. Every `Approval:CheckInterval` (default 1 minute) the central server checks each pending server of such a domain itself:
+**Rule-based (optional):** add DNS domains on the page Approvals, box "Automatic approval" (role `Admin`, audited), or list them in `Approval:AutoApproveDomains` (those can only be removed in the configuration). Every `Approval:CheckInterval` (default 1 minute) the central server checks each pending server of such a domain itself:
 
 1. the computer account `HOST$` exists in Active Directory and is enabled (LDAP with signing and sealing, using the service account of the central server; the central server must be a domain member);
 2. the IP address the registration came from is one of the addresses DNS returns for `host.domain`.
@@ -247,7 +247,7 @@ Only if both checks pass is the server approved, recorded in the audit log as ac
 
 | Key | Default | Meaning |
 |---|---|---|
-| `Approval:AutoApproveDomains` | empty (off) | DNS domains whose verified members are approved automatically |
+| `Approval:AutoApproveDomains` | empty | DNS domains whose verified members are approved automatically, in addition to those added on the dashboard (at most 50) |
 | `Approval:CheckInterval` | `00:01:00` | how often pending servers are checked (10 s to 1 h) |
 
 ## 11. Rings, groups and maintenance windows
@@ -364,7 +364,7 @@ msiexec /i SUSyphos.Agent.msi SERVERURL=https://central.example.local:8443/ /qn 
 
 **Upgrades:** install the newer MSI the same way; options can be left out, the installed values are kept. Downgrades are refused.
 
-**Upgrade from UpdateCoordinator (before 2026-10-20):** the product was renamed to SUSyphos. The SUSyphos packages replace the UpdateCoordinator packages (same upgrade codes): the services `UpdateCoordinator.Server`/`UpdateCoordinator.Agent` are removed and `SUSyphos.Server`/`SUSyphos.Agent` installed under `%ProgramFiles%\SUSyphos`. Address, certificate thumbprint and port are taken from the old installer keys. At its first start each service moves its data from `%ProgramData%\UpdateCoordinator\<Server|Agent>` to `%ProgramData%\SUSyphos\<Server|Agent>` (database, trust anchor, agent identity and trust, logs) and logs it; existing data in the new folder is never overwritten. Agents keep their registration and trust, and own self-signed certificates of the old version are still recognized. Group policy under `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` still applies below `HKLM\SOFTWARE\Policies\SUSyphos\Agent`; move it to the new key when convenient. Agents from 0.4.0 can be updated by the central server (page Agents); older ones need the MSI once. The CI installs the published UpdateCoordinator 0.4.0 and upgrades it (`build/Test-LegacyUpgrade.ps1`). The webhook signature header is now `X-SUSyphos-Signature`, and the dashboard asks for a new sign-in once.
+**Installations from before the rename (UpdateCoordinator, up to 0.4.0):** they are not upgraded; uninstall them, delete `%ProgramData%\UpdateCoordinator` and install SUSyphos anew (only test installations existed, decided by Marc on 2026-10-20).
 
 **Building the installers:** `./build/Build-Installers.ps1` publishes both components and builds the MSIs into `artifacts\installers` (versions from the git tags; `-AgentVersion`/`-ServerVersion` override them). The CI pipeline builds them on every push, installs, upgrades and uninstalls them on the disposable runner and checks services, settings, firewall, the health endpoint and the agent registration (`build/Test-Installers.ps1`, which refuses to run outside CI because it changes the machine).
 

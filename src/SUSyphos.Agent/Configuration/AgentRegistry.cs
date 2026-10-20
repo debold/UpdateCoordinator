@@ -15,9 +15,6 @@ internal static class AgentRegistry
     /// <summary>Written by group policy; overrides the installer values.</summary>
     public const string PolicyKeyPath = @"SOFTWARE\Policies\SUSyphos\Agent";
 
-    /// <summary>Policy key of versions before the rename (UpdateCoordinator).</summary>
-    public const string LegacyPolicyKeyPath = @"SOFTWARE\Policies\" + Common.LegacyData.ProductName + @"\Agent";
-
     /// <summary>Registry value name → configuration key. Only these values are read.</summary>
     internal static readonly IReadOnlyDictionary<string, string> ValueMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -40,8 +37,6 @@ internal static class AgentRegistry
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.Add(new RegistryConfigurationSource(root, keyPrefix + InstallerKeyPath, ValueMap, SafetySwitches));
-        // Group policy written for versions before the rename still wins over the installer, but not over the current policy key.
-        builder.Add(new RegistryConfigurationSource(root, keyPrefix + LegacyPolicyKeyPath, ValueMap, SafetySwitches));
         builder.Add(new RegistryConfigurationSource(root, keyPrefix + PolicyKeyPath, ValueMap, SafetySwitches));
         return builder;
     }

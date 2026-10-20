@@ -24,9 +24,6 @@ internal static class AgentHostBuilder
 
     public static HostApplicationBuilder Create(string[] args)
     {
-        // Data of installations from before the rename (UpdateCoordinator) is taken over once; only as a service, never in tests.
-        var movedLegacyData = Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService()
-            && LegacyData.MoveDataFolder(Path.Combine(LegacyData.Root, "Agent"), DataPaths.Agent);
         var builder = Host.CreateApplicationBuilder(args);
         builder.Configuration.AddAgentRegistry(Registry.LocalMachine);
         builder.Services.AddWindowsService(options => options.ServiceName = ServiceName);
@@ -34,11 +31,6 @@ internal static class AgentHostBuilder
         builder.Services.AddRollingFileLogging(builder.Configuration, Path.Combine(DataPaths.Agent, "Logs"), "agent");
         builder.Services.AddSingleton<ILogCollector>(services => new LogCollector(logDirectory, services.GetRequiredService<TimeProvider>()));
         builder.Services.AddAgent(builder.Configuration);
-        if (movedLegacyData)
-        {
-            builder.Services.AddHostedService<LegacyDataNotice>();
-        }
-
         return builder;
     }
 

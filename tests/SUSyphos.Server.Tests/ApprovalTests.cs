@@ -5,7 +5,6 @@ using System.Net;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 using SUSyphos.Contracts.Agents;
 using SUSyphos.Server.Administration;
@@ -240,20 +239,8 @@ public sealed class RuleBasedApproverTests
         RegisteredFromAddress = address,
     };
 
-    private Task<RuleVerdict> EvaluateAsync(ClientEntity client, List<string>? domains = null)
-    {
-        var options = new StaticOptionsMonitor(new ApprovalOptions { AutoApproveDomains = domains ?? ["example.local"] });
-        return new RuleBasedApprover(_directory, _dns, options).EvaluateAsync(client, TestContext.Current.CancellationToken);
-    }
-
-    private sealed class StaticOptionsMonitor(ApprovalOptions value) : IOptionsMonitor<ApprovalOptions>
-    {
-        public ApprovalOptions CurrentValue => value;
-
-        public ApprovalOptions Get(string? name) => value;
-
-        public IDisposable? OnChange(Action<ApprovalOptions, string?> listener) => null;
-    }
+    private Task<RuleVerdict> EvaluateAsync(ClientEntity client, List<string>? domains = null) =>
+        new RuleBasedApprover(_directory, _dns).EvaluateAsync(client, domains ?? ["example.local"], TestContext.Current.CancellationToken);
 }
 
 public sealed class RuleBasedApprovalWorkerTests

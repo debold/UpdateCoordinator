@@ -100,6 +100,7 @@ internal static class DashboardServiceCollectionExtensions
         services.AddSingleton<IDirectoryLookup, LdapDirectoryLookup>();
         services.AddSingleton<IDnsLookup, SystemDnsLookup>();
         services.AddScoped<RuleBasedApprover>();
+        services.AddScoped<ApprovalDomains>();
         services.AddHostedService<RuleBasedApprovalWorker>();
 
         services.AddOptions<CoverageOptions>()

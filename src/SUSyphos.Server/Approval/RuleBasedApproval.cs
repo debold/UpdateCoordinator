@@ -10,7 +10,7 @@ using SUSyphos.Server.Data;
 namespace SUSyphos.Server.Approval;
 
 /// <summary>
-/// Rule-based approval settings. Bound from the "Approval" configuration section until the dashboard manages rules.
+/// Rule-based approval settings. Bound from the "Approval" configuration section; administrators add further domains on the dashboard (<see cref="ApprovalDomains"/>).
 /// </summary>
 internal sealed class ApprovalOptions : IValidatableObject
 {
@@ -52,11 +52,15 @@ internal enum RuleVerdict
 /// the central server checks the computer account in Active Directory itself and that the registration came from
 /// an IP address registered in DNS for that computer (docs/03-communication-protocol.md, section 4.1).
 /// </summary>
-internal sealed class RuleBasedApprover(IDirectoryLookup directory, IDnsLookup dns, IOptionsMonitor<ApprovalOptions> options)
+internal sealed class RuleBasedApprover(IDirectoryLookup directory, IDnsLookup dns)
 {
-    public async Task<RuleVerdict> EvaluateAsync(ClientEntity client, CancellationToken cancellationToken)
+    /// <param name="client">Pending client; nothing it reports is trusted on its own.</param>
+    /// <param name="allowed">Domains approved automatically (configuration and dashboard, see <see cref="ApprovalDomains"/>).</param>
+    /// <param name="cancellationToken">Cancels the directory and DNS lookups.</param>
+    public async Task<RuleVerdict> EvaluateAsync(ClientEntity client, IReadOnlyCollection<string> allowed, CancellationToken cancellationToken)
     {
-        var allowed = options.CurrentValue.AutoApproveDomains;
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(allowed);
         if (allowed.Count == 0 || client.DomainName is null || client.RegisteredFromAddress is null)
         {
             return RuleVerdict.NotApplicable;
@@ -100,7 +104,6 @@ internal sealed partial class RuleBasedApprovalWorker(
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (options.CurrentValue.AutoApproveDomains.Count > 0)
             {
                 try
                 {
@@ -133,6 +136,11 @@ internal sealed partial class RuleBasedApprovalWorker(
         var db = scope.ServiceProvider.GetRequiredService<ServerDbContext>();
         var approver = scope.ServiceProvider.GetRequiredService<RuleBasedApprover>();
         var approvals = scope.ServiceProvider.GetRequiredService<ClientApprovalService>();
+        var allowed = await scope.ServiceProvider.GetRequiredService<ApprovalDomains>().GetAllowedAsync(cancellationToken).ConfigureAwait(false);
+        if (allowed.Count == 0)
+        {
+            return;
+        }
 
         var pending = await db.Clients.AsNoTracking()
             .Where(c => c.State == RegistrationState.Pending && c.DomainName != null)
@@ -145,7 +153,7 @@ internal sealed partial class RuleBasedApprovalWorker(
             RuleVerdict verdict;
             try
             {
-                verdict = await approver.EvaluateAsync(client, cancellationToken).ConfigureAwait(false);
+                verdict = await approver.EvaluateAsync(client, allowed, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is System.DirectoryServices.Protocols.LdapException or System.Net.Sockets.SocketException or System.ComponentModel.Win32Exception or TimeoutException)
             {

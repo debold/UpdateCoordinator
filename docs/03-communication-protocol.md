@@ -48,7 +48,7 @@ The agent verifies that it is talking to the genuine central server. A certifica
 | Aspect | Implementation |
 |---|---|
 | Anchor key | ECDSA P-256, created on first start, stored DPAPI-protected (service account) in `Trust:AnchorPath`. An existing but unreadable file stops the server instead of being replaced, because a new anchor would lock out every agent. |
-| Signed data | ASCII `UpdateCoordinator.TrustBinding.v1|<serial>|<hex SHA-256 of the certificate SPKI>`, signature SHA-256 (IEEE P1363). Defined once in `TrustBindingFormat` (contracts). |
+| Signed data | ASCII `SUSyphos.TrustBinding.v1|<serial>|<hex SHA-256 of the certificate SPKI>`, signature SHA-256 (IEEE P1363). Defined once in `TrustBindingFormat` (contracts). |
 | Binding endpoint | `GET /api/v1/trust/binding`, anonymous, returns anchor public key (SPKI), certificate key hash, serial and signature. |
 | Certificate approval | An administrator approves a certificate by selecting it in the dashboard (or with `CERTTHUMBPRINT` at installation). Without a selection the central server creates its own self-signed certificate (180 days, rollover 30 days before expiry with a new key). Two changes count as approved without an administrator, because they cannot be introduced from outside: a renewal of the approved certificate (same subject and issuer, at least the same DNS names, later expiry, e.g. by autoenrollment) and the rollover of the own self-signed certificate. A foreign self-signed certificate is never taken over automatically. Every change signs a new binding (next serial) and is audited. Kestrel selects the certificate per handshake, so changes need no restart. Decided by Marc on 2026-10-19 (180 days, configurable down to 7 days). |
 | Agent check | All messages use a TLS handler that accepts only the certificate key of the accepted binding, independent of CA chain and host name. Before the first message, after a reset and after a failed handshake, the agent fetches the binding over a separate connection that sends nothing else, verifies it and stores the result DPAPI-protected (`trust.dat`). |
@@ -74,7 +74,7 @@ The approval mechanism is the **only mechanism** that decides on onboarding new 
 - **manually** by the admin (showing IP, name and basic information with approve/reject), or
 - **rule-based**, e.g. the client is a domain member: the central server itself looks up the computer object in AD (by host name in the reported domain) and checks that the request comes from the IP address registered in DNS for it. Self-reported values such as a SID are not trusted; the agent therefore does not report a SID at all (decided 2026-10-18).
 
-Implemented 2026-10-18: manual decisions on the dashboard page "Pending approvals" (role Operator); rule-based approval for the DNS domains in `Approval:AutoApproveDomains`, checked periodically by the central server (enabled computer account `HOST$` via LDAP with signing and sealing, source IP address among the DNS addresses of `host.domain`). Rule management in the dashboard follows later.
+Implemented 2026-10-18: manual decisions on the dashboard page "Pending approvals" (role Operator); rule-based approval for the DNS domains in `Approval:AutoApproveDomains`, checked periodically by the central server (enabled computer account `HOST$` via LDAP with signing and sealing, source IP address among the DNS addresses of `host.domain`). Since 2026-10-20 administrators add and remove domains on the page Approvals ("Automatic approval"); domains from the configuration stay and are marked.
 
 ### 4.2 Flow
 

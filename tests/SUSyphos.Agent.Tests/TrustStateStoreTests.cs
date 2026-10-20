@@ -52,7 +52,7 @@ public sealed class TrustStateStoreTests : IDisposable
     [Fact]
     public void Load_WithForeignJson_ReturnsEmpty()
     {
-        new ProtectedFile(FilePath, "UpdateCoordinator.Agent.Trust.v1", NullLogger.Instance).Write("[1,2,3]"u8);
+        new ProtectedFile(FilePath, "SUSyphos.Agent.Trust.v1", NullLogger.Instance).Write("[1,2,3]"u8);
 
         Assert.Equal(TrustState.Empty, Create().Load());
     }

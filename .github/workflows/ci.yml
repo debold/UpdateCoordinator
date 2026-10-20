@@ -65,14 +65,6 @@ jobs:
         shell: pwsh
         run: ./build/Test-Installers.ps1 -Version1Directory artifacts/test/v1 -Version2Directory artifacts/test/v2
 
-      - name: Upgrade from before the rename (UpdateCoordinator 0.4.0)
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release download release/v0.4.0 --repo ${{ github.repository }} --pattern 'UpdateCoordinator.*.msi' --dir artifacts/test/legacy
-          ./build/Test-LegacyUpgrade.ps1 -LegacyDirectory artifacts/test/legacy -CurrentDirectory artifacts/test/v2
-
       - name: Upload installers
         uses: actions/upload-artifact@v7
         with:

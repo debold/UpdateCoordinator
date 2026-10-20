@@ -8,6 +8,8 @@
 @inject SUSyphos.Server.Rollouts.RolloutAdministration Rollouts
 @inject SUSyphos.Server.Assignment.LeaseService Leases
 @inject SUSyphos.Server.Approval.ClientLifecycle Lifecycle
+@inject SUSyphos.Server.Approval.ApprovalDomains Domains
+@inject IAuthorizationService Authorization
 @inject NavigationManager Navigation
 
 <PageTitle>Approvals</PageTitle>
@@ -165,6 +167,41 @@
     </form>
 </div>
 
+<form method="post" @formname="approval-domains" @onsubmit="ChangeDomainAsync" class="box">
+    <AntiforgeryToken />
+    <header class="box-head"><h2>Automatic approval</h2><span class="hint">New servers of these domains are approved once their computer account is found enabled in Active Directory and they registered from an address DNS lists for them</span></header>
+    <div class="box-body form">
+        <div>
+            @if (_domains.Count == 0)
+            {
+                <span class="note">No domain: every new server waits for a manual decision.</span>
+            }
+            @foreach (var domain in _domains)
+            {
+                <span class="tag">@domain.Name</span>
+                @if (domain.Source == SUSyphos.Server.Approval.ApprovalDomainSource.Configuration)
+                {
+                    <span class="note">(configuration)</span>
+                }
+                else
+                {
+                    <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
+                        <button type="submit" name="DomainAction" value="remove:@domain.Name" class="danger">Remove</button>
+                    </AuthorizeView>
+                }
+            }
+        </div>
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
+            <div class="form-row">
+                <label class="field"><span>Add domain</span><input name="Domain" maxlength="253" placeholder="corp.example.com" /></label>
+            </div>
+        </AuthorizeView>
+    </div>
+    <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
+        <footer class="box-foot"><span class="note">Changes are audited; the central server must reach the domain controllers (LDAP with signing) and DNS.</span><button type="submit" name="DomainAction" value="add" class="primary">Add domain</button></footer>
+    </AuthorizeView>
+</form>
+
 @code {
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationState { get; set; }
@@ -248,8 +285,39 @@
         await LoadAsync();
     }
 
+    [SupplyParameterFromForm(FormName = "approval-domains")]
+    private string? DomainAction { get; set; }
+
+    [SupplyParameterFromForm(FormName = "approval-domains")]
+    private string? Domain { get; set; }
+
+    private IReadOnlyList<SUSyphos.Server.Approval.ApprovalDomain> _domains = [];
+
+    private async Task ChangeDomainAsync()
+    {
+        // The page is open to operators; the domains are for administrators, checked again in the handler.
+        var user = AuthenticationState is null ? null : (await AuthenticationState).User;
+        if (user is null || !(await Authorization.AuthorizeAsync(user, AdminRoles.Policies.Administer)).Succeeded)
+        {
+            _message = "Only administrators can change automatic approval.";
+            await LoadAsync();
+            return;
+        }
+
+        var actor = user.Identity?.Name ?? "unknown";
+        var outcome = DomainAction switch
+        {
+            "add" => await Domains.AddAsync(Domain, actor, CancellationToken.None),
+            { } remove when remove.StartsWith("remove:", StringComparison.Ordinal) => await Domains.RemoveAsync(remove["remove:".Length..], actor, CancellationToken.None),
+            _ => new Outcome("Invalid request."),
+        };
+        _message = outcome.Error ?? (DomainAction == "add" ? "The domain is approved automatically from now on." : "The domain was removed from automatic approval.");
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
+        _domains = await Domains.ListAsync(CancellationToken.None);
         _pending = await Db.Clients.AsNoTracking()
             .Where(c => c.State == RegistrationState.Pending)
             .OrderBy(c => c.RegisteredAtUtc)

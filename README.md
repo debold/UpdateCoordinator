@@ -1,6 +1,6 @@
 # SUSyphos
 
-Central coordination of Windows updates for Windows servers with ring deployment, central configuration and reporting, as an alternative to WSUS. The name plays on SUS (Software Update Services, the predecessor of WSUS) and Sisyphus. Until 2026-10-20 the project was called UpdateCoordinator; installations of those versions are taken over on upgrade (`docs/admin/README.md`, section 17).
+Central coordination of Windows updates for Windows servers with ring deployment, central configuration and reporting, as an alternative to WSUS. The name plays on SUS (Software Update Services, the predecessor of WSUS) and Sisyphus. Until 2026-10-20 the project was called UpdateCoordinator; installations of those versions are installed anew (`docs/admin/README.md`, section 17).
 
 > Status: agents register, verify the central server through its trust anchor, report inventory and available updates, and install released updates inside maintenance windows (reboots only where allowed). The web administration has accounts, roles, sign-in and an audit log; server approval (manual and rule-based); rings, groups, assignment rules, central maintenance windows, the ring logic that moves each update from Pilot to Production, dashboard pages for overview, rings, updates and servers, and reboot policies.
 

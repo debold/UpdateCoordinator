@@ -24,18 +24,6 @@ public sealed class RegistryConfigurationTests : IDisposable
     }
 
     [Fact]
-    public void PolicyFromBeforeTheRename_WinsOverInstallerButNotOverCurrentPolicy()
-    {
-        Write(AgentRegistry.InstallerKeyPath, "CentralServerUrl", "https://installer.example.local/");
-        Write(AgentRegistry.LegacyPolicyKeyPath, "CentralServerUrl", "https://legacy-policy.example.local/");
-
-        Assert.Equal("https://legacy-policy.example.local/", Build()[AddressKey]);
-
-        Write(AgentRegistry.PolicyKeyPath, "CentralServerUrl", "https://policy.example.local/");
-        Assert.Equal("https://policy.example.local/", Build()[AddressKey]);
-    }
-
-    [Fact]
     public void InstallerFingerprint_IsMappedToTrustOptions()
     {
         Write(AgentRegistry.InstallerKeyPath, "TrustAnchorFingerprint", "0123456789abcdef0123456789abcdef");

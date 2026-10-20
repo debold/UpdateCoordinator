@@ -19,7 +19,7 @@ public static class TrustBindingFormat
     /// <summary>Upper bound for the Base64 encoded anchor key and signature; larger values are rejected.</summary>
     public const int MaxEncodedLength = 512;
 
-    private const string Purpose = "UpdateCoordinator.TrustBinding.v1";
+    private const string Purpose = "SUSyphos.TrustBinding.v1";
 
     /// <summary>Bytes signed by the anchor: purpose, serial and certificate hash, unambiguously delimited.</summary>
     public static byte[] GetSignedBytes(long serial, ReadOnlySpan<byte> certificateSpkiSha256)

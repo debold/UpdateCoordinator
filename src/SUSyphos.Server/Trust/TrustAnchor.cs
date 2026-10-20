@@ -14,7 +14,7 @@ namespace SUSyphos.Server.Trust;
 /// </summary>
 internal sealed partial class TrustAnchor : IDisposable
 {
-    private const string ProtectionPurpose = "UpdateCoordinator.Server.TrustAnchor.v1";
+    private const string ProtectionPurpose = "SUSyphos.Server.TrustAnchor.v1";
 
     private readonly Lazy<ECDsa> _key;
 

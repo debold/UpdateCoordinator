@@ -39,14 +39,11 @@ internal static class ServerCertificates
     /// <summary>Friendly name that marks a certificate the central server created for itself.</summary>
     public const string SelfGeneratedFriendlyName = "SUSyphos self-signed";
 
-    /// <summary>Friendly name of own certificates created by versions before the rename.</summary>
-    public const string LegacySelfGeneratedFriendlyName = Common.LegacyData.ProductName + " self-signed";
-
     public const string ServerAuthenticationOid = "1.3.6.1.5.5.7.3.1";
 
     /// <summary>True for a self-signed certificate the central server created (and may therefore replace on its own).</summary>
     public static bool IsSelfGenerated(X509Certificate2 certificate) =>
-        (certificate.FriendlyName == SelfGeneratedFriendlyName || certificate.FriendlyName == LegacySelfGeneratedFriendlyName) && certificate.SubjectName.RawData.AsSpan().SequenceEqual(certificate.IssuerName.RawData);
+        certificate.FriendlyName == SelfGeneratedFriendlyName && certificate.SubjectName.RawData.AsSpan().SequenceEqual(certificate.IssuerName.RawData);
 
     public static bool AllowsServerAuthentication(X509Certificate2 certificate)
     {

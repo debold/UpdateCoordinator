@@ -24,9 +24,8 @@ public sealed class CertificateLifecycleTests
 
     [Theory]
     [InlineData("SUSyphos self-signed", true)]
-    [InlineData("UpdateCoordinator self-signed", true)]
     [InlineData("Some other certificate", false)]
-    public void OwnCertificates_AreRecognized_AlsoFromBeforeTheRename(string friendlyName, bool expected)
+    public void OwnCertificates_AreRecognizedByFriendlyName(string friendlyName, bool expected)
     {
         using var key = System.Security.Cryptography.RSA.Create(2048);
         var request = new System.Security.Cryptography.X509Certificates.CertificateRequest("CN=uc01", key, System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.RSASignaturePadding.Pkcs1);

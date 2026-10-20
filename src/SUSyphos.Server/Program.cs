@@ -13,10 +13,6 @@ if (args is [RestoreCommand.Verb, ..])
     return await RestoreCommand.RunAsync(args).ConfigureAwait(false);
 }
 
-// Data of installations from before the rename (UpdateCoordinator) is taken over once; only as a service, never in tests.
-var movedLegacyData = Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService()
-    && LegacyData.MoveDataFolder(Path.Combine(LegacyData.Root, "Server"), DataPaths.Server);
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddServerRegistry(Microsoft.Win32.Registry.LocalMachine);
@@ -25,10 +21,6 @@ builder.Services.AddWindowsService(options => options.ServiceName = "SUSyphos.Se
 builder.Services.AddRollingFileLogging(builder.Configuration, Path.Combine(DataPaths.Server, "Logs"), "server");
 builder.Services.AddCentralServer(builder.Configuration);
 builder.Services.AddDashboard(builder.Configuration);
-if (movedLegacyData)
-{
-    builder.Services.AddHostedService<LegacyDataNotice>();
-}
 
 var app = builder.Build();
 

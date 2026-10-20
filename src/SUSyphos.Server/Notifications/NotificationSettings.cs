@@ -167,5 +167,5 @@ internal sealed class NotificationSettingsStore(ServerDbContext db, IOptions<Not
     private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
 
     private ProtectedJsonFile<NotificationSecrets> SecretsFile() =>
-        new(new ProtectedFile(options.Value.SecretsPath, "UpdateCoordinator.Server.NotificationSecrets.v1", logger), logger);
+        new(new ProtectedFile(options.Value.SecretsPath, "SUSyphos.Server.NotificationSecrets.v1", logger), logger);
 }

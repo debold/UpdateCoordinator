@@ -40,18 +40,9 @@
     <Property Id="INSTALLEDPORT" Secure="yes">
       <RegistrySearch Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="HttpsPort" Type="raw" Bitness="always64" />
     </Property>
-    <!-- Installations from before the rename (UpdateCoordinator) keep their settings on upgrade. -->
-    <Property Id="LEGACYTHUMBPRINT" Secure="yes">
-      <RegistrySearch Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="CertificateThumbprint" Type="raw" Bitness="always64" />
-    </Property>
-    <Property Id="LEGACYPORT" Secure="yes">
-      <RegistrySearch Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="HttpsPort" Type="raw" Bitness="always64" />
-    </Property>
     <SetProperty Id="CERTTHUMBPRINT" Value="[INSTALLEDTHUMBPRINT]" After="AppSearch" Sequence="both" Condition="NOT CERTTHUMBPRINT AND INSTALLEDTHUMBPRINT" />
-    <SetProperty Id="CERTTHUMBPRINT" Action="SetThumbprintFromLegacy" Value="[LEGACYTHUMBPRINT]" After="SetCERTTHUMBPRINT" Sequence="both" Condition="NOT CERTTHUMBPRINT AND LEGACYTHUMBPRINT" />
     <SetProperty Id="HTTPSPORT" Value="[INSTALLEDPORT]" After="AppSearch" Sequence="both" Condition="NOT HTTPSPORT AND INSTALLEDPORT" />
-    <SetProperty Id="HTTPSPORT" Action="SetPortFromLegacy" Value="[LEGACYPORT]" After="SetHTTPSPORT" Sequence="both" Condition="NOT HTTPSPORT AND LEGACYPORT" />
-    <SetProperty Id="HTTPSPORT" Action="SetDefaultHttpsPort" Value="8443" After="SetPortFromLegacy" Sequence="both" Condition="NOT HTTPSPORT" />
+    <SetProperty Id="HTTPSPORT" Action="SetDefaultHttpsPort" Value="8443" After="SetHTTPSPORT" Sequence="both" Condition="NOT HTTPSPORT" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="ProductFolder" Name="SUSyphos">
