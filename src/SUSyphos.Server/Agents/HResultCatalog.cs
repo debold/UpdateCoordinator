@@ -34,6 +34,8 @@ internal static class HResultCatalog
         [unchecked((int)0x80070002)] = "The system cannot find the file specified.",
         [unchecked((int)0x80070005)] = "Access is denied.",
         [unchecked((int)0x80070070)] = "There is not enough space on the disk.",
+        [unchecked((int)0x80070643)] = "Fatal error during installation (the installer of the update failed; see its log, e.g. for .NET or Defender updates).",
+        [unchecked((int)0x80070BC2)] = "The requested operation is successful, but changes will not take effect until the system is rebooted.",
         [unchecked((int)0x800705B4)] = "The operation timed out.",
         [unchecked((int)0x800F081F)] = "The source files could not be found (component store corruption).",
         [unchecked((int)0x800F0922)] = "The update could not be installed (e.g. not enough space in the system reserved partition).",

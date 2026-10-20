@@ -48,6 +48,9 @@ h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
 h3 { margin: 0.75rem 0 0.5rem; font-size: 0.95rem; font-weight: 600; }
 p { margin: 0; }
 code, pre, .mono { font-family: var(--mono); font-size: 0.93em; }
+/* Long addresses and commands wrap instead of pushing their box wider. */
+code { overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .num, td.n { font-variant-numeric: tabular-nums; }
 .sub, .subtitle, .note { color: var(--muted); font-size: 0.9rem; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
