@@ -5,6 +5,8 @@
 @using SUSyphos.Server.Assignment
 @inject AssignmentService Assignment
 @inject AssignmentAdministration Administration
+@inject SUSyphos.Server.Agents.BlackoutPeriods Blackouts
+@inject TimeProvider Time
 
 <PageTitle>Maintenance windows</PageTitle>
 
@@ -67,6 +69,54 @@
     </div>
 </div>
 
+<form method="post" @formname="blackouts" @onsubmit="ChangeBlackoutAsync" class="box">
+    <AntiforgeryToken />
+    <header class="box-head"><h2>Blackout periods</h2><span class="hint">No installation starts anywhere during these times (UTC), like a planned global pause; search and reporting continue</span></header>
+    <div class="scroll">
+        <table>
+            <thead><tr><th>Start (UTC)</th><th>End (UTC)</th><th>Reason</th><th>State</th><th class="n">Actions</th></tr></thead>
+            <tbody>
+                @if (_blackouts.Count == 0)
+                {
+                    <tr><td colspan="5" class="note">No blackout period planned.</td></tr>
+                }
+                @foreach (var period in _blackouts)
+                {
+                    var now = Time.GetUtcNow().UtcDateTime;
+                    <tr>
+                        <td class="nowrap">@Format(period.StartUtc)</td>
+                        <td class="nowrap">@Format(period.EndUtc)</td>
+                        <td>@period.Reason</td>
+                        <td>
+                            @if (period.EndUtc <= now)
+                            {
+                                <span class="pill neutral">ended</span>
+                            }
+                            else if (period.StartUtc <= now)
+                            {
+                                <span class="pill fail">active</span>
+                            }
+                            else
+                            {
+                                <span class="pill queue">planned</span>
+                            }
+                        </td>
+                        <td class="n"><button type="submit" name="BlackoutAction" value="remove:@period.Id" class="danger">Remove</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="box-body form">
+        <div class="form-row">
+            <label class="field"><span>Start (UTC)</span><input name="BlackoutStart" type="datetime-local" /></label>
+            <label class="field"><span>End (UTC)</span><input name="BlackoutEnd" type="datetime-local" /></label>
+            <label class="field"><span>Reason</span><input name="BlackoutReason" maxlength="@SUSyphos.Server.Agents.BlackoutPeriods.MaxReasonLength" placeholder="e.g. year-end freeze" /></label>
+        </div>
+    </div>
+    <footer class="box-foot"><span class="note">At most @SUSyphos.Server.Agents.BlackoutPeriods.MaxLength.TotalDays days each; changes are audited.</span><button type="submit" name="BlackoutAction" value="add" class="primary">Add blackout period</button></footer>
+</form>
+
 @code {
     [SupplyParameterFromForm(FormName = "reboot")]
     private string? Reboot { get; set; }
@@ -112,8 +162,43 @@
         await LoadAsync();
     }
 
+    [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutAction { get; set; }
+    [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutStart { get; set; }
+    [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutEnd { get; set; }
+    [SupplyParameterFromForm(FormName = "blackouts")] private string? BlackoutReason { get; set; }
+
+    private IReadOnlyList<SUSyphos.Server.Agents.BlackoutPeriod> _blackouts = [];
+
+    private async Task ChangeBlackoutAsync()
+    {
+        var actor = await GetActorAsync();
+        Outcome outcome;
+        if (BlackoutAction == "add")
+        {
+            var invariant = System.Globalization.CultureInfo.InvariantCulture;
+            var styles = System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal;
+            outcome = DateTime.TryParseExact(BlackoutStart, "yyyy-MM-ddTHH:mm", invariant, styles, out var start) && DateTime.TryParseExact(BlackoutEnd, "yyyy-MM-ddTHH:mm", invariant, styles, out var end)
+                ? await Blackouts.AddAsync(start, end, BlackoutReason, actor, CancellationToken.None)
+                : new Outcome("Enter start and end as date and time.");
+        }
+        else if (BlackoutAction?.StartsWith("remove:", StringComparison.Ordinal) == true && Guid.TryParse(BlackoutAction["remove:".Length..], out var id))
+        {
+            outcome = await Blackouts.RemoveAsync(id, actor, CancellationToken.None);
+        }
+        else
+        {
+            outcome = new Outcome("Invalid request.");
+        }
+
+        ShowResult(outcome.Error, BlackoutAction == "add" ? "The blackout period was added." : "The blackout period was removed.");
+        await LoadAsync();
+    }
+
+    private static string Format(DateTime value) => value.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+
     private async Task LoadAsync()
     {
+        _blackouts = await Blackouts.ListAsync(CancellationToken.None);
         _current = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
         _reboot = await Assignment.GetSystemRebootPolicyAsync(CancellationToken.None);
         _manageAutomaticUpdates = await Assignment.GetSystemManageAutomaticUpdatesAsync(CancellationToken.None);

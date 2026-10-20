@@ -802,6 +802,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<int>("Order")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("SpreadHours")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.ToTable("Rings", (string)null);
@@ -812,21 +815,24 @@ namespace SUSyphos.Server.Data.Migrations
                             Id = 1,
                             IsDefault = false,
                             Name = "Pilot",
-                            Order = 1
+                            Order = 1,
+                            SpreadHours = 0
                         },
                         new
                         {
                             Id = 2,
                             IsDefault = false,
                             Name = "Test",
-                            Order = 2
+                            Order = 2,
+                            SpreadHours = 0
                         },
                         new
                         {
                             Id = 3,
                             IsDefault = true,
                             Name = "Production",
-                            Order = 3
+                            Order = 3,
+                            SpreadHours = 0
                         });
                 });
 

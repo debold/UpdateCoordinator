@@ -119,6 +119,31 @@ internal sealed partial class RingAdministration(ServerDbContext db, AssignmentS
         return Outcome.Ok;
     }
 
+    /// <summary>Sets the spread of a ring; it applies to releases created from now on.</summary>
+    public async Task<Outcome> SetSpreadAsync(int ringId, int hours, string actor, CancellationToken cancellationToken)
+    {
+        if (hours is < 0 or > RingEntity.MaxSpreadHours)
+        {
+            return new Outcome($"The spread must lie between 0 and {RingEntity.MaxSpreadHours} hours.");
+        }
+
+        var ring = await db.Rings.SingleOrDefaultAsync(r => r.Id == ringId, cancellationToken).ConfigureAwait(false);
+        if (ring is null)
+        {
+            return new Outcome("The ring no longer exists.");
+        }
+
+        if (ring.SpreadHours == hours)
+        {
+            return Outcome.Ok;
+        }
+
+        ring.SpreadHours = hours;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Ring.SpreadChanged", ring.Name, $"{hours} hours", cancellationToken).ConfigureAwait(false);
+        return Outcome.Ok;
+    }
+
     public async Task<Outcome> DeleteAsync(int ringId, string actor, CancellationToken cancellationToken)
     {
         var rings = await db.Rings.OrderBy(r => r.Order).ToListAsync(cancellationToken).ConfigureAwait(false);

@@ -62,6 +62,7 @@ internal static class ServerServiceCollectionExtensions
         services.AddScoped<UpdateReportService>();
         services.AddScoped<InstallationService>();
         services.AddOptions<InstallationControlOptions>().Bind(configuration.GetSection(InstallationControlOptions.SectionName));
+        services.AddScoped<BlackoutPeriods>();
         services.AddScoped<GlobalPause>();
         services.AddScoped<AgentActionService>();
 

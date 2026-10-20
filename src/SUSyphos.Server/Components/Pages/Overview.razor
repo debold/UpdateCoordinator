@@ -8,6 +8,7 @@
 @inject DeploymentStatus Deployment
 @inject ComplianceHistory Compliance
 @inject GlobalPause Pause
+@inject BlackoutPeriods Blackouts
 @inject TimeProvider Time
 @inject SUSyphos.Server.Approval.DirectoryCoverage CoverageReader
 
@@ -18,6 +19,10 @@
 
 <ActionBand>
     <span class="pill @(_paused ? "fail" : "ok")">@(_paused ? "Global pause: no new installations" : "Installations allowed within maintenance windows")</span>
+    @if (_blackout is { } blackout)
+    {
+        <span class="pill fail">Blackout until @Format(blackout.EndUtc) UTC: @blackout.Reason</span>
+    }
     <div class="spacer"></div>
     @* The form is always rendered (the handler checks the role again); only operators see the button. *@
     <form method="post" @formname="pause" @onsubmit="TogglePauseAsync">
@@ -131,6 +136,7 @@
 
     private DateTime _now;
     private bool _paused;
+    private BlackoutPeriod? _blackout;
     private bool _canOperate;
     private List<AttentionItem> _attention = [];
     private List<RingRow> _rings = [];
@@ -185,7 +191,8 @@
     private async Task LoadAsync()
     {
         _now = Time.GetUtcNow().UtcDateTime;
-        _paused = await Pause.IsActiveAsync(CancellationToken.None);
+        _paused = await Pause.IsSwitchedOnAsync(CancellationToken.None);
+        _blackout = await Blackouts.GetActiveAsync(CancellationToken.None);
 
         var clients = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).ToListAsync();
         var entries = await Deployment.GetAsync(null, null, null, CancellationToken.None);

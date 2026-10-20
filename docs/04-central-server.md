@@ -84,7 +84,7 @@ The entire release logic (rates, wait times, transition) applies **per concrete 
 - **Releases:** an approved server gets an update when it is released for its ring and the server reported it as missing; the release stays until the inventory reports the update as installed. A ring change moves the releases. The earliest installation time is the release time of the ring.
 - The central server evaluates rollouts every `Rollout:EvaluationInterval` (default 1 minute).
 - Security note: only approved agents report updates, so only they can start a rollout by a start rule. A rollout of an update ID that a single agent invented reaches only servers that report the same update as missing themselves, and the agent installs only updates its own Windows Update search returns.
-- Not yet implemented: rules per update category, exclusions, blackout windows, staggering, random delay, leases.
+- Implemented 2026-10-20: **blackout periods** (UTC time spans with a reason in which no installation starts anywhere, delivered like the global pause; Administration → Maintenance windows) and a **spread per ring** (0 to 168 hours; each server gets a fixed offset derived from server and update for the earliest installation, so a ring does not install all at once; applies to new releases). Leases for coordinated groups exist since 2026-10-19. Not yet implemented: transition rules per update category and exclusions (proposal to Marc: start rule mode "Never").
 
 ### Ring and group assignment (three levels)
 

@@ -32,6 +32,7 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
                 .ConfigureAwait(false))
             .ToDictionary(r => (r.UpdateId, r.Revision, r.RingId), r => r.ReleasedAtUtc ?? DateTime.MinValue);
 
+        var spreads = await db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.SpreadHours, cancellationToken).ConfigureAwait(false);
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var ids = clients.Select(c => c.Id).ToList();
         var available = await LoadAsync(db.ClientAvailableUpdates.Where(a => ids.Contains(a.ClientId)).Select(a => new ClientUpdateKey { ClientId = a.ClientId, UpdateId = a.UpdateId, Revision = a.Revision }), cancellationToken).ConfigureAwait(false);
@@ -51,7 +52,7 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
                 {
                     if (released.TryGetValue((updateId, revision, ring), out var releasedAt))
                     {
-                        desired[(updateId, revision)] = releasedAt;
+                        desired[(updateId, revision)] = releasedAt + SpreadOffset(client.Id, updateId, spreads.GetValueOrDefault(ring));
                     }
                 }
             }
@@ -76,6 +77,25 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
         }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Fixed offset within the ring spread, derived from server and update: the same server keeps its place for an update,
+    /// and different updates spread differently, so no server is always last.
+    /// </summary>
+    internal static TimeSpan SpreadOffset(Guid clientId, Guid updateId, int spreadHours)
+    {
+        if (spreadHours <= 0)
+        {
+            return TimeSpan.Zero;
+        }
+
+        Span<byte> input = stackalloc byte[32];
+        clientId.TryWriteBytes(input[..16]);
+        updateId.TryWriteBytes(input[16..]);
+        var hash = System.Security.Cryptography.SHA256.HashData(input);
+        var minutes = BitConverter.ToUInt32(hash, 0) % (uint)(spreadHours * 60);
+        return TimeSpan.FromMinutes(minutes);
     }
 
     private static async Task<ILookup<Guid, (Guid UpdateId, int Revision)>> LoadAsync(IQueryable<ClientUpdateKey> query, CancellationToken cancellationToken)

@@ -19,6 +19,14 @@ internal sealed class RingEntity
 
     /// <summary>Marks the fallback ring.</summary>
     public bool IsDefault { get; set; }
+
+    /// <summary>
+    /// Installations in this ring start spread over this many hours after the release: each server gets a fixed offset
+    /// derived from server and update, so not all servers install at once. 0 = no spread.
+    /// </summary>
+    public int SpreadHours { get; set; }
+
+    public const int MaxSpreadHours = 168;
 }
 
 /// <summary>

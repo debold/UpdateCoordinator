@@ -267,6 +267,10 @@ Only if both checks pass is the server approved, recorded in the audit log as ac
 
 Every change is recorded in the audit log.
 
+**Blackout periods** (Administration → Maintenance windows, box "Blackout periods", role `Admin`): start, end (UTC, at most 90 days) and reason. While one is active, the heartbeat tells all agents to start no installation, like the global pause; the overview shows it. Search, reporting and ring transitions continue. Changes are audited.
+
+**Spread per ring** (Release rules → ring → Edit, "Spread installations over (hours)", 0 to 168): the earliest installation time of each server in the ring is the release time plus a fixed offset within the spread, derived from server and update. A spread lowers the feedback rate at the start of a ring, so allow for it in the transition's minimum wait. It applies to releases created after the change.
+
 ## 12. Rollouts (ring logic)
 
 Every update runs through the rings (by default Pilot → Test → Production) on its own. A server gets an update only when it is released for the server's ring and the server reported it as missing; it installs it only inside its maintenance windows.

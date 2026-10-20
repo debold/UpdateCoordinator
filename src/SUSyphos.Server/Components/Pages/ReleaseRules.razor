@@ -42,6 +42,10 @@
                                     <span class="pill queue">manual gate</span>
                                 }
                             }
+                            @if (ring.SpreadHours > 0)
+                            {
+                                <span class="tag">spread over @ring.SpreadHours h</span>
+                            }
                         </td>
                         <td class="n"><span class="row-actions">
                             <a class="btn" href="@Path?dialog=ring&amp;id=@ring.Id">Edit</a>
@@ -174,6 +178,10 @@ else if (_dialog is "ring-new" or "ring" && (_dialog == "ring-new" || EditingRin
                     <p class="error" role="alert">@Message</p>
                 }
                 <label class="field"><span>Name</span><input name="Name" maxlength="32" required value="@(Name ?? ring?.Name)" /></label>
+                @if (ring is not null)
+                {
+                    <label class="field"><span>Spread installations over (hours)</span><input name="Spread" type="number" min="0" max="@RingEntity.MaxSpreadHours" value="@(Spread ?? ring.SpreadHours.ToString(System.Globalization.CultureInfo.InvariantCulture))" /><span class="help">Each server gets a fixed offset within this time after the release, so not all install at once; 0 = no spread. Applies to new releases.</span></label>
+                }
                 @if (ring is null)
                 {
                     <p class="help">The new ring is added before @_rings[^1].Name, the final ring. Its transition to the final ring starts with 2–7 days, feedback ≥ 80 % and success ≥ 95 %; edit it afterwards.</p>
@@ -233,6 +241,7 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
     private static readonly string[] KnownSeverities = ["Critical", "Important", "Moderate", "Low"];
 
     [SupplyParameterFromForm(FormName = "release-dialog")] private string? Mode { get; set; }
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Spread { get; set; }
     [SupplyParameterFromForm(FormName = "release-dialog")] private string? Id { get; set; }
     [SupplyParameterFromForm(FormName = "release-dialog")] private string? Name { get; set; }
     [SupplyParameterFromForm(FormName = "release-dialog")] private string? MinWait { get; set; }
@@ -301,6 +310,13 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
                 break;
             case "ring-edit" when id is { } ringId:
                 outcome = await Rings.RenameAsync(ringId, Name, actor, CancellationToken.None);
+                if (outcome.Succeeded && Spread is not null)
+                {
+                    outcome = int.TryParse(Spread, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var spread)
+                        ? await Rings.SetSpreadAsync(ringId, spread, actor, CancellationToken.None)
+                        : new Outcome("The spread must be a whole number of hours.");
+                }
+
                 if (outcome.Succeeded && MinWait is not null)
                 {
                     outcome = await Administration.SetTransitionAsync(ringId, Number(MinWait), Number(MaxWait), Number(Feedback), Number(Success), Gate == "true", actor, CancellationToken.None);
