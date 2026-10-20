@@ -31,6 +31,8 @@ dotnet test --solution SUSyphos.slnx
 
 The build treats warnings as errors, enforces code style and the security rules of the .NET analyzers, and fails on packages with known vulnerabilities.
 
+`tests/SUSyphos.UiTests` checks the dashboard in a real browser: Playwright drives the installed Microsoft Edge (headless; no browser download) against a central server with a demo lab. Every page is checked in four window sizes (1920, 1440, 1280 and 1024 pixels wide) for sideways scrolling, cut-off text, elements sticking out of their box, overlapping controls, unlabelled buttons, browser and content-security-policy errors and broken links; tables must fit without scrolling from 1280 pixels on. Further tests open every dialog, every column filter and use the script features. A failing page leaves a full-page screenshot in the test output folder under `ui-failures`. Without Edge the UI tests are skipped.
+
 ## Running locally
 
 1. Create the ASP.NET Core development certificate once: `dotnet dev-certs https` (it does not need to be trusted: the agent trusts the central server through its trust anchor)

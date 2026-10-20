@@ -101,9 +101,9 @@ else
                 @if (_liveUpdates.Count > 0)
                 {
                     <ul class="plain">
-                        @foreach (var (updateId, title) in _liveUpdates)
+                        @foreach (var (updateId, revision, title) in _liveUpdates)
                         {
-                            <li><a href="/updates/@updateId">@title</a></li>
+                            <li>@if (revision > 0) { <a href="/updates/@updateId/@revision">@title</a> } else { <span>@title</span> }</li>
                         }
                     </ul>
                 }
@@ -746,7 +746,7 @@ else
             .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
             .Select(e => (e, Title(e.UpdateId, e.Revision)))];
         _history = [.. installations.Select(i => (i, Title(i.UpdateId, i.Revision)))];
-        _liveUpdates = [.. liveIds.Select(id => (id, UpdateText.Title(updates.Where(u => u.UpdateId == id).MaxBy(u => u.Revision), id)))];
+        _liveUpdates = [.. liveIds.Select(id => updates.Where(u => u.UpdateId == id).MaxBy(u => u.Revision) is { } update ? (id, update.Revision, UpdateText.Title(update, id)) : (id, 0, UpdateText.Title(null, id)))];
 
         // Preview: what the agent installs in the next window (released, not installed, due before the window closes).
         _window = NextWindowUtc();
@@ -877,7 +877,7 @@ else
     }
     private int _externalInstalls;
     private SUSyphos.Contracts.Agents.AgentPhase? _livePhase;
-    private List<(Guid UpdateId, string Title)> _liveUpdates = [];
+    private List<(Guid UpdateId, int Revision, string Title)> _liveUpdates = [];
 
     private ServerHealthState _health;
     private List<(DeploymentEntry Entry, string Title)> _open = [];

@@ -48,6 +48,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Layout fixes found by the new browser tests: the server list shows the domain under the server name and the build under the operating system (fits from 1280 pixels on), the update list has no separate KB column, the ring page puts the update table above the ring status on narrower screens and shows the plain install time, approvals show the domain under the server, checkbox columns are narrow, column filters of the last columns open to the left, and the update links of the live status include the revision (they led to a missing page).
 - Server detail: a "Tasks" box lists the running step and what comes next, sorted by time with coloured tags: remote actions, next update search and inventory (reported by the agent), installations in the next maintenance window with their updates, and restarts. It replaces the separate live status and preview boxes.
 - Microsoft Update as system default and group setting ("Windows Update only" in one group wins), delivered with the release list.
 - The dashboard loads one own script (`app.js`, `script-src 'self'`, progressive enhancement): dependent fields become inert while their switch is off, long column filters get a search box, and the maintenance window preview updates on every change without a button.
@@ -120,6 +121,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Own TLS certificate: without a configured certificate the central server creates a self-signed one (RSA 3072, non-exportable machine key, 180 days) and rolls it over 30 days before expiry with a new key. Renewals of a CA certificate (autoenrollment or manual) are picked up every 15 minutes and at start, also after Windows archived the old certificate. A missing configured certificate falls back to the own one instead of stopping the service. Every change signs the next trust binding and is audited; lifetimes and interval under `Certificate:*`.
 
 ### Installers and CI
+
+- Browser tests of the dashboard (`tests/SUSyphos.UiTests`, Playwright with Microsoft Edge): every page in four window sizes against the layout rules, plus dialogs, filters and script features.
 
 - MSI packages for agent and central server (WiX Toolset 7, self-contained publish, Windows Server 2016 or newer): Windows services under LocalSystem with restart on failure (agent also on error exit codes), options `SERVERURL` (agent) and `CERTTHUMBPRINT`/`HTTPSPORT` (central server, read from `HKLM\SOFTWARE\SUSyphos\Server`), firewall rule for the HTTPS port, upgrades keep options and data, data under ProgramData kept on uninstall. The central server service also starts without `CERTTHUMBPRINT` (own certificate); the CI install test covers that path.
 - `build/Build-Installers.ps1` copies each MSI instead of keeping the hard link WiX creates to its intermediate file. Before, building 0.2.0 overwrote the 0.1.0 package of the upgrade test, so the CI "upgrade" only reinstalled the same package. The install test now checks that an upgrade replaces the product (new product code), also when started from a renamed file.

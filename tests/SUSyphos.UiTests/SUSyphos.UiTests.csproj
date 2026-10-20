@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Dashboard tests in a real browser (Microsoft Edge through Playwright): layout, clipping, dialogs, filters, script. -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SUSyphos.TestSupport\SUSyphos.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

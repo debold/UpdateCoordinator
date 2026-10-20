@@ -35,6 +35,7 @@
 - **Everything** is tested automatically. This is the most important quality goal.
 - Tests are implemented **together with the feature**, not afterwards.
 - Every feature has **positive and negative** test cases.
+- Dashboard changes are also checked in a real browser (`tests/SUSyphos.UiTests`: layout rules in several window sizes, dialogs, filters, script features); a page that breaks the layout rules fails the build like any other test.
 
 ## 7. Documentation
 

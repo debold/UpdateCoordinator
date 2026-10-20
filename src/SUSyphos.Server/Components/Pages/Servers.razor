@@ -32,40 +32,36 @@
         <table>
             <thead>
                 <tr>
-                    <th><span class="visually-hidden">Select</span></th>
-                    <SortHeader Table="_table" Column="name" Label="Server" />
-                    <SortHeader Table="_table" Column="domain" Label="Domain" Options="@Options("domain")" />
+                    <th class="select"><span class="visually-hidden">Select</span></th>
+                    <SortHeader Table="_table" Column="name" Label="Server" FilterColumn="domain" FilterLabel="Domain" Options="@Options("domain")" />
                     <SortHeader Table="_table" Column="os" Label="Operating system" Options="@Options("os")" />
-                    <SortHeader Table="_table" Column="build" Label="Build" />
                     <SortHeader Table="_table" Column="ring" Label="Ring" Options="@Options("ring")" />
                     <SortHeader Table="_table" Column="group" Label="Groups" Options="@Options("group")" />
                     <SortHeader Table="_table" Column="agent" Label="Agent" Options="@Options("agent")" />
                     <SortHeader Table="_table" Column="status" Label="Status" Options="@Options("status")" />
-                    <SortHeader Table="_table" Column="pending" Label="Pending updates" Class="n" Options="@Options("pending")" />
-                    <SortHeader Table="_table" Column="seen" Label="Last heartbeat" />
+                    <SortHeader Table="_table" Column="pending" Label="Pending" Class="n" Options="@Options("pending")" />
+                    <SortHeader Table="_table" Column="seen" Label="Last seen" />
                 </tr>
             </thead>
             <tbody>
                 @if (_page.Rows.Count == 0)
                 {
-                    <tr><td colspan="11" class="note">No server matches the search and filters.</td></tr>
+                    <tr><td colspan="9" class="note">No server matches the search and filters.</td></tr>
                 }
                 @foreach (var (group, rows) in Groups())
                 {
                     @if (group is not null)
                     {
-                        <tr class="group-row"><td colspan="11">@(group.Length == 0 ? "(none)" : group) · @rows.Count</td></tr>
+                        <tr class="group-row"><td colspan="9">@(group.Length == 0 ? "(none)" : group) · @rows.Count</td></tr>
                     }
                     @foreach (var row in rows)
                     {
                         <tr>
-                            <td><input type="checkbox" form="bulk" name="Selected" value="@row.Id" aria-label="Select @row.HostName" /></td>
-                            <td><a href="/servers/@row.Id">@row.HostName</a></td>
-                            <td>@row.Domain</td>
-                            <td class="nowrap">@row.Os</td>
-                            <td class="mono">@row.Build</td>
-                            <td>@row.Ring@(row.ManualRing ? " (manual)" : "")</td>
-                            <td class="nowrap">@string.Join(", ", row.Groups)</td>
+                            <td class="select"><input type="checkbox" form="bulk" name="Selected" value="@row.Id" aria-label="Select @row.HostName" /></td>
+                            <td class="nowrap"><a href="/servers/@row.Id">@row.HostName</a>@if (row.Domain.Length > 0) { <div class="note break">@row.Domain</div> }</td>
+                            <td>@row.Os<div class="note mono">@row.Build</div></td>
+                            <td class="nowrap">@row.Ring@if (row.ManualRing) { <div class="note">manual</div> }</td>
+                            <td>@string.Join(", ", row.Groups)</td>
                             <td class="mono nowrap" title="@row.AgentVersion">@SUSyphos.Server.AgentPackages.AgentVersion.Short(row.AgentVersion)</td>
                             <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span></td>
                             <td class="n">@row.Pending</td>

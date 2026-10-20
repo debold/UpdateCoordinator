@@ -54,11 +54,11 @@ else
         </AuthorizeView>
     </ActionBand>
 
-    <div class="grid-side">
+    <div class="grid-side wide-only">
         <Box Title="Updates in this ring" Hint="Select an update to see its status per server" Flush="true">
             <div class="scroll">
                 <table>
-                    <thead><tr><th>Update</th><th>Classification</th><th>State</th><th>Released</th><th>Day</th><th class="n">Feedback</th><th class="n">Success</th><th>Servers</th></tr></thead>
+                    <thead><tr><th>Update</th><th>Classification</th><th>State</th><th>Installs from</th><th>Day</th><th class="n">Feedback</th><th class="n">Success</th><th>Servers</th></tr></thead>
                     <tbody>
                         @if (_active.Count == 0)
                         {
@@ -333,7 +333,7 @@ else
                 RingRolloutState.AwaitingApproval => ("Waiting for manual release", "queue"),
                 _ => counts.Pending > 0 ? ("Rolling out", "pend") : ("Released", "ok"),
             };
-            var released = state.ReleasedAtUtc is { } at ? $"Released, installs from {Format(at)}" : "Not released yet";
+            var released = state.ReleasedAtUtc is { } at ? Format(at) : "not released yet";
             _active.Add(new ActiveUpdate(
                 Key(state.UpdateId, state.Revision),
                 UpdateText.Title(update, state.UpdateId),

@@ -36,33 +36,33 @@
             <thead>
                 <tr>
                     <th><span class="visually-hidden">Select</span></th>
-                    <SortHeader Table="_table" Column="kb" Label="KB" />
+
                     <SortHeader Table="_table" Column="title" Label="Title" />
                     <SortHeader Table="_table" Column="classification" Label="Classification" Options="@Options("classification")" />
                     <SortHeader Table="_table" Column="severity" Label="Severity" Options="@Options("severity")" />
                     <SortHeader Table="_table" Column="seen" Label="First reported" />
                     <SortHeader Table="_table" Column="rollout" Label="Rollout" Options="@Options("rollout")" />
-                    <SortHeader Table="_table" Column="missing" Label="Servers missing it" Class="n" />
+                    <SortHeader Table="_table" Column="missing" Label="Missing" Class="n" />
                     <SortHeader Table="_table" Column="installed" Label="Status" />
                 </tr>
             </thead>
             <tbody>
                 @if (_page.Rows.Count == 0)
                 {
-                    <tr><td colspan="9" class="note">No update matches the search and filters.</td></tr>
+                    <tr><td colspan="8" class="note">No update matches the search and filters.</td></tr>
                 }
                 @foreach (var row in _page.Rows)
                 {
                     <tr>
                         <td><input type="checkbox" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /></td>
-                        <td class="mono nowrap"><a href="/updates/@row.UpdateId/@row.Revision">@(row.Kb.Length > 0 ? $"KB{row.Kb}" : "–")</a></td>
-                        <td class="wrap"><a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a></td>
+
+                        <td class="wrap"><a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a>@if (row.Kb.Length > 0 && !row.Title.Contains($"KB{row.Kb}", StringComparison.OrdinalIgnoreCase)) { <span class="note mono"> KB@(row.Kb)</span> }</td>
                         <td>@row.Classification</td>
                         <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
                         <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
                         <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }</td>
                         <td class="n">@row.Missing</td>
-                        <td><span class="donut-cell"><Donut Counts="@row.Counts" Small="true" /><span class="note num">@row.Counts.Successful / @row.Counts.Total installed</span></span></td>
+                        <td class="nowrap"><span class="donut-cell"><Donut Counts="@row.Counts" Small="true" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
                     </tr>
                 }
             </tbody>

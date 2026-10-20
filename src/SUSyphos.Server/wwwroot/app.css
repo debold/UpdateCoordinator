@@ -254,6 +254,7 @@ label.inline, .check { display: inline-flex; gap: 0.45rem; align-items: center; 
 fieldset { border: 1px solid var(--border); border-radius: var(--r-sm); margin: 0; padding: 0.75rem; }
 legend { font-size: 0.8rem; font-weight: 600; color: var(--muted); padding: 0 0.25rem; }
 td input, td select { min-width: 5rem; margin: 0; }
+td input[type="checkbox"] { min-width: 0; }
 .filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; }
 .filters input, .filters select { width: auto; min-width: 10rem; }
 .inherit { font-size: 0.82rem; color: var(--muted); }
@@ -401,6 +402,7 @@ details.multi:has(input[data-i='63']:checked) .tag.pick[data-i='63'] { display: 
 
 .date-time { display: flex; gap: 0.4rem; }
 .js .js-hide { display: none; }
+@media (max-width: 110rem) { .grid-side.wide-only { grid-template-columns: 1fr; } }
 .task-updates { margin-top: 0.35rem; font-size: 0.85rem; }
 .filter-search { width: 100%; margin-bottom: 0.4rem; }
 .filter-options { max-height: 18rem; overflow-y: auto; display: grid; }
@@ -411,3 +413,7 @@ details.multi:has(input[data-i='63']:checked) .tag.pick[data-i='63'] { display: 
 .gated-select:has(select.gate option[value="manual"]:checked) .gated-body { opacity: 0.45; pointer-events: none; user-select: none; }
 .restart-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; background: var(--fail-soft); border: 1px solid var(--fail); border-radius: var(--r-sm); padding: 0.65rem 0.9rem; margin-bottom: 1rem; }
 .restart-banner button { margin-left: auto; }
+th.select, td.select { width: 1%; }
+.note.break { white-space: normal; overflow-wrap: anywhere; max-width: 14rem; }
+/* Filters of the last columns open to the left, so they stay inside the window. */
+th:nth-last-child(-n+3) .filter-pop { left: auto; right: 0.5rem; }

@@ -11,7 +11,7 @@
         }
         @if (Options is not null)
         {
-            <ColumnFilter Table="Table" Column="@Column" Label="@Label" Options="Options" />
+            <ColumnFilter Table="Table" Column="@(FilterColumn ?? Column)" Label="@(FilterLabel ?? Label)" Options="Options" />
         }
     </span>
 </th>
@@ -31,6 +31,13 @@
 
     [Parameter]
     public string? Class { get; set; }
+
+    /// <summary>Column the filter applies to when it differs from the sort column (e.g. sort by name, filter by domain).</summary>
+    [Parameter]
+    public string? FilterColumn { get; set; }
+
+    [Parameter]
+    public string? FilterLabel { get; set; }
 
     /// <summary>Filter values with counts; null for a column without filter.</summary>
     [Parameter]

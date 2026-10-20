@@ -46,19 +46,18 @@
         <div class="scroll">
             <table>
                 <thead>
-                    <tr><th><span class="visually-hidden">Select</span></th><th>Server</th><th>Domain</th><th>Registered from</th><th>Operating system</th><th>Roles</th><th>Registered</th><th>Last heartbeat</th><th class="n">Decide</th></tr>
+                    <tr><th><span class="visually-hidden">Select</span></th><th>Server</th><th>Registered from</th><th>Operating system</th><th>Roles</th><th>Registered</th><th>Last seen</th><th class="n">Decide</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var client in _pending)
                     {
                         <tr>
                             <td><input type="checkbox" name="Selected" value="@client.Id" aria-label="Select @client.HostName" /></td>
-                            <td>@client.HostName</td>
-                            <td>@client.DomainName</td>
+                            <td class="nowrap">@client.HostName@if (client.DomainName is { Length: > 0 } domain) { <div class="note">@domain</div> }</td>
                             <td class="mono">@client.RegisteredFromAddress</td>
                             <td class="nowrap">@OperatingSystems.Name(client.OsProductName, client.OsVersion) <span class="note mono">@OperatingSystems.Build(client.OsVersion)</span></td>
                             <td>@string.Join(", ", client.Roles)</td>
-                            <td class="nowrap">@Format(client.RegisteredAtUtc)</td>
+                            <td class="nowrap">@DisplayTime.FormatDate(client.RegisteredAtUtc)</td>
                             <td class="nowrap">@Format(client.LastHeartbeatAtUtc)</td>
                             <td class="n"><span class="row-actions">
                                 <button type="submit" name="Action" value="approve:@client.Id">Approve</button>

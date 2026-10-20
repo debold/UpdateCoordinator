@@ -12,5 +12,6 @@
     <Project Path="tests/SUSyphos.IntegrationTests/SUSyphos.IntegrationTests.csproj" />
     <Project Path="tests/SUSyphos.Server.Tests/SUSyphos.Server.Tests.csproj" />
     <Project Path="tests/SUSyphos.TestSupport/SUSyphos.TestSupport.csproj" />
+    <Project Path="tests/SUSyphos.UiTests/SUSyphos.UiTests.csproj" />
   </Folder>
 </Solution>
