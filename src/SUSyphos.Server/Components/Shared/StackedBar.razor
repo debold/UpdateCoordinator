@@ -1,0 +1,14 @@
+@using SUSyphos.Server.Rollouts
+@* Horizontal bar of deployment states; drawn as SVG attributes because the content security policy forbids inline styles. *@
+<svg class="bar" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="@Charts.Describe(Counts)">
+    <rect class="track" x="0" y="0" width="100" height="10"></rect>
+    @foreach (var (cls, x, width) in Charts.Segments(Counts, 100))
+    {
+        <rect class="seg-@cls" x="@Charts.Number(x)" y="0" width="@Charts.Number(width)" height="10"></rect>
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired]
+    public DeploymentCounts Counts { get; set; } = DeploymentCounts.Empty;
+}

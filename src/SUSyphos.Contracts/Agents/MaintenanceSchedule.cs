@@ -1,0 +1,50 @@
+namespace SUSyphos.Contracts.Agents;
+
+/// <summary>
+/// Time calculations on maintenance windows in local server time, shared by the agent (when to install) and the
+/// central server (when the next window opens).
+/// </summary>
+public static class MaintenanceSchedule
+{
+    /// <summary>True if <paramref name="localTime"/> lies in one of the windows.</summary>
+    public static bool IsOpen(IReadOnlyList<MaintenanceWindow> windows, DateTime localTime)
+    {
+        ArgumentNullException.ThrowIfNull(windows);
+        var time = localTime.TimeOfDay;
+        var today = localTime.DayOfWeek;
+        var yesterday = localTime.AddDays(-1).DayOfWeek;
+
+        return windows.Any(window => window.End > window.Start
+            ? window.Days.Contains(today) && time >= window.Start && time < window.End
+            : (window.Days.Contains(today) && time >= window.Start) || (window.Days.Contains(yesterday) && time < window.End));
+    }
+
+    /// <summary>
+    /// Start of the next window after <paramref name="localTime"/>, or <paramref name="localTime"/> itself if a window is open;
+    /// null if there are no windows.
+    /// </summary>
+    public static DateTime? NextOpening(IReadOnlyList<MaintenanceWindow> windows, DateTime localTime)
+    {
+        ArgumentNullException.ThrowIfNull(windows);
+        if (IsOpen(windows, localTime))
+        {
+            return localTime;
+        }
+
+        DateTime? next = null;
+        for (var offset = 0; offset <= 7; offset++)
+        {
+            var day = localTime.Date.AddDays(offset);
+            foreach (var window in windows.Where(w => w.Days.Contains(day.DayOfWeek)))
+            {
+                var start = day + window.Start;
+                if (start > localTime && (next is null || start < next))
+                {
+                    next = start;
+                }
+            }
+        }
+
+        return next;
+    }
+}

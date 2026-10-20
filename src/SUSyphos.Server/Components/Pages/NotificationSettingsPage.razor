@@ -1,0 +1,151 @@
+@page "/administration/notifications"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@using System.ComponentModel.DataAnnotations
+@using SUSyphos.Server.Notifications
+@inject NotificationSettingsStore Store
+@inject NotificationService Notifications
+@inject AuditLog Audit
+
+<PageTitle>Notifications</PageTitle>
+
+<PageHeader Title="Notifications" Subtitle="Every minute the central server sends each new event once, collected in one message: new servers, suspected clones, rollout alarms, waiting gates, stopped groups and certificate events. Passwords and secrets are stored encrypted on this server and are not part of the backup." Crumbs="@([("Administration", null), ("Notifications", null)])" />
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<form method="post" @formname="notifications" @onsubmit="HandleAsync" class="stack">
+    <AntiforgeryToken />
+    <ActionBand>
+        <button type="submit" name="Action" value="save" class="primary">Save</button>
+        <button type="submit" name="Action" value="test">Send a test notification</button>
+        <div class="spacer"></div>
+        <span class="note">The test uses the saved settings.</span>
+    </ActionBand>
+
+    <div class="grid-2">
+        <Box Title="E-mail">
+            <Header><span class="pill @(_settings.EmailEnabled ? "ok" : "neutral")">@(_settings.EmailEnabled ? "on" : "off")</span></Header>
+            <ChildContent>
+                <div class="form">
+                    <label class="check"><input type="checkbox" name="EmailEnabled" value="yes" checked="@_settings.EmailEnabled" /> Send e-mails</label>
+                    <div class="form-row">
+                        <label class="field"><span>SMTP server</span><input name="SmtpHost" value="@_settings.SmtpHost" maxlength="253" autocomplete="off" /></label>
+                        <label class="field"><span>Port</span><input name="SmtpPort" type="number" min="1" max="65535" value="@_settings.SmtpPort" /></label>
+                    </div>
+                    <label class="field">
+                        <span>Encryption</span>
+                        <select name="SecurityMode">
+                            <option value="StartTls" selected="@(_settings.SmtpSecurity == SmtpSecurity.StartTls)">STARTTLS (port 587)</option>
+                            <option value="SslOnConnect" selected="@(_settings.SmtpSecurity == SmtpSecurity.SslOnConnect)">TLS (port 465)</option>
+                            <option value="None" selected="@(_settings.SmtpSecurity == SmtpSecurity.None)">None (internal relay only)</option>
+                        </select>
+                    </label>
+                    <div class="form-row">
+                        <label class="field"><span>User name</span><input name="SmtpUser" value="@_settings.SmtpUser" maxlength="256" autocomplete="off" /><span class="help">Empty: no authentication</span></label>
+                        <label class="field"><span>Password</span><input name="SmtpPassword" type="password" maxlength="@NotificationSettingsStore.MaxSecretLength" autocomplete="new-password" /><span class="help">Empty: keep the stored one</span></label>
+                    </div>
+                    <label class="check"><input type="checkbox" name="ClearSmtpPassword" value="yes" /> Remove the stored password</label>
+                    <label class="field"><span>Sender address</span><input name="From" type="email" value="@_settings.From" maxlength="254" autocomplete="off" /></label>
+                    <label class="field"><span>Recipients</span><textarea name="Recipients" rows="3" maxlength="4000">@_settings.Recipients</textarea><span class="help">Comma, semicolon or one per line</span></label>
+                </div>
+            </ChildContent>
+        </Box>
+
+        <div class="stack">
+            <Box Title="Webhook">
+                <Header><span class="pill @(_settings.WebhookEnabled ? "ok" : "neutral")">@(_settings.WebhookEnabled ? "on" : "off")</span></Header>
+                <ChildContent>
+                    <div class="form">
+                        <label class="check"><input type="checkbox" name="WebhookEnabled" value="yes" checked="@_settings.WebhookEnabled" /> Call a webhook</label>
+                        <label class="field"><span>Address (https://)</span><input name="WebhookUrl" type="url" value="@_settings.WebhookUrl" maxlength="2000" autocomplete="off" /></label>
+                        <label class="field"><span>Signature secret</span><input name="WebhookSecret" type="password" maxlength="@NotificationSettingsStore.MaxSecretLength" autocomplete="new-password" /><span class="help">Empty: keep the stored one</span></label>
+                        <label class="check"><input type="checkbox" name="ClearWebhookSecret" value="yes" /> Remove the stored secret</label>
+                        <p class="note">
+                            The webhook receives a JSON document with subject, time and events (kind, key, text, link). With a secret, the header
+                            <code>@WebhookChannel.SignatureHeader</code> carries <code>sha256=</code> and the HMAC-SHA256 of the body.
+                        </p>
+                    </div>
+                </ChildContent>
+            </Box>
+            <Box Title="Links">
+                <label class="field"><span>Dashboard address for links (optional)</span><input name="DashboardUrl" type="url" value="@_settings.DashboardUrl" maxlength="2000" placeholder="https://uc01.example.local:8443/" autocomplete="off" /></label>
+            </Box>
+        </div>
+    </div>
+</form>
+
+@code {
+    [SupplyParameterFromForm(FormName = "notifications")] private string? Action { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? EmailEnabled { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? SmtpHost { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? SmtpPort { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? SecurityMode { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? SmtpUser { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? SmtpPassword { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? ClearSmtpPassword { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? From { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? Recipients { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? WebhookEnabled { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? WebhookUrl { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? WebhookSecret { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? ClearWebhookSecret { get; set; }
+    [SupplyParameterFromForm(FormName = "notifications")] private string? DashboardUrl { get; set; }
+
+    private NotificationSettings _settings = new();
+
+    protected override async Task OnInitializedAsync() => _settings = await Store.LoadAsync(CancellationToken.None);
+
+    private async Task HandleAsync()
+    {
+        // The page is Admin-only; the handler checks again, since hiding a form is no protection.
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators can change notifications.", string.Empty);
+            return;
+        }
+
+        var actor = await GetActorAsync();
+        if (Action == "test")
+        {
+            var outcome = await Notifications.SendTestAsync(actor, CancellationToken.None);
+            ShowResult(outcome.Error, "Test notification sent through every enabled channel.");
+            return;
+        }
+
+        var settings = new NotificationSettings
+        {
+            EmailEnabled = EmailEnabled == "yes",
+            SmtpHost = Clean(SmtpHost),
+            SmtpPort = int.TryParse(SmtpPort, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var port) ? port : 0,
+            SmtpSecurity = Enum.TryParse<SmtpSecurity>(SecurityMode, out var security) && Enum.IsDefined(security) ? security : (SmtpSecurity)(-1),
+            SmtpUser = Clean(SmtpUser),
+            From = Clean(From),
+            Recipients = Clean(Recipients),
+            WebhookEnabled = WebhookEnabled == "yes",
+            WebhookUrl = Clean(WebhookUrl),
+            DashboardUrl = Clean(DashboardUrl),
+        };
+
+        // Shown again on error, so nothing typed is lost.
+        _settings = settings;
+        var errors = new List<ValidationResult>();
+        if (!Validator.TryValidateObject(settings, new ValidationContext(settings), errors, validateAllProperties: true))
+        {
+            ShowResult(string.Join(" ", errors.Select(e => e.ErrorMessage)), string.Empty);
+            return;
+        }
+
+        if (SmtpPassword?.Length > NotificationSettingsStore.MaxSecretLength || WebhookSecret?.Length > NotificationSettingsStore.MaxSecretLength)
+        {
+            ShowResult($"Passwords and secrets may have at most {NotificationSettingsStore.MaxSecretLength} characters.", string.Empty);
+            return;
+        }
+
+        var password = ClearSmtpPassword == "yes" ? string.Empty : string.IsNullOrEmpty(SmtpPassword) ? null : SmtpPassword;
+        var secret = ClearWebhookSecret == "yes" ? string.Empty : string.IsNullOrEmpty(WebhookSecret) ? null : WebhookSecret;
+        await Store.SaveAsync(settings, password, secret, CancellationToken.None);
+        await Audit.WriteAsync(actor, "Notifications.Changed", null, $"e-mail {(settings.EmailEnabled ? "on" : "off")}, webhook {(settings.WebhookEnabled ? "on" : "off")}", CancellationToken.None);
+        ShowResult(null, "Notification settings saved.");
+    }
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

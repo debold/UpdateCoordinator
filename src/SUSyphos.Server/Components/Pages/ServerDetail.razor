@@ -1,0 +1,593 @@
+@page "/servers/{Id:guid}"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using SUSyphos.Server.Assignment
+@using SUSyphos.Server.Agents
+@using SUSyphos.Server.Components.Shared
+@inject ServerDbContext Db
+@inject AssignmentAdministration Administration
+@inject DeploymentStatus Deployment
+@inject SUSyphos.Server.Agents.AgentActionService Actions
+@inject SUSyphos.Server.Approval.ClientLifecycle Lifecycle
+@inject TimeProvider Time
+
+<PageTitle>@(_client?.HostName ?? "Server")</PageTitle>
+
+@if (_client is null)
+{
+    <PageHeader Title="Server not found" Crumbs="@([("Servers", "/servers"), ("Not found", null)])" />
+    <Box><p>The server does not exist or was deleted with its history. <a href="/servers">Back to the server list</a></p></Box>
+}
+else
+{
+    <PageHeader Title="@_client.HostName" Subtitle="@Subtitle" Crumbs="@([("Servers", "/servers"), (_client.HostName, null)])" />
+    <StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+    <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
+        <ActionBand>
+            <form id="actions" method="post" @formname="action" @onsubmit="HandleActionAsync">
+                <AntiforgeryToken />
+                <button type="submit" name="RemoteAction" value="queue:SearchNow" class="primary">Search for updates</button>
+                <button type="submit" name="RemoteAction" value="queue:FullResync">Sync inventory</button>
+                <button type="submit" name="RemoteAction" value="queue:UploadLogs">Request logs</button>
+                <button type="submit" name="RemoteAction" value="queue:RestartService">Restart agent service</button>
+            </form>
+            <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="administer">
+                <a class="btn" href="@DialogLink("restart")">Restart server…</a>
+                <div class="spacer"></div>
+                <a class="btn danger" href="@DialogLink("remove")">Remove server…</a>
+                <a class="btn danger" href="@DialogLink("purge")">Delete with history…</a>
+            </AuthorizeView>
+        </ActionBand>
+    </AuthorizeView>
+
+    <section class="figures" aria-label="Status">
+        <a class="tile @(_health == ServerHealthState.Failed ? "attention-tile" : null)" href="/servers/@Id#checks">
+            <span class="go">Show ›</span>
+            <div class="label">Status</div>
+            <div class="value"><span class="pill @ServerHealth.PillClass(_health)">@ServerHealth.Label(_health)</span></div>
+            <div class="detail">@_client.State · agent @_client.AgentVersion</div>
+        </a>
+        <a class="tile" href="/servers/@Id#missing">
+            <span class="go">Show ›</span>
+            <div class="label">Pending updates</div>
+            <div class="value">@_open.Count(o => o.Entry.EarliestInstallAtUtc is not null && o.Entry.State != DeploymentState.Successful)</div>
+            <div class="detail">released for this server, not installed yet</div>
+        </a>
+        <div class="tile">
+            <div class="label">Next maintenance window</div>
+            <div class="value small-value">@NextWindowText</div>
+        </div>
+        <div class="tile">
+            <div class="label">Last heartbeat</div>
+            <div class="value small-value">@Format(_client.LastHeartbeatAtUtc) UTC</div>
+            <div class="detail">last boot @Format(_client.LastBootAtUtc) UTC@(_client.RebootPending ? " · reboot pending" : string.Empty)</div>
+        </div>
+    </section>
+
+    <div class="grid-side">
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="assign">
+            <Authorized>
+                <form method="post" @formname="assignment" @onsubmit="SaveAsync" class="box">
+                    <AntiforgeryToken />
+                    <header class="box-head"><h2>Assignment</h2><span class="hint">Saved configuration of this server; empty values inherit</span></header>
+                    <div class="box-body form">
+                        <div class="form-row">
+                            <label class="field"><span>Ring</span>
+                                <select name="Ring">
+                                    <option value="" selected="@(_client.ManualRingId is null)">Automatic: assignment rules, else @_fallbackRing (now @RingName(_client.RingId))</option>
+                                    @foreach (var ring in _rings)
+                                    {
+                                        <option value="@ring.Id" selected="@(_client.ManualRingId == ring.Id)">@ring.Name</option>
+                                    }
+                                </select>
+                            </label>
+                            <label class="field"><span>Reboots</span>
+                                <select name="Reboot">
+                                    <option value="" selected="@(_client.RebootPolicy is null)">Inherit from groups or system (now @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</option>
+                                    @foreach (var policy in Enum.GetValues<SUSyphos.Contracts.Agents.RebootPolicy>())
+                                    {
+                                        <option value="@policy" selected="@(_client.RebootPolicy == policy)">@RebootPolicyText.Label(policy)</option>
+                                    }
+                                </select>
+                            </label>
+                        </div>
+                        <div class="field">
+                            <span class="field-label">Groups</span>
+                            <details class="multi">
+                                <summary>
+                                    @if (_memberships.Count == 0)
+                                    {
+                                        <span class="placeholder">No group</span>
+                                    }
+                                    @foreach (var membership in _memberships)
+                                    {
+                                        <span class="tag">@GroupName(membership.GroupId)@(membership.Manual ? string.Empty : " (rule)")</span>
+                                    }
+                                </summary>
+                                <div class="options">
+                                    @if (_groups.Count == 0)
+                                    {
+                                        <span class="note">No group exists yet. <a href="/administration/groups">Create groups</a></span>
+                                    }
+                                    @foreach (var group in _groups)
+                                    {
+                                        <label><input type="checkbox" name="Groups" value="@group.Id" checked="@_memberships.Any(m => m.GroupId == group.Id && m.Manual)" /> @group.Name</label>
+                                    }
+                                </div>
+                            </details>
+                            <span class="help">Groups from assignment rules are added automatically.</span>
+                        </div>
+                        <div class="field">
+                            <span class="field-label">Maintenance windows</span>
+                            <WindowPicker Prefix="Windows" Windows="@_ownWindows" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
+                        </div>
+                    </div>
+                    <footer class="box-foot">
+                        <span class="note">Applies with the server's next heartbeat.</span>
+                        <span class="actions"><a class="btn" href="/servers/@Id">Discard changes</a><button type="submit" class="primary">Save assignment</button></span>
+                    </footer>
+                </form>
+            </Authorized>
+            <NotAuthorized>
+                <Box Title="Assignment">
+                    <dl class="facts">
+                        <dt>Ring</dt><dd>@RingName(_client.RingId) @(_client.ManualRingId is null ? "(automatic)" : "(manual)")</dd>
+                        <dt>Groups</dt><dd>@(_memberships.Count > 0 ? string.Join(", ", _memberships.Select(m => GroupName(m.GroupId))) : "–")</dd>
+                        <dt>Maintenance windows</dt><dd>@(_effectiveWindows.Count > 0 ? WindowPickerForm.Describe(_effectiveWindows) : "none")</dd>
+                        <dt>Reboots</dt><dd>@RebootPolicyText.Label(_client.EffectiveRebootPolicy)</dd>
+                    </dl>
+                </Box>
+            </NotAuthorized>
+        </AuthorizeView>
+
+        <Box Title="System">
+            <dl class="facts">
+                <dt>Operating system</dt><dd>@OperatingSystems.Name(_client.OsProductName, _client.OsVersion)@(_client.OsEditionId is { Length: > 0 } edition ? $" ({edition})" : string.Empty)</dd>
+                <dt>Build</dt><dd class="mono">@OperatingSystems.Build(_client.OsVersion)</dd>
+                <dt>Domain</dt><dd>@(_client.DomainName ?? "–")</dd>
+                <dt>Roles</dt><dd>@(_client.Roles.Count > 0 ? string.Join(", ", _client.Roles) : "–")</dd>
+                <dt>Update source</dt><dd>@(_client.WsusServer is { } wsus ? $"WSUS {wsus}" : "Windows Update")</dd>
+                <dt>Agent update</dt><dd>@if (_client.AgentUpdateError is { } agentError) { <span class="pill fail">failed</span> <span>@agentError</span> } else { <span>agent @_client.AgentVersion</span> }</dd>
+                <dt>Automatic updates</dt><dd>@AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)@if (_client.AutomaticUpdatesBypass) { <span class="pill queue">bypasses rings</span> }</dd>
+                <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
+                <dt>Registered (UTC)</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
+            </dl>
+        </Box>
+    </div>
+
+    <Box Title="Missing updates" Anchor="missing" Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Update</th><th>Status</th><th>Earliest installation (UTC)</th><th>Result</th></tr></thead>
+                <tbody>
+                    @if (_open.Count == 0)
+                    {
+                        <tr><td colspan="4" class="note">The last search reported no missing update.</td></tr>
+                    }
+                    @foreach (var (entry, title) in _open)
+                    {
+                        <tr>
+                            <td class="wrap"><a href="/updates/@entry.UpdateId/@entry.Revision">@title</a></td>
+                            <td><span class="pill @DeploymentText.PillClass(entry.State)">@(entry.State == DeploymentState.Queued ? "Not released" : entry.State.ToString())</span></td>
+                            <td class="nowrap">@Format(entry.EarliestInstallAtUtc)</td>
+                            <td>@(entry.HResult is { } hresult ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{hresult:X8}: {SUSyphos.Server.Agents.HResultCatalog.Describe(hresult)}") : null)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
+
+    <div class="grid-side">
+        <Box Title="Update history" Anchor="history" Flush="true">
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>Finished (UTC)</th><th>Update</th><th>Source</th><th>Result</th><th>Reboot</th></tr></thead>
+                    <tbody>
+                        @if (_history.Count == 0)
+                        {
+                            <tr><td colspan="5" class="note">No installation reported yet.</td></tr>
+                        }
+                        @foreach (var (installation, title) in _history)
+                        {
+                            <tr>
+                                <td class="nowrap">@Format(installation.FinishedAtUtc)</td>
+                                <td class="wrap"><a href="/updates/@installation.UpdateId/@installation.Revision">@title</a></td>
+                                <td>@installation.Source</td>
+                                <td>@ResultText(installation)</td>
+                                <td>@RebootText(installation)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </Box>
+
+        <Box Title="Pre-flight checks" Anchor="checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)} UTC" : null)" Flush="true">
+            @if (_client.HealthChecks.Count == 0)
+            {
+                <div class="empty-state">No update run reported yet.</div>
+            }
+            else
+            {
+                <table>
+                    <tbody>
+                        @foreach (var check in _client.HealthChecks)
+                        {
+                            <tr>
+                                <td>@check.Name</td>
+                                <td><span class="pill @CheckClass(check.Status)">@((SUSyphos.Contracts.Agents.HealthStatus)check.Status)</span></td>
+                                <td>@check.Detail</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            @if (_client.LastSearchSucceeded == false)
+            {
+                <div class="box-body"><p class="error">Last update search failed: @string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{_client.LastSearchHResult ?? 0:X8}") @SUSyphos.Server.Agents.HResultCatalog.Describe(_client.LastSearchHResult ?? 0)</p></div>
+            }
+        </Box>
+    </div>
+
+    <Box Title="Remote actions" Hint="The agent picks actions up with its next heartbeat; the central server never connects to the agent." Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Requested (UTC)</th><th>Action</th><th>By</th><th>State</th><th>Detail</th><th></th></tr></thead>
+                <tbody>
+                    @if (_actions.Count == 0)
+                    {
+                        <tr><td colspan="6" class="note">No action requested yet.</td></tr>
+                    }
+                    @foreach (var action in _actions)
+                    {
+                        <tr>
+                            <td class="nowrap">@Format(action.RequestedAtUtc)</td>
+                            <td>@action.Kind</td>
+                            <td>@action.RequestedBy</td>
+                            <td><span class="pill @ActionClass(action.State)">@action.State</span></td>
+                            <td>
+                                @action.Detail
+                                @if (action.LogFileSize is { } size && _canOperate)
+                                {
+                                    <a href="@AgentLogEndpoints.DownloadPath(action.Id)">Download (@(size / 1024) KB)</a>
+                                }
+                            </td>
+                            <td class="n">
+                                @if (action.State == AgentActionState.Queued && _canOperate)
+                                {
+                                    <span class="row-actions"><button type="submit" form="actions" name="RemoteAction" value="cancel:@action.Id">Cancel</button></span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
+
+    @if (Dialog == "restart")
+    {
+        <Dialog Title="@($"Restart {_client.HostName} now?")" CloseHref="@($"/servers/{Id}")">
+            <form method="post" @formname="restart" @onsubmit="RestartAsync">
+                <AntiforgeryToken />
+                <div class="dialog-body">
+                    <p>The agent restarts the server with its next heartbeat, also outside the maintenance window, after a five minute warning. A local veto on the server (registry value AllowReboot) still applies.</p>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="/servers/@Id">Cancel</a><button type="submit" class="danger">Restart server</button></div>
+            </form>
+        </Dialog>
+    }
+    else if (Dialog is "remove" or "purge")
+    {
+        <Dialog Title="@(Dialog == "purge" ? $"Delete {_client.HostName} with its history?" : $"Remove {_client.HostName}?")" CloseHref="@($"/servers/{Id}")">
+            <form method="post" @formname="remove" @onsubmit="RemoveAsync">
+                <AntiforgeryToken />
+                <input type="hidden" name="ConfirmRemove" value="yes" />
+                <div class="dialog-body">
+                    @if (Dialog == "purge")
+                    {
+                        <p>The server and all its data (history, installations, actions) are deleted for good. This cannot be undone.</p>
+                    }
+                    else
+                    {
+                        <p>The history is kept, open releases, actions and leases are cancelled and the credentials end. If the agent still runs, it registers again as a new pending server.</p>
+                    }
+                </div>
+                <div class="dialog-foot"><a class="btn" href="/servers/@Id">Cancel</a><button type="submit" name="Remove" value="@(Dialog == "purge" ? "hard" : "soft")" class="danger">@(Dialog == "purge" ? "Delete with history" : "Remove server")</button></div>
+            </form>
+        </Dialog>
+    }
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    [SupplyParameterFromForm(FormName = "assignment")]
+    private string? Ring { get; set; }
+
+    [SupplyParameterFromForm(FormName = "assignment")]
+    private string[]? Groups { get; set; }
+
+    [SupplyParameterFromForm(FormName = "assignment")]
+    private string? Reboot { get; set; }
+
+    /// <summary>Confirmation dialog the address asks for: restart, remove or purge.</summary>
+    [SupplyParameterFromQuery(Name = "dialog")]
+    private string? Dialog { get; set; }
+
+    [CascadingParameter]
+    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _ownWindows = [];
+    private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _effectiveWindows = [];
+    private string _fallbackRing = "Production";
+
+    private string DialogLink(string dialog) => $"/servers/{Id}?dialog={dialog}";
+
+    private string Subtitle => _client is null
+        ? string.Empty
+        : $"{(_client.DomainName is { Length: > 0 } domain ? $"{_client.HostName.ToLowerInvariant()}.{domain}" : _client.HostName)} · {OperatingSystems.Name(_client.OsProductName, _client.OsVersion)}, build {OperatingSystems.Build(_client.OsVersion)} · ring {RingName(_client.RingId)}";
+
+    private async Task RestartAsync()
+    {
+        var outcome = await IsAuthorizedAsync(AdminRoles.Policies.Administer)
+            ? await Actions.QueueAsync(Id, SUSyphos.Contracts.Agents.AgentActionKind.RestartServer, await GetActorAsync(), CancellationToken.None)
+            : new Outcome("Only administrators can restart a server.");
+        ShowResult(outcome.Error, "The restart was queued; the agent restarts the server after its next heartbeat and a five minute warning.");
+        Dialog = null;
+        await LoadAsync();
+    }
+
+    private ClientEntity? _client;
+    private List<RingEntity> _rings = [];
+    private List<GroupEntity> _groups = [];
+    private List<ClientGroupEntity> _memberships = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canOperate = await IsAuthorizedAsync(AdminRoles.Policies.Operate);
+        await LoadAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators can change the assignment.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        int? ring = null;
+        if (!string.IsNullOrEmpty(Ring))
+        {
+            if (!int.TryParse(Ring, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+            {
+                ShowResult("Invalid ring.", string.Empty);
+                await LoadAsync();
+                return;
+            }
+
+            ring = parsed;
+        }
+
+        var groups = new List<int>();
+        foreach (var value in Groups ?? [])
+        {
+            if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var group))
+            {
+                ShowResult("Invalid group.", string.Empty);
+                await LoadAsync();
+                return;
+            }
+
+            groups.Add(group);
+        }
+
+        var actor = await GetActorAsync();
+        var windows = HttpContext?.Request.HasFormContentType == true ? WindowPickerForm.Read(HttpContext.Request.Form, "Windows", out _) : string.Empty;
+        var outcome = RebootPolicyText.TryParse(Reboot, out var reboot)
+            ? await Administration.SetClientAssignmentAsync(Id, ring, groups, windows, actor, CancellationToken.None)
+            : new Outcome("The reboot policy is invalid.");
+        if (outcome.Succeeded)
+        {
+            outcome = await Administration.SetClientRebootPolicyAsync(Id, reboot, actor, CancellationToken.None);
+        }
+
+        ShowResult(outcome.Error, "The assignment was saved.");
+        await LoadAsync();
+    }
+
+    /// <summary>Value of the pressed action button: "queue:{kind}" or "cancel:{action id}".</summary>
+    [SupplyParameterFromForm(FormName = "action")]
+    private string? RemoteAction { get; set; }
+
+    [SupplyParameterFromForm(FormName = "action")]
+    private string? ConfirmRestart { get; set; }
+
+    private bool _canOperate;
+    private List<AgentActionEntity> _actions = [];
+
+    private async Task HandleActionAsync()
+    {
+        Outcome outcome;
+        string success;
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate))
+        {
+            (outcome, success) = (new Outcome("Only operators and administrators can request remote actions."), string.Empty);
+        }
+        else if (RemoteAction?.Split(':', 2) is ["queue", var kindText]
+            && Enum.TryParse<SUSyphos.Contracts.Agents.AgentActionKind>(kindText, ignoreCase: false, out var kind)
+            && Enum.IsDefined(kind)
+            && !int.TryParse(kindText, out _))
+        {
+            if (kind == SUSyphos.Contracts.Agents.AgentActionKind.RestartServer && !await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+            {
+                (outcome, success) = (new Outcome("Only administrators can restart a server."), string.Empty);
+            }
+            else if (kind == SUSyphos.Contracts.Agents.AgentActionKind.RestartServer && ConfirmRestart != "yes")
+            {
+                (outcome, success) = (new Outcome("Confirm the restart with the checkbox first."), string.Empty);
+            }
+            else
+            {
+                (outcome, success) = (await Actions.QueueAsync(Id, kind, await GetActorAsync(), CancellationToken.None), "The action was queued; the agent picks it up with its next heartbeat.");
+            }
+        }
+        else if (RemoteAction?.Split(':', 2) is ["cancel", var idText] && Guid.TryParse(idText, out var actionId))
+        {
+            (outcome, success) = (await Actions.CancelAsync(Id, actionId, await GetActorAsync(), CancellationToken.None), "The action was cancelled.");
+        }
+        else
+        {
+            (outcome, success) = (new Outcome("Invalid request."), string.Empty);
+        }
+
+        ShowResult(outcome.Error, success);
+        await LoadAsync();
+    }
+
+    private static string ActionClass(AgentActionState state) => state switch
+    {
+        AgentActionState.Succeeded => "ok",
+        AgentActionState.Queued or AgentActionState.Delivered => "pend",
+        AgentActionState.Failed or AgentActionState.Rejected or AgentActionState.Expired => "fail",
+        _ => "neutral",
+    };
+
+    [SupplyParameterFromForm(FormName = "remove")]
+    private string? Remove { get; set; }
+
+    [SupplyParameterFromForm(FormName = "remove")]
+    private string? ConfirmRemove { get; set; }
+
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    private async Task RemoveAsync()
+    {
+        Outcome outcome;
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            outcome = new Outcome("Only administrators can remove servers.");
+        }
+        else if (ConfirmRemove != "yes")
+        {
+            outcome = new Outcome("Confirm the removal with the checkbox first.");
+        }
+        else
+        {
+            outcome = Remove switch
+            {
+                "soft" => await Lifecycle.SoftDeleteAsync(Id, await GetActorAsync(), CancellationToken.None),
+                "hard" => await Lifecycle.HardDeleteAsync(Id, await GetActorAsync(), CancellationToken.None),
+                _ => new Outcome("Invalid request."),
+            };
+            if (outcome.Succeeded && Remove == "hard")
+            {
+                Navigation.NavigateTo("/servers");
+                return;
+            }
+        }
+
+        ShowResult(outcome.Error, "The server was deleted; its history is kept.");
+        Dialog = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _client = await Db.Clients.AsNoTracking().SingleOrDefaultAsync(c => c.Id == Id);
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        _memberships = await Db.ClientGroups.AsNoTracking().Where(m => m.ClientId == Id).ToListAsync();
+        _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(20).ToListAsync();
+        if (_client is null)
+        {
+            return;
+        }
+
+        _ownWindows = MaintenanceWindowFormat.FromJson(_client.MaintenanceWindowsJson) ?? [];
+        _effectiveWindows = MaintenanceWindowFormat.FromJson(_client.EffectiveWindowsJson) ?? [];
+        _fallbackRing = _rings.Count > 0 ? _rings[^1].Name : "the final ring";
+
+        var entries = await Deployment.GetAsync(null, Id, null, CancellationToken.None);
+        _health = ServerHealth.Evaluate(_client, entries.Any(e => e.State == DeploymentState.Failed), Time.GetUtcNow().UtcDateTime);
+
+        var installations = await Db.Installations.AsNoTracking()
+            .Where(i => i.ClientId == Id)
+            .OrderByDescending(i => i.FinishedAtUtc).ThenByDescending(i => i.Id)
+            .Take(MaxHistory)
+            .ToListAsync();
+        var available = await Db.ClientAvailableUpdates.AsNoTracking().Where(a => a.ClientId == Id).Select(a => new { a.UpdateId, a.Revision }).ToListAsync();
+        var ids = entries.Select(e => e.UpdateId).Concat(installations.Select(i => i.UpdateId)).Distinct().ToList();
+        var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync();
+        string Title(Guid updateId, int revision) => UpdateText.Title(updates.FirstOrDefault(u => u.UpdateId == updateId && u.Revision == revision), updateId);
+
+        // Missing = reported by the last search, or released and not installed yet.
+        _open = [.. entries
+            .Where(e => available.Any(a => a.UpdateId == e.UpdateId && a.Revision == e.Revision) || (e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful))
+            .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
+            .Select(e => (e, Title(e.UpdateId, e.Revision)))];
+        _history = [.. installations.Select(i => (i, Title(i.UpdateId, i.Revision)))];
+    }
+
+    private const int MaxHistory = 200;
+
+    private ServerHealthState _health;
+    private List<(DeploymentEntry Entry, string Title)> _open = [];
+    private List<(InstallationEntity Installation, string Title)> _history = [];
+
+    private static string CheckClass(int status) => status switch
+    {
+        (int)SUSyphos.Contracts.Agents.HealthStatus.Ok => "ok",
+        (int)SUSyphos.Contracts.Agents.HealthStatus.Warning => "queue",
+        _ => "fail",
+    };
+
+    private static string ResultText(InstallationEntity installation) =>
+        installation.ResultCode is (int)SUSyphos.Contracts.Agents.InstallResultCode.Succeeded or (int)SUSyphos.Contracts.Agents.InstallResultCode.SucceededWithErrors
+            ? ((SUSyphos.Contracts.Agents.InstallResultCode)installation.ResultCode).ToString()
+            : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(SUSyphos.Contracts.Agents.InstallResultCode)installation.ResultCode}, 0x{installation.HResult:X8}: {SUSyphos.Server.Agents.HResultCatalog.Describe(installation.HResult)}");
+
+    /// <summary>Next opening of the effective windows in the server's time zone, with the UTC time for comparison.</summary>
+    private string NextWindowText
+    {
+        get
+        {
+            if (_client?.TimeZoneId is not { } zoneId || !TimeZoneInfo.TryFindSystemTimeZoneById(zoneId, out var zone))
+            {
+                return "unknown until the server reports its time zone";
+            }
+
+            var windows = MaintenanceWindowFormat.FromJson(_client.EffectiveWindowsJson) ?? [];
+            var localNow = TimeZoneInfo.ConvertTimeFromUtc(Time.GetUtcNow().UtcDateTime, zone);
+            if (SUSyphos.Contracts.Agents.MaintenanceSchedule.NextOpening(windows, localNow) is not { } next)
+            {
+                return "no window";
+            }
+
+            if (next == localNow)
+            {
+                return "open now";
+            }
+
+            var utc = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(next, DateTimeKind.Unspecified), zone);
+            return $"{next.ToString("ddd yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} server time ({Format(utc)} UTC)";
+        }
+    }
+
+    private string RebootText(InstallationEntity installation) => !installation.RebootRequired
+        ? "No"
+        : _client?.LastBootAtUtc is { } boot && boot > installation.FinishedAtUtc ? $"Required, restarted {Format(boot)}" : "Required, pending";
+
+    private static string Format(DateTime? value) =>
+        value?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–";
+
+    private string RingName(int? id) => _rings.FirstOrDefault(r => r.Id == id)?.Name ?? "–";
+
+    private string GroupName(int id) => _groups.FirstOrDefault(g => g.Id == id)?.Name ?? "?";
+}

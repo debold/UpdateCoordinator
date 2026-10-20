@@ -38,8 +38,8 @@ jobs:
 
       - name: Build and test
         run: |
-          dotnet build UpdateCoordinator.slnx -c Release
-          dotnet test --solution UpdateCoordinator.slnx -c Release --no-build
+          dotnet build SUSyphos.slnx -c Release
+          dotnet test --solution SUSyphos.slnx -c Release --no-build
 
       - name: Build installers
         shell: pwsh
@@ -48,9 +48,9 @@ jobs:
       - name: Versioned file names and checksums
         shell: pwsh
         run: |
-          # Versioned names, so a browser never renames a second download (e.g. "UpdateCoordinator.Server (1).msi").
+          # Versioned names, so a browser never renames a second download (e.g. "SUSyphos.Server (1).msi").
           foreach ($name in "Agent", "Server") {
-            Move-Item "artifacts/release/UpdateCoordinator.$name.msi" "artifacts/release/UpdateCoordinator.$name-${{ steps.version.outputs.version }}.msi"
+            Move-Item "artifacts/release/SUSyphos.$name.msi" "artifacts/release/SUSyphos.$name-${{ steps.version.outputs.version }}.msi"
           }
           Get-ChildItem artifacts/release/*.msi | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)" } |
             Set-Content artifacts/release/SHA256SUMS.txt
@@ -60,7 +60,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $arguments = @('release', 'create', '${{ github.ref_name }}', 'artifacts/release/UpdateCoordinator.Agent-${{ steps.version.outputs.version }}.msi', 'artifacts/release/UpdateCoordinator.Server-${{ steps.version.outputs.version }}.msi', 'artifacts/release/SHA256SUMS.txt',
-            '--title', 'UpdateCoordinator ${{ steps.version.outputs.version }}', '--notes', 'Unsigned test build. See CHANGELOG.md and docs/admin/test-guide.md.')
+          $arguments = @('release', 'create', '${{ github.ref_name }}', 'artifacts/release/SUSyphos.Agent-${{ steps.version.outputs.version }}.msi', 'artifacts/release/SUSyphos.Server-${{ steps.version.outputs.version }}.msi', 'artifacts/release/SHA256SUMS.txt',
+            '--title', 'SUSyphos ${{ steps.version.outputs.version }}', '--notes', 'Unsigned test build. See CHANGELOG.md and docs/admin/test-guide.md.')
           if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $arguments += '--prerelease' }
           gh @arguments

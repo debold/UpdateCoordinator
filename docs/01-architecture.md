@@ -1,4 +1,4 @@
-# Windows Update Coordinator – Architecture Overview
+# SUSyphos – Architecture Overview
 
 > Entry document. Details are in the follow-up documents:
 > `02-guidelines.md`, `03-communication-protocol.md`, `04-central-server.md`, `05-agent-design.md`, `06-dashboard.md`.

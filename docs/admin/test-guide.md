@@ -17,16 +17,16 @@ Snapshots before the first installation make it easy to repeat updates.
 ## 2. Central server
 
 1. Optional: enroll a TLS certificate for `uc01.lab.local` from the lab CA into `LocalMachine\My`. Without one the central server creates its own self-signed certificate (browsers warn; agents do not care).
-2. Install: `msiexec /i UpdateCoordinator.Server.msi CERTTHUMBPRINT=<thumbprint> /qn /l*v server.log`, or without `CERTTHUMBPRINT` for the own certificate. Alternatively double-click the MSI: the final page shows the dashboard address and can open it. The own certificate and the installer interface need version 0.2.0 or newer.
-3. Check: service `UpdateCoordinator.Server` runs; `https://uc01.lab.local:8443/health` answers; firewall rule "UpdateCoordinator Central Server (HTTPS)" exists; Start menu entry "UpdateCoordinator Dashboard" opens the dashboard.
-4. Open `https://uc01.lab.local:8443/setup`, enter the token from `%ProgramData%\UpdateCoordinator\Server\setup-token.txt` (readable by administrators only) and create the first administrator. The token file disappears.
+2. Install: `msiexec /i SUSyphos.Server.msi CERTTHUMBPRINT=<thumbprint> /qn /l*v server.log`, or without `CERTTHUMBPRINT` for the own certificate. Alternatively double-click the MSI: the final page shows the dashboard address and can open it. The own certificate and the installer interface need version 0.2.0 or newer.
+3. Check: service `SUSyphos.Server` runs; `https://uc01.lab.local:8443/health` answers; firewall rule "SUSyphos Central Server (HTTPS)" exists; Start menu entry "SUSyphos Dashboard" opens the dashboard.
+4. Open `https://uc01.lab.local:8443/setup`, enter the token from `%ProgramData%\SUSyphos\Server\setup-token.txt` (readable by administrators only) and create the first administrator. The token file disappears.
 5. Administration → Users: create an Operator and a Reader account for the role tests.
 
 ## 3. Agents
 
-1. Install on SRV01 manually: `msiexec /i UpdateCoordinator.Agent.msi SERVERURL=https://uc01.lab.local:8443/ /qn /l*v agent.log`
-2. Install on SRV02 by group policy: software installation with the MSI, plus the registry value `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent\CentralServerUrl` (string) set by GPO preferences.
-3. Check: service `UpdateCoordinator.Agent` runs; `%ProgramData%\UpdateCoordinator\Agent\Logs\agent-*.log` shows "Registered at the central server"; the servers appear under Pending approvals with host name, domain and roles (DC roles appear only on domain controllers).
+1. Install on SRV01 manually: `msiexec /i SUSyphos.Agent.msi SERVERURL=https://uc01.lab.local:8443/ /qn /l*v agent.log`
+2. Install on SRV02 by group policy: software installation with the MSI, plus the registry value `HKLM\SOFTWARE\Policies\SUSyphos\Agent\CentralServerUrl` (string) set by GPO preferences.
+3. Check: service `SUSyphos.Agent` runs; `%ProgramData%\SUSyphos\Agent\Logs\agent-*.log` shows "Registered at the central server"; the servers appear under Pending approvals with host name, domain and roles (DC roles appear only on domain controllers).
 
 ## 4. Approval
 
@@ -51,7 +51,7 @@ Snapshots before the first installation make it easy to repeat updates.
 
 1. Default policy is "Never": a server with a pending reboot only shows "Reboot pending".
 2. Set the group "Lab" to "Reboot inside the maintenance window": the agent restarts the server with a 5-minute warning while the window is open at least 30 more minutes; history shows "Required, restarted".
-3. Local veto: set `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent\AllowReboot` = `0` on SRV02; no restart happens, also not by the admin action "Restart server" (the action is rejected).
+3. Local veto: set `HKLM\SOFTWARE\Policies\SUSyphos\Agent\AllowReboot` = `0` on SRV02; no restart happens, also not by the admin action "Restart server" (the action is rejected).
 
 ## 8. Coordinated group (leases)
 
@@ -71,13 +71,13 @@ Copy SRV01 to SRV03 (without sysprep) and rename SRV03. While both run, SRV01 is
 
 ## 12. Upgrade and uninstall
 
-Install a newer MSI over both components without options: settings, identity and database are kept. Uninstall: services, program files, installer settings and the firewall rule disappear; data under `%ProgramData%\UpdateCoordinator` stays.
+Install a newer MSI over both components without options: settings, identity and database are kept. Uninstall: services, program files, installer settings and the firewall rule disappear; data under `%ProgramData%\SUSyphos` stays.
 
 ## 13. Certificate and backup (optional)
 
 - Certificate renewal: with a CA certificate from an autoenrollment template, renew it in `certlm.msc` (Personal → Certificates → All Tasks → Renew Certificate with New Key). Within 15 minutes the audit log shows `Certificate.Renewed` and agents keep reporting.
-- Backup and restore: download a backup (Administration → Backup), install the central server on a fresh VM with the same name, stop the service, run `UpdateCoordinator.Server.exe restore <zip>` as administrator, start the service. The dashboard accounts and servers are back, and agents report to the restored server without any reset (after the DNS name points to it).
+- Backup and restore: download a backup (Administration → Backup), install the central server on a fresh VM with the same name, stop the service, run `SUSyphos.Server.exe restore <zip>` as administrator, start the service. The dashboard accounts and servers are back, and agents report to the restored server without any reset (after the DNS name points to it).
 
 ## 14. What to report back
 
-For each step: works / does not work, with the agent and server logs (`%ProgramData%\UpdateCoordinator\<component>\Logs`) and, for installer problems, the MSI log (`/l*v`).
+For each step: works / does not work, with the agent and server logs (`%ProgramData%\SUSyphos\<component>\Logs`) and, for installer problems, the MSI log (`/l*v`).

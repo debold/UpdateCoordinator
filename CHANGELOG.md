@@ -4,9 +4,13 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Both
+
+- Renamed from the working title UpdateCoordinator to **SUSyphos**: namespaces, projects, packages (`SUSyphos.Agent.msi`, `SUSyphos.Server.msi`), services, registry keys (`HKLMSOFTWARESUSyphos…`, policy key `HKLMSOFTWAREPoliciesSUSyphosAgent`), data folders (`%ProgramData%SUSyphos`), webhook header (`X-SUSyphos-Signature`). Upgrades from UpdateCoordinator keep settings, data, agent registration and trust: the installers read the old keys, the services move the old data folder once, the old policy key still applies, and own certificates of the old version are recognized. Cryptographic purpose strings stay unchanged. CI upgrades the published UpdateCoordinator 0.4.0.
+
 ### Agent
 
-- Registers once at the central server and stores client GUID and client secret encrypted with DPAPI under `%ProgramData%\UpdateCoordinator\Agent`.
+- Registers once at the central server and stores client GUID and client secret encrypted with DPAPI under `%ProgramData%\SUSyphos\Agent`.
 - Sends a heartbeat every 10 seconds (configurable) and logs changes of the registration state.
 - Resource limits: runs with below-normal process priority and restarts its service when private memory stays above 200 MB after a full garbage collection (`Resources:*`).
 - Log upload measures the compressed size of each file first and packs the archive only once (before: up to about 370 MB memory for 80 MB of poorly compressible logs, now about 70 MB).
@@ -77,14 +81,14 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - TLS certificate change in the dashboard (Admin, with confirmation): lists suitable certificates from LocalMachine\My, switches without restart and signs the next trust binding, so agents accept it automatically; audited.
 - Windows Update error codes are translated into plain English text centrally.
 - Notifications (Admin page): every minute new events are sent once, collected in one message, by e-mail (SMTP via MailKit, STARTTLS/TLS/relay) and/or a generic HTTPS webhook (JSON, optional HMAC-SHA256 signature, no redirects): servers waiting for approval, suspected clones, rollout alarms, gates waiting, stopped coordinated groups, expiring CA certificate and automatic certificate changes. Test button, audited changes; SMTP password and webhook secret DPAPI-protected outside the database and backup.
-- Backup and restore: backup archive download in the dashboard (Admin, password of at least 16 characters; database online copy, trust anchor encrypted with PKCS#8/AES-256/PBKDF2, manifest; audited) and `UpdateCoordinator.Server.exe restore <zip>` with the service stopped, validating the whole archive before replacing anything. The restored trust anchor is taken over by the service on its next start, so agents keep trusting a central server rebuilt on new hardware.
+- Backup and restore: backup archive download in the dashboard (Admin, password of at least 16 characters; database online copy, trust anchor encrypted with PKCS#8/AES-256/PBKDF2, manifest; audited) and `SUSyphos.Server.exe restore <zip>` with the service stopped, validating the whole archive before replacing anything. The restored trust anchor is taken over by the service on its next start, so agents keep trusting a central server rebuilt on new hardware.
 - Own TLS certificate: without a configured certificate the central server creates a self-signed one (RSA 3072, non-exportable machine key, 180 days) and rolls it over 30 days before expiry with a new key. Renewals of a CA certificate (autoenrollment or manual) are picked up every 15 minutes and at start, also after Windows archived the old certificate. A missing configured certificate falls back to the own one instead of stopping the service. Every change signs the next trust binding and is audited; lifetimes and interval under `Certificate:*`.
 
 ### Installers and CI
 
-- MSI packages for agent and central server (WiX Toolset 7, self-contained publish, Windows Server 2016 or newer): Windows services under LocalSystem with restart on failure (agent also on error exit codes), options `SERVERURL` (agent) and `CERTTHUMBPRINT`/`HTTPSPORT` (central server, read from `HKLM\SOFTWARE\UpdateCoordinator\Server`), firewall rule for the HTTPS port, upgrades keep options and data, data under ProgramData kept on uninstall. The central server service also starts without `CERTTHUMBPRINT` (own certificate); the CI install test covers that path.
+- MSI packages for agent and central server (WiX Toolset 7, self-contained publish, Windows Server 2016 or newer): Windows services under LocalSystem with restart on failure (agent also on error exit codes), options `SERVERURL` (agent) and `CERTTHUMBPRINT`/`HTTPSPORT` (central server, read from `HKLM\SOFTWARE\SUSyphos\Server`), firewall rule for the HTTPS port, upgrades keep options and data, data under ProgramData kept on uninstall. The central server service also starts without `CERTTHUMBPRINT` (own certificate); the CI install test covers that path.
 - `build/Build-Installers.ps1` copies each MSI instead of keeping the hard link WiX creates to its intermediate file. Before, building 0.2.0 overwrote the 0.1.0 package of the upgrade test, so the CI "upgrade" only reinstalled the same package. The install test now checks that an upgrade replaces the product (new product code), also when started from a renamed file.
-- Release files carry the version in their name (e.g. `UpdateCoordinator.Server-0.3.0.msi`), so browsers do not rename repeated downloads; the CI install test upgrades from a renamed file and over a crashing old service.
+- Release files carry the version in their name (e.g. `SUSyphos.Server-0.3.0.msi`), so browsers do not rename repeated downloads; the CI install test upgrades from a renamed file and over a crashing old service.
 - Central server MSI with installer interface (license, progress, final page with dashboard address, setup token note and "Open the dashboard") and a Start menu entry for the dashboard.
 - Central server: startup errors are written to the log before the service ends; the expected SQLite migration warning is no longer logged.
 - `build/Build-Installers.ps1` builds both MSIs; the GitHub Actions workflow builds and tests every push and installs, upgrades and uninstalls both MSIs on the runner (`build/Test-Installers.ps1`).
@@ -95,7 +99,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Test projects with xUnit v3 on Microsoft.Testing.Platform, including end-to-end tests of the agent client against the in-memory central server.
 - Shared build settings: warnings as errors, .NET analyzers, central package versions, NuGet audit against known vulnerabilities.
 - Versions derived from git tags via MinVer.
-- `UpdateCoordinator.Common`: DPAPI-protected file storage shared by agent and central server.
+- `SUSyphos.Common`: DPAPI-protected file storage shared by agent and central server.
 - Rolling file logs for agent and central server (Serilog): one file per day and per 10 MB, 31 files kept, configurable via `Logging:File`; warnings and errors also in the Windows event log.
 - Negative tests for every input path: HTTP messages, server responses, registry values (including invalid central server addresses), configuration and stored files.
 - End-to-end tests over a real TLS connection (certificate pinning, certificate change, impostor server).

@@ -7,8 +7,8 @@
 
 | Component | Runs as | Where |
 |---|---|---|
-| Central server | Windows service `UpdateCoordinator.Server` | one central Windows server |
-| Agent | Windows service `UpdateCoordinator.Agent` | every managed Windows server, 2016 or later |
+| Central server | Windows service `SUSyphos.Server` | one central Windows server |
+| Agent | Windows service `SUSyphos.Agent` | every managed Windows server, 2016 or later |
 
 ## 2. Communication paths
 
@@ -40,7 +40,7 @@ The central server only listens on HTTPS. Its certificate comes from the Windows
 **First start.** With `CERTTHUMBPRINT` (or a selection in the dashboard) the central server uses that certificate. Without one it creates a self-signed certificate for itself:
 
 - CN is the fully qualified name of the machine, the SAN contains the fully qualified name and the host name.
-- RSA 3072 key in the machine key store, not exportable; friendly name `UpdateCoordinator self-signed`; stored in `LocalMachine\My`.
+- RSA 3072 key in the machine key store, not exportable; friendly name `SUSyphos self-signed`; stored in `LocalMachine\My`.
 - Valid for 180 days (`Certificate:SelfSignedLifetime`). After a restart the existing certificate is reused.
 
 Browsers do not trust a self-signed certificate and warn on every rollover. For the dashboard a certificate from an internal CA is recommended (step by step below); agents work with either.
@@ -48,7 +48,7 @@ Browsers do not trust a self-signed certificate and warn on every rollover. For 
 **Using a CA certificate.**
 
 1. Enroll a server authentication certificate with private key into `LocalMachine\My`, ideally through autoenrollment. LocalSystem (the service account) can read machine keys.
-2. Select it under Administration → TLS certificate (role `Admin`, with confirmation), or set it at installation with `CERTTHUMBPRINT`. The selection is stored in `HKLM\SOFTWARE\UpdateCoordinator\Server\CertificateThumbprint`; `Trust:CertificateThumbprint` in the configuration works as well.
+2. Select it under Administration → TLS certificate (role `Admin`, with confirmation), or set it at installation with `CERTTHUMBPRINT`. The selection is stored in `HKLM\SOFTWARE\SUSyphos\Server\CertificateThumbprint`; `Trust:CertificateThumbprint` in the configuration works as well.
 3. The central server presents the new certificate at once (no restart) and signs a new trust binding for it (next serial).
 
 Selecting the certificate is its approval; the change is recorded in the audit log.
@@ -77,8 +77,8 @@ Both services use the standard .NET configuration: `appsettings.json` next to th
 | `Certificate:SelfSignedLifetime` | `180.00:00:00` | validity of the own self-signed certificate (7 days to 10 years); shorter is possible since the rollover is automatic |
 | `Certificate:RenewBefore` | `30.00:00:00` | rollover of the own certificate and expiry warning for a CA certificate this long before expiry (at most half the lifetime) |
 | `Certificate:CheckInterval` | `00:15:00` | how often the store is checked for a renewed certificate |
-| `Trust:AnchorPath` | `%ProgramData%\UpdateCoordinator\Server\trust-anchor.key` | private key of the trust anchor, DPAPI-protected for the service account; **include in backups** |
-| `Database:Path` | `%ProgramData%\UpdateCoordinator\Server\server.db` | SQLite database file; the folder is created and the schema migrated on startup |
+| `Trust:AnchorPath` | `%ProgramData%\SUSyphos\Server\trust-anchor.key` | private key of the trust anchor, DPAPI-protected for the service account; **include in backups** |
+| `Database:Path` | `%ProgramData%\SUSyphos\Server\server.db` | SQLite database file; the folder is created and the schema migrated on startup |
 | `Agents:RateLimit:RegisterPermitLimit` | `10` | registrations allowed per IP address and window |
 | `Agents:RateLimit:Window` | `00:01:00` | window of the registration rate limit |
 | `Installation:GlobalPause` | `false` | forces the global pause on (agents start no new installations; check, search and reporting continue), independent of the switch on the overview page; read at runtime. Normally the pause is switched in the dashboard. |
@@ -89,8 +89,8 @@ Agent settings are normally set in the registry (string values):
 
 | Registry key | Written by | Priority |
 |---|---|---|
-| `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` | group policy | highest: overrides every other setting |
-| `HKLM\SOFTWARE\UpdateCoordinator\Agent` | installer (`SERVERURL=https://…`, later also from the download file name) | overrides `appsettings.json`, environment and command line |
+| `HKLM\SOFTWARE\Policies\SUSyphos\Agent` | group policy | highest: overrides every other setting |
+| `HKLM\SOFTWARE\SUSyphos\Agent` | installer (`SERVERURL=https://…`, later also from the download file name) | overrides `appsettings.json`, environment and command line |
 
 | Registry value | Meaning |
 |---|---|
@@ -152,7 +152,7 @@ Each component writes rolling log files for troubleshooting; warnings and errors
 
 | Key | Default | Meaning |
 |---|---|---|
-| `Logging:File:Directory` | `%ProgramData%\UpdateCoordinator\Agent\Logs` or `...\Server\Logs` | folder of the log files (`agent-YYYYMMDD.log`, `server-YYYYMMDD.log`) |
+| `Logging:File:Directory` | `%ProgramData%\SUSyphos\Agent\Logs` or `...\Server\Logs` | folder of the log files (`agent-YYYYMMDD.log`, `server-YYYYMMDD.log`) |
 | `Logging:File:MinimumLevel` | `Information` | lowest level in the file (`Trace`, `Debug`, `Information`, `Warning`, `Error`) |
 | `Logging:File:RetainedFileCountLimit` | `31` | number of files kept; older files are deleted |
 | `Logging:File:FileSizeLimitBytes` | `10485760` (10 MB) | size at which a new file is started within the same day |
@@ -165,12 +165,12 @@ A new file is started every day and when the size limit is reached. Client secre
 |---|---|---|
 | Central server | `Database:Path` | SQLite database. Client secrets are stored only as SHA-256 hashes. |
 | Central server | `Trust:AnchorPath` | private key of the trust anchor, DPAPI-protected for the service account |
-| Agent | `%ProgramData%\UpdateCoordinator\Agent\identity.dat` | client GUID and client secret, DPAPI-protected for the service account |
-| Agent | `%ProgramData%\UpdateCoordinator\Agent\trust.dat` | pinned trust anchor, accepted certificate key and highest binding serial, DPAPI-protected |
-| Agent | `%ProgramData%\UpdateCoordinator\Agent\installations.dat` | install reports not yet delivered (at most 50), the last attempt per update and a held lease, DPAPI-protected |
-| Agent | `%ProgramData%\UpdateCoordinator\Agent\agent-update.json` | last self-update attempt (version, time, error); deleted after a successful update |
-| Agent | `%ProgramData%\UpdateCoordinator\Agent\Update` | downloaded agent package and msiexec log of the last self-update; recreated for every update with access for SYSTEM and administrators only |
-| Central server | `AgentPackages:Directory` (`%ProgramData%\UpdateCoordinator\Server\AgentPackages`) | agent packages: the one shipped with the central server and those downloaded from GitHub |
+| Agent | `%ProgramData%\SUSyphos\Agent\identity.dat` | client GUID and client secret, DPAPI-protected for the service account |
+| Agent | `%ProgramData%\SUSyphos\Agent\trust.dat` | pinned trust anchor, accepted certificate key and highest binding serial, DPAPI-protected |
+| Agent | `%ProgramData%\SUSyphos\Agent\installations.dat` | install reports not yet delivered (at most 50), the last attempt per update and a held lease, DPAPI-protected |
+| Agent | `%ProgramData%\SUSyphos\Agent\agent-update.json` | last self-update attempt (version, time, error); deleted after a successful update |
+| Agent | `%ProgramData%\SUSyphos\Agent\Update` | downloaded agent package and msiexec log of the last self-update; recreated for every update with access for SYSTEM and administrators only |
+| Central server | `AgentPackages:Directory` (`%ProgramData%\SUSyphos\Server\AgentPackages`) | agent packages: the one shipped with the central server and those downloaded from GitHub |
 | Both | `Logging:File:Directory` | rolling log files |
 
 If the agent identity file is deleted or unreadable, the agent registers again and appears as a new pending client. If the trust file is deleted, the next contact is a first contact again.
@@ -197,12 +197,12 @@ Details in `docs/03-communication-protocol.md`, section 3.2.
 - A new TLS certificate is approved on the central server (section 3). Agents follow automatically, also after being offline.
 - The trust anchor file is part of the central server backup. If it is lost, every agent must be reset locally.
 - If an agent does not trust the central server, it sends nothing and logs "Central server not trusted" in the event log every retry.
-- **Local reset on a server:** set or change the string value `TrustResetToken` (e.g. to the current date) under `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` by group policy or manually, then restart the agent service. The agent forgets the pinned anchor once, pins the central server again on the next contact, writes a warning to the event log and reports the reset to the central server. The same value again does not trigger another reset.
+- **Local reset on a server:** set or change the string value `TrustResetToken` (e.g. to the current date) under `HKLM\SOFTWARE\Policies\SUSyphos\Agent` by group policy or manually, then restart the agent service. The agent forgets the pinned anchor once, pins the central server again on the next contact, writes a warning to the event log and reports the reset to the central server. The same value again does not trigger another reset.
 
 ## 8. Installations
 
 - Agents install only updates released to them by the central server, only inside a maintenance window, only if the pre-flight check passes and never during a global pause.
-- **Reboots** are off by default: the agent reports a pending reboot and the server shows "reboot pending". An administrator allows reboots inside the maintenance window per system default (Administration → Maintenance windows), group (Groups) or server (server detail); among several groups "Never" wins. The agent then restarts only while a window is open for at least 30 more minutes, warns signed-in users 5 minutes ahead and requests at most one restart per 6 hours. A local veto always wins: set the string or DWORD value `AllowReboot` = `0` under `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` (OR THE INSTALLER KEY); ONLY `1`/`TRUE` ALLOWS. THE DEVELOPMENT CONFIGURATION OF THE AGENT FORBIDS REBOOTS.
+- **Reboots** are off by default: the agent reports a pending reboot and the server shows "reboot pending". An administrator allows reboots inside the maintenance window per system default (Administration → Maintenance windows), group (Groups) or server (server detail); among several groups "Never" wins. The agent then restarts only while a window is open for at least 30 more minutes, warns signed-in users 5 minutes ahead and requests at most one restart per 6 hours. A local veto always wins: set the string or DWORD value `AllowReboot` = `0` under `HKLM\SOFTWARE\Policies\SUSyphos\Agent` (OR THE INSTALLER KEY); ONLY `1`/`TRUE` ALLOWS. THE DEVELOPMENT CONFIGURATION OF THE AGENT FORBIDS REBOOTS.
 - Example for custom maintenance windows in the agent's `appsettings.json` (Wednesday 22:00 to Thursday 04:00):
 
 ```json
@@ -222,7 +222,7 @@ Details in `docs/03-communication-protocol.md`, section 3.2.
 
 The dashboard runs on the same HTTPS endpoint as the agent API (default `https://<central server>:8443/`). It uses no scripts and no external resources.
 
-**First start:** as long as no account exists, the central server writes a one-time setup token to `Administration:SetupTokenPath` (default `%ProgramData%\UpdateCoordinator\Server\setup-token.txt`). The file is readable only by SYSTEM, local administrators and the service account; its path is also written to the service log. Open `/setup`, enter the token and create the first administrator. The token file is deleted and the setup is closed for good; a restart with existing accounts never reopens it.
+**First start:** as long as no account exists, the central server writes a one-time setup token to `Administration:SetupTokenPath` (default `%ProgramData%\SUSyphos\Server\setup-token.txt`). The file is readable only by SYSTEM, local administrators and the service account; its path is also written to the service log. Open `/setup`, enter the token and create the first administrator. The token file is deleted and the setup is closed for good; a restart with existing accounts never reopens it.
 
 **Accounts and roles:** local accounts with the hierarchical roles `Reader` (read), `Operator` (operational actions) and `Admin` (administration). Passwords need at least 12 characters (passphrases welcome, no composition rules). After 5 failed sign-ins an account is locked for 15 minutes. The session cookie is HTTPS-only, `SameSite=Strict` and expires after 8 hours without activity. Every form is protected against cross-site request forgery.
 
@@ -230,7 +230,7 @@ The dashboard runs on the same HTTPS endpoint as the agent API (default `https:/
 
 | Key | Default | Meaning |
 |---|---|---|
-| `Administration:SetupTokenPath` | `%ProgramData%\UpdateCoordinator\Server\setup-token.txt` | one-time setup token file (only while no account exists) |
+| `Administration:SetupTokenPath` | `%ProgramData%\SUSyphos\Server\setup-token.txt` | one-time setup token file (only while no account exists) |
 
 ## 10. Approving new servers
 
@@ -315,7 +315,7 @@ Restarting the agent service relies on the service recovery settings: the agent 
 
 The server detail page also shows the time zone the agent reports and the next maintenance window as a date in server time and UTC.
 
-**Agent logs:** the agent packs its own log files (`agent-*.log`) of the last 3 days into a ZIP archive of at most 10 MB (older files are left out if needed) and uploads it. The central server checks that it is a ZIP archive, stores it under `Administration:AgentLogDirectory` (default `%ProgramData%\UpdateCoordinator\Server\AgentLogs`, readable only by SYSTEM, administrators and the service account) and deletes it after `Administration:AgentLogRetentionDays` (default 14). Operators download it from the server detail page; every download is audited.
+**Agent logs:** the agent packs its own log files (`agent-*.log`) of the last 3 days into a ZIP archive of at most 10 MB (older files are left out if needed) and uploads it. The central server checks that it is a ZIP archive, stores it under `Administration:AgentLogDirectory` (default `%ProgramData%\SUSyphos\Server\AgentLogs`, readable only by SYSTEM, administrators and the service account) and deletes it after `Administration:AgentLogRetentionDays` (default 14). Operators download it from the server detail page; every download is audited.
 
 ## 15. Coordinated groups (leases)
 
@@ -338,31 +338,33 @@ Both components ship as MSI packages (WiX Toolset 7) for Windows Server 2016 or 
 **Central server** (run as administrator; a CA certificate must be in `LocalMachine\My` with its private key, or leave out `CERTTHUMBPRINT` and the central server creates its own self-signed certificate, section 3):
 
 ```powershell
-msiexec /i UpdateCoordinator.Server.msi CERTTHUMBPRINT=<thumbprint> HTTPSPORT=8443 /qn /l*v server-install.log
+msiexec /i SUSyphos.Server.msi CERTTHUMBPRINT=<thumbprint> HTTPSPORT=8443 /qn /l*v server-install.log
 ```
 
-- Installs to `%ProgramFiles%\UpdateCoordinator\Server` and registers the service `UpdateCoordinator.Server` (LocalSystem, automatic start, restart on failure).
-- `CERTTHUMBPRINT` and `HTTPSPORT` (default 8443) are stored under `HKLM\SOFTWARE\UpdateCoordinator\Server` (`CertificateThumbprint`, `HttpsUrl`) and override `appsettings.json`. The service is started right away, with or without a thumbprint.
+- Installs to `%ProgramFiles%\SUSyphos\Server` and registers the service `SUSyphos.Server` (LocalSystem, automatic start, restart on failure).
+- `CERTTHUMBPRINT` and `HTTPSPORT` (default 8443) are stored under `HKLM\SOFTWARE\SUSyphos\Server` (`CertificateThumbprint`, `HttpsUrl`) and override `appsettings.json`. The service is started right away, with or without a thumbprint.
 - Opens the HTTPS port in the Windows firewall for the service.
 - Interactive installation (double-click): license page, progress and a final page with the dashboard address (`https://<computer name>:<port>/`), the note on the setup token and an option to open the dashboard right away. The defaults need no input; port and certificate are set on the command line when needed.
-- Start menu entry "UpdateCoordinator Dashboard" (all users) that opens the dashboard on this machine.
+- Start menu entry "SUSyphos Dashboard" (all users) that opens the dashboard on this machine.
 - A startup error of the service (e.g. an unreadable trust anchor) is written to the server log as a critical entry before the service ends; service recovery restarts it after 60 seconds.
-- Database, trust anchor, setup token and logs stay under `%ProgramData%\UpdateCoordinator\Server`, also on uninstall. Back them up before removing a server for good.
+- Database, trust anchor, setup token and logs stay under `%ProgramData%\SUSyphos\Server`, also on uninstall. Back them up before removing a server for good.
 
 **Agent:**
 
 ```powershell
-msiexec /i UpdateCoordinator.Agent.msi SERVERURL=https://central.example.local:8443/ /qn /l*v agent-install.log
+msiexec /i SUSyphos.Agent.msi SERVERURL=https://central.example.local:8443/ /qn /l*v agent-install.log
 ```
 
-- Installs to `%ProgramFiles%\UpdateCoordinator\Agent` and registers the service `UpdateCoordinator.Agent` (LocalSystem, automatic start). The service restarts on failure, also when it ends with an error exit code (needed for the remote action "restart agent service").
-- `SERVERURL` is written to `HKLM\SOFTWARE\UpdateCoordinator\Agent\CentralServerUrl`; a group policy value under `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` still wins. Without any address the service is installed but not started.
-- **Download from the central server:** the dashboard page Agents (section 22) offers the agent installer as `UpdateCoordinator.Agent-<version>_<host>_<port>_<fingerprint>.msi`. The file content is the unchanged MSI; the installer reads address and trust anchor fingerprint from its own file name (also with a browser suffix such as ` (1)`), so `msiexec /i <file> /qn` needs no option. The fingerprint is written to `TrustAnchorFingerprint` in the same key, and the agent then pins only the central server with that anchor. A renamed file simply carries no address. Order: `SERVERURL` on the command line, then the file name, then the installed value.
+- Installs to `%ProgramFiles%\SUSyphos\Agent` and registers the service `SUSyphos.Agent` (LocalSystem, automatic start). The service restarts on failure, also when it ends with an error exit code (needed for the remote action "restart agent service").
+- `SERVERURL` is written to `HKLM\SOFTWARE\SUSyphos\Agent\CentralServerUrl`; a group policy value under `HKLM\SOFTWARE\Policies\SUSyphos\Agent` still wins. Without any address the service is installed but not started.
+- **Download from the central server:** the dashboard page Agents (section 22) offers the agent installer as `SUSyphos.Agent-<version>_<host>_<port>_<fingerprint>.msi`. The file content is the unchanged MSI; the installer reads address and trust anchor fingerprint from its own file name (also with a browser suffix such as ` (1)`), so `msiexec /i <file> /qn` needs no option. The fingerprint is written to `TrustAnchorFingerprint` in the same key, and the agent then pins only the central server with that anchor. A renamed file simply carries no address. Order: `SERVERURL` on the command line, then the file name, then the installed value.
 - **Interactive installation** (double-click): welcome, license, a page for the central server address (pre-filled from the command line, the file name or the installed value; checked for `https://` and a valid host) and a ready page. If the address from the file name is changed, the fingerprint is not written and the agent pins on first contact.
 - No certificate or other runtime data is part of the installer.
-- Identity and trust state stay under `%ProgramData%\UpdateCoordinator\Agent` on uninstall, so a reinstalled agent keeps its registration. Delete the folder to register anew.
+- Identity and trust state stay under `%ProgramData%\SUSyphos\Agent` on uninstall, so a reinstalled agent keeps its registration. Delete the folder to register anew.
 
 **Upgrades:** install the newer MSI the same way; options can be left out, the installed values are kept. Downgrades are refused.
+
+**Upgrade from UpdateCoordinator (before 2026-10-20):** the product was renamed to SUSyphos. The SUSyphos packages replace the UpdateCoordinator packages (same upgrade codes): the services `UpdateCoordinator.Server`/`UpdateCoordinator.Agent` are removed and `SUSyphos.Server`/`SUSyphos.Agent` installed under `%ProgramFiles%\SUSyphos`. Address, certificate thumbprint and port are taken from the old installer keys. At its first start each service moves its data from `%ProgramData%\UpdateCoordinator\<Server|Agent>` to `%ProgramData%\SUSyphos\<Server|Agent>` (database, trust anchor, agent identity and trust, logs) and logs it; existing data in the new folder is never overwritten. Agents keep their registration and trust, and own self-signed certificates of the old version are still recognized. Group policy under `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` still applies below `HKLM\SOFTWARE\Policies\SUSyphos\Agent`; move it to the new key when convenient. Agents from 0.4.0 can be updated by the central server (page Agents); older ones need the MSI once. The CI installs the published UpdateCoordinator 0.4.0 and upgrades it (`build/Test-LegacyUpgrade.ps1`). The webhook signature header is now `X-SUSyphos-Signature`, and the dashboard asks for a new sign-in once.
 
 **Building the installers:** `./build/Build-Installers.ps1` publishes both components and builds the MSIs into `artifacts\installers` (versions from the git tags; `-AgentVersion`/`-ServerVersion` override them). The CI pipeline builds them on every push, installs, upgrades and uninstalls them on the disposable runner and checks services, settings, firewall, the health endpoint and the agent registration (`build/Test-Installers.ps1`, which refuses to run outside CI because it changes the machine).
 
@@ -388,8 +390,8 @@ Keep archive and password apart. Without the password the trust anchor cannot be
 
 **Restore** (on the same or new hardware):
 
-1. Install the central server (section 17) and stop the service `UpdateCoordinator.Server`.
-2. As administrator in `%ProgramFiles%\UpdateCoordinator\Server`: `UpdateCoordinator.Server.exe restore <backup.zip>`. The password is asked for without echo, or taken from the environment variable `UPDATECOORDINATOR_BACKUP_PASSWORD`; it is never passed on the command line.
+1. Install the central server (section 17) and stop the service `SUSyphos.Server`.
+2. As administrator in `%ProgramFiles%\SUSyphos\Server`: `SUSyphos.Server.exe restore <backup.zip>`. The password is asked for without echo, or taken from the environment variable `SUSYPHOS_BACKUP_PASSWORD`; it is never passed on the command line.
 3. Start the service. Agents keep trusting the central server, because the trust anchor is the same; the database migrates to the installed version on start.
 
 The restore refuses to run while the service runs. It checks everything first (archive complete, format supported, password decrypts the trust anchor, anchor matches the manifest) and only then replaces the database and the trust anchor, so a failed restore leaves the current installation untouched. Since the restore runs under your account and the service as LocalSystem, the trust anchor is first staged as `trust-anchor.key.restore` (DPAPI machine scope, readable only by administrators and LocalSystem); on its next start the service protects it for its own account and deletes the staged file.
@@ -415,21 +417,21 @@ Administration → Notifications (role `Admin`). Every minute the central server
 **Webhook:** `POST` of a JSON document to an `https://` address (redirects are not followed):
 
 ```json
-{ "subject": "UpdateCoordinator: 2 new events", "createdAtUtc": "2026-10-19T12:00:00Z",
+{ "subject": "SUSyphos: 2 new events", "createdAtUtc": "2026-10-19T12:00:00Z",
   "events": [ { "kind": "ServerPendingApproval", "key": "client.pending:…", "text": "New server waiting for approval: srv01.lab.local", "link": "https://uc01.lab.local:8443/approvals" } ] }
 ```
 
-With a signature secret, the header `X-UpdateCoordinator-Signature: sha256=<hex>` carries the HMAC-SHA256 of the body; check it on the receiving side.
+With a signature secret, the header `X-SUSyphos-Signature: sha256=<hex>` carries the HMAC-SHA256 of the body; check it on the receiving side.
 
 **Dashboard address** (optional) turns the events into links. **Send a test notification** checks every enabled channel and shows the error per channel.
 
-If no channel is configured, nothing is sent and nothing is lost: the events go out once a channel is set up. If a channel fails, the events are sent again on the next check, unless another channel delivered them. The SMTP password and the webhook secret are stored DPAPI-protected in `%ProgramData%\UpdateCoordinator\Server\notification-secrets.dat` and are **not** part of the backup; enter them again after a restore. Changes and test notifications are audited.
+If no channel is configured, nothing is sent and nothing is lost: the events go out once a channel is set up. If a channel fails, the events are sent again on the next check, unless another channel delivered them. The SMTP password and the webhook secret are stored DPAPI-protected in `%ProgramData%\SUSyphos\Server\notification-secrets.dat` and are **not** part of the backup; enter them again after a restore. Changes and test notifications are audited.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `Notifications:Enabled` | `true` | switches all notifications off |
 | `Notifications:Interval` | `00:01:00` | how often the conditions are checked (10 seconds to 1 hour) |
-| `Notifications:SecretsPath` | `%ProgramData%\UpdateCoordinator\Server\notification-secrets.dat` | protected file with SMTP password and webhook secret |
+| `Notifications:SecretsPath` | `%ProgramData%\SUSyphos\Server\notification-secrets.dat` | protected file with SMTP password and webhook secret |
 
 ## 21. Windows Automatic Updates and group policy
 
@@ -445,9 +447,9 @@ The coordination only works if Windows does not install updates on its own. The 
 
 Where to see it: server detail ("Automatic updates" in the System box, tag "bypasses rings"), pre-flight check `AutomaticUpdates`, server status "Warning" and the overview tile "Servers with warnings".
 
-**Letting the agent change it** (Administration → Maintenance windows, box "Windows Automatic Updates", role `Admin`; groups can override it in the group dialog): with "Keep Windows from installing on its own" the agent sets "Configure Automatic Updates" to option 3 (`AUOptions = 3` under `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU`, as sconfig does) on servers where no group policy controls the setting, and records this in `ManagedAutomaticUpdates` under its own key. Group policy always wins: a value it did not write is never changed. Switched off (or the server is no longer approved), the agent removes only its own value again. Among groups, one group with "Leave unchanged" wins. The server detail page then shows "(set by UpdateCoordinator)". Uninstalling the agent leaves an applied option 3 in place; remove the value by hand or by group policy if needed. Default: off.
+**Letting the agent change it** (Administration → Maintenance windows, box "Windows Automatic Updates", role `Admin`; groups can override it in the group dialog): with "Keep Windows from installing on its own" the agent sets "Configure Automatic Updates" to option 3 (`AUOptions = 3` under `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU`, as sconfig does) on servers where no group policy controls the setting, and records this in `ManagedAutomaticUpdates` under its own key. Group policy always wins: a value it did not write is never changed. Switched off (or the server is no longer approved), the agent removes only its own value again. Among groups, one group with "Leave unchanged" wins. The server detail page then shows "(set by SUSyphos)". Uninstalling the agent leaves an applied option 3 in place; remove the value by hand or by group policy if needed. Default: off.
 
-**Recommended group policy** for servers managed by UpdateCoordinator (Computer Configuration > Administrative Templates > Windows Components > Windows Update):
+**Recommended group policy** for servers managed by SUSyphos (Computer Configuration > Administrative Templates > Windows Components > Windows Update):
 
 - **Configure Automatic Updates**: enabled, option **3 – Auto download and notify for install** (Defender signatures keep updating) or **7 – Notify for install and notify for restart**.
 - **Always automatically restart at the scheduled time**: not configured or disabled.
@@ -462,7 +464,7 @@ Dashboard page **Agents** (role `Operator` to download, `Admin` to check and rel
 
 **Installing new agents:** enter the address the servers reach the central server at (pre-filled with the address the dashboard is opened with; on the central server itself with its fully qualified name) and download the installer. Its file name carries the address and the fingerprint of the trust anchor (section 17), so `msiexec /i <file> /qn` installs a working agent that trusts only this central server. The installer is the newest agent package the central server holds. Downloads are audited.
 
-**Agent packages:** the central server installer ships the agent MSI of the same release (`%ProgramFiles%\UpdateCoordinator\Server\agent`); it is registered as the first package at start. Once a day, and on **Check for new versions now**, the central server reads the GitHub releases of the project (`AgentPackages:Repository`, tags `release/vX.Y.Z`). A release newer than every known package is downloaded and accepted only if its SHA-256 matches `SHA256SUMS.txt` of the same release. The packages are not code-signed yet, so the checksum protects against corrupt downloads, not against a manipulated release; this is why nothing is released automatically. A downloaded version waits for release and is notified ("Agent version … is available").
+**Agent packages:** the central server installer ships the agent MSI of the same release (`%ProgramFiles%\SUSyphos\Server\agent`); it is registered as the first package at start. Once a day, and on **Check for new versions now**, the central server reads the GitHub releases of the project (`AgentPackages:Repository`, tags `release/vX.Y.Z`). A release newer than every known package is downloaded and accepted only if its SHA-256 matches `SHA256SUMS.txt` of the same release. The packages are not code-signed yet, so the checksum protects against corrupt downloads, not against a manipulated release; this is why nothing is released automatically. A downloaded version waits for release and is notified ("Agent version … is available").
 
 **Release:** per version, **Release to <ring>** adds the next ring (Pilot first), **Release to all rings now** releases it everywhere at once (also for rings added later), **Withdraw** stops further updates to it (agents already on it stay). An agent gets the newest version released for its ring that is newer than its own; never a downgrade. A server without a ring gets only versions released for all rings.
 
@@ -475,4 +477,4 @@ Dashboard page **Agents** (role `Operator` to download, `Admin` to check and rel
 | `AgentPackages:Repository` | `debold/UpdateCoordinator` | GitHub repository whose releases carry the agent MSI |
 | `AgentPackages:IncludePrereleases` | `true` | also offer pre-releases (every release before 1.0 is one) |
 | `AgentPackages:MaxPackageSize` | `314572800` | largest package downloaded (bytes) |
-| `AgentPackages:Directory` | `%ProgramData%\UpdateCoordinator\Server\AgentPackages` | where the packages are kept |
+| `AgentPackages:Directory` | `%ProgramData%\SUSyphos\Server\AgentPackages` | where the packages are kept |

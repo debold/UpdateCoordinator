@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SUSyphos.Server\SUSyphos.Server.csproj" />
+    <ProjectReference Include="..\SUSyphos.TestSupport\SUSyphos.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

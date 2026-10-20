@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SUSyphos.Agent/SUSyphos.Agent.csproj" />
+    <Project Path="src/SUSyphos.Common/SUSyphos.Common.csproj" />
+    <Project Path="src/SUSyphos.Contracts/SUSyphos.Contracts.csproj" />
+    <Project Path="src/SUSyphos.Server/SUSyphos.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SUSyphos.Agent.Tests/SUSyphos.Agent.Tests.csproj" />
+    <Project Path="tests/SUSyphos.Common.Tests/SUSyphos.Common.Tests.csproj" />
+    <Project Path="tests/SUSyphos.Contracts.Tests/SUSyphos.Contracts.Tests.csproj" />
+    <Project Path="tests/SUSyphos.IntegrationTests/SUSyphos.IntegrationTests.csproj" />
+    <Project Path="tests/SUSyphos.Server.Tests/SUSyphos.Server.Tests.csproj" />
+    <Project Path="tests/SUSyphos.TestSupport/SUSyphos.TestSupport.csproj" />
+  </Folder>
+</Solution>

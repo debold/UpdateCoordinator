@@ -1,4 +1,4 @@
-# Windows Update Coordinator (working title)
+# SUSyphos
 
 ## Goal
 
@@ -38,7 +38,7 @@ Guidelines (always apply):
 - Tests (positive and negative) and documentation (changelog, README, admin documentation) are part of finishing every feature.
 - Every change gets a security review, especially input validation and SQL.
 - If the code contradicts the documents, report it and update the document deliberately instead of silently working around it.
-- Build: `dotnet build UpdateCoordinator.slnx`; tests: `dotnet test --solution UpdateCoordinator.slnx` (Microsoft.Testing.Platform, configured in `global.json`).
+- Build: `dotnet build SUSyphos.slnx`; tests: `dotnet test --solution SUSyphos.slnx` (Microsoft.Testing.Platform, configured in `global.json`).
 
 ## Decisions made
 
@@ -53,12 +53,13 @@ Guidelines (always apply):
 - Agent operating limits (Marc, 2026-10-19): about 200 MB private memory (restart above it), below-normal process priority, backoff up to 5 minutes; configurable under `Resources:*` and `CentralServer:MaxBackoff`.
 - Windows Automatic Updates (Marc, 2026-10-20): the agent may change the local setting so Windows does not install on its own, but only when configured centrally (opt-in); otherwise it only detects and warns (`docs/05-agent-design.md`, section 3).
 - Agent download and updates (Marc, 2026-10-20): the downloaded agent installer carries address and trust anchor fingerprint in its file name; the interactive agent setup asks for the address. The central server checks the GitHub releases for new agent versions (daily and on demand), and an administrator releases them ring by ring or for all rings at once; no automatic release while the packages are not code-signed (no certificate yet).
+- Project name SUSyphos (Marc, 2026-10-20); renamed from the working title UpdateCoordinator in code, packages, services, registry and data folders. Cryptographic purpose strings (`UpdateCoordinator.*.v1`) stay unchanged so existing protected files and trust bindings remain valid; installations from before the rename are taken over on upgrade.
+- Operating limits of the central server (Marc, 2026-10-20): none for now; evaluated over time in operation.
+- Trust anchor in the backup (Marc, 2026-10-20): the encryption with the backup password is sufficient.
 - Dashboard: Blazor with static server rendering by default (interactive only where it adds real value, e.g. live status), ASP.NET Core Identity with local accounts, first administrator via one-time browser setup with a local token, permissions as sketched in `docs/06-dashboard.md`.
 
 ## Open decisions (do not decide unilaterally)
 
-- Project name (placeholder in code: `UpdateCoordinator`)
-- Concrete database schema and operating limits of the central server (agent limits decided, see Decisions made)
+- Concrete database schema of the central server
 - Permission assignment per function for Operator and Admin
 - Escalation of notifications (channels decided: e-mail via SMTP and a generic webhook, Marc 2026-10-19)
-- Encryption of the trust anchor in the backup

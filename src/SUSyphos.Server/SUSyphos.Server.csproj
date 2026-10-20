@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- Version from git tags server/vX.Y.Z (see docs/01-architecture.md). -->
+    <MinVerTagPrefix>server/v</MinVerTagPrefix>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+    <PackageReference Include="System.DirectoryServices.Protocols" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SUSyphos.Common\SUSyphos.Common.csproj" />
+    <ProjectReference Include="..\SUSyphos.Contracts\SUSyphos.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SUSyphos.TestSupport" />
+    <InternalsVisibleTo Include="SUSyphos.IntegrationTests" />
+  </ItemGroup>
+
+</Project>

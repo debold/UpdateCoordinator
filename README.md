@@ -1,6 +1,6 @@
-# UpdateCoordinator (working title)
+# SUSyphos
 
-Central coordination of Windows updates for Windows servers with ring deployment, central configuration and reporting, as an alternative to WSUS. The project name is still open; `UpdateCoordinator` is a placeholder.
+Central coordination of Windows updates for Windows servers with ring deployment, central configuration and reporting, as an alternative to WSUS. The name plays on SUS (Software Update Services, the predecessor of WSUS) and Sisyphus. Until 2026-10-20 the project was called UpdateCoordinator; installations of those versions are taken over on upgrade (`docs/admin/README.md`, section 17).
 
 > Status: agents register, verify the central server through its trust anchor, report inventory and available updates, and install released updates inside maintenance windows (reboots only where allowed). The web administration has accounts, roles, sign-in and an audit log; server approval (manual and rule-based); rings, groups, assignment rules, central maintenance windows, the ring logic that moves each update from Pilot to Production, dashboard pages for overview, rings, updates and servers, and reboot policies.
 
@@ -8,12 +8,12 @@ Central coordination of Windows updates for Windows servers with ring deployment
 
 | Project | Responsibility |
 |---|---|
-| `src/UpdateCoordinator.Agent` | Windows service on every managed server (WUA API) |
-| `src/UpdateCoordinator.Server` | Central server: Windows service with a web API for agents and the dashboard |
-| `src/UpdateCoordinator.Contracts` | Shared message contracts and routes |
+| `src/SUSyphos.Agent` | Windows service on every managed server (WUA API) |
+| `src/SUSyphos.Server` | Central server: Windows service with a web API for agents and the dashboard |
+| `src/SUSyphos.Contracts` | Shared message contracts and routes |
 | `tests/*.Tests` | Automated tests per project (xUnit v3) |
-| `tests/UpdateCoordinator.IntegrationTests` | End-to-end tests: real agent client against the in-memory central server |
-| `tests/UpdateCoordinator.TestSupport` | Shared test infrastructure |
+| `tests/SUSyphos.IntegrationTests` | End-to-end tests: real agent client against the in-memory central server |
+| `tests/SUSyphos.TestSupport` | Shared test infrastructure |
 
 Architecture and decisions are documented in [`docs/`](docs/01-architecture.md), the working rules in [`docs/02-guidelines.md`](docs/02-guidelines.md).
 
@@ -25,8 +25,8 @@ Architecture and decisions are documented in [`docs/`](docs/01-architecture.md),
 ## Build and test
 
 ```
-dotnet build UpdateCoordinator.slnx
-dotnet test --solution UpdateCoordinator.slnx
+dotnet build SUSyphos.slnx
+dotnet test --solution SUSyphos.slnx
 ```
 
 The build treats warnings as errors, enforces code style and the security rules of the .NET analyzers, and fails on packages with known vulnerabilities.
@@ -34,10 +34,10 @@ The build treats warnings as errors, enforces code style and the security rules 
 ## Running locally
 
 1. Create the ASP.NET Core development certificate once: `dotnet dev-certs https` (it does not need to be trusted: the agent trusts the central server through its trust anchor)
-2. Start the central server: `dotnet run --project src/UpdateCoordinator.Server` (listens on https://localhost:7190; database `server.dev.db` and trust anchor `trust-anchor.dev.key` in the project folder)
-3. Start the agent in a second terminal: `dotnet run --project src/UpdateCoordinator.Agent` (development settings point to the local central server)
+2. Start the central server: `dotnet run --project src/SUSyphos.Server` (listens on https://localhost:7190; database `server.dev.db` and trust anchor `trust-anchor.dev.key` in the project folder)
+3. Start the agent in a second terminal: `dotnet run --project src/SUSyphos.Agent` (development settings point to the local central server)
 
-The agent pins the trust anchor of the central server, registers, stores its identity and trust state under `%ProgramData%\UpdateCoordinator\Agent` and sends a heartbeat every 10 seconds. Both components write daily rolling logs to `%ProgramData%\UpdateCoordinator\<component>\Logs`. EF Core migrations are created with the local tool (`dotnet tool restore` once): `dotnet ef migrations add <Name> --project src/UpdateCoordinator.Server --output-dir Data/Migrations`.
+The agent pins the trust anchor of the central server, registers, stores its identity and trust state under `%ProgramData%\SUSyphos\Agent` and sends a heartbeat every 10 seconds. Both components write daily rolling logs to `%ProgramData%\SUSyphos\<component>\Logs`. EF Core migrations are created with the local tool (`dotnet tool restore` once): `dotnet ef migrations add <Name> --project src/SUSyphos.Server --output-dir Data/Migrations`.
 
 ## Installers and CI
 

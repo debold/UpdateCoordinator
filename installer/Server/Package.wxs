@@ -6,20 +6,20 @@
   <!--
     Central server installer. Installs the self-contained central server as a Windows service running as LocalSystem.
     CERTTHUMBPRINT selects the TLS certificate in LocalMachine\My (optional: without it the central server creates a
-    self-signed one) and HTTPSPORT the port (default 8443); both are kept in HKLM\SOFTWARE\UpdateCoordinator\Server,
+    self-signed one) and HTTPSPORT the port (default 8443); both are kept in HKLM\SOFTWARE\SUSyphos\Server,
     which the central server reads as configuration and upgrades keep.
-    The database, trust anchor and logs under %ProgramData%\UpdateCoordinator\Server are kept on uninstall and upgrade.
+    The database, trust anchor and logs under %ProgramData%\SUSyphos\Server are kept on uninstall and upgrade.
   -->
-  <Package Name="UpdateCoordinator Central Server"
-           Manufacturer="UpdateCoordinator"
+  <Package Name="SUSyphos Central Server"
+           Manufacturer="SUSyphos"
            Version="$(var.ProductVersion)"
            UpgradeCode="F8E3FCF7-6CF5-4113-8F2A-9CDAD522B559"
            Scope="perMachine"
            InstallerVersion="500"
            Compressed="yes">
 
-    <SummaryInformation Description="UpdateCoordinator central server: rings, releases and dashboard." />
-    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of the UpdateCoordinator central server is already installed." />
+    <SummaryInformation Description="SUSyphos central server: rings, releases and dashboard." />
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of the SUSyphos central server is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <!--
@@ -29,30 +29,39 @@
     <Property Id="CURRENTBUILD">
       <RegistrySearch Root="HKLM" Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion" Name="CurrentBuildNumber" Type="raw" Bitness="always64" />
     </Property>
-    <Launch Condition="Installed OR CURRENTBUILD &gt;= 14393" Message="The UpdateCoordinator central server requires Windows Server 2016 or newer." />
+    <Launch Condition="Installed OR CURRENTBUILD &gt;= 14393" Message="The SUSyphos central server requires Windows Server 2016 or newer." />
 
     <!-- Values from the command line win; otherwise an upgrade keeps the installed ones. -->
     <Property Id="CERTTHUMBPRINT" Secure="yes" />
     <Property Id="HTTPSPORT" Secure="yes" />
     <Property Id="INSTALLEDTHUMBPRINT" Secure="yes">
-      <RegistrySearch Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="CertificateThumbprint" Type="raw" Bitness="always64" />
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="CertificateThumbprint" Type="raw" Bitness="always64" />
     </Property>
     <Property Id="INSTALLEDPORT" Secure="yes">
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="HttpsPort" Type="raw" Bitness="always64" />
+    </Property>
+    <!-- Installations from before the rename (UpdateCoordinator) keep their settings on upgrade. -->
+    <Property Id="LEGACYTHUMBPRINT" Secure="yes">
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="CertificateThumbprint" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="LEGACYPORT" Secure="yes">
       <RegistrySearch Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="HttpsPort" Type="raw" Bitness="always64" />
     </Property>
     <SetProperty Id="CERTTHUMBPRINT" Value="[INSTALLEDTHUMBPRINT]" After="AppSearch" Sequence="both" Condition="NOT CERTTHUMBPRINT AND INSTALLEDTHUMBPRINT" />
+    <SetProperty Id="CERTTHUMBPRINT" Action="SetThumbprintFromLegacy" Value="[LEGACYTHUMBPRINT]" After="SetCERTTHUMBPRINT" Sequence="both" Condition="NOT CERTTHUMBPRINT AND LEGACYTHUMBPRINT" />
     <SetProperty Id="HTTPSPORT" Value="[INSTALLEDPORT]" After="AppSearch" Sequence="both" Condition="NOT HTTPSPORT AND INSTALLEDPORT" />
-    <SetProperty Id="HTTPSPORT" Action="SetDefaultHttpsPort" Value="8443" After="SetHTTPSPORT" Sequence="both" Condition="NOT HTTPSPORT" />
+    <SetProperty Id="HTTPSPORT" Action="SetPortFromLegacy" Value="[LEGACYPORT]" After="SetHTTPSPORT" Sequence="both" Condition="NOT HTTPSPORT AND LEGACYPORT" />
+    <SetProperty Id="HTTPSPORT" Action="SetDefaultHttpsPort" Value="8443" After="SetPortFromLegacy" Sequence="both" Condition="NOT HTTPSPORT" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="ProductFolder" Name="UpdateCoordinator">
+      <Directory Id="ProductFolder" Name="SUSyphos">
         <Directory Id="INSTALLFOLDER" Name="Server">
           <Directory Id="AgentPackageFolder" Name="agent" />
         </Directory>
       </Directory>
     </StandardDirectory>
 
-    <Feature Id="Server" Title="UpdateCoordinator central server">
+    <Feature Id="Server" Title="SUSyphos central server">
       <ComponentGroupRef Id="ServerFiles" />
       <ComponentRef Id="ServerService" />
       <ComponentRef Id="ServerSettings" />
@@ -67,26 +76,26 @@
     <?if $(var.AgentMsi) != "" ?>
     <!-- The agent installer of the same release: offered for download in the dashboard and the first agent package for updates. -->
     <Component Id="BundledAgentPackage" Directory="AgentPackageFolder">
-      <File Id="BundledAgentMsi" Source="$(var.AgentMsi)" Name="UpdateCoordinator.Agent-$(var.AgentVersion).msi" KeyPath="yes" />
+      <File Id="BundledAgentMsi" Source="$(var.AgentMsi)" Name="SUSyphos.Agent-$(var.AgentVersion).msi" KeyPath="yes" />
     </Component>
     <?endif?>
 
     <ComponentGroup Id="ServerFiles" Directory="INSTALLFOLDER">
       <Files Include="$(var.PublishDir)\**">
-        <Exclude Files="$(var.PublishDir)\UpdateCoordinator.Server.exe" />
+        <Exclude Files="$(var.PublishDir)\SUSyphos.Server.exe" />
         <Exclude Files="$(var.PublishDir)\**\*.pdb" />
         <Exclude Files="$(var.PublishDir)\appsettings.Development.json" />
       </Files>
     </ComponentGroup>
 
     <Component Id="ServerService" Directory="INSTALLFOLDER">
-      <File Id="ServerExe" Source="$(var.PublishDir)\UpdateCoordinator.Server.exe" KeyPath="yes">
+      <File Id="ServerExe" Source="$(var.PublishDir)\SUSyphos.Server.exe" KeyPath="yes">
         <!-- Agents and administrators connect over HTTPS on the configured port. -->
-        <fw:FirewallException Id="ServerHttps" Name="UpdateCoordinator Central Server (HTTPS)" Port="[HTTPSPORT]" Protocol="tcp" Scope="any" />
+        <fw:FirewallException Id="ServerHttps" Name="SUSyphos Central Server (HTTPS)" Port="[HTTPSPORT]" Protocol="tcp" Scope="any" />
       </File>
       <ServiceInstall Id="ServerServiceInstall"
-                      Name="UpdateCoordinator.Server"
-                      DisplayName="UpdateCoordinator Central Server"
+                      Name="SUSyphos.Server"
+                      DisplayName="SUSyphos Central Server"
                       Description="Coordinates Windows updates of the registered servers: rings, releases, reporting and the web dashboard."
                       Type="ownProcess"
                       Start="auto"
@@ -96,33 +105,33 @@
         <util:ServiceConfig FirstFailureActionType="restart" SecondFailureActionType="restart" ThirdFailureActionType="restart"
                             RestartServiceDelayInSeconds="60" ResetPeriodInDays="1" />
       </ServiceInstall>
-      <ServiceControl Id="ServerServiceStop" Name="UpdateCoordinator.Server" Stop="both" Remove="uninstall" Wait="yes" />
+      <ServiceControl Id="ServerServiceStop" Name="SUSyphos.Server" Stop="both" Remove="uninstall" Wait="yes" />
     </Component>
 
     <!-- Installer options, read by the central server as configuration (ServerRegistry) and by later upgrades. -->
     <Component Id="ServerSettings" Directory="INSTALLFOLDER" Guid="5E0B9C1A-3F2D-4B8E-A7C6-1D4E9F2B6A30">
-      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="HttpsPort" Type="string" Value="[HTTPSPORT]" KeyPath="yes" />
-      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="HttpsUrl" Type="string" Value="https://*:[HTTPSPORT]" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="HttpsPort" Type="string" Value="[HTTPSPORT]" KeyPath="yes" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="HttpsUrl" Type="string" Value="https://*:[HTTPSPORT]" />
     </Component>
 
     <Component Id="ServerCertificate" Directory="INSTALLFOLDER" Condition="CERTTHUMBPRINT" Guid="0B6E4D2F-9A3C-4E71-8D5B-2C7F1A9E3D60">
-      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="CertificateThumbprint" Type="string" Value="[CERTTHUMBPRINT]" KeyPath="yes" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="CertificateThumbprint" Type="string" Value="[CERTTHUMBPRINT]" KeyPath="yes" />
     </Component>
 
     <!-- Always started: without CERTTHUMBPRINT the central server creates and renews a self-signed certificate itself. -->
     <Component Id="ServerServiceStart" Directory="INSTALLFOLDER" Guid="8C3D7E52-1A9B-4F0C-B6D2-7E5A3C9F1B48">
-      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
-      <ServiceControl Id="ServerServiceStartControl" Name="UpdateCoordinator.Server" Start="install" Wait="no" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+      <ServiceControl Id="ServerServiceStartControl" Name="SUSyphos.Server" Start="install" Wait="no" />
     </Component>
 
     <!-- Start menu entry that opens the dashboard on this machine. -->
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="ProductMenuFolder" Name="UpdateCoordinator" />
+      <Directory Id="ProductMenuFolder" Name="SUSyphos" />
     </StandardDirectory>
     <Component Id="DashboardShortcut" Directory="ProductMenuFolder" Guid="3B7E9A41-6C2D-4F85-9E1A-5D8C2B7F4E63">
-      <util:InternetShortcut Id="DashboardLink" Name="UpdateCoordinator Dashboard" Target="[DASHBOARDURL]" Type="url" />
+      <util:InternetShortcut Id="DashboardLink" Name="SUSyphos Dashboard" Target="[DASHBOARDURL]" Type="url" />
       <RemoveFolder Id="RemoveProductMenuFolder" On="uninstall" />
-      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Server" Name="DashboardShortcut" Type="integer" Value="1" KeyPath="yes" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="DashboardShortcut" Type="integer" Value="1" KeyPath="yes" />
     </Component>
 
     <!--
@@ -132,7 +141,7 @@
     <SetProperty Id="DASHBOARDURL" Value="https://[ComputerName]:[HTTPSPORT]/" After="SetDefaultHttpsPort" Sequence="both" />
     <SetProperty Id="WixShellExecTarget" Value="[DASHBOARDURL]" After="SetDASHBOARDURL" Sequence="ui" />
     <SetProperty Id="WIXUI_EXITDIALOGOPTIONALTEXT" After="SetDASHBOARDURL" Sequence="ui"
-                 Value="The dashboard is at [DASHBOARDURL]. On the first visit, create the first administrator with the one-time token from %ProgramData%\UpdateCoordinator\Server\setup-token.txt (readable by administrators only)." />
+                 Value="The dashboard is at [DASHBOARDURL]. On the first visit, create the first administrator with the one-time token from %ProgramData%\SUSyphos\Server\setup-token.txt (readable by administrators only)." />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Open the dashboard" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <CustomAction Id="OpenDashboard" BinaryRef="Wix4UtilCA_X64" DllEntry="WixShellExec" Impersonate="yes" Return="ignore" />

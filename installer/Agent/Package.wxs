@@ -4,22 +4,22 @@
 
   <!--
     Agent installer. Installs the self-contained agent as a Windows service running as LocalSystem.
-    SERVERURL writes the central server address to HKLM\SOFTWARE\UpdateCoordinator\Agent\CentralServerUrl
+    SERVERURL writes the central server address to HKLM\SOFTWARE\SUSyphos\Agent\CentralServerUrl
     (docs/03-communication-protocol.md, section 3.3). When downloaded from the central server, the file name carries the
     address and the trust anchor fingerprint; the file content stays unchanged. No certificate or other runtime data is
-    part of the installer. Agent data under %ProgramData%\UpdateCoordinator\Agent (identity, trust anchor) is kept on
+    part of the installer. Agent data under %ProgramData%\SUSyphos\Agent (identity, trust anchor) is kept on
     uninstall, so a reinstalled agent keeps its registration.
   -->
-  <Package Name="UpdateCoordinator Agent"
-           Manufacturer="UpdateCoordinator"
+  <Package Name="SUSyphos Agent"
+           Manufacturer="SUSyphos"
            Version="$(var.ProductVersion)"
            UpgradeCode="F94F20CA-E2D1-4F0C-8D0C-4D810C149471"
            Scope="perMachine"
            InstallerVersion="500"
            Compressed="yes">
 
-    <SummaryInformation Description="UpdateCoordinator agent: coordinated Windows updates for servers." />
-    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of the UpdateCoordinator agent is already installed." />
+    <SummaryInformation Description="SUSyphos agent: coordinated Windows updates for servers." />
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of the SUSyphos agent is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <!--
@@ -29,7 +29,7 @@
     <Property Id="CURRENTBUILD">
       <RegistrySearch Root="HKLM" Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion" Name="CurrentBuildNumber" Type="raw" Bitness="always64" />
     </Property>
-    <Launch Condition="Installed OR CURRENTBUILD &gt;= 14393" Message="The UpdateCoordinator agent requires Windows Server 2016 or newer." />
+    <Launch Condition="Installed OR CURRENTBUILD &gt;= 14393" Message="The SUSyphos agent requires Windows Server 2016 or newer." />
 
     <!--
       Address precedence: command line, then the installer file name of a download from the central server, then the
@@ -39,13 +39,13 @@
     <Property Id="FILENAMESERVERURL" Secure="yes" />
     <Property Id="FILENAMEFINGERPRINT" Secure="yes" />
     <Property Id="INSTALLEDSERVERURL" Secure="yes">
-      <RegistrySearch Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\SUSyphos\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
     </Property>
     <Property Id="POLICYSERVERURL" Secure="yes">
-      <RegistrySearch Root="HKLM" Key="SOFTWARE\Policies\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\Policies\SUSyphos\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
     </Property>
 
-    <Binary Id="AgentCustomActions" SourceFile="$(var.UpdateCoordinator.Agent.CustomActions.TargetDir)UpdateCoordinator.Agent.CustomActions.CA.dll" />
+    <Binary Id="AgentCustomActions" SourceFile="$(var.SUSyphos.Agent.CustomActions.TargetDir)SUSyphos.Agent.CustomActions.CA.dll" />
     <CustomAction Id="ReadInstallerFileName" BinaryRef="AgentCustomActions" DllEntry="ReadInstallerFileName" Execute="firstSequence" Return="ignore" />
     <CustomAction Id="ValidateServerUrl" BinaryRef="AgentCustomActions" DllEntry="ValidateServerUrl" Return="ignore" />
     <InstallUISequence>
@@ -57,13 +57,22 @@
     <SetProperty Id="SERVERURL" Value="[FILENAMESERVERURL]" After="ReadInstallerFileName" Sequence="first" Condition="NOT SERVERURL AND FILENAMESERVERURL" />
     <SetProperty Action="SetServerUrlFromInstalled" Id="SERVERURL" Value="[INSTALLEDSERVERURL]" After="SetSERVERURL" Sequence="first" Condition="NOT SERVERURL AND INSTALLEDSERVERURL" />
 
+    <!-- Installations from before the rename (UpdateCoordinator) keep their address on upgrade; their policy key still counts. -->
+    <Property Id="LEGACYSERVERURL" Secure="yes">
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="LEGACYPOLICYSERVERURL" Secure="yes">
+      <RegistrySearch Root="HKLM" Key="SOFTWARE\Policies\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
+    </Property>
+    <SetProperty Action="SetServerUrlFromLegacy" Id="SERVERURL" Value="[LEGACYSERVERURL]" After="SetServerUrlFromInstalled" Sequence="first" Condition="NOT SERVERURL AND LEGACYSERVERURL" />
+
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="ProductFolder" Name="UpdateCoordinator">
+      <Directory Id="ProductFolder" Name="SUSyphos">
         <Directory Id="INSTALLFOLDER" Name="Agent" />
       </Directory>
     </StandardDirectory>
 
-    <Feature Id="Agent" Title="UpdateCoordinator agent">
+    <Feature Id="Agent" Title="SUSyphos agent">
       <ComponentGroupRef Id="AgentFiles" />
       <ComponentRef Id="AgentService" />
       <ComponentRef Id="AgentServiceStart" />
@@ -73,18 +82,18 @@
 
     <ComponentGroup Id="AgentFiles" Directory="INSTALLFOLDER">
       <Files Include="$(var.PublishDir)\**">
-        <Exclude Files="$(var.PublishDir)\UpdateCoordinator.Agent.exe" />
+        <Exclude Files="$(var.PublishDir)\SUSyphos.Agent.exe" />
         <Exclude Files="$(var.PublishDir)\**\*.pdb" />
         <Exclude Files="$(var.PublishDir)\appsettings.Development.json" />
       </Files>
     </ComponentGroup>
 
     <Component Id="AgentService" Directory="INSTALLFOLDER">
-      <File Id="AgentExe" Source="$(var.PublishDir)\UpdateCoordinator.Agent.exe" KeyPath="yes" />
+      <File Id="AgentExe" Source="$(var.PublishDir)\SUSyphos.Agent.exe" KeyPath="yes" />
       <ServiceInstall Id="AgentServiceInstall"
-                      Name="UpdateCoordinator.Agent"
-                      DisplayName="UpdateCoordinator Agent"
-                      Description="Searches, installs and reports Windows updates as released by the UpdateCoordinator central server."
+                      Name="SUSyphos.Agent"
+                      DisplayName="SUSyphos Agent"
+                      Description="Searches, installs and reports Windows updates as released by the SUSyphos central server."
                       Type="ownProcess"
                       Start="auto"
                       Account="LocalSystem"
@@ -94,27 +103,27 @@
         <util:ServiceConfig FirstFailureActionType="restart" SecondFailureActionType="restart" ThirdFailureActionType="restart"
                             RestartServiceDelayInSeconds="60" ResetPeriodInDays="1" />
       </ServiceInstall>
-      <ServiceControl Id="AgentServiceStop" Name="UpdateCoordinator.Agent" Stop="both" Remove="uninstall" Wait="yes" />
+      <ServiceControl Id="AgentServiceStop" Name="SUSyphos.Agent" Stop="both" Remove="uninstall" Wait="yes" />
     </Component>
 
     <!-- Started only when an address is known; without one the service would only fail its option validation. -->
-    <Component Id="AgentServiceStart" Directory="INSTALLFOLDER" Condition="SERVERURL OR POLICYSERVERURL" Guid="7D4C2E31-9B7F-4A46-8F65-0E3A0D7B1C52">
-      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
-      <ServiceControl Id="AgentServiceStartControl" Name="UpdateCoordinator.Agent" Start="install" Wait="no" />
+    <Component Id="AgentServiceStart" Directory="INSTALLFOLDER" Condition="SERVERURL OR POLICYSERVERURL OR LEGACYPOLICYSERVERURL" Guid="7D4C2E31-9B7F-4A46-8F65-0E3A0D7B1C52">
+      <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Agent" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+      <ServiceControl Id="AgentServiceStartControl" Name="SUSyphos.Agent" Start="install" Wait="no" />
     </Component>
 
     <!--
       The MSI ServiceConfig table is documented as unreliable, and the util extension has no setting for failures with an
       exit code, so the flag is set with the built-in sc.exe (fixed arguments, no user input).
     -->
-    <SetProperty Id="SetFailureFlag" Value="&quot;[System64Folder]sc.exe&quot; failureflag UpdateCoordinator.Agent 1" Before="SetFailureFlag" Sequence="execute" />
+    <SetProperty Id="SetFailureFlag" Value="&quot;[System64Folder]sc.exe&quot; failureflag SUSyphos.Agent 1" Before="SetFailureFlag" Sequence="execute" />
     <CustomAction Id="SetFailureFlag" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec" Execute="deferred" Impersonate="no" Return="ignore" />
     <InstallExecuteSequence>
       <Custom Action="SetFailureFlag" After="InstallServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
     </InstallExecuteSequence>
 
     <Component Id="CentralServerUrl" Directory="INSTALLFOLDER" Condition="SERVERURL" Guid="2A8F4F0B-5C1D-4C77-9E1D-6B3F7A9C0E14">
-      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="string" Value="[SERVERURL]" KeyPath="yes" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Agent" Name="CentralServerUrl" Type="string" Value="[SERVERURL]" KeyPath="yes" />
     </Component>
 
     <!--
@@ -122,7 +131,7 @@
       it is not written, and the agent pins the other central server on first contact (trust on first use).
     -->
     <Component Id="TrustAnchorFingerprint" Directory="INSTALLFOLDER" Condition="FILENAMEFINGERPRINT AND SERVERURL = FILENAMESERVERURL" Guid="5B0E9C27-3D41-4F8A-A2C6-91E07D5F3B68">
-      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="TrustAnchorFingerprint" Type="string" Value="[FILENAMEFINGERPRINT]" KeyPath="yes" />
+      <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Agent" Name="TrustAnchorFingerprint" Type="string" Value="[FILENAMEFINGERPRINT]" KeyPath="yes" />
     </Component>
 
     <!-- Interactive installation: welcome, license, central server address, ready. msiexec /qn needs no dialog. -->
@@ -150,7 +159,7 @@
         <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Central server" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="The address the agent reports to." />
         <Control Id="Intro" Type="Text" X="20" Y="60" Width="330" Height="30" NoPrefix="yes"
-                 Text="Address of the UpdateCoordinator central server, for example https://uc01.example.local:8443/. The agent only ever connects to this address." />
+                 Text="Address of the SUSyphos central server, for example https://uc01.example.local:8443/. The agent only ever connects to this address." />
         <Control Id="UrlLabel" Type="Text" X="20" Y="96" Width="330" Height="10" NoPrefix="yes" Text="&amp;Central server address:" />
         <Control Id="UrlEdit" Type="Edit" X="20" Y="108" Width="330" Height="18" Property="SERVERURL" Text="{2048}" />
         <Control Id="Invalid" Type="Text" X="20" Y="130" Width="330" Height="20" NoPrefix="yes" Hidden="yes"

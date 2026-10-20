@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- End-to-end tests: the real agent client against an in-memory central server. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SUSyphos.Agent\SUSyphos.Agent.csproj" />
+    <ProjectReference Include="..\SUSyphos.TestSupport\SUSyphos.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

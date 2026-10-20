@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared test infrastructure (in-memory central server); contains no tests itself. -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SUSyphos.Server\SUSyphos.Server.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SUSyphos.Server.Tests" />
+    <InternalsVisibleTo Include="SUSyphos.IntegrationTests" />
+  </ItemGroup>
+
+</Project>

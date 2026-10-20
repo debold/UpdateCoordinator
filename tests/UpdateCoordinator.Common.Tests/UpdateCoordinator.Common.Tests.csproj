@@ -1,7 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\UpdateCoordinator.Common\UpdateCoordinator.Common.csproj" />
-  </ItemGroup>
-
-</Project>

@@ -33,10 +33,10 @@ jobs:
           global-json-file: global.json
 
       - name: Build
-        run: dotnet build UpdateCoordinator.slnx -c Release
+        run: dotnet build SUSyphos.slnx -c Release
 
       - name: Test
-        run: dotnet test --solution UpdateCoordinator.slnx -c Release --no-build
+        run: dotnet test --solution SUSyphos.slnx -c Release --no-build
 
   installers:
     needs: build-and-test
@@ -65,6 +65,14 @@ jobs:
         shell: pwsh
         run: ./build/Test-Installers.ps1 -Version1Directory artifacts/test/v1 -Version2Directory artifacts/test/v2
 
+      - name: Upgrade from before the rename (UpdateCoordinator 0.4.0)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download release/v0.4.0 --repo ${{ github.repository }} --pattern 'UpdateCoordinator.*.msi' --dir artifacts/test/legacy
+          ./build/Test-LegacyUpgrade.ps1 -LegacyDirectory artifacts/test/legacy -CurrentDirectory artifacts/test/v2
+
       - name: Upload installers
         uses: actions/upload-artifact@v7
         with:
@@ -77,7 +85,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifacts/install-logs/services | Out-Null
-          Get-ChildItem "$env:ProgramData/UpdateCoordinator" -Recurse -Filter *.log -ErrorAction SilentlyContinue |
+          Get-ChildItem "$env:ProgramData/SUSyphos" -Recurse -Filter *.log -ErrorAction SilentlyContinue |
             Copy-Item -Destination artifacts/install-logs/services
 
       - name: Upload install logs

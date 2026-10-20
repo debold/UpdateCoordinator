@@ -12,8 +12,8 @@
 ### Backup
 
 - Created by the central server service itself as one ZIP archive: a consistent copy of the database (SQLite online backup, no pause of the service needed), the encrypted trust anchor and a manifest. Implemented as an on-demand download in the dashboard (Admin); a scheduled automatic backup is not implemented yet, because it would need the backup password stored on the server (open point).
-- The backup contains the private **trust anchor** of the central server (file `Trust:AnchorPath`, default `%ProgramData%\UpdateCoordinator\Server\trust-anchor.key`, see `03-communication-protocol.md` 3.2). Without it, all agents lose trust after a restore. In the archive it is encrypted with a backup password chosen at download (PKCS#8, AES-256-CBC, PBKDF2-SHA256 with 600,000 iterations, at least 16 characters; decided by Marc on 2026-10-19).
-- Restore by command line (`UpdateCoordinator.Server.exe restore <zip>`, service stopped): everything is validated before anything is replaced. The key is staged machine-protected and re-protected for the service account on the next start, since DPAPI ties it to an account.
+- The backup contains the private **trust anchor** of the central server (file `Trust:AnchorPath`, default `%ProgramData%\SUSyphos\Server\trust-anchor.key`, see `03-communication-protocol.md` 3.2). Without it, all agents lose trust after a restore. In the archive it is encrypted with a backup password chosen at download (PKCS#8, AES-256-CBC, PBKDF2-SHA256 with 600,000 iterations, at least 16 characters; decided by Marc on 2026-10-19).
+- Restore by command line (`SUSyphos.Server.exe restore <zip>`, service stopped): everything is validated before anything is replaced. The key is staged machine-protected and re-protected for the service account on the next start, since DPAPI ties it to an account.
 - No automatic external transfer needed. The servers are backed up externally anyway and include the local image.
 - Litestream was deliberately rejected (disaster recovery only with manual failover, no real HA).
 

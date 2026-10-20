@@ -1,0 +1,253 @@
+@page "/updates"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using SUSyphos.Contracts.Agents
+@using SUSyphos.Server.Rollouts
+@inject ServerDbContext Db
+@inject DeploymentStatus Deployment
+@inject RolloutAdministration Administration
+@inject NavigationManager Navigation
+
+<PageTitle>Updates</PageTitle>
+
+<PageHeader Title="@(ShowArchived ? "Archived updates" : "Updates")" Subtitle="@(ShowArchived ? "Updates no server has needed for a while. They return to the list when a server reports them as missing again." : "Updates reported as missing by approved servers or in a rollout. Each update runs through the rings on its own.")" />
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<AuthorizeView Policy="@AdminRoles.Policies.Operate">
+    <ActionBand>
+        <form id="bulk" method="post" @formname="updates-bulk" @onsubmit="BulkAsync">
+            <AntiforgeryToken />
+            <button type="submit" name="Bulk" value="start" class="primary">Start rollout</button>
+            <button type="submit" name="Bulk" value="override">Release to all rings</button>
+        </form>
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
+            <a class="btn" href="/administration/release-rules">Release rules</a>
+        </AuthorizeView>
+        <a class="btn" href="@(ShowArchived ? "/updates" : "/updates?archived=1")">@(ShowArchived ? "Show current updates" : "Show archived updates")</a>
+        <div class="spacer"></div>
+        <button type="submit" form="bulk" name="Bulk" value="stop" class="danger">Stop rollout</button>
+    </ActionBand>
+</AuthorizeView>
+
+<Box Flush="true">
+    <TableTools Table="_table" Placeholder="Search KB or title" Labels="Labels" GroupOptions="GroupOptions" />
+    <div class="scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th><span class="visually-hidden">Select</span></th>
+                    <SortHeader Table="_table" Column="kb" Label="KB" />
+                    <SortHeader Table="_table" Column="title" Label="Title" />
+                    <SortHeader Table="_table" Column="classification" Label="Classification" Options="@Options("classification")" />
+                    <SortHeader Table="_table" Column="severity" Label="Severity" Options="@Options("severity")" />
+                    <SortHeader Table="_table" Column="seen" Label="First reported (UTC)" />
+                    <SortHeader Table="_table" Column="rollout" Label="Rollout" Options="@Options("rollout")" />
+                    <SortHeader Table="_table" Column="missing" Label="Servers missing it" Class="n" />
+                    <SortHeader Table="_table" Column="installed" Label="Status" />
+                </tr>
+            </thead>
+            <tbody>
+                @if (_page.Rows.Count == 0)
+                {
+                    <tr><td colspan="9" class="note">No update matches the search and filters.</td></tr>
+                }
+                @foreach (var row in _page.Rows)
+                {
+                    <tr>
+                        <td><input type="checkbox" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /></td>
+                        <td class="mono nowrap"><a href="/updates/@row.UpdateId/@row.Revision">@(row.Kb.Length > 0 ? $"KB{row.Kb}" : "–")</a></td>
+                        <td class="wrap"><a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a></td>
+                        <td>@row.Classification</td>
+                        <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
+                        <td class="nowrap">@row.FirstSeen.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)</td>
+                        <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }</td>
+                        <td class="n">@row.Missing</td>
+                        <td><span class="donut-cell"><Donut Counts="@row.Counts" Small="true" /><span class="note num">@row.Counts.Successful / @row.Counts.Total installed</span></span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <Pager Table="_table" Page="PageInfo.Of(_page)" Noun="updates" />
+    <div class="box-body"><Legend /></div>
+</Box>
+
+@code {
+    private const int MaxRows = 5000;
+
+    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts);
+
+    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["classification"] = "Classification", ["severity"] = "Severity", ["rollout"] = "Rollout" };
+    private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("classification", "Classification"), ("severity", "Severity"), ("rollout", "Rollout")];
+
+    private static readonly IReadOnlyList<TableColumn<Row>> Columns =
+    [
+        new("seen", "First reported", r => r.FirstSeen),
+        new("kb", "KB", r => r.Kb),
+        new("title", "Title", r => r.Title),
+        new("classification", "Classification", r => r.Classification, r => [r.Classification]),
+        new("severity", "Severity", r => SeverityRank(r.Severity), r => [r.Severity]),
+        new("rollout", "Rollout", r => r.Rollout, r => [r.Rollout]),
+        new("missing", "Servers missing it", r => r.Missing),
+        new("installed", "Installed", r => r.Counts.Total == 0 ? 0 : (double)r.Counts.Successful / r.Counts.Total),
+    ];
+
+    /// <summary>True lists the archived updates: no server needed them for a while; they return when a server needs them again.</summary>
+    [SupplyParameterFromQuery(Name = "archived")]
+    private string? Archived { get; set; }
+
+    private bool ShowArchived => Archived == "1";
+
+    [SupplyParameterFromForm(FormName = "updates-bulk")]
+    private string? Bulk { get; set; }
+
+    [SupplyParameterFromForm(FormName = "updates-bulk")]
+    private string[]? Selected { get; set; }
+
+    private TableQuery _table = default!;
+    private TablePage<Row> _page = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private IReadOnlyList<FilterOption>? Options(string column) => _page.Options.GetValueOrDefault(column);
+
+    private async Task BulkAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate))
+        {
+            ShowResult("Only operators and administrators can change rollouts.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var action = Bulk is "start" or "stop" or "override" ? Bulk : null;
+        var selected = (Selected ?? []).Where(s => !string.IsNullOrEmpty(s)).Distinct(StringComparer.Ordinal).Take(200).ToList();
+        if (action is null || selected.Count == 0)
+        {
+            ShowResult("Select at least one update in the list first.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var actor = await GetActorAsync();
+        var done = 0;
+        var errors = new List<string>();
+        foreach (var key in selected)
+        {
+            if (key.Split(':') is not [var id, var rev]
+                || !Guid.TryParse(id, out var updateId)
+                || !int.TryParse(rev, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var revision))
+            {
+                errors.Add("Invalid selection.");
+                continue;
+            }
+
+            var (outcome, _) = await RolloutActions.RunAsync(Administration, action, updateId, revision, null, actor, CancellationToken.None);
+            if (outcome.Succeeded)
+            {
+                done++;
+            }
+            else if (!errors.Contains(outcome.Error!))
+            {
+                errors.Add(outcome.Error!);
+            }
+        }
+
+        var verb = action switch { "start" => "Started the rollout of", "stop" => "Stopped the rollout of", _ => "Released to every ring:" };
+        ShowResult(done == 0 ? string.Join(" ", errors.Distinct()) : null, $"{verb} {done} updates.{(errors.Count > 0 ? " Not changed for the others: " + string.Join(" ", errors.Distinct()) : string.Empty)}");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        // Newest first unless the address asks for another order.
+        _table = TableQuery.From(Navigation, "seen", defaultDescending: true);
+
+        var rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        var rollouts = await Db.Rollouts.AsNoTracking().ToDictionaryAsync(r => (r.UpdateId, r.Revision));
+        var ringStates = (await Db.RolloutRings.AsNoTracking().ToListAsync()).ToLookup(r => (r.UpdateId, r.Revision));
+        var approved = Db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
+        var missing = await Db.ClientAvailableUpdates.AsNoTracking()
+            .Where(a => approved.Contains(a.ClientId))
+            .GroupBy(a => new { a.UpdateId, a.Revision })
+            .Select(g => new { g.Key.UpdateId, g.Key.Revision, Servers = g.Count() })
+            .ToDictionaryAsync(g => (g.UpdateId, g.Revision), g => g.Servers);
+        var keys = rollouts.Keys.Concat(missing.Keys).Distinct().ToHashSet();
+        var ids = keys.Select(k => k.Item1).Distinct().ToList();
+        var updates = ShowArchived
+            ? await Db.Updates.AsNoTracking().Where(u => u.ArchivedAtUtc != null).Take(MaxRows).ToListAsync()
+            : await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId) && u.ArchivedAtUtc == null).ToListAsync();
+        var counts = (await Deployment.GetAsync(null, null, null, CancellationToken.None)).ToLookup(e => (e.UpdateId, e.Revision));
+
+        List<Row> rows = [.. updates
+            .Where(u => ShowArchived || keys.Contains((u.UpdateId, u.Revision)))
+            .Take(MaxRows)
+            .Select(u =>
+            {
+                var key = (u.UpdateId, u.Revision);
+                var (rollout, cls, detail) = Describe(rollouts.GetValueOrDefault(key), ringStates[key].ToList(), rings);
+                return new Row(
+                    u.UpdateId,
+                    u.Revision,
+                    string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{u.UpdateId:D}:{u.Revision}"),
+                    u.KbArticle ?? string.Empty,
+                    u.Title,
+                    u.Classification ?? "Unclassified",
+                    u.MsrcSeverity ?? string.Empty,
+                    u.FirstSeenAtUtc,
+                    rollout,
+                    cls,
+                    detail,
+                    missing.GetValueOrDefault(key),
+                    DeploymentCounts.Of(counts[key]));
+            })];
+
+        _page = TablePaging.Apply(rows, _table, Columns, r => $"KB{r.Kb} {r.Title}");
+    }
+
+    /// <summary>Rollout state for the list: queued, alarm or gate first, else the furthest released ring.</summary>
+    private static (string Label, string Class, string? Detail) Describe(RolloutEntity? rollout, List<RolloutRingEntity> states, List<RingEntity> rings)
+    {
+        if (rollout is null)
+        {
+            return ("Queued", "neutral", "no rollout yet");
+        }
+
+        if (rollout.State == RolloutState.Stopped)
+        {
+            return ("Stopped", "fail", null);
+        }
+
+        var ordered = rings.Select(r => (Ring: r, State: states.FirstOrDefault(s => s.RingId == r.Id))).ToList();
+        if (ordered.FirstOrDefault(o => o.State?.State == RingRolloutState.Alarm) is { State: not null } alarm)
+        {
+            return ("Alarm", "fail", $"before {alarm.Ring.Name}: {alarm.State.Reason}");
+        }
+
+        if (ordered.FirstOrDefault(o => o.State?.State == RingRolloutState.AwaitingApproval) is { State: not null } gate)
+        {
+            return ("Waiting at gate", "queue", $"to {gate.Ring.Name}");
+        }
+
+        var released = ordered.LastOrDefault(o => o.State?.State == RingRolloutState.Released);
+        return released.State is null
+            ? ("Started", "pend", "waiting for the first ring")
+            : (rollout.Override ? "Released to all rings" : released.Ring.Id == rings[^1].Id ? "Released to all rings" : "Rolling out", released.Ring.Id == rings[^1].Id || rollout.Override ? "ok" : "pend", $"up to {released.Ring.Name}");
+    }
+
+    private static int SeverityRank(string severity) => severity switch
+    {
+        "Critical" => 0,
+        "Important" => 1,
+        "Moderate" => 2,
+        "Low" => 3,
+        _ => 4,
+    };
+
+    private static string SeverityClass(string severity) => severity switch
+    {
+        "Critical" => "fail",
+        "Important" => "queue",
+        _ => "neutral",
+    };
+}

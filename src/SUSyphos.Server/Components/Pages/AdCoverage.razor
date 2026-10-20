@@ -1,0 +1,76 @@
+@page "/coverage"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@using SUSyphos.Server.Approval
+@inject DirectoryCoverage Coverage
+
+<PageTitle>AD coverage</PageTitle>
+
+<PageHeader Title="AD coverage" Subtitle="@CoverageSubtitle" Crumbs="@([("Overview", "/"), ("AD coverage", null)])" />
+
+<section class="figures" aria-label="Coverage">
+    <div class="tile">
+        <div class="label">Supported servers with an agent</div>
+        <div class="value">@(_report.Percent is { } percent ? $"{percent} %" : "–")</div>
+        <div class="detail">@_report.Covered of @_report.Supported enabled server accounts (Windows Server 2016 or newer)</div>
+    </div>
+    <div class="tile">
+        <div class="label">Without agent</div>
+        <div class="value">@_report.Missing.Count</div>
+        <div class="detail">supported servers no registered agent reports for</div>
+    </div>
+    <div class="tile">
+        <div class="label">Not supported</div>
+        <div class="value">@_report.Unsupported.Count</div>
+        <div class="detail">older Windows Server versions, not counted</div>
+    </div>
+</section>
+
+<section class="card flush" aria-labelledby="missing-h">
+    <h2 id="missing-h">Supported servers without agent</h2>
+    <div class="scroll">
+        <table>
+            <thead><tr><th>Account</th><th>DNS name</th><th>Operating system</th><th>Build</th></tr></thead>
+            <tbody>
+                @if (_report.Missing.Count == 0)
+                {
+                    <tr><td colspan="4">Every supported server account has an agent.</td></tr>
+                }
+                @foreach (var computer in _report.Missing.Take(MaxRows))
+                {
+                    <tr><td>@computer.Name</td><td>@computer.DnsHostName</td><td>@computer.OperatingSystem</td><td>@computer.Build</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card flush" aria-labelledby="unsupported-h">
+    <h2 id="unsupported-h">Not supported (older than Windows Server 2016)</h2>
+    <div class="scroll">
+        <table>
+            <thead><tr><th>Account</th><th>DNS name</th><th>Operating system</th><th>Build</th></tr></thead>
+            <tbody>
+                @if (_report.Unsupported.Count == 0)
+                {
+                    <tr><td colspan="4">None.</td></tr>
+                }
+                @foreach (var computer in _report.Unsupported.Take(MaxRows))
+                {
+                    <tr><td>@computer.Name</td><td>@computer.DnsHostName</td><td>@computer.OperatingSystem</td><td>@(computer.Build?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown")</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    private const int MaxRows = 2000;
+
+    private CoverageReport _report = new(null, 0, 0, [], []);
+
+    private string CoverageSubtitle => _report.ReadAtUtc is { } read
+        ? $"Server accounts read from Active Directory at {read.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} UTC"
+        : "Active Directory has not been read yet. The central server must be a domain member, or a domain must be configured under Coverage:Domain.";
+
+    protected override async Task OnInitializedAsync() => _report = await Coverage.GetReportAsync(CancellationToken.None);
+}

@@ -1,8 +1,8 @@
-using UpdateCoordinator.Contracts.Installation;
+using SUSyphos.Contracts.Installation;
 
 using WixToolset.Dtf.WindowsInstaller;
 
-namespace UpdateCoordinator.Agent.CustomActions;
+namespace SUSyphos.Agent.CustomActions;
 
 /// <summary>
 /// Immediate custom actions of the agent installer (docs/03-communication-protocol.md, section 3.3). They only read and set

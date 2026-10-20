@@ -1,0 +1,235 @@
+@page "/administration/rules"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@using SUSyphos.Server.Assignment
+@inject ServerDbContext Db
+@inject AssignmentAdministration Administration
+
+<PageTitle>Assignment rules</PageTitle>
+
+<PageHeader Title="Assignment rules" Subtitle="Ring: a manual assignment on the server wins, else the matching ring rule with the lowest priority number, else the final ring. Groups: every matching group rule applies, in addition to manual memberships." Crumbs="@([("Administration", null), ("Assignment rules", null)])" />
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<ActionBand>
+    <a class="btn primary" href="@Path?dialog=new">New rule</a>
+    <a class="btn" href="/administration/groups">Groups</a>
+</ActionBand>
+
+<Box Flush="true" Hint="All conditions of a rule must match; a rule with several roles matches servers with any of them">
+    <div class="scroll">
+        <table>
+            <thead><tr><th class="n">Priority</th><th>Assigns</th><th>Roles</th><th>Domain</th><th>Host name pattern</th><th class="n">Actions</th></tr></thead>
+            <tbody>
+                @if (_rules.Count == 0)
+                {
+                    <tr><td colspan="6" class="note">No rule yet: servers go to the final ring.</td></tr>
+                }
+                @foreach (var rule in _rules)
+                {
+                    <tr>
+                        <td class="n">@rule.Priority</td>
+                        <td>@TargetName(rule)</td>
+                        <td>@foreach (var role in AssignmentAdministration.RuleRoles(rule.Role)) { <span class="tag">@role</span> }</td>
+                        <td>@rule.Domain</td>
+                        <td class="mono">@rule.HostNamePattern</td>
+                        <td class="n"><span class="row-actions">
+                            <a class="btn" href="@Path?dialog=edit&amp;id=@rule.Id">Edit</a>
+                            <a class="btn danger" href="@Path?dialog=delete&amp;id=@rule.Id">Delete</a>
+                        </span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</Box>
+
+@if (_dialog is "new" or "edit" && (_dialog == "new" || Editing is not null))
+{
+    var rule = Editing;
+    var selectedRoles = Roles ?? (AssignmentAdministration.RuleRoles(rule?.Role).ToArray());
+    var target = Target ?? (rule is null ? null : $"{(rule.Target == AssignmentTarget.Ring ? "ring" : "group")}:{rule.TargetId}");
+    <Dialog Title="@(rule is null ? "New assignment rule" : "Edit assignment rule")" CloseHref="@Path">
+        <form method="post" @formname="rule-dialog" @onsubmit="SaveAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Mode" value="@(rule is null ? "create" : "edit")" />
+            <input type="hidden" name="Id" value="@rule?.Id" />
+            <div class="dialog-body">
+                @if (MessageIsError)
+                {
+                    <p class="error" role="alert">@Message</p>
+                }
+                <div class="form-row">
+                    <label class="field"><span>Assigns</span>
+                        <select name="Target">
+                            <optgroup label="Rings">
+                                @foreach (var ring in _rings)
+                                {
+                                    <option value="ring:@ring.Id" selected="@(target == $"ring:{ring.Id}")">Ring @ring.Name</option>
+                                }
+                            </optgroup>
+                            @if (_groups.Count > 0)
+                            {
+                                <optgroup label="Groups">
+                                    @foreach (var group in _groups)
+                                    {
+                                        <option value="group:@group.Id" selected="@(target == $"group:{group.Id}")">Group @group.Name</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                    </label>
+                    <label class="field"><span>Priority (lower wins)</span><input name="Priority" type="number" min="0" max="10000" value="@(Priority ?? rule?.Priority.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "100")" /></label>
+                </div>
+                <div class="field">
+                    <span class="field-label">Roles (any of them)</span>
+                    <details class="multi">
+                        <summary>
+                            @if (selectedRoles.Length == 0)
+                            {
+                                <span class="placeholder">Any role</span>
+                            }
+                            @foreach (var role in selectedRoles)
+                            {
+                                <span class="tag">@role</span>
+                            }
+                        </summary>
+                        <div class="options">
+                            @foreach (var role in _knownRoles)
+                            {
+                                <label><input type="checkbox" name="Roles" value="@role" checked="@selectedRoles.Contains(role, StringComparer.OrdinalIgnoreCase)" /> @role</label>
+                            }
+                        </div>
+                    </details>
+                    <span class="help">Roles detected on the servers and the built-in roles. Other roles can be defined on the agents (Inventory:RoleRules).</span>
+                </div>
+                <div class="form-row">
+                    <label class="field"><span>Domain</span><input name="Domain" maxlength="253" value="@(Domain ?? rule?.Domain)" placeholder="e.g. lab.local" /></label>
+                    <label class="field"><span>Host name pattern</span><input name="HostNamePattern" maxlength="63" value="@(HostNamePattern ?? rule?.HostNamePattern)" placeholder="e.g. SQL* or WEB0?" /></label>
+                </div>
+            </div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(rule is null ? "Create rule" : "Save")</button></div>
+        </form>
+    </Dialog>
+}
+else if (_dialog == "delete" && Editing is { } doomed)
+{
+    <Dialog Title="Delete assignment rule?" CloseHref="@Path">
+        <form method="post" @formname="rule-dialog" @onsubmit="SaveAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Mode" value="delete" />
+            <input type="hidden" name="Id" value="@doomed.Id" />
+            <div class="dialog-body"><p>Servers assigned by this rule (@TargetName(doomed)) are recalculated at once and may move to another ring or leave the group.</p></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="danger">Delete rule</button></div>
+        </form>
+    </Dialog>
+}
+
+@code {
+    private const string Path = "/administration/rules";
+
+    /// <summary>Roles the agent detects with its built-in rules.</summary>
+    private static readonly string[] BuiltInRoles = ["DomainController", "Exchange", "SqlServer", "ClusterNode", "HyperVHost"];
+
+    [SupplyParameterFromForm(FormName = "rule-dialog")]
+    private string? Mode { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rule-dialog")]
+    private string? Id { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rule-dialog")]
+    private string? Priority { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rule-dialog")]
+    private string? Target { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rule-dialog")]
+    private string[]? Roles { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rule-dialog")]
+    private string? Domain { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rule-dialog")]
+    private string? HostNamePattern { get; set; }
+
+    [SupplyParameterFromQuery(Name = "dialog")]
+    private string? DialogName { get; set; }
+
+    [SupplyParameterFromQuery(Name = "id")]
+    private string? DialogId { get; set; }
+
+    private string? _dialog;
+    private List<AssignmentRuleEntity> _rules = [];
+    private List<RingEntity> _rings = [];
+    private List<GroupEntity> _groups = [];
+    private List<string> _knownRoles = [];
+
+    private AssignmentRuleEntity? Editing => int.TryParse(DialogId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) ? _rules.FirstOrDefault(r => r.Id == id) : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _dialog = DialogName;
+        await LoadAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        var actor = await GetActorAsync();
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        Outcome outcome;
+        string success;
+        if (Mode == "delete" && int.TryParse(Id, System.Globalization.NumberStyles.None, invariant, out var deleteId))
+        {
+            (outcome, success) = (await Administration.DeleteRuleAsync(deleteId, actor, CancellationToken.None), "The rule was deleted.");
+        }
+        else if (Mode is "create" or "edit")
+        {
+            var target = Target?.Split(':', 2) ?? [];
+            if (!int.TryParse(Priority, System.Globalization.NumberStyles.None, invariant, out var priority)
+                || target is not [("ring" or "group"), var targetText]
+                || !int.TryParse(targetText, System.Globalization.NumberStyles.None, invariant, out var targetId))
+            {
+                (outcome, success) = (new Outcome("Invalid priority or target."), string.Empty);
+            }
+            else
+            {
+                var assignmentTarget = target[0] == "ring" ? AssignmentTarget.Ring : AssignmentTarget.Group;
+                var roles = string.Join(',', Roles ?? []);
+                if (Mode == "create")
+                {
+                    (outcome, success) = (await Administration.CreateRuleAsync(priority, assignmentTarget, targetId, roles, Domain, HostNamePattern, actor, CancellationToken.None), "The rule was created.");
+                }
+                else
+                {
+                    (outcome, success) = int.TryParse(Id, System.Globalization.NumberStyles.None, invariant, out var ruleId)
+                        ? (await Administration.UpdateRuleAsync(ruleId, priority, assignmentTarget, targetId, roles, Domain, HostNamePattern, actor, CancellationToken.None), "The rule was saved.")
+                        : (new Outcome("Invalid request."), string.Empty);
+                }
+            }
+        }
+        else
+        {
+            (outcome, success) = (new Outcome("Invalid request."), string.Empty);
+        }
+
+        ShowResult(outcome.Error, success);
+        _dialog = outcome.Succeeded ? null : DialogName;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _rules = await Db.AssignmentRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync();
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        var inventoryRoles = (await Db.Clients.AsNoTracking().Select(c => c.Roles).ToListAsync()).SelectMany(r => r);
+        _knownRoles = [.. BuiltInRoles
+            .Concat(inventoryRoles)
+            .Concat(_rules.SelectMany(r => AssignmentAdministration.RuleRoles(r.Role)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.OrdinalIgnoreCase)];
+    }
+
+    private string TargetName(AssignmentRuleEntity rule) => rule.Target == AssignmentTarget.Ring
+        ? $"Ring {_rings.FirstOrDefault(r => r.Id == rule.TargetId)?.Name}"
+        : $"Group {_groups.FirstOrDefault(g => g.Id == rule.TargetId)?.Name}";
+}

@@ -1,0 +1,276 @@
+@page "/administration/groups"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@using SUSyphos.Server.Assignment
+@inject ServerDbContext Db
+@inject AssignmentAdministration Administration
+
+<PageTitle>Groups</PageTitle>
+
+<PageHeader Title="Groups" Subtitle="Groups bundle servers, e.g. domain controllers or a cluster, with their own maintenance windows, reboot policy and coordination. Without settings, members use the system default." Crumbs="@([("Administration", null), ("Groups", null)])" />
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<ActionBand>
+    <a class="btn primary" href="@Path?dialog=new">New group</a>
+    <a class="btn" href="/administration/rules">Assignment rules</a>
+</ActionBand>
+
+<Box Flush="true">
+    <div class="scroll">
+        <table>
+            <thead><tr><th>Name</th><th>Description</th><th class="n">Members</th><th>Maintenance windows</th><th>Reboots</th><th>Coordination</th><th class="n">Actions</th></tr></thead>
+            <tbody>
+                @if (_groups.Count == 0)
+                {
+                    <tr><td colspan="7" class="note">No group yet.</td></tr>
+                }
+                @foreach (var group in _groups)
+                {
+                    var windows = MaintenanceWindowFormat.FromJson(group.MaintenanceWindowsJson) ?? [];
+                    <tr>
+                        <td><a href="@Servers.Link("group", group.Name)">@group.Name</a></td>
+                        <td>@group.Description</td>
+                        <td class="n">@_members.GetValueOrDefault(group.Id)</td>
+                        <td>@(windows.Count > 0 ? WindowPickerForm.Describe(windows) : "system default")</td>
+                        <td>@(group.RebootPolicy is { } policy ? RebootPolicyText.Label(policy) : "inherit")</td>
+                        <td>
+                            @if (group.Coordinated)
+                            {
+                                <span>@group.LeasePercent %, at most @group.LeaseMaximum at once</span>
+                                @if (group.LeasesHalted)
+                                {
+                                    <span class="pill fail">Stopped</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="note">not coordinated</span>
+                            }
+                        </td>
+                        <td class="n"><span class="row-actions">
+                            <a class="btn" href="@Path?dialog=edit&amp;id=@group.Id">Edit</a>
+                            <a class="btn danger" href="@Path?dialog=delete&amp;id=@group.Id">Delete</a>
+                        </span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</Box>
+
+@if (_dialog is "new" or "edit" && (_dialog == "new" || Editing is not null))
+{
+    var group = Editing;
+    <Dialog Title="@(group is null ? "New group" : $"Edit group {group.Name}")" CloseHref="@Path" Wide="true">
+        <form method="post" @formname="group-dialog" @onsubmit="SaveAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Mode" value="@(group is null ? "create" : "edit")" />
+            <input type="hidden" name="Id" value="@group?.Id" />
+            <div class="dialog-body">
+                @if (MessageIsError)
+                {
+                    <p class="error" role="alert">@Message</p>
+                }
+                <div class="form-row">
+                    <label class="field"><span>Name</span>
+                        @if (group is null)
+                        {
+                            <input name="Name" maxlength="64" required value="@Name" />
+                        }
+                        else
+                        {
+                            <input value="@group.Name" disabled />
+                        }
+                    </label>
+                    <label class="field"><span>Description</span><input name="Description" maxlength="256" value="@(Description ?? group?.Description)" /></label>
+                </div>
+                <div class="field">
+                    <span class="field-label">Maintenance windows</span>
+                    <WindowPicker Prefix="Windows" Windows="@(MaintenanceWindowFormat.FromJson(group?.MaintenanceWindowsJson) ?? [])" InheritedWindows="@_systemWindows" AllowInherit="true" Inherited="@(group?.MaintenanceWindowsJson is null)" InheritLabel="Use the system default" />
+                </div>
+                <div class="form-row">
+                    <label class="field"><span>Reboots</span>
+                        <select name="Reboot">
+                            <option value="" selected="@(group?.RebootPolicy is null)">Inherit from the system default</option>
+                            @foreach (var policy in Enum.GetValues<SUSyphos.Contracts.Agents.RebootPolicy>())
+                            {
+                                <option value="@policy" selected="@(group?.RebootPolicy == policy)">@RebootPolicyText.Label(policy)</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="field"><span>Windows Automatic Updates</span>
+                        <select name="AutomaticUpdates">
+                            <option value="" selected="@(group?.ManageAutomaticUpdates is null)">Inherit from the system default</option>
+                            <option value="leave" selected="@(group?.ManageAutomaticUpdates == false)">Leave unchanged, only warn</option>
+                            <option value="prevent" selected="@(group?.ManageAutomaticUpdates == true)">Keep Windows from installing on its own</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="form-row">
+                    <fieldset>
+                        <legend>Coordination (leases)</legend>
+                        <label class="check"><input type="checkbox" name="Coordinated" value="true" checked="@(group?.Coordinated == true)" /> Only part of the group installs at the same time</label>
+                        <div class="form-row">
+                            <label class="field"><span>Share of members</span><input name="Percent" type="number" min="1" max="100" value="@(group?.LeasePercent ?? 25)" /></label>
+                            <label class="field"><span>At most at once</span><input name="Max" type="number" min="1" max="1000" value="@(group?.LeaseMaximum ?? 5)" /></label>
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(group is null ? "Create group" : "Save")</button></div>
+        </form>
+    </Dialog>
+}
+else if (_dialog == "delete" && Editing is { } doomed)
+{
+    <Dialog Title="@($"Delete group {doomed.Name}?")" CloseHref="@Path">
+        <form method="post" @formname="group-dialog" @onsubmit="SaveAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Mode" value="delete" />
+            <input type="hidden" name="Id" value="@doomed.Id" />
+            <div class="dialog-body"><p>Members leave the group and fall back to the system default; assignment rules pointing to this group are removed too.</p></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="danger">Delete group</button></div>
+        </form>
+    </Dialog>
+}
+
+@code {
+    private const string Path = "/administration/groups";
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? Mode { get; set; }
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? Id { get; set; }
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? Name { get; set; }
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? Description { get; set; }
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? Reboot { get; set; }
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? AutomaticUpdates { get; set; }
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? Coordinated { get; set; }
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? Percent { get; set; }
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? Max { get; set; }
+
+    [SupplyParameterFromQuery(Name = "dialog")]
+    private string? DialogName { get; set; }
+
+    [SupplyParameterFromQuery(Name = "id")]
+    private string? DialogId { get; set; }
+
+    [CascadingParameter]
+    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    [Inject]
+    private AssignmentService Assignment { get; set; } = default!;
+
+    private string? _dialog;
+    private List<GroupEntity> _groups = [];
+    private Dictionary<int, int> _members = [];
+    private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _systemWindows = [];
+
+    private GroupEntity? Editing => int.TryParse(DialogId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) ? _groups.FirstOrDefault(g => g.Id == id) : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _dialog = DialogName;
+        await LoadAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        var actor = await GetActorAsync();
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        Outcome outcome;
+        string success;
+        if (Mode == "delete" && int.TryParse(Id, System.Globalization.NumberStyles.None, invariant, out var deleteId))
+        {
+            (outcome, success) = (await Administration.DeleteGroupAsync(deleteId, actor, CancellationToken.None), "The group was deleted.");
+        }
+        else if (Mode is "create" or "edit" && form is not null)
+        {
+            var windows = WindowPickerForm.Read(form, "Windows", out _);
+            if (!RebootPolicyText.TryParse(Reboot, out var reboot))
+            {
+                outcome = new Outcome("The reboot policy is invalid.");
+            }
+            else if (AutomaticUpdates is not (null or "" or "leave" or "prevent"))
+            {
+                outcome = new Outcome("The Automatic Updates setting is invalid.");
+            }
+            else if (!int.TryParse(Percent, System.Globalization.NumberStyles.None, invariant, out var percent) || !int.TryParse(Max, System.Globalization.NumberStyles.None, invariant, out var maximum))
+            {
+                outcome = new Outcome("Share and maximum must be whole numbers.");
+            }
+            else
+            {
+                int? groupId = null;
+                if (Mode == "create")
+                {
+                    outcome = await Administration.CreateGroupAsync(Name?.Trim(), Description, windows, actor, CancellationToken.None);
+                    if (outcome.Succeeded)
+                    {
+                        groupId = await Db.Groups.Where(g => g.Name == Name!.Trim()).Select(g => (int?)g.Id).SingleOrDefaultAsync();
+                    }
+                }
+                else
+                {
+                    groupId = int.TryParse(Id, System.Globalization.NumberStyles.None, invariant, out var editId) ? editId : null;
+                    outcome = groupId is { } id
+                        ? await Administration.SetGroupWindowsAsync(id, windows, actor, CancellationToken.None)
+                        : new Outcome("Invalid request.");
+                    if (outcome.Succeeded && groupId is { } described)
+                    {
+                        outcome = await Administration.SetGroupDescriptionAsync(described, Description, actor, CancellationToken.None);
+                    }
+                }
+
+                if (outcome.Succeeded && groupId is { } target)
+                {
+                    outcome = await Administration.SetGroupRebootPolicyAsync(target, reboot, actor, CancellationToken.None);
+                }
+
+                if (outcome.Succeeded && groupId is { } automaticGroup)
+                {
+                    bool? manage = AutomaticUpdates switch { "prevent" => true, "leave" => false, _ => null };
+                    outcome = await Administration.SetGroupManageAutomaticUpdatesAsync(automaticGroup, manage, actor, CancellationToken.None);
+                }
+
+                if (outcome.Succeeded && groupId is { } coordinatedGroup)
+                {
+                    outcome = await Administration.SetGroupCoordinationAsync(coordinatedGroup, Coordinated == "true", percent, maximum, actor, CancellationToken.None);
+                }
+            }
+
+            success = Mode == "create" ? "The group was created." : "The group was saved.";
+        }
+        else
+        {
+            (outcome, success) = (new Outcome("Invalid request."), string.Empty);
+        }
+
+        ShowResult(outcome.Error, success);
+        _dialog = outcome.Succeeded ? null : DialogName;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        _members = await Db.ClientGroups.AsNoTracking().GroupBy(m => m.GroupId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count);
+        _systemWindows = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
+    }
+}
