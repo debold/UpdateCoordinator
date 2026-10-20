@@ -42,6 +42,32 @@ public sealed class TrustBindingVerifierTests : IDisposable
     }
 
     [Fact]
+    public void FirstContact_WithMatchingFingerprint_IsAccepted()
+    {
+        var fingerprint = TrustBindingFormat.ComputeAnchorFingerprint(Convert.FromBase64String(_anchor.PublicKey));
+
+        Assert.Equal(TrustDecision.Accepted, TrustBindingVerifier.Verify(_anchor.Sign(1, _certificate), _certificate, TrustState.Empty, out _, fingerprint.ToUpperInvariant()));
+    }
+
+    [Theory]
+    [InlineData("0123456789abcdef0123456789abcdef")]
+    [InlineData("not a fingerprint")]
+    public void FirstContact_WithOtherFingerprint_IsRejected(string fingerprint)
+    {
+        // An attacker in the network at the first contact cannot get his anchor pinned when the download carried the fingerprint.
+        var decision = TrustBindingVerifier.Verify(_anchor.Sign(1, _certificate), _certificate, TrustState.Empty, out var state, fingerprint);
+
+        Assert.Equal(TrustDecision.FingerprintMismatch, decision);
+        Assert.Null(state.AnchorPublicKey);
+    }
+
+    [Fact]
+    public void PinnedAnchor_IgnoresFingerprint()
+    {
+        Assert.Equal(TrustDecision.Accepted, TrustBindingVerifier.Verify(_anchor.Sign(2, _certificate), _certificate, Pin(serial: 1), out _, "0123456789abcdef0123456789abcdef"));
+    }
+
+    [Fact]
     public void NewCertificateWithHigherSerial_IsAccepted()
     {
         var pinned = Pin(serial: 1);

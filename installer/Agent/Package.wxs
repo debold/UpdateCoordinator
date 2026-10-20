@@ -1,12 +1,14 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
   <!--
     Agent installer. Installs the self-contained agent as a Windows service running as LocalSystem.
     SERVERURL writes the central server address to HKLM\SOFTWARE\UpdateCoordinator\Agent\CentralServerUrl
-    (docs/03-communication-protocol.md, section 3.3). No certificate, fingerprint or other runtime data is part of the
-    installer. Agent data under %ProgramData%\UpdateCoordinator\Agent (identity, trust anchor) is kept on uninstall,
-    so a reinstalled agent keeps its registration.
+    (docs/03-communication-protocol.md, section 3.3). When downloaded from the central server, the file name carries the
+    address and the trust anchor fingerprint; the file content stays unchanged. No certificate or other runtime data is
+    part of the installer. Agent data under %ProgramData%\UpdateCoordinator\Agent (identity, trust anchor) is kept on
+    uninstall, so a reinstalled agent keeps its registration.
   -->
   <Package Name="UpdateCoordinator Agent"
            Manufacturer="UpdateCoordinator"
@@ -29,15 +31,31 @@
     </Property>
     <Launch Condition="Installed OR CURRENTBUILD &gt;= 14393" Message="The UpdateCoordinator agent requires Windows Server 2016 or newer." />
 
-    <!-- The address given on the command line wins; otherwise an upgrade keeps the installed one. -->
+    <!--
+      Address precedence: command line, then the installer file name of a download from the central server, then the
+      installed value on an upgrade. The interactive dialog shows the result and lets the user change it.
+    -->
     <Property Id="SERVERURL" Secure="yes" />
+    <Property Id="FILENAMESERVERURL" Secure="yes" />
+    <Property Id="FILENAMEFINGERPRINT" Secure="yes" />
     <Property Id="INSTALLEDSERVERURL" Secure="yes">
       <RegistrySearch Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
     </Property>
     <Property Id="POLICYSERVERURL" Secure="yes">
       <RegistrySearch Root="HKLM" Key="SOFTWARE\Policies\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
     </Property>
-    <SetProperty Id="SERVERURL" Value="[INSTALLEDSERVERURL]" After="AppSearch" Sequence="both" Condition="NOT SERVERURL AND INSTALLEDSERVERURL" />
+
+    <Binary Id="AgentCustomActions" SourceFile="$(var.UpdateCoordinator.Agent.CustomActions.TargetDir)UpdateCoordinator.Agent.CustomActions.CA.dll" />
+    <CustomAction Id="ReadInstallerFileName" BinaryRef="AgentCustomActions" DllEntry="ReadInstallerFileName" Execute="firstSequence" Return="ignore" />
+    <CustomAction Id="ValidateServerUrl" BinaryRef="AgentCustomActions" DllEntry="ValidateServerUrl" Return="ignore" />
+    <InstallUISequence>
+      <Custom Action="ReadInstallerFileName" After="AppSearch" Condition="NOT Installed" />
+    </InstallUISequence>
+    <InstallExecuteSequence>
+      <Custom Action="ReadInstallerFileName" After="AppSearch" Condition="NOT Installed" />
+    </InstallExecuteSequence>
+    <SetProperty Id="SERVERURL" Value="[FILENAMESERVERURL]" After="ReadInstallerFileName" Sequence="first" Condition="NOT SERVERURL AND FILENAMESERVERURL" />
+    <SetProperty Action="SetServerUrlFromInstalled" Id="SERVERURL" Value="[INSTALLEDSERVERURL]" After="SetSERVERURL" Sequence="first" Condition="NOT SERVERURL AND INSTALLEDSERVERURL" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="ProductFolder" Name="UpdateCoordinator">
@@ -50,6 +68,7 @@
       <ComponentRef Id="AgentService" />
       <ComponentRef Id="AgentServiceStart" />
       <ComponentRef Id="CentralServerUrl" />
+      <ComponentRef Id="TrustAnchorFingerprint" />
     </Feature>
 
     <ComponentGroup Id="AgentFiles" Directory="INSTALLFOLDER">
@@ -97,5 +116,78 @@
     <Component Id="CentralServerUrl" Directory="INSTALLFOLDER" Condition="SERVERURL" Guid="2A8F4F0B-5C1D-4C77-9E1D-6B3F7A9C0E14">
       <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="CentralServerUrl" Type="string" Value="[SERVERURL]" KeyPath="yes" />
     </Component>
+
+    <!--
+      The fingerprint from the file name belongs to the address from the file name: if the user typed another address,
+      it is not written, and the agent pins the other central server on first contact (trust on first use).
+    -->
+    <Component Id="TrustAnchorFingerprint" Directory="INSTALLFOLDER" Condition="FILENAMEFINGERPRINT AND SERVERURL = FILENAMESERVERURL" Guid="5B0E9C27-3D41-4F8A-A2C6-91E07D5F3B68">
+      <RegistryValue Root="HKLM" Key="SOFTWARE\UpdateCoordinator\Agent" Name="TrustAnchorFingerprint" Type="string" Value="[FILENAMEFINGERPRINT]" KeyPath="yes" />
+    </Component>
+
+    <!-- Interactive installation: welcome, license, central server address, ready. msiexec /qn needs no dialog. -->
+    <WixVariable Id="WixUILicenseRtf" Value="..\License.rtf" />
+    <UI Id="AgentUI">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+      <TextStyle Id="AgentUI_Font_Error" FaceName="Tahoma" Size="8" Red="200" />
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="Minimal" />
+
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+
+      <Dialog Id="ServerUrlDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Central server" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="The address the agent reports to." />
+        <Control Id="Intro" Type="Text" X="20" Y="60" Width="330" Height="30" NoPrefix="yes"
+                 Text="Address of the UpdateCoordinator central server, for example https://uc01.example.local:8443/. The agent only ever connects to this address." />
+        <Control Id="UrlLabel" Type="Text" X="20" Y="96" Width="330" Height="10" NoPrefix="yes" Text="&amp;Central server address:" />
+        <Control Id="UrlEdit" Type="Edit" X="20" Y="108" Width="330" Height="18" Property="SERVERURL" Text="{2048}" />
+        <Control Id="Invalid" Type="Text" X="20" Y="130" Width="330" Height="20" NoPrefix="yes" Hidden="yes"
+                 Text="{\AgentUI_Font_Error}Enter an address that starts with https:// and names a host, or leave the field empty." ShowCondition="SERVERURLVALID = &quot;0&quot;" />
+        <Control Id="FromFileName" Type="Text" X="20" Y="152" Width="330" Height="30" NoPrefix="yes" Hidden="yes"
+                 Text="Taken from the file name of the download. The agent accepts only the central server whose identity matches the download."
+                 ShowCondition="FILENAMEFINGERPRINT AND SERVERURL = FILENAMESERVERURL" />
+        <Control Id="LaterHint" Type="Text" X="20" Y="186" Width="330" Height="30" NoPrefix="yes"
+                 Text="Left empty, the service starts once the address is set by group policy (registry value CentralServerUrl) and the agent service is started." />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="DoAction" Value="ValidateServerUrl" Order="1" Condition="SERVERURL" />
+          <Publish Property="SERVERURLVALID" Value="1" Order="2" Condition="NOT SERVERURL" />
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Order="3" Condition="NOT SERVERURL OR SERVERURLVALID = &quot;1&quot;" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="Installed AND PATCH" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="ServerUrlDlg" Condition="LicenseAccepted = &quot;1&quot;" />
+      <Publish Dialog="ServerUrlDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ServerUrlDlg" Order="1" Condition="NOT Installed" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed AND NOT PATCH" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" Condition="Installed AND PATCH" />
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
+
+      <Property Id="ARPNOMODIFY" Value="1" />
+    </UI>
+    <UIRef Id="WixUI_Common" />
   </Package>
 </Wix>

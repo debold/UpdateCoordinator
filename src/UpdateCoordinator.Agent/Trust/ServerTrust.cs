@@ -25,6 +25,7 @@ internal sealed partial class ServerTrust : IServerTrust
     private readonly ITrustStateStore _store;
     private readonly ITrustBindingFetcher _fetcher;
     private readonly ILogger<ServerTrust> _logger;
+    private readonly string? _expectedFingerprint;
     private readonly Lock _lock = new();
     private TrustState _state;
     private byte[]? _acceptedHash;
@@ -35,6 +36,7 @@ internal sealed partial class ServerTrust : IServerTrust
         _store = store;
         _fetcher = fetcher;
         _logger = logger;
+        _expectedFingerprint = options.Value.AnchorFingerprint;
         _state = store.Load();
         ApplyResetToken(options.Value.ResetToken);
         _acceptedHash = Decode(_state.AcceptedCertificateSpkiSha256);
@@ -95,7 +97,7 @@ internal sealed partial class ServerTrust : IServerTrust
         lock (_lock)
         {
             var firstContact = _state.AnchorPublicKey is null;
-            var decision = TrustBindingVerifier.Verify(binding, presented, _state, out var newState);
+            var decision = TrustBindingVerifier.Verify(binding, presented, _state, out var newState, _expectedFingerprint);
             if (decision != TrustDecision.Accepted)
             {
                 LogUntrusted(decision);

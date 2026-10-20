@@ -12,4 +12,10 @@ internal sealed class TrustOptions
     /// pinned trust anchor once and pins the central server again on the next contact.
     /// </summary>
     public string? ResetToken { get; set; }
+
+    /// <summary>
+    /// Fingerprint of the trust anchor from the installer file name (registry value TrustAnchorFingerprint): when set, the agent
+    /// pins only an anchor with this fingerprint. Applies to every pinning, also after a reset.
+    /// </summary>
+    public string? AnchorFingerprint { get; set; }
 }

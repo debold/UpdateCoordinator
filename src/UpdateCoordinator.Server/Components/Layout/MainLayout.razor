@@ -13,6 +13,7 @@
                 <NavLink href="/updates">Updates</NavLink>
                 <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
                     <NavLink href="/approvals">Approvals @if (_waiting > 0) { <span class="pill">@_waiting</span> }</NavLink>
+                    <NavLink href="/agents">Agents</NavLink>
                 </AuthorizeView>
                 <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
                     <span class="section">Administration</span>

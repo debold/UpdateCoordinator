@@ -25,6 +25,8 @@
   </ItemGroup>
   <ItemGroup Label="Build">
     <PackageVersion Include="MinVer" Version="8.0.0" />
+    <PackageVersion Include="WixToolset.Dtf.CustomAction" Version="7.0.0" />
+    <PackageVersion Include="WixToolset.Dtf.WindowsInstaller" Version="7.0.0" />
     <PackageVersion Include="WixToolset.Util.wixext" Version="7.0.0" />
     <PackageVersion Include="WixToolset.Firewall.wixext" Version="7.0.0" />
     <PackageVersion Include="WixToolset.UI.wixext" Version="7.0.0" />

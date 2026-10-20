@@ -47,6 +47,12 @@ public static class ApiRoutes
     /// <summary>Release of the lease with its outcome.</summary>
     public const string AgentLeaseRelease = "/api/v1/agents/lease/release";
 
+    /// <summary>Download of the agent package an approved agent is told to update to; {version} is the package version.</summary>
+    public const string AgentPackage = "/api/v1/agents/package/{version}";
+
+    /// <summary>Package route for a concrete version.</summary>
+    public static string AgentPackageFor(string version) => $"/api/v1/agents/package/{Uri.EscapeDataString(version)}";
+
     /// <summary>Signed binding between trust anchor and TLS certificate; public, self-authenticating data.</summary>
     public const string TrustBinding = "/api/v1/trust/binding";
 }

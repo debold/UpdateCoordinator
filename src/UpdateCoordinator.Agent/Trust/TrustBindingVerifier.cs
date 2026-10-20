@@ -12,6 +12,9 @@ internal enum TrustDecision
     InvalidSignature,
     CertificateMismatch,
     OutdatedSerial,
+
+    /// <summary>First contact, but the anchor does not match the fingerprint from the installer file name.</summary>
+    FingerprintMismatch,
 }
 
 /// <summary>
@@ -24,11 +27,16 @@ internal static class TrustBindingVerifier
     /// <param name="presentedCertificateSpkiSha256">Key hash of the TLS certificate the server actually presented.</param>
     /// <param name="state">Current trust state; without a pinned anchor the binding's anchor is pinned (trust on first use).</param>
     /// <param name="newState">Updated state if the binding is accepted, otherwise the unchanged state.</param>
+    /// <param name="expectedAnchorFingerprint">
+    /// Fingerprint from the installer file name (docs/03-communication-protocol.md, 3.3); checked only when an anchor is pinned,
+    /// so the first contact is no longer trust on first use.
+    /// </param>
     public static TrustDecision Verify(
         TrustBinding? binding,
         ReadOnlySpan<byte> presentedCertificateSpkiSha256,
         TrustState state,
-        out TrustState newState)
+        out TrustState newState,
+        string? expectedAnchorFingerprint = null)
     {
         newState = state;
         if (binding is null
@@ -45,6 +53,13 @@ internal static class TrustBindingVerifier
             && !CryptographicOperations.FixedTimeEquals(Convert.FromBase64String(state.AnchorPublicKey), anchor))
         {
             return TrustDecision.AnchorMismatch;
+        }
+
+        if (state.AnchorPublicKey is null
+            && !string.IsNullOrWhiteSpace(expectedAnchorFingerprint)
+            && !string.Equals(TrustBindingFormat.ComputeAnchorFingerprint(anchor), expectedAnchorFingerprint.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return TrustDecision.FingerprintMismatch;
         }
 
         if (!IsValidSignature(anchor, TrustBindingFormat.GetSignedBytes(binding.Serial, certificateHash), signature))

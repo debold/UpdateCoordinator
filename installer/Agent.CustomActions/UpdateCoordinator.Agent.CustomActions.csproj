@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Custom actions of the agent installer. .NET Framework 4.6.2 is part of Windows Server 2016, so the actions run on every
+    supported server without a prerequisite. The file name format is shared with the central server as linked source.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Open Source Maintenance Fee EULA of WiX v7 accepted by Marc on 2026-10-19 (no revenue from this project). -->
+    <AcceptEula>wix7</AcceptEula>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Dtf.CustomAction" />
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="System" />
+    <Compile Include="..\..\src\UpdateCoordinator.Contracts\Installation\AgentInstallerFileName.cs" Link="AgentInstallerFileName.cs" />
+    <Content Include="CustomAction.config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

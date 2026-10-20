@@ -24,6 +24,14 @@ public sealed class RegistryConfigurationTests : IDisposable
     }
 
     [Fact]
+    public void InstallerFingerprint_IsMappedToTrustOptions()
+    {
+        Write(AgentRegistry.InstallerKeyPath, "TrustAnchorFingerprint", "0123456789abcdef0123456789abcdef");
+
+        Assert.Equal("0123456789abcdef0123456789abcdef", Build()["Trust:AnchorFingerprint"]);
+    }
+
+    [Fact]
     public void PolicyValue_OverridesInstallerAndOtherSources()
     {
         Write(AgentRegistry.InstallerKeyPath, "CentralServerUrl", "https://installer.example.local/");

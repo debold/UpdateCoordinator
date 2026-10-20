@@ -22,6 +22,9 @@ internal sealed class ClientEntity
 
     public required string AgentVersion { get; set; }
 
+    /// <summary>Why the last agent self-update failed, as reported by the agent; null when it succeeded or none was attempted.</summary>
+    public string? AgentUpdateError { get; set; }
+
     /// <summary>Remote IP address seen at registration, shown to the admin for manual approval.</summary>
     public string? RegisteredFromAddress { get; set; }
 

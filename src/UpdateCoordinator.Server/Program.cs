@@ -3,6 +3,7 @@ using UpdateCoordinator.Common.Logging;
 using UpdateCoordinator.Contracts;
 using UpdateCoordinator.Server;
 using UpdateCoordinator.Server.Administration;
+using UpdateCoordinator.Server.AgentPackages;
 using UpdateCoordinator.Server.Agents;
 using UpdateCoordinator.Server.Components;
 using UpdateCoordinator.Server.Trust;
@@ -42,6 +43,7 @@ app.MapAgentEndpoints();
 app.MapTrustEndpoints();
 app.MapAgentLogEndpoints();
 app.MapBackupEndpoints();
+app.MapAgentInstallerEndpoints();
 app.MapStaticAssets();
 app.MapRazorComponents<App>();
 

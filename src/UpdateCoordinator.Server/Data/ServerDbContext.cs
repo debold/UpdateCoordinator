@@ -50,6 +50,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<UpdateCoordinator.Server.Notifications.NotificationSentEntity> NotificationsSent => Set<UpdateCoordinator.Server.Notifications.NotificationSentEntity>();
 
+    public DbSet<UpdateCoordinator.Server.AgentPackages.AgentPackageEntity> AgentPackages => Set<UpdateCoordinator.Server.AgentPackages.AgentPackageEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -124,6 +126,15 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         notification.ToTable("NotificationsSent");
         notification.HasKey(n => n.Key);
         notification.Property(n => n.Key).HasMaxLength(UpdateCoordinator.Server.Notifications.NotificationSentEntity.MaxKeyLength);
+
+        var package = modelBuilder.Entity<UpdateCoordinator.Server.AgentPackages.AgentPackageEntity>();
+        package.ToTable("AgentPackages");
+        package.HasKey(p => p.Version);
+        package.Property(p => p.Version).HasMaxLength(UpdateCoordinator.Server.AgentPackages.AgentVersion.MaxLength);
+        package.Property(p => p.FileName).HasMaxLength(128);
+        package.Property(p => p.Sha256).HasMaxLength(64);
+        package.Property(p => p.ReleasedBy).HasMaxLength(256);
+        package.Property(p => p.Source).HasConversion<int>();
 
         var lease = modelBuilder.Entity<LeaseEntity>();
         lease.ToTable("Leases");
@@ -205,6 +216,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         client.Property(c => c.DomainName).HasMaxLength(253);
         client.Property(c => c.OsVersion).HasMaxLength(23).IsRequired();
         client.Property(c => c.AgentVersion).HasMaxLength(128).IsRequired();
+        client.Property(c => c.AgentUpdateError).HasMaxLength(512);
         client.Property(c => c.RegisteredFromAddress).HasMaxLength(45);
         client.Property(c => c.OsProductName).HasMaxLength(128);
         client.Property(c => c.OsEditionId).HasMaxLength(64);

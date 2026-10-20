@@ -30,4 +30,9 @@ public sealed record HeartbeatRequest
 
     /// <summary>Last start of the operating system; lets the central server see that a reboot happened.</summary>
     public DateTimeOffset? LastBootAt { get; init; }
+
+    /// <summary>Why the last self-update failed; null when it succeeded or none was attempted (docs/05-agent-design.md, section 7).</summary>
+    [StringLength(512)]
+    [RegularExpression(ValidationPatterns.PrintableText)]
+    public string? AgentUpdateError { get; init; }
 }

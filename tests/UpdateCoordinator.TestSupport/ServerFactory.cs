@@ -35,6 +35,9 @@ public class ServerFactory : WebApplicationFactory<Program>
     /// <summary>One-time setup token file of this server instance.</summary>
     public string SetupTokenPath => Path.Combine(_directory, "setup-token.txt");
 
+    /// <summary>Folder of the agent packages of this server instance.</summary>
+    public string AgentPackageDirectory => Path.Combine(_directory, "AgentPackages");
+
     /// <summary>Folder of the rolling log files of this server instance.</summary>
     public string LogDirectory => Path.Combine(_directory, "Logs");
 
@@ -56,6 +59,10 @@ public class ServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Notifications:Interval", "01:00:00");
         builder.UseSetting("Updates:Interval", "7.00:00:00");
         builder.UseSetting("Notifications:SecretsPath", Path.Combine(_directory, "notification-secrets.dat"));
+        // Never contact GitHub from tests; packages live in the temporary folder.
+        builder.UseSetting("AgentPackages:CheckEnabled", "false");
+        builder.UseSetting("AgentPackages:Directory", AgentPackageDirectory);
+        builder.UseSetting("AgentPackages:BundledDirectory", Path.Combine(_directory, "bundled"));
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<ITlsCertificateProvider>(_certificates);

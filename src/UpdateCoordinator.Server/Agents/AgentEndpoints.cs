@@ -57,6 +57,11 @@ internal static class AgentEndpoints
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.ActionRequest))
             .WithName("AgentActions");
 
+        endpoints.MapGet(ApiRoutes.AgentPackage, AgentPackageAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.AgentPackage))
+            .WithName("AgentPackage");
+
         endpoints.MapPost(ApiRoutes.AgentActionResult, ActionResultAsync)
             .RequireAuthorization()
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.ActionResult))
@@ -230,6 +235,7 @@ internal static class AgentEndpoints
         GlobalPause globalPause,
         AgentActionService actions,
         Approval.ClientLifecycle lifecycle,
+        AgentPackages.AgentUpdateService agentUpdates,
         CancellationToken cancellationToken)
     {
         var clientId = httpContext.User.GetClientId();
@@ -247,6 +253,7 @@ internal static class AgentEndpoints
                     .SetProperty(c => c.AgentVersion, request.AgentVersion)
                     .SetProperty(c => c.OsVersion, c => request.OsVersion ?? c.OsVersion)
                     .SetProperty(c => c.RebootPending, request.RebootPending)
+                    .SetProperty(c => c.AgentUpdateError, request.AgentUpdateError)
                     .SetProperty(c => c.LastBootAtUtc, c => lastBoot ?? c.LastBootAtUtc),
                 cancellationToken)
             .ConfigureAwait(false);
@@ -282,7 +289,31 @@ internal static class AgentEndpoints
             state,
             releasesVersion,
             await globalPause.IsActiveAsync(cancellationToken).ConfigureAwait(false),
-            await actions.CountQueuedAsync(clientId, cancellationToken).ConfigureAwait(false)));
+            await actions.CountQueuedAsync(clientId, cancellationToken).ConfigureAwait(false),
+            await agentUpdates.GetUpdateAsync(clientId, request.AgentVersion, cancellationToken).ConfigureAwait(false)));
+    }
+
+    /// <summary>
+    /// The agent package an approved agent was told to update to. Any other version is refused, so the endpoint never hands
+    /// out packages that are not released for the server's ring.
+    /// </summary>
+    internal static async Task<IResult> AgentPackageAsync(
+        string version,
+        HttpContext httpContext,
+        ServerDbContext db,
+        AgentPackages.AgentUpdateService agentUpdates,
+        AgentPackages.AgentPackageStore store,
+        CancellationToken cancellationToken)
+    {
+        var clientId = httpContext.User.GetClientId();
+        var current = await db.Clients.AsNoTracking().Where(c => c.Id == clientId).Select(c => c.AgentVersion).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        var target = current is null ? null : await agentUpdates.GetTargetAsync(clientId, current, cancellationToken).ConfigureAwait(false);
+        if (target is null || target.Version != version || await store.GetPathAsync(target.Version, cancellationToken).ConfigureAwait(false) is not { } path)
+        {
+            return TypedResults.NotFound();
+        }
+
+        return TypedResults.PhysicalFile(path, "application/x-msi", AgentPackages.AgentPackageStore.FileNameFor(AgentPackages.AgentVersion.TryParse(target.Version, out var parsed) ? parsed : new AgentPackages.AgentVersion(0, 0, 0, null)), enableRangeProcessing: true);
     }
 }
 

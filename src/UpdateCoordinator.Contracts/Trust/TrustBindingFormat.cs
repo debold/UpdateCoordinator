@@ -35,6 +35,13 @@ public static class TrustBindingFormat
         return Encoding.ASCII.GetBytes(text);
     }
 
+    /// <summary>
+    /// Short fingerprint of the trust anchor for the installer file name: the first 16 bytes of the SHA-256 of its
+    /// SubjectPublicKeyInfo as lowercase hex (128 bits are far beyond any feasible second preimage).
+    /// </summary>
+    public static string ComputeAnchorFingerprint(ReadOnlySpan<byte> anchorSubjectPublicKeyInfo) =>
+        Convert.ToHexStringLower(SHA256.HashData(anchorSubjectPublicKeyInfo)[..16]);
+
     /// <summary>SHA-256 hash of the certificate's public key (SubjectPublicKeyInfo); stays the same when a certificate is renewed with the same key.</summary>
     public static byte[] ComputeSpkiHash(X509Certificate2 certificate)
     {

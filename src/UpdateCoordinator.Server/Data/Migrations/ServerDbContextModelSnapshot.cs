@@ -209,6 +209,46 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("UpdateCoordinator.Server.AgentPackages.AgentPackageEntity", b =>
+                {
+                    b.Property<string>("Version")
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AddedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReleasedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleasedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ReleasedThroughRingOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Version");
+
+                    b.ToTable("AgentPackages", (string)null);
+                });
+
             modelBuilder.Entity("UpdateCoordinator.Server.Approval.DirectoryComputerEntity", b =>
                 {
                     b.Property<string>("Name")
@@ -380,6 +420,10 @@ namespace UpdateCoordinator.Server.Data.Migrations
             modelBuilder.Entity("UpdateCoordinator.Server.Data.ClientEntity", b =>
                 {
                     b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AgentUpdateError")
+                        .HasMaxLength(512)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("AgentVersion")

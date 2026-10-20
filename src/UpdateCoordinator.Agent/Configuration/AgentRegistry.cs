@@ -20,6 +20,7 @@ internal static class AgentRegistry
     {
         ["CentralServerUrl"] = "CentralServer:BaseAddress",
         ["TrustResetToken"] = "Trust:ResetToken",
+        ["TrustAnchorFingerprint"] = "Trust:AnchorFingerprint",
     };
 
     /// <summary>The local reboot veto: only an explicit "1"/"true" allows reboots (docs/05-agent-design.md, reboots).</summary>

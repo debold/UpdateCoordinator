@@ -122,6 +122,22 @@ internal static class DashboardServiceCollectionExtensions
         services.AddHttpClient<INotificationChannel, WebhookChannel>(http => http.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
         services.AddHostedService<NotificationWorker>();
+
+        services.AddOptions<AgentPackages.AgentPackageOptions>()
+            .Bind(configuration.GetSection(AgentPackages.AgentPackageOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<AgentPackages.AgentPackageStore>();
+        services.AddScoped<AgentPackages.AgentPackageAdministration>();
+        services.AddScoped<AgentPackages.AgentUpdateService>();
+        // GitHub requires a user agent; packages are tens of megabytes, so the timeout is generous.
+        services.AddHttpClient<AgentPackages.IAgentReleaseSource, AgentPackages.GitHubAgentReleases>(http =>
+        {
+            http.Timeout = TimeSpan.FromMinutes(10);
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("UpdateCoordinator-CentralServer");
+            http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        });
+        services.AddHostedService<AgentPackages.AgentPackageWorker>();
         return services;
     }
 
