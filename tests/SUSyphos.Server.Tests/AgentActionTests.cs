@@ -398,4 +398,25 @@ public sealed class TimeZoneTests
         Assert.Equal(new DateTime(2026, 10, 24, 1, 0, 0), MaintenanceSchedule.NextOpening(windows, new DateTime(2026, 10, 24, 1, 0, 0)));
         Assert.Null(MaintenanceSchedule.NextOpening([], new DateTime(2026, 10, 19, 12, 0, 0)));
     }
+
+    [Fact]
+    public void NextWindow_RunsPastMidnight_AndJoinsAdjoiningWindows()
+    {
+        var windows = MaintenanceWindow.SystemDefault;
+
+        // Monday noon: the night window Monday 19:00 to Tuesday 05:00.
+        Assert.Equal((new DateTime(2026, 10, 19, 19, 0, 0), new DateTime(2026, 10, 20, 5, 0, 0)), MaintenanceSchedule.NextWindow(windows, new DateTime(2026, 10, 19, 12, 0, 0)));
+        // Friday night joins Saturday and Sunday all day: open until Monday 00:00.
+        Assert.Equal((new DateTime(2026, 10, 23, 20, 0, 0), new DateTime(2026, 10, 26, 0, 0, 0)), MaintenanceSchedule.NextWindow(windows, new DateTime(2026, 10, 23, 20, 0, 0)));
+        Assert.Null(MaintenanceSchedule.NextWindow([], new DateTime(2026, 10, 19, 12, 0, 0)));
+    }
+
+    [Fact]
+    public void NextWindow_ThatNeverCloses_EndsAfterAWeek()
+    {
+        MaintenanceWindow[] always = [new MaintenanceWindow { Days = [.. Enum.GetValues<DayOfWeek>()], Start = TimeSpan.Zero, End = TimeSpan.FromHours(24) }];
+        var now = new DateTime(2026, 10, 19, 12, 0, 0);
+
+        Assert.Equal((now, now.AddDays(7)), MaintenanceSchedule.NextWindow(always, now));
+    }
 }

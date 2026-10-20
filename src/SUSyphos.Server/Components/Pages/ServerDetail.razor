@@ -10,6 +10,7 @@
 @inject SUSyphos.Server.Agents.AgentActionService Actions
 @inject SUSyphos.Server.Approval.ClientLifecycle Lifecycle
 @inject TimeProvider Time
+@inject SUSyphos.Server.Agents.GlobalPause Pause
 @inject SUSyphos.Server.AgentPackages.AgentUpdateService AgentUpdates
 
 <PageTitle>@(_client?.HostName ?? "Server")</PageTitle>
@@ -156,6 +157,36 @@ else
             </dl>
         </Box>
     </div>
+
+    <Box Title="Planned for the next maintenance window" Hint="@PlannedHint" Anchor="planned" Flush="true">
+        @if (_paused)
+        {
+            <p class="card-text"><span class="pill queue">global pause</span> No installation starts while the global pause is on.</p>
+        }
+        @if (_client.RequiresLease)
+        {
+            <p class="card-text"><span class="pill neutral">coordinated</span> The server installs only when its group grants a lease.</p>
+        }
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Update</th><th>Status</th><th>Earliest installation (UTC)</th></tr></thead>
+                <tbody>
+                    @if (_planned.Count == 0)
+                    {
+                        <tr><td colspan="3" class="note">@(_window is null ? "No maintenance window, so nothing is installed." : "Nothing is released for this window.")</td></tr>
+                    }
+                    @foreach (var (entry, title) in _planned)
+                    {
+                        <tr>
+                            <td class="wrap"><a href="/updates/@entry.UpdateId/@entry.Revision">@title</a></td>
+                            <td><span class="pill @DeploymentText.PillClass(entry.State)">@(entry.State == DeploymentState.Failed ? "Failed, tried again" : "Released")</span></td>
+                            <td class="nowrap">@Format(entry.EarliestInstallAtUtc)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
 
     <Box Title="Missing updates" Anchor="missing" Flush="true">
         <div class="scroll">
@@ -534,6 +565,13 @@ else
             .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
             .Select(e => (e, Title(e.UpdateId, e.Revision)))];
         _history = [.. installations.Select(i => (i, Title(i.UpdateId, i.Revision)))];
+
+        // Preview: what the agent installs in the next window (released, not installed, due before the window closes).
+        _window = NextWindowUtc();
+        _planned = _window is { } window
+            ? [.. _open.Where(o => o.Entry.EarliestInstallAtUtc is { } earliest && earliest <= window.End && o.Entry.State is DeploymentState.Pending or DeploymentState.Failed)]
+            : [];
+        _paused = await Pause.IsActiveAsync(CancellationToken.None);
     }
 
     private const int MaxHistory = 200;
@@ -541,6 +579,27 @@ else
     private ServerHealthState _health;
     private List<(DeploymentEntry Entry, string Title)> _open = [];
     private List<(InstallationEntity Installation, string Title)> _history = [];
+    private List<(DeploymentEntry Entry, string Title)> _planned = [];
+    private (DateTime Start, DateTime End)? _window;
+    private bool _paused;
+
+    /// <summary>The next window in UTC; null without windows or before the server reported its time zone.</summary>
+    private (DateTime Start, DateTime End)? NextWindowUtc()
+    {
+        if (_client?.TimeZoneId is not { } zoneId || !TimeZoneInfo.TryFindSystemTimeZoneById(zoneId, out var zone))
+        {
+            return null;
+        }
+
+        var localNow = TimeZoneInfo.ConvertTimeFromUtc(Time.GetUtcNow().UtcDateTime, zone);
+        return SUSyphos.Contracts.Agents.MaintenanceSchedule.NextWindow(MaintenanceWindowFormat.FromJson(_client.EffectiveWindowsJson) ?? [], localNow) is { } local
+            ? (ToUtc(local.Start, zone), ToUtc(local.End, zone))
+            : null;
+    }
+
+    private static DateTime ToUtc(DateTime local, TimeZoneInfo zone) => TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), zone);
+
+    private string PlannedHint => _window is { } window ? $"{Format(window.Start)} to {Format(window.End)} UTC" : _client?.TimeZoneId is null ? "the server has not reported its time zone yet" : "no window";
 
     private static string CheckClass(int status) => status switch
     {

@@ -37,6 +37,7 @@ Implemented (2026-10-18): page per ring with the ring sequence and gates, transi
 - Ring and group membership (including whether rule-based or manual)
 - **Update history** with status and **source** (our solution or external, e.g. installed manually)
 - Next maintenance window and the installations planned in it
+  (implemented 2026-10-20: box "Planned for the next maintenance window")
 - Live status with progress
 - **Agent logs for troubleshooting** (rarely needed). Mechanism: request via the action queue, the agent delivers the data. A live retrieval with a direct request to the agent is not planned because of the communication model (the agent always initiates).
 - **Remote actions:** restart client service, immediate update search with report, restart server, ask the agent to check in/look for an agent update. Shows queue state and execution progress per action.

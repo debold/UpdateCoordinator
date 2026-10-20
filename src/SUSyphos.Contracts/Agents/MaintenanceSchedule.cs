@@ -47,4 +47,26 @@ public static class MaintenanceSchedule
 
         return next;
     }
+
+    /// <summary>
+    /// The next window as local start and end (the start is <paramref name="localTime"/> while a window is open); overlapping
+    /// and adjoining windows count as one. Null if there are no windows. Windows end on whole minutes.
+    /// </summary>
+    public static (DateTime Start, DateTime End)? NextWindow(IReadOnlyList<MaintenanceWindow> windows, DateTime localTime)
+    {
+        if (NextOpening(windows, localTime) is not { } start)
+        {
+            return null;
+        }
+
+        // Walk forward minute by minute; a week bounds it for a window that never closes (e.g. every day all day).
+        var end = start;
+        var limit = start.AddDays(7);
+        while (end < limit && IsOpen(windows, end))
+        {
+            end = end.AddMinutes(1);
+        }
+
+        return (start, end);
+    }
 }

@@ -148,6 +148,31 @@ public sealed class ServerDetailPageTests
     }
 
     [Fact]
+    public async Task Preview_ListsReleasedUpdatesForTheNextWindow()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(client, update);
+        await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        // Before the server reports its time zone, the window cannot be calculated.
+        var before = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("the server has not reported its time zone yet", before, StringComparison.Ordinal);
+
+        await scenario.Factory.WithDbAsync(db => db.Clients.ExecuteUpdateAsync(s => s.SetProperty(c => c.TimeZoneId, "UTC"), TestContext.Current.CancellationToken));
+        var page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var planned = page[page.IndexOf("Planned for the next maintenance window", StringComparison.Ordinal)..page.IndexOf("Missing updates", StringComparison.Ordinal)];
+
+        Assert.Contains($"/updates/{update.UpdateId}/1", planned, StringComparison.Ordinal);
+        Assert.Contains("Released", planned, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task UnknownServer_ShowsNotFound()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
