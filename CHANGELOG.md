@@ -6,7 +6,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Both
 
-- Renamed from the working title UpdateCoordinator to **SUSyphos**: namespaces, projects, packages (`SUSyphos.Agent.msi`, `SUSyphos.Server.msi`), services, registry keys (`HKLMSOFTWARESUSyphos…`, policy key `HKLMSOFTWAREPoliciesSUSyphosAgent`), data folders (`%ProgramData%SUSyphos`), webhook header (`X-SUSyphos-Signature`). Upgrades from UpdateCoordinator keep settings, data, agent registration and trust: the installers read the old keys, the services move the old data folder once, the old policy key still applies, and own certificates of the old version are recognized. Cryptographic purpose strings stay unchanged. CI upgrades the published UpdateCoordinator 0.4.0.
+- Renamed from the working title UpdateCoordinator to **SUSyphos**: namespaces, projects, packages (`SUSyphos.Agent.msi`, `SUSyphos.Server.msi`), services, registry keys (`HKLM\SOFTWARE\SUSyphos\…`, policy key `HKLM\SOFTWARE\Policies\SUSyphos\Agent`), data folders (`%ProgramData%\SUSyphos`), webhook header (`X-SUSyphos-Signature`). Upgrades from UpdateCoordinator keep settings, data, agent registration and trust: the installers read the old keys, the services move the old data folder once, the old policy key still applies, and own certificates of the old version are recognized. Cryptographic purpose strings stay unchanged. CI upgrades the published UpdateCoordinator 0.4.0.
 
 ### Agent
 
