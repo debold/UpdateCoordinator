@@ -135,6 +135,8 @@ Download and installation progress can be read as a percentage via the WUA API.
 
 The central server can see the **planned installations of the next maintenance window** per server, not only status and history.
 
+Implemented (2026-10-20) on the central server, from data it already has: the server detail page shows the next window (start and end in UTC, from the effective windows and the time zone the agent reports; adjoining windows count as one) and the released updates that are due before it closes, including failed ones the agent tries again, with notes on the global pause and on coordinated groups (lease needed). The agent itself still decides; the preview does not include its retry delay or the pull-forward tolerance.
+
 ### Detection of external updates
 
 Updates installed outside our own maintenance are detected and reported with their source.
