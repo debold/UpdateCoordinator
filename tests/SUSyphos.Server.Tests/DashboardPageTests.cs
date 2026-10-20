@@ -431,7 +431,7 @@ public sealed class DashboardViewTests
 
         var html = await GetHtmlAsync(browser, $"/servers/{client.ClientId}");
 
-        Assert.Contains("DiskSpace", html, StringComparison.Ordinal);
+        Assert.Contains("Disk space", html, StringComparison.Ordinal);
         Assert.Contains("Missing updates", html, StringComparison.Ordinal);
         Assert.Contains("KB5040000", html, StringComparison.Ordinal);
         Assert.Contains("Failed, 0x80070005", html, StringComparison.Ordinal);

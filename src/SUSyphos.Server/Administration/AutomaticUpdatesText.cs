@@ -20,7 +20,7 @@ internal static class AutomaticUpdatesText
             AutomaticUpdateMode.ScheduledInstall => "installs on its own schedule",
             AutomaticUpdateMode.LocalAdminChooses => "local administrator chooses",
             AutomaticUpdateMode.NotifyInstallAndRestart => "notify before install and restart",
-            _ => "not configured (Windows Server default: no automatic installation)",
+            _ => "\"Configure Automatic Updates\" not set",
         };
         return mode == AutomaticUpdateMode.NotConfigured ? text : $"{text} ({(managedByAgent ? "set by SUSyphos" : byPolicy ? "group policy" : "local setting")})";
     }

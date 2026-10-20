@@ -172,6 +172,28 @@ public sealed class ServerDetailPageTests
         Assert.Contains("Released", planned, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(true, "pill fail\">problem")]
+    [InlineData(false, "pill ok\">OK")]
+    public async Task AutomaticUpdates_ShowClearlyWhetherThereIsAProblem(bool bypass, string expected)
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        await scenario.Factory.WithDbAsync(db => db.Clients.ExecuteUpdateAsync(s => s
+            .SetProperty(c => c.AutoUpdateMode, AutomaticUpdateMode.NotConfigured)
+            .SetProperty(c => c.AutomaticUpdatesBypass, bypass), TestContext.Current.CancellationToken));
+        await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        var page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(expected, page, StringComparison.Ordinal);
+        Assert.DoesNotContain("bypasses rings", page, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task UnknownServer_ShowsNotFound()
     {

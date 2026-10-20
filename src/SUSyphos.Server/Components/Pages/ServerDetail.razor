@@ -151,7 +151,7 @@ else
                 <dt>Roles</dt><dd>@(_client.Roles.Count > 0 ? string.Join(", ", _client.Roles) : "–")</dd>
                 <dt>Update source</dt><dd>@(_client.WsusServer is { } wsus ? $"WSUS {wsus}" : "Windows Update")</dd>
                 <dt>Agent update</dt><dd>@if (_client.AgentUpdateError is { } agentError) { <span class="pill fail">failed</span> <span>@agentError</span> } else { <span>agent @_client.AgentVersion</span> }@if (AgentUpdates.IsBelowMinimum(_client.AgentVersion)) { <span class="pill fail">below minimum @AgentUpdates.Minimum</span> }</dd>
-                <dt>Automatic updates</dt><dd>@AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)@if (_client.AutomaticUpdatesBypass) { <span class="pill queue">bypasses rings</span> }</dd>
+                <dt>Automatic updates</dt><dd>@if (_client.AutoUpdateMode is null) { <span class="note">reported by agents from version 0.3</span> } else if (_client.AutomaticUpdatesBypass) { <span class="pill fail">problem</span> <span>Windows may install or restart on its own, outside rings and windows (<a href="/servers/@Id#checks">details</a>); setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> } else { <span class="pill ok">OK</span> <span>Windows does not install on its own; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> }</dd>
                 <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
                 <dt>Registered (UTC)</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
             </dl>
@@ -211,57 +211,58 @@ else
         </div>
     </Box>
 
-    <div class="grid-side">
-        <Box Title="Update history" Anchor="history" Flush="true">
+    <Box Title="Pre-flight checks" Anchor="checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)} UTC" : null)" Flush="true">
+        @if (_client.HealthChecks.Count == 0)
+        {
+            <div class="empty-state">No update run reported yet.</div>
+        }
+        else
+        {
             <div class="scroll">
                 <table>
-                    <thead><tr><th>Finished (UTC)</th><th>Update</th><th>Source</th><th>Result</th><th>Reboot</th></tr></thead>
+                    <thead><tr><th>Check</th><th>Result</th><th>Details</th></tr></thead>
                     <tbody>
-                        @if (_history.Count == 0)
-                        {
-                            <tr><td colspan="5" class="note">No installation reported yet.</td></tr>
-                        }
-                        @foreach (var (installation, title) in _history)
+                        @foreach (var check in _client.HealthChecks.OrderByDescending(c => c.Status))
                         {
                             <tr>
-                                <td class="nowrap">@Format(installation.FinishedAtUtc)</td>
-                                <td class="wrap"><a href="/updates/@installation.UpdateId/@installation.Revision">@title</a></td>
-                                <td>@installation.Source</td>
-                                <td>@ResultText(installation)</td>
-                                <td>@RebootText(installation)</td>
+                                <td class="nowrap">@CheckName(check.Name)</td>
+                                <td><span class="pill @CheckClass(check.Status)">@((SUSyphos.Contracts.Agents.HealthStatus)check.Status)</span></td>
+                                <td class="wrap">@check.Detail</td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
-        </Box>
+        }
+        @if (_client.LastSearchSucceeded == false)
+        {
+            <div class="box-body"><p class="error">Last update search failed: @string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{_client.LastSearchHResult ?? 0:X8}") @SUSyphos.Server.Agents.HResultCatalog.Describe(_client.LastSearchHResult ?? 0)</p></div>
+        }
+    </Box>
 
-        <Box Title="Pre-flight checks" Anchor="checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)} UTC" : null)" Flush="true">
-            @if (_client.HealthChecks.Count == 0)
-            {
-                <div class="empty-state">No update run reported yet.</div>
-            }
-            else
-            {
-                <table>
-                    <tbody>
-                        @foreach (var check in _client.HealthChecks)
-                        {
-                            <tr>
-                                <td>@check.Name</td>
-                                <td><span class="pill @CheckClass(check.Status)">@((SUSyphos.Contracts.Agents.HealthStatus)check.Status)</span></td>
-                                <td>@check.Detail</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
-            @if (_client.LastSearchSucceeded == false)
-            {
-                <div class="box-body"><p class="error">Last update search failed: @string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{_client.LastSearchHResult ?? 0:X8}") @SUSyphos.Server.Agents.HResultCatalog.Describe(_client.LastSearchHResult ?? 0)</p></div>
-            }
-        </Box>
-    </div>
+    <Box Title="Update history" Anchor="history" Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Finished (UTC)</th><th>Update</th><th>Source</th><th>Result</th><th>Reboot</th></tr></thead>
+                <tbody>
+                    @if (_history.Count == 0)
+                    {
+                        <tr><td colspan="5" class="note">No installation reported yet.</td></tr>
+                    }
+                    @foreach (var (installation, title) in _history)
+                    {
+                        <tr>
+                            <td class="nowrap">@Format(installation.FinishedAtUtc)</td>
+                            <td class="wrap"><a href="/updates/@installation.UpdateId/@installation.Revision">@title</a></td>
+                            <td>@installation.Source</td>
+                            <td>@ResultText(installation)</td>
+                            <td>@RebootText(installation)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
 
     <Box Title="Remote actions" Hint="The agent picks actions up with its next heartbeat; the central server never connects to the agent." Flush="true">
         <div class="scroll">
@@ -607,6 +608,15 @@ else
     private static DateTime ToUtc(DateTime local, TimeZoneInfo zone) => TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), zone);
 
     private string PlannedHint => _window is { } window ? $"{Format(window.Start)} to {Format(window.End)} UTC" : _client?.TimeZoneId is null ? "the server has not reported its time zone yet" : "no window";
+
+    private static string CheckName(string name) => name switch
+    {
+        "DiskSpace" => "Disk space",
+        "UpdateService" => "Windows Update service",
+        "UpdateSource" => "Update source",
+        "AutomaticUpdates" => "Windows Automatic Updates",
+        _ => name,
+    };
 
     private static string CheckClass(int status) => status switch
     {
