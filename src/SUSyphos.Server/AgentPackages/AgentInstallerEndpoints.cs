@@ -52,20 +52,47 @@ internal static class AgentInstallerEndpoints
     }
 
     /// <summary>
-    /// Address suggested for new agents: the one the dashboard is reached at, unless that is the local machine (the dashboard
-    /// opened on the central server itself), then the fully qualified machine name with the same port.
+    /// Address suggested for new agents: the one the dashboard is reached at, but always with a fully qualified name. The
+    /// local machine (localhost, a loopback address or its short name) becomes the machine's FQDN; another short name is
+    /// resolved through DNS. Agents in other domains or networks need the FQDN, so a short name is never suggested.
     /// </summary>
-    public static string SuggestAddress(HttpRequest request)
+    public static async Task<string> SuggestAddressAsync(HttpRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var host = request.Host.Host;
+        var host = request.Host.Host.Trim('[', ']');
         var port = request.Host.Port ?? 443;
-        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) || (IPAddress.TryParse(host.Trim('[', ']'), out var ip) && IPAddress.IsLoopback(ip)))
+        if (!IPAddress.TryParse(host, out var ip) || IPAddress.IsLoopback(ip))
         {
-            var properties = IPGlobalProperties.GetIPGlobalProperties();
-            host = string.IsNullOrEmpty(properties.DomainName) ? properties.HostName : $"{properties.HostName}.{properties.DomainName}";
+            host = await QualifyAsync(host, ip is not null, cancellationToken).ConfigureAwait(false);
         }
 
         return new UriBuilder(Uri.UriSchemeHttps, host.ToLowerInvariant(), port).Uri.ToString();
+    }
+
+    internal static async Task<string> QualifyAsync(string host, bool loopback, CancellationToken cancellationToken)
+    {
+        var properties = IPGlobalProperties.GetIPGlobalProperties();
+        var machine = string.IsNullOrEmpty(properties.DomainName) ? properties.HostName : $"{properties.HostName}.{properties.DomainName}";
+        if (loopback || string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) || string.Equals(host, properties.HostName, StringComparison.OrdinalIgnoreCase))
+        {
+            return machine;
+        }
+
+        if (host.Contains('.', StringComparison.Ordinal))
+        {
+            return host;
+        }
+
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(2));
+            var entry = await Dns.GetHostEntryAsync(host, timeout.Token).ConfigureAwait(false);
+            return entry.HostName.Contains('.', StringComparison.Ordinal) ? entry.HostName : host;
+        }
+        catch (Exception ex) when (ex is System.Net.Sockets.SocketException or OperationCanceledException or ArgumentException)
+        {
+            return host;
+        }
     }
 }

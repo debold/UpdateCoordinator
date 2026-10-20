@@ -220,7 +220,7 @@
             .ToDictionary(g => g.Key, g => g.Count());
         if (HttpContext is not null)
         {
-            _address = AgentInstallerEndpoints.SuggestAddress(HttpContext.Request);
+            _address = await AgentInstallerEndpoints.SuggestAddressAsync(HttpContext.Request, CancellationToken.None);
         }
     }
 

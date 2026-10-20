@@ -491,3 +491,27 @@ public sealed class AgentPackageTests : IAsyncDisposable
         }
     }
 }
+
+public sealed class AgentInstallerAddressTests
+{
+    [Fact]
+    public async Task LocalNames_BecomeTheMachineFqdn()
+    {
+        var properties = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties();
+
+        foreach (var host in new[] { "localhost", properties.HostName.ToUpperInvariant() })
+        {
+            var qualified = await AgentInstallerEndpoints.QualifyAsync(host, loopback: false, CancellationToken.None);
+            Assert.StartsWith(properties.HostName, qualified, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(string.IsNullOrEmpty(properties.DomainName) ? properties.HostName : $"{properties.HostName}.{properties.DomainName}", qualified);
+        }
+    }
+
+    [Theory]
+    [InlineData("uc01.lab.local")]
+    [InlineData("no-such-host-for-susyphos-tests")]
+    public async Task QualifiedOrUnknownNames_StayAsTheyAre(string host)
+    {
+        Assert.Equal(host, await AgentInstallerEndpoints.QualifyAsync(host, loopback: false, CancellationToken.None));
+    }
+}
