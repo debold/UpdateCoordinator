@@ -82,24 +82,7 @@
                 </div>
                 <div class="field">
                     <span class="field-label">Roles (any of them)</span>
-                    <details class="multi">
-                        <summary>
-                            @if (selectedRoles.Length == 0)
-                            {
-                                <span class="placeholder">Any role</span>
-                            }
-                            @foreach (var role in selectedRoles)
-                            {
-                                <span class="tag">@role</span>
-                            }
-                        </summary>
-                        <div class="options">
-                            @foreach (var role in _knownRoles)
-                            {
-                                <label><input type="checkbox" name="Roles" value="@role" checked="@selectedRoles.Contains(role, StringComparer.OrdinalIgnoreCase)" /> @role</label>
-                            }
-                        </div>
-                    </details>
+                    <MultiSelect Name="Roles" Options="@([.. _knownRoles.Take(MultiSelect.MaxOptions).Select(r => (r, r))])" Selected="@selectedRoles" Placeholder="Any role" />
                     <span class="help">Roles detected on the servers and the built-in roles. Other roles can be defined on the agents (Inventory:RoleRules).</span>
                 </div>
                 <div class="form-row">

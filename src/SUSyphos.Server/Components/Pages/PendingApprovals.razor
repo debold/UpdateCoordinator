@@ -12,6 +12,8 @@
 @inject IAuthorizationService Authorization
 @inject NavigationManager Navigation
 
+@* New servers appear without script: the page reloads every 30 seconds. *@
+<HeadContent><meta http-equiv="refresh" content="30" /></HeadContent>
 <PageTitle>Approvals</PageTitle>
 
 <PageHeader Title="Approvals" Subtitle="Decisions that wait for an operator: new servers, ring transitions, stopped groups and clone suspicions" />

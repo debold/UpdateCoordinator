@@ -1,0 +1,51 @@
+@* Multi-select without script: a dropdown of checkboxes whose summary shows the checked options. Every option has a tag
+   in the summary that CSS shows while its checkbox is checked (:has with the option index), so the summary follows the
+   selection before saving. Fixed entries (e.g. groups from assignment rules) are shown but cannot be changed here. *@
+<details class="multi">
+    <summary>
+        <span class="placeholder">@Placeholder</span>
+        @foreach (var fixedLabel in Fixed)
+        {
+            <span class="tag fixed">@fixedLabel</span>
+        }
+        @for (var i = 0; i < Options.Count; i++)
+        {
+            <span class="tag pick" data-i="@i">@Options[i].Label</span>
+        }
+    </summary>
+    <div class="options">
+        @if (Options.Count == 0)
+        {
+            @Empty
+        }
+        @for (var i = 0; i < Options.Count; i++)
+        {
+            var option = Options[i];
+            <label><input type="checkbox" name="@Name" value="@option.Value" data-i="@i" checked="@Selected.Contains(option.Value, StringComparer.OrdinalIgnoreCase)" /> @option.Label</label>
+        }
+    </div>
+</details>
+
+@code {
+    /// <summary>Upper bound for options; the stylesheet has rules for this many.</summary>
+    public const int MaxOptions = 64;
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<(string Value, string Label)> Options { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyCollection<string> Selected { get; set; } = [];
+
+    /// <summary>Labels shown in the summary that the checkboxes do not change.</summary>
+    [Parameter]
+    public IReadOnlyList<string> Fixed { get; set; } = [];
+
+    [Parameter]
+    public string Placeholder { get; set; } = "None";
+
+    [Parameter]
+    public RenderFragment? Empty { get; set; }
+}

@@ -26,7 +26,7 @@ else
                     <th>Time (UTC)</th>
                     <SortHeader Table="_table" Column="actor" Label="Actor" Sortable="false" Options="_actors" />
                     <SortHeader Table="_table" Column="action" Label="Action" Sortable="false" Options="_actions" />
-                    <th>Target</th>
+                    <SortHeader Table="_table" Column="target" Label="Target" Sortable="false" Options="_targets" />
                     <th>Details</th>
                 </tr>
             </thead>
@@ -54,12 +54,13 @@ else
 @code {
     private const int PageSize = 50;
 
-    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["actor"] = "Actor", ["action"] = "Action" };
+    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["actor"] = "Actor", ["action"] = "Action", ["target"] = "Target" };
 
     private TableQuery _table = default!;
     private List<AuditEntryEntity> _entries = [];
     private IReadOnlyList<FilterOption> _actors = [];
     private IReadOnlyList<FilterOption> _actions = [];
+    private IReadOnlyList<FilterOption> _targets = [];
     private PageInfo _pageInfo = new(1, 1, 0, 0, PageSize);
     private long? _broken;
 
@@ -72,6 +73,7 @@ else
         var query = all;
         var actors = _table.Filter("actor");
         var actions = _table.Filter("action");
+        var targets = _table.Filter("target");
         if (actors.Count > 0)
         {
             query = query.Where(e => actors.Contains(e.Actor));
@@ -80,6 +82,11 @@ else
         if (actions.Count > 0)
         {
             query = query.Where(e => actions.Contains(e.Action));
+        }
+
+        if (targets.Count > 0)
+        {
+            query = query.Where(e => e.Target != null && targets.Contains(e.Target));
         }
 
         if (_table.Search is { } search)
@@ -96,6 +103,9 @@ else
         _pageInfo = new PageInfo(page, pages, matching, total, PageSize);
         _actors = await all.GroupBy(e => e.Actor).OrderBy(g => g.Key).Select(g => new FilterOption(g.Key, g.Count())).Take(200).ToListAsync();
         _actions = await all.GroupBy(e => e.Action).OrderBy(g => g.Key).Select(g => new FilterOption(g.Key, g.Count())).Take(200).ToListAsync();
+        // The most frequent targets; others are found with the search.
+        _targets = await all.Where(e => e.Target != null).GroupBy(e => e.Target!).OrderByDescending(g => g.Count()).Select(g => new FilterOption(g.Key, g.Count())).Take(200).ToListAsync();
+        _targets = [.. _targets.OrderBy(t => t.Value, StringComparer.OrdinalIgnoreCase)];
         _broken = await Audit.FindFirstBrokenEntryAsync();
     }
 }

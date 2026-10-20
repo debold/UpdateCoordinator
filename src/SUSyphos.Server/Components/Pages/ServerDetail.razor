@@ -96,28 +96,12 @@ else
                         </div>
                         <div class="field">
                             <span class="field-label">Groups</span>
-                            <details class="multi">
-                                <summary>
-                                    @if (_memberships.Count == 0)
-                                    {
-                                        <span class="placeholder">No group</span>
-                                    }
-                                    @foreach (var membership in _memberships)
-                                    {
-                                        <span class="tag">@GroupName(membership.GroupId)@(membership.Manual ? string.Empty : " (rule)")</span>
-                                    }
-                                </summary>
-                                <div class="options">
-                                    @if (_groups.Count == 0)
-                                    {
-                                        <span class="note">No group exists yet. <a href="/administration/groups">Create groups</a></span>
-                                    }
-                                    @foreach (var group in _groups)
-                                    {
-                                        <label><input type="checkbox" name="Groups" value="@group.Id" checked="@_memberships.Any(m => m.GroupId == group.Id && m.Manual)" /> @group.Name</label>
-                                    }
-                                </div>
-                            </details>
+                            <MultiSelect Name="Groups" Placeholder="No group"
+                                         Options="@([.. _groups.Take(MultiSelect.MaxOptions).Select(g => (g.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), g.Name))])"
+                                         Selected="@([.. _memberships.Where(m => m.Manual).Select(m => m.GroupId.ToString(System.Globalization.CultureInfo.InvariantCulture))])"
+                                         Fixed="@([.. _memberships.Where(m => !m.Manual).Select(m => $"{GroupName(m.GroupId)} (rule)")])">
+                                <Empty><span class="note">No group exists yet. <a href="/administration/groups">Create groups</a></span></Empty>
+                            </MultiSelect>
                             <span class="help">Groups from assignment rules are added automatically.</span>
                         </div>
                         <div class="field">
