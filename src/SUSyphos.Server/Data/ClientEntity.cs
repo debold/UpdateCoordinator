@@ -78,6 +78,23 @@ internal sealed class ClientEntity
     /// <summary>Reboot pending according to the last heartbeat (Windows registry) or installation run.</summary>
     public bool RebootPending { get; set; }
 
+    /// <summary>Why the pending reboot waits, as decided by the agent; null if no reboot is pending or the agent does not report it.</summary>
+    public RebootWait? RebootWait { get; set; }
+
+    // Live status (docs/05-agent-design.md, section 5); see Agents.LiveStatus.
+
+    public AgentPhase? ActivityPhase { get; set; }
+
+    public int? ActivityPercent { get; set; }
+
+    /// <summary>Updates of the current download or installation; stored as a JSON array.</summary>
+    public List<Guid> ActivityUpdateIds { get; set; } = [];
+
+    public DateTime? ActivityStartedAtUtc { get; set; }
+
+    /// <summary>When the activity was last reported; older than LiveStatus.StaleAfter means it is not current any more.</summary>
+    public DateTime? ActivityReportedAtUtc { get; set; }
+
     /// <summary>Last start of the operating system reported by the agent.</summary>
     public DateTime? LastBootAtUtc { get; set; }
 

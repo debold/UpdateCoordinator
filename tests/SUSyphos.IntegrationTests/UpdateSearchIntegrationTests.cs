@@ -31,6 +31,7 @@ public sealed class UpdateSearchIntegrationTests(ServerFactory factory) : IClass
             new PreFlightCheck(new WindowsSystemProbe(), new DiskSpace(), options),
             new WuaAvailableUpdateSearch(options),
             client,
+            new SUSyphos.Agent.Status.ActivityTracker(TimeProvider.System),
             options,
             TimeProvider.System,
             NullLogger<UpdateReporter>.Instance);

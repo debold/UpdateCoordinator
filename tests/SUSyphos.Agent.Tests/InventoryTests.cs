@@ -307,6 +307,6 @@ public sealed class InventoryReporterTests
         var probe = new FakeSystemProbe();
         var options = Options.Create(new InventoryOptions());
         var collector = new InventoryCollector(probe, _updates, new RoleDetector(probe, options), new FakeEnvironment());
-        return new InventoryReporter(collector, new InventoryScheduler(options, _time), _client, NullLogger<InventoryReporter>.Instance);
+        return new InventoryReporter(collector, new InventoryScheduler(options, _time), _client, new SUSyphos.Agent.Status.ActivityTracker(_time), NullLogger<InventoryReporter>.Instance);
     }
 }

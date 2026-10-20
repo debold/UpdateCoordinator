@@ -42,6 +42,7 @@ internal static class AgentHostBuilder
             .ValidateOnStart();
 
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<Status.ActivityTracker>();
         services.AddSingleton<ISystemProbe, WindowsSystemProbe>();
         services.AddSingleton<IAgentEnvironment, AgentEnvironment>();
 
@@ -123,6 +124,7 @@ internal static class AgentHostBuilder
             .ConfigurePrimaryHttpMessageHandler(provider => provider.GetRequiredService<ServerTrust>().CreateValidatingHandler());
 
         services.AddHostedService<AgentWorker>();
+        services.AddHostedService<Status.ActivityPulse>();
         return services;
     }
 }

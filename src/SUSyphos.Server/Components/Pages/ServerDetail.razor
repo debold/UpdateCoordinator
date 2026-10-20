@@ -67,6 +67,35 @@ else
         </div>
     </section>
 
+    @if (_livePhase is { } livePhase)
+    {
+        @if (Dialog is null && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
+        {
+            @* Live status: reload while the agent works; not after a form post, so unsaved input is never lost. *@
+            <HeadContent><meta http-equiv="refresh" content="@LiveRefreshSeconds" /></HeadContent>
+        }
+        <Box Title="Live status" Hint="@($"updates every {LiveRefreshSeconds} seconds while the agent works")" Anchor="live">
+            <p class="live-line">
+                <span class="pill pend">@LiveStatus.PhaseLabel(livePhase)</span>
+                @if (_client.ActivityPercent is { } percent)
+                {
+                    <progress max="100" value="@percent" aria-label="Progress">@percent %</progress>
+                    <span>@percent %</span>
+                }
+                <span class="note">since @Format(_client.ActivityStartedAtUtc) UTC</span>
+            </p>
+            @if (_liveUpdates.Count > 0)
+            {
+                <ul class="plain">
+                    @foreach (var (updateId, title) in _liveUpdates)
+                    {
+                        <li><a href="/updates/@updateId">@title</a></li>
+                    }
+                </ul>
+            }
+        </Box>
+    }
+
     <div class="grid-side">
         <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="assign">
             <Authorized>
@@ -136,6 +165,7 @@ else
                 <dt>Update source</dt><dd>@(_client.WsusServer is { } wsus ? $"WSUS {wsus}" : "Windows Update")</dd>
                 <dt>Agent update</dt><dd>@if (_client.AgentUpdateError is { } agentError) { <span class="pill fail">failed</span> <span>@agentError</span> } else { <span>agent @_client.AgentVersion</span> }@if (AgentUpdates.IsBelowMinimum(_client.AgentVersion)) { <span class="pill fail">below minimum @AgentUpdates.Minimum</span> }</dd>
                 <dt>Automatic updates</dt><dd>@if (_client.AutoUpdateMode is null) { <span class="note">reported by agents from version 0.3</span> } else if (_client.AutomaticUpdatesBypass) { <span class="pill fail">problem</span> <span>Windows may install or restart on its own, outside rings and windows (<a href="/servers/@Id#checks">details</a>); setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> } else { <span class="pill ok">OK</span> <span>Windows does not install on its own; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> }</dd>
+                <dt>Restart</dt><dd>@if (!_client.RebootPending) { <span>not pending</span> } else if (_client.RebootWait is { } wait) { <span class="pill queue">pending</span> <span>@LiveStatus.RebootWaitText(wait) (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> } else { <span class="pill queue">pending</span> <span>the agent reports why it waits from version 0.7 (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> }</dd>
                 <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
                 <dt>Registered (UTC)</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
             </dl>
@@ -547,7 +577,10 @@ else
             .Take(MaxHistory)
             .ToListAsync();
         var available = await Db.ClientAvailableUpdates.AsNoTracking().Where(a => a.ClientId == Id).Select(a => new { a.UpdateId, a.Revision }).ToListAsync();
-        var ids = entries.Select(e => e.UpdateId).Concat(installations.Select(i => i.UpdateId)).Distinct().ToList();
+        var now = Time.GetUtcNow().UtcDateTime;
+        _livePhase = LiveStatus.CurrentPhase(_client, now);
+        var liveIds = _livePhase is null ? [] : _client.ActivityUpdateIds;
+        var ids = entries.Select(e => e.UpdateId).Concat(installations.Select(i => i.UpdateId)).Concat(liveIds).Distinct().ToList();
         var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync();
         string Title(Guid updateId, int revision) => UpdateText.Title(updates.FirstOrDefault(u => u.UpdateId == updateId && u.Revision == revision), updateId);
 
@@ -557,6 +590,7 @@ else
             .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
             .Select(e => (e, Title(e.UpdateId, e.Revision)))];
         _history = [.. installations.Select(i => (i, Title(i.UpdateId, i.Revision)))];
+        _liveUpdates = [.. liveIds.Select(id => (id, UpdateText.Title(updates.Where(u => u.UpdateId == id).MaxBy(u => u.Revision), id)))];
 
         // Preview: what the agent installs in the next window (released, not installed, due before the window closes).
         _window = NextWindowUtc();
@@ -567,6 +601,12 @@ else
     }
 
     private const int MaxHistory = 200;
+
+    /// <summary>Reload interval of the page while the agent reports an activity.</summary>
+    private const int LiveRefreshSeconds = 10;
+
+    private SUSyphos.Contracts.Agents.AgentPhase? _livePhase;
+    private List<(Guid UpdateId, string Title)> _liveUpdates = [];
 
     private ServerHealthState _health;
     private List<(DeploymentEntry Entry, string Title)> _open = [];

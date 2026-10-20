@@ -94,6 +94,7 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 | Register | yes | – |
 | Inventory | yes | yes |
 | Heartbeat / health check | yes | yes |
+| Live status (activity) | yes | yes |
 | Unregister | yes | yes |
 | Update report (search result) | no | yes |
 | Release request (fetch released updates) | no | yes |
@@ -110,6 +111,7 @@ Whitelist depending on registration state. The list is a **first draft**; more t
 |---|---|---|---|
 | Register | `POST /api/v1/agents/register` | none (rate limited per IP) | `200` client GUID + secret, `400` invalid input, `403` already registered, `429` rate limit |
 | Heartbeat | `POST /api/v1/agents/heartbeat` | Basic (GUID + secret) | `200` registration state, `400` invalid input, `401` unknown credentials, `403` state not allowed |
+| Live status | `POST /api/v1/agents/activity` | Basic (GUID + secret) | `204` stored, `400` invalid input, `401` unknown credentials, `403` state not allowed |
 | Inventory | `POST /api/v1/agents/inventory` | Basic (GUID + secret) | `204` stored, `400` invalid input, `401` unknown credentials, `403` state not allowed, `413` larger than 4 MB |
 | Update report | `POST /api/v1/agents/updates` | Basic, approved only | `204` stored, `400` invalid input, `401`, `403` not approved, `413` larger than 4 MB |
 | Releases | `GET /api/v1/agents/releases` | Basic, approved only | `200` release list with version, `401`, `403` not approved |
@@ -127,6 +129,8 @@ The protocol version is part of the route (`/api/v1/...`). An incompatible chang
 The update report carries the pre-flight checks (name, status `Ok`/`Warning`/`Failed`, detail), whether the search succeeded, the WUA error code if not, and up to 5,000 available updates (identity as in the inventory plus download size, reboot behavior and MSRC severity). Releases are delivered as a list of update ID, revision and earliest installation time with a version number; the heartbeat of an approved client announces the current version (`releasesVersion`), and the agent fetches the list only when it changed. The release list also carries the effective maintenance windows of the client (at most 14, each with weekdays, start and end in local server time); a change of the windows increases the version as well. The agent validates every window and rejects the whole list if one is invalid. Update reports and releases are accepted only from approved clients (decided 2026-10-18), so unapproved clients cannot fill the catalog through search results.
 
 The install report describes one installation run: a run ID (a report buffered by the agent and sent twice is stored once), start and end, per update the WUA result code, error code and whether a reboot is needed, the OS version afterwards and the post-install health checks. The central server stores only results for updates released to that client, so a client cannot write arbitrary history. The heartbeat of an approved client also carries the global pause (`installationsPaused`). The agent reports in every heartbeat whether Windows shows a pending reboot (`rebootPending`) and its last boot time (`lastBootAt`; the central server ignores times in the future or before 2000). The release list carries the effective reboot policy (`Never` or `InsideMaintenanceWindow`); an unknown value makes the agent reject the list.
+
+**Live status (implemented 2026-10-20):** every heartbeat carries the current activity of the agent (`activity`: phase `Searching`, `Downloading`, `Installing` or `Inventory`, progress in percent where Windows reports it, up to 100 update IDs, start time) and, while a reboot is pending, why it waits (`rebootWait`: `Restarting`, `NotAllowedByPolicy`, `LocalVeto`, `Paused`, `OutsideWindow`, `WindowEndsSoon`, `RecentlyRequested`, `WaitingForLease`). Because the main loop of the agent waits for a running search, download or installation, the agent sends the activity in between with `POST /api/v1/agents/activity` (body `{ "activity": … }`, `null` when the step ended): at most every heartbeat interval while something changes, at least every 30 seconds while a step runs, and once when it ended; an idle agent sends nothing extra. The message counts as a sign of life. The central server ignores an unknown phase or reason, replaces a start time in the future or before 2000 with the time of receipt and treats an activity not repeated for 2 minutes as stale.
 
 Further foreseeable messages (from the functional requirements, detailed specification still open): troubleshooting details for failed installations (event log excerpts, CBS.log, see `05-agent-design.md`), live status, history sync, full resync, log upload.
 

@@ -422,6 +422,22 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("ActivityPercent")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ActivityPhase")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ActivityReportedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ActivityStartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.PrimitiveCollection<string>("ActivityUpdateIds")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("AgentUpdateError")
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
@@ -522,6 +538,9 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("RebootPolicy")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RebootWait")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("RegisteredAtUtc")

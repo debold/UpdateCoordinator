@@ -65,6 +65,14 @@ internal sealed class FakeCentralServerClient : ICentralServerClient
         return Task.FromResult(OnHeartbeat(identity));
     }
 
+    public List<AgentActivityReport> ActivityReports { get; } = [];
+
+    public Task<bool> SendActivityAsync(AgentIdentity identity, AgentActivityReport report, CancellationToken cancellationToken)
+    {
+        ActivityReports.Add(report);
+        return Task.FromResult(true);
+    }
+
     public List<InventoryRequest> Inventories { get; } = [];
 
     public bool AcceptInventory { get; set; } = true;
@@ -233,6 +241,8 @@ internal sealed class FakeInstallationRunner : IInstallationRunner
     public bool Accept { get; set; } = true;
 
     public int Runs { get; private set; }
+
+    public RebootWait? RebootWait { get; set; }
 
     public Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {

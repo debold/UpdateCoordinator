@@ -54,6 +54,12 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
         return body;
     }
 
+    public async Task<bool> SendActivityAsync(AgentIdentity identity, AgentActivityReport report, CancellationToken cancellationToken)
+    {
+        using var response = await PostAuthenticatedAsync(ApiRoutes.AgentActivity, identity, report, cancellationToken).ConfigureAwait(false);
+        return response is not null;
+    }
+
     public async Task<bool> SendInventoryAsync(AgentIdentity identity, InventoryRequest request, CancellationToken cancellationToken)
     {
         using var response = await PostAuthenticatedAsync(ApiRoutes.AgentInventory, identity, request, cancellationToken).ConfigureAwait(false);

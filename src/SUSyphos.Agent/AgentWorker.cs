@@ -31,6 +31,7 @@ internal sealed partial class AgentWorker(
     SelfUpdate.AgentSelfUpdater selfUpdate,
     AutomaticUpdatesManager automaticUpdates,
     ResourceGuard resources,
+    Status.ActivityTracker activity,
     IOptions<CentralServerOptions> options,
     TimeProvider timeProvider,
     ILogger<AgentWorker> logger) : BackgroundService
@@ -108,6 +109,8 @@ internal sealed partial class AgentWorker(
                     RebootPending = environment.RebootPending,
                     LastBootAt = environment.LastBootAt,
                     AgentUpdateError = selfUpdate.LastError,
+                    Activity = activity.Current,
+                    RebootWait = environment.RebootPending ? installation.RebootWait : null,
                 },
                 cancellationToken)
             .ConfigureAwait(false);

@@ -30,6 +30,11 @@ internal static class AgentEndpoints
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.Heartbeat))
             .WithName("AgentHeartbeat");
 
+        endpoints.MapPost(ApiRoutes.AgentActivity, ActivityAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.Activity))
+            .WithName("AgentActivity");
+
         endpoints.MapPost(ApiRoutes.AgentInventory, InventoryAsync)
             .RequireAuthorization()
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.Inventory))
@@ -90,6 +95,30 @@ internal static class AgentEndpoints
         Assignment.LeaseService leases,
         CancellationToken cancellationToken) =>
         TypedResults.Ok(await leases.AcquireAsync(httpContext.User.GetClientId(), cancellationToken).ConfigureAwait(false));
+
+    /// <summary>Live status between heartbeats: counts as a sign of life and replaces the stored activity.</summary>
+    internal static async Task<Results<NoContent, UnauthorizedHttpResult>> ActivityAsync(
+        AgentActivityReport report,
+        HttpContext httpContext,
+        ServerDbContext db,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        var clientId = httpContext.User.GetClientId();
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var activity = LiveStatus.Normalize(report.Activity, now);
+        var updated = await db.Clients
+            .Where(c => c.Id == clientId)
+            .ExecuteUpdateAsync(
+                setters =>
+                {
+                    setters.SetProperty(c => c.LastHeartbeatAtUtc, now);
+                    LiveStatus.Apply(setters, activity, now);
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+        return updated == 0 ? TypedResults.Unauthorized() : TypedResults.NoContent();
+    }
 
     internal static async Task<Results<NoContent, NotFound>> LeaseReleaseAsync(
         LeaseRelease release,
@@ -244,17 +273,25 @@ internal static class AgentEndpoints
         // The agent clock is not trusted: a boot time in the future or before 2000 is ignored.
         DateTime? lastBoot = request.LastBootAt is { } boot && boot.UtcDateTime <= now.AddHours(1) && boot.Year >= 2000 ? boot.UtcDateTime : null;
 
+        var activity = LiveStatus.Normalize(request.Activity, now);
+        RebootWait? rebootWait = request.RebootPending && request.RebootWait is { } wait && Enum.IsDefined(wait) ? wait : null;
+
         // Single parameterized UPDATE; no read-modify-write round trip on every heartbeat.
         var updated = await db.Clients
             .Where(c => c.Id == clientId)
             .ExecuteUpdateAsync(
-                setters => setters
-                    .SetProperty(c => c.LastHeartbeatAtUtc, now)
-                    .SetProperty(c => c.AgentVersion, request.AgentVersion)
-                    .SetProperty(c => c.OsVersion, c => request.OsVersion ?? c.OsVersion)
-                    .SetProperty(c => c.RebootPending, request.RebootPending)
-                    .SetProperty(c => c.AgentUpdateError, request.AgentUpdateError)
-                    .SetProperty(c => c.LastBootAtUtc, c => lastBoot ?? c.LastBootAtUtc),
+                setters =>
+                {
+                    setters
+                        .SetProperty(c => c.LastHeartbeatAtUtc, now)
+                        .SetProperty(c => c.AgentVersion, request.AgentVersion)
+                        .SetProperty(c => c.OsVersion, c => request.OsVersion ?? c.OsVersion)
+                        .SetProperty(c => c.RebootPending, request.RebootPending)
+                        .SetProperty(c => c.RebootWait, rebootWait)
+                        .SetProperty(c => c.AgentUpdateError, request.AgentUpdateError)
+                        .SetProperty(c => c.LastBootAtUtc, c => lastBoot ?? c.LastBootAtUtc);
+                    LiveStatus.Apply(setters, activity, now);
+                },
                 cancellationToken)
             .ConfigureAwait(false);
 

@@ -22,6 +22,8 @@ public sealed class AgentWorkerTests
     private readonly FakeInstallationRunner _installation = new();
     private readonly FakeServiceRestarter _restarter = new();
     private readonly FakeProcessResources _process = new();
+    private readonly SUSyphos.Agent.Status.ActivityTracker _activity = new(TimeProvider.System);
+    private readonly FakeEnvironment _environment = new();
 
     [Fact]
     public async Task RunCycle_WithoutIdentity_RegistersStoresIdentityAndSendsHeartbeat()
@@ -180,6 +182,28 @@ public sealed class AgentWorkerTests
     }
 
     [Fact]
+    public async Task RunCycle_SendsLiveStatus_AndWhyAPendingRebootWaits()
+    {
+        HeartbeatRequest? sent = null;
+        _client.OnHeartbeatRequest = request => sent = request;
+        _installation.RebootWait = RebootWait.OutsideWindow;
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+        Assert.Null(sent?.Activity);
+        Assert.Null(sent?.RebootWait);
+
+        _environment.RebootPending = true;
+        using (_activity.Begin(AgentPhase.Installing, [Guid.NewGuid()]))
+        {
+            await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(AgentPhase.Installing, sent?.Activity?.Phase);
+        Assert.Equal(RebootWait.OutsideWindow, sent?.RebootWait);
+    }
+
+    [Fact]
     public async Task RunCycle_ForPendingClient_SkipsUpdateRun()
     {
         using var worker = CreateWorker();
@@ -251,7 +275,7 @@ public sealed class AgentWorkerTests
     private AgentWorker CreateWorker() => new(
         _client,
         _store,
-        new FakeEnvironment(),
+        _environment,
         _trust,
         _inventory,
         _releases,
@@ -261,6 +285,7 @@ public sealed class AgentWorkerTests
         AgentSelfUpdaterTests.CreateDisabled("1.2.3"),
         AutomaticUpdatesManagerTests.Create(new FakeSystemProbe(), new FakeRegistryWriter(new FakeSystemProbe())),
         new ResourceGuard(_process, _restarter, Options.Create(new ResourceOptions()), NullLogger<ResourceGuard>.Instance),
+        _activity,
         Options.Create(new CentralServerOptions
         {
             BaseAddress = new Uri("https://central.example.local/"),

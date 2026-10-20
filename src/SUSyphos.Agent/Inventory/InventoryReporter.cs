@@ -1,5 +1,6 @@
 using SUSyphos.Agent.Communication;
 using SUSyphos.Agent.Identity;
+using SUSyphos.Contracts.Agents;
 
 namespace SUSyphos.Agent.Inventory;
 
@@ -19,6 +20,7 @@ internal sealed partial class InventoryReporter(
     InventoryCollector collector,
     InventoryScheduler scheduler,
     ICentralServerClient client,
+    Status.ActivityTracker activity,
     ILogger<InventoryReporter> logger) : IInventoryReporter
 {
     public async Task<bool> ReportIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
@@ -28,7 +30,12 @@ internal sealed partial class InventoryReporter(
             return true;
         }
 
-        var inventory = await collector.CollectAsync(cancellationToken).ConfigureAwait(false);
+        InventoryRequest inventory;
+        using (activity.Begin(AgentPhase.Inventory))
+        {
+            inventory = await collector.CollectAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         if (!scheduler.ShouldSend(inventory))
         {
             return true;

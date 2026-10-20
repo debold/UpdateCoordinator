@@ -35,4 +35,10 @@ public sealed record HeartbeatRequest
     [StringLength(512)]
     [RegularExpression(ValidationPatterns.PrintableText)]
     public string? AgentUpdateError { get; init; }
+
+    /// <summary>Current activity (live status); null when the agent is idle.</summary>
+    public AgentActivity? Activity { get; init; }
+
+    /// <summary>Why a pending reboot waits, or that the agent restarts the server; null when no reboot is pending or not decided yet.</summary>
+    public RebootWait? RebootWait { get; init; }
 }

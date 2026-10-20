@@ -189,7 +189,7 @@ public sealed class UpdateReporterTests
     private UpdateReporter Create()
     {
         var options = Options.Create(new UpdateOptions());
-        return new UpdateReporter(new PreFlightCheck(_probe, _disk, options), _search, _client, options, _time, NullLogger<UpdateReporter>.Instance);
+        return new UpdateReporter(new PreFlightCheck(_probe, _disk, options), _search, _client, new SUSyphos.Agent.Status.ActivityTracker(_time), options, _time, NullLogger<UpdateReporter>.Instance);
     }
 }
 

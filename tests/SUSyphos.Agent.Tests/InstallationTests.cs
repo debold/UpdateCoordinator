@@ -360,6 +360,37 @@ public sealed class InstallationRunnerTests
     }
 
     [Fact]
+    public async Task RebootWait_TellsWhyAPendingRebootWaits()
+    {
+        _environment.RebootPending = true;
+        var runner = Create();
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal(RebootWait.NotAllowedByPolicy, runner.RebootWait);
+
+        _releases.Current = new ReleaseList(1, [], null, RebootPolicy.InsideMaintenanceWindow);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal(RebootWait.Restarting, runner.RebootWait);
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal(RebootWait.RecentlyRequested, runner.RebootWait);
+
+        _environment.RebootPending = false;
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Null(runner.RebootWait);
+    }
+
+    [Fact]
+    public void EveryRebootDecision_ButNotPending_HasItsOwnReason()
+    {
+        var reasons = Enum.GetValues<RebootDecision>().Where(d => d != RebootDecision.NotPending).Select(InstallationRunner.ToRebootWait).ToList();
+
+        Assert.DoesNotContain(null, reasons);
+        Assert.Equal(reasons.Count, reasons.Distinct().Count());
+        Assert.Null(InstallationRunner.ToRebootWait(RebootDecision.NotPending));
+    }
+
+    [Fact]
     public async Task RestartRequest_SurvivesServiceRestart()
     {
         _releases.Current = new ReleaseList(1, [], null, RebootPolicy.InsideMaintenanceWindow);

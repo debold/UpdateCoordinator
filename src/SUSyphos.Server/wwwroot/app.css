@@ -317,6 +317,8 @@ details.multi .options label:hover { background: var(--surface-2); }
 
 /* Plain lists inside boxes and dialogs. */
 ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.live-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0 0 0.6rem; }
+.live-line progress { width: 14rem; height: 0.6rem; accent-color: var(--pend); }
 
 /* Sign-in and first setup: no navigation, the card centred on the whole page. */
 .shell > main:only-child { grid-column: 1 / -1; }

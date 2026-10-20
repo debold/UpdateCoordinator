@@ -21,12 +21,14 @@ public sealed class MessagePolicyTests
     public void Heartbeat_IsAllowedForPendingAndApprovedOnly(RegistrationState state, bool expected)
     {
         Assert.Equal(expected, MessagePolicy.IsAllowed(MessageType.Heartbeat, state));
+        Assert.Equal(expected, MessagePolicy.IsAllowed(MessageType.Activity, state));
     }
 
     [Fact]
     public void Heartbeat_IsNotAllowedForUnregisteredCallers()
     {
         Assert.False(MessagePolicy.IsAllowed(MessageType.Heartbeat, null));
+        Assert.False(MessagePolicy.IsAllowed(MessageType.Activity, null));
     }
 }
 

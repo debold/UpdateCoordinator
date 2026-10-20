@@ -26,6 +26,7 @@ internal sealed partial class UpdateReporter(
     PreFlightCheck preFlight,
     IAvailableUpdateSearch search,
     ICentralServerClient client,
+    Status.ActivityTracker activity,
     IOptions<UpdateOptions> options,
     TimeProvider timeProvider,
     ILogger<UpdateReporter> logger) : IUpdateReporter
@@ -72,7 +73,12 @@ internal sealed partial class UpdateReporter(
 
         try
         {
-            var available = await search.SearchAsync(cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<Wua.WuaUpdate> available;
+            using (activity.Begin(AgentPhase.Searching))
+            {
+                available = await search.SearchAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             return new UpdateReport
             {
                 StartedAt = startedAt,

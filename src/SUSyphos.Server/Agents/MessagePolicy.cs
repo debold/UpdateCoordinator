@@ -18,6 +18,7 @@ internal enum MessageType
     ActionResult,
     Lease,
     AgentPackage,
+    Activity,
 }
 
 /// <summary>
@@ -28,7 +29,7 @@ internal static class MessagePolicy
     public static bool IsAllowed(MessageType messageType, RegistrationState? state) => messageType switch
     {
         MessageType.Register => state is null,
-        MessageType.Heartbeat or MessageType.Inventory => state is RegistrationState.Pending or RegistrationState.Approved,
+        MessageType.Heartbeat or MessageType.Inventory or MessageType.Activity => state is RegistrationState.Pending or RegistrationState.Approved,
         MessageType.UpdateReport or MessageType.ReleaseRequest or MessageType.InstallReport or MessageType.ActionRequest or MessageType.ActionResult or MessageType.Lease or MessageType.AgentPackage
             => state is RegistrationState.Approved,
         _ => false,

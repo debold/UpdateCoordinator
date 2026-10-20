@@ -18,6 +18,9 @@ internal interface IInstallationRunner
     /// Returns false if the central server rejected the credentials.
     /// </summary>
     Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken);
+
+    /// <summary>Why the pending reboot waits, or that the agent restarts the server; null if no reboot is pending (live status).</summary>
+    RebootWait? RebootWait { get; }
 }
 
 internal sealed partial class InstallationRunner : IInstallationRunner
@@ -194,6 +197,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             _timeProvider.GetLocalNow().DateTime,
             _state.LastRebootRequestAt,
             now);
+        RebootWait = ToRebootWait(decision);
         if (decision != RebootDecision.Reboot)
         {
             return decision;
@@ -207,6 +211,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
         if (!lease.Value)
         {
+            RebootWait = Contracts.Agents.RebootWait.WaitingForLease;
             return RebootDecision.WaitingForLease;
         }
 
@@ -218,6 +223,21 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
         return decision;
     }
+
+    public RebootWait? RebootWait { get; private set; }
+
+    internal static RebootWait? ToRebootWait(RebootDecision decision) => decision switch
+    {
+        RebootDecision.Reboot => Contracts.Agents.RebootWait.Restarting,
+        RebootDecision.NotAllowedByPolicy => Contracts.Agents.RebootWait.NotAllowedByPolicy,
+        RebootDecision.LocalVeto => Contracts.Agents.RebootWait.LocalVeto,
+        RebootDecision.Paused => Contracts.Agents.RebootWait.Paused,
+        RebootDecision.OutsideWindow => Contracts.Agents.RebootWait.OutsideWindow,
+        RebootDecision.WindowEndsSoon => Contracts.Agents.RebootWait.WindowEndsSoon,
+        RebootDecision.RecentlyRequested => Contracts.Agents.RebootWait.RecentlyRequested,
+        RebootDecision.WaitingForLease => Contracts.Agents.RebootWait.WaitingForLease,
+        _ => null,
+    };
 
     internal IReadOnlyList<Release> PlanBatch()
     {

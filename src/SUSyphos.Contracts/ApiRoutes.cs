@@ -14,6 +14,9 @@ public static class ApiRoutes
     /// <summary>Periodic heartbeat of a registered agent.</summary>
     public const string AgentHeartbeat = "/api/v1/agents/heartbeat";
 
+    /// <summary>Live status of a registered agent between heartbeats, while a long step runs.</summary>
+    public const string AgentActivity = "/api/v1/agents/activity";
+
     /// <summary>Full inventory of a registered agent (also accepted before approval).</summary>
     public const string AgentInventory = "/api/v1/agents/inventory";
 

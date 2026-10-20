@@ -9,6 +9,9 @@ internal enum ServerHealthState
     NotApproved,
     Offline,
     Failed,
+
+    /// <summary>The agent is downloading or installing updates right now (live status).</summary>
+    Updating,
     RebootPending,
     Warning,
     Ok,
@@ -44,6 +47,12 @@ internal static class ServerHealth
             return ServerHealthState.Failed;
         }
 
+        // A running installation explains a pending reboot better than the flag left by an earlier update.
+        if (Agents.LiveStatus.CurrentPhase(client, nowUtc) is AgentPhase.Downloading or AgentPhase.Installing)
+        {
+            return ServerHealthState.Updating;
+        }
+
         if (client.RebootPending)
         {
             return ServerHealthState.RebootPending;
@@ -59,6 +68,7 @@ internal static class ServerHealth
         ServerHealthState.NotApproved => "Not approved",
         ServerHealthState.Offline => "Offline",
         ServerHealthState.Failed => "Failed",
+        ServerHealthState.Updating => "Updating",
         ServerHealthState.RebootPending => "Reboot pending",
         ServerHealthState.Warning => "Warning",
         _ => "OK",
@@ -69,6 +79,7 @@ internal static class ServerHealth
     {
         ServerHealthState.Failed or ServerHealthState.Offline => "fail",
         ServerHealthState.RebootPending or ServerHealthState.Warning => "queue",
+        ServerHealthState.Updating => "pend",
         ServerHealthState.NotApproved => "neutral",
         _ => "ok",
     };
