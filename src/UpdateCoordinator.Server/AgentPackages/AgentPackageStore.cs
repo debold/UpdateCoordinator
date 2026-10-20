@@ -115,7 +115,8 @@ internal sealed partial class AgentPackageStore(ServerDbContext db, IOptions<Age
         System.IO.Directory.CreateDirectory(directory);
         var fileName = FileNameFor(version);
         var target = Path.Combine(directory, fileName);
-        var temporary = target + ".partial";
+        // A name of its own per call, so two registrations of the same package never write into one file.
+        var temporary = $"{target}.{Guid.NewGuid():N}.partial";
         string sha256;
         long size;
         try
@@ -155,7 +156,7 @@ internal sealed partial class AgentPackageStore(ServerDbContext db, IOptions<Age
             File.Delete(temporary);
         }
 
-        db.AgentPackages.Add(new AgentPackageEntity
+        var entity = db.AgentPackages.Add(new AgentPackageEntity
         {
             Version = versionText,
             Source = source,
@@ -164,7 +165,22 @@ internal sealed partial class AgentPackageStore(ServerDbContext db, IOptions<Age
             Size = size,
             AddedAtUtc = timeProvider.GetUtcNow().UtcDateTime,
         });
-        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException)
+        {
+            // Registered at the same moment by another call (e.g. the start-up registration): the package is there.
+            entity.State = EntityState.Detached;
+            if (await db.AgentPackages.AsNoTracking().AnyAsync(p => p.Version == versionText, cancellationToken).ConfigureAwait(false))
+            {
+                return true;
+            }
+
+            throw;
+        }
+
         LogAdded(versionText, source);
         return true;
     }

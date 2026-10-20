@@ -285,7 +285,10 @@ public sealed class AgentPackageTests : IAsyncDisposable
         await File.WriteAllBytesAsync(Path.Combine(bundled, "UpdateCoordinator.Agent-1.3.0.msi"), Package, TestContext.Current.CancellationToken);
         await File.WriteAllBytesAsync(Path.Combine(bundled, "UpdateCoordinator.Agent-not-a-version.msi"), Package, TestContext.Current.CancellationToken);
 
-        await WithAsync<AgentPackageStore, bool>(async s => { await s.RegisterBundledAsync(CancellationToken.None); return true; });
+        // The start-up registration may run at the same time; two parallel registrations must both succeed.
+        await Task.WhenAll(
+            WithAsync<AgentPackageStore, bool>(async s => { await s.RegisterBundledAsync(CancellationToken.None); return true; }),
+            WithAsync<AgentPackageStore, bool>(async s => { await s.RegisterBundledAsync(CancellationToken.None); return true; }));
         await WithAsync<AgentPackageStore, bool>(async s => { await s.RegisterBundledAsync(CancellationToken.None); return true; });
 
         var package = await _factory.WithDbAsync(db => db.AgentPackages.SingleAsync(TestContext.Current.CancellationToken));
