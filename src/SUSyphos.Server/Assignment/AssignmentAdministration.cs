@@ -226,8 +226,38 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
             : await CompleteAsync(actor, "AssignmentRule.Deleted", ruleId.ToString(System.Globalization.CultureInfo.InvariantCulture), null, null, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<Outcome> SetClientAssignmentAsync(
-        Guid clientId, int? manualRingId, IReadOnlyCollection<int> manualGroupIds, string? windowsText, string actor, CancellationToken cancellationToken)
+    /// <summary>Assigns several servers to a ring manually (e.g. "Add servers" on the ring page); their groups and windows stay.</summary>
+    public async Task<Outcome> MoveClientsToRingAsync(IReadOnlyCollection<Guid> clientIds, int ringId, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(clientIds);
+        if (clientIds.Count == 0)
+        {
+            return new Outcome("Select at least one server.");
+        }
+
+        var ring = await db.Rings.AsNoTracking().SingleOrDefaultAsync(r => r.Id == ringId, cancellationToken).ConfigureAwait(false);
+        if (ring is null)
+        {
+            return new Outcome("The ring no longer exists.");
+        }
+
+        var clients = await db.Clients.Where(c => clientIds.Contains(c.Id)).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (clients.Count == 0)
+        {
+            return new Outcome("The selected servers no longer exist.");
+        }
+
+        foreach (var client in clients)
+        {
+            client.ManualRingId = ringId;
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        var names = string.Join(", ", clients.Select(c => c.HostName).Order(StringComparer.OrdinalIgnoreCase).Take(20));
+        return await CompleteAsync(actor, "Ring.ServersAdded", ring.Name, clients.Count > 20 ? $"{names} and {clients.Count - 20} more" : names, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<Outcome> SetClientAssignmentAsync(        Guid clientId, int? manualRingId, IReadOnlyCollection<int> manualGroupIds, string? windowsText, string actor, CancellationToken cancellationToken)
     {
         var client = await db.Clients.SingleOrDefaultAsync(c => c.Id == clientId, cancellationToken).ConfigureAwait(false);
         if (client is null)

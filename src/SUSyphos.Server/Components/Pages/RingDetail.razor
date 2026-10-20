@@ -7,6 +7,8 @@
 @inject RolloutService Rollouts
 @inject NavigationManager Navigation
 @inject TimeProvider Time
+@inject AssignmentAdministration Administration
+@inherits DashboardPageBase
 
 <PageTitle>Ring @_ring?.Name</PageTitle>
 
@@ -41,10 +43,12 @@ else
     </nav>
 
     <PageHeader Title="@($"Ring {_ring.Order} · {_ring.Name}")" Subtitle="@($"{_servers} servers · {TransitionText}")" />
+    <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
     <ActionBand>
         <a class="btn primary" href="@Servers.Link("ring", _ring.Name)">Open servers of this ring</a>
         <AuthorizeView Policy="@AdminRoles.Policies.Administer">
+            <a class="btn" href="/rings/@_ring.Id?dialog=add">Add servers…</a>
             <a class="btn" href="/administration/release-rules">Edit ring rules</a>
             <a class="btn" href="/administration/rules">Edit assignment rules</a>
         </AuthorizeView>
@@ -166,6 +170,42 @@ else
     </Box>
 }
 
+@if (_ring is not null && Dialog == "add")
+{
+    <Dialog Title="@($"Add servers to {_ring.Name}")" CloseHref="@($"/rings/{_ring.Id}")" Wide="true">
+        <form method="post" @formname="ring-add" @onsubmit="AddServersAsync">
+            <AntiforgeryToken />
+            <div class="dialog-body">
+                <p class="help">The selected servers are assigned to this ring manually; assignment rules no longer move them. Groups and maintenance windows stay.</p>
+                @if (_candidates.Count == 0)
+                {
+                    <p class="note">Every approved server is already in this ring.</p>
+                }
+                else
+                {
+                    <div class="scroll">
+                        <table>
+                            <thead><tr><th></th><th>Server</th><th>Current ring</th><th>Assigned by</th></tr></thead>
+                            <tbody>
+                                @foreach (var candidate in _candidates)
+                                {
+                                    <tr>
+                                        <td><input type="checkbox" name="Move" value="@candidate.Id" aria-label="Move @candidate.HostName" /></td>
+                                        <td>@candidate.HostName</td>
+                                        <td><span class="tag">@candidate.RingName</span></td>
+                                        <td class="note">@(candidate.Manual ? "manual" : "assignment rule or fallback")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+            <div class="dialog-foot"><a class="btn" href="/rings/@_ring.Id">Cancel</a><button type="submit" class="primary" disabled="@(_candidates.Count == 0)">Move to @_ring.Name</button></div>
+        </form>
+    </Dialog>
+}
+
 @code {
     private const int MaxServerRows = 500;
 
@@ -220,9 +260,33 @@ else
             $"next ring after {t.MinimumWait.TotalDays:0}–{t.MaximumWait.TotalDays:0} days with feedback ≥ {t.MinimumFeedbackPercent} % and success ≥ {t.MinimumSuccessPercent} %{(t.ManualGate ? ", manual gate" : string.Empty)}")
         : "last ring, deployed last";
 
-    protected override async Task OnParametersSetAsync()
+    [SupplyParameterFromQuery(Name = "dialog")]
+    private string? Dialog { get; set; }
+
+    [SupplyParameterFromForm(FormName = "ring-add")]
+    private Guid[]? Move { get; set; }
+
+    private sealed record Candidate(Guid Id, string HostName, string RingName, bool Manual);
+
+    private List<Candidate> _candidates = [];
+
+    private async Task AddServersAsync()
     {
-        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        // The page is open to readers; moving servers is for administrators, checked again in the handler.
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators can move servers between rings.", string.Empty);
+            return;
+        }
+
+        var selected = (Move ?? []).Distinct().Take(1000).ToList();
+        var outcome = await Administration.MoveClientsToRingAsync(selected, RingId, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, $"{selected.Count} server(s) moved to {_ring?.Name}.");
+        await OnParametersSetAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _ring = _rings.FirstOrDefault(r => r.Id == RingId);
         if (_ring is null)
         {
@@ -230,6 +294,18 @@ else
         }
 
         _transitions = await Db.RingTransitions.AsNoTracking().ToDictionaryAsync(t => t.FromRingId);
+        if (Dialog == "add")
+        {
+            var ringNames = _rings.ToDictionary(r => r.Id, r => (r.Order, r.Name));
+            _candidates = [.. (await Db.Clients.AsNoTracking()
+                    .Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved && c.RingId != RingId)
+                    .Select(c => new { c.Id, c.HostName, c.RingId, c.ManualRingId })
+                    .Take(1000)
+                    .ToListAsync())
+                .OrderBy(c => c.RingId is { } r && ringNames.TryGetValue(r, out var ring) ? ring.Order : int.MaxValue)
+                .ThenBy(c => c.HostName, StringComparer.OrdinalIgnoreCase)
+                .Select(c => new Candidate(c.Id, c.HostName, c.RingId is { } r && ringNames.TryGetValue(r, out var ring) ? ring.Name : "none", c.ManualRingId is not null))];
+        }
         _serverCounts = await Db.Clients.Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved && c.RingId != null).GroupBy(c => c.RingId!.Value).ToDictionaryAsync(g => g.Key, g => g.Count());
         _servers = _serverCounts.GetValueOrDefault(RingId);
         var entries = await Deployment.GetAsync(RingId, null, null, CancellationToken.None);
