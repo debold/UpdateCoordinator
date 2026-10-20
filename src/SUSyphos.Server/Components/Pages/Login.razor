@@ -6,25 +6,29 @@
 
 <PageTitle>Sign in</PageTitle>
 
-<h1>Sign in</h1>
-
-@if (Setup.IsAvailable)
-{
-    <p class="notice">No account exists yet. <a href="@DashboardServiceCollectionExtensions.SetupPath">Create the first administrator.</a></p>
-}
-
-@if (_error is not null)
-{
-    <p class="error" role="alert">@_error</p>
-}
-
-<EditForm Model="Input" method="post" OnValidSubmit="SignInAsync" FormName="login">
-    <DataAnnotationsValidator />
-    <label>User name <InputText @bind-Value="Input!.UserName" autocomplete="username" /></label>
-    <label>Password <InputText type="password" @bind-Value="Input!.Password" autocomplete="current-password" /></label>
-    <ValidationSummary />
-    <button type="submit">Sign in</button>
-</EditForm>
+<div class="auth-page">
+    <section class="auth-card box">
+        <header class="box-head"><span class="auth-brand">SUSyphos</span><span class="hint">Central server</span></header>
+        <div class="box-body form">
+            <h1>Sign in</h1>
+            @if (Setup.IsAvailable)
+            {
+                <p class="notice">No account exists yet. <a href="@DashboardServiceCollectionExtensions.SetupPath">Create the first administrator.</a></p>
+            }
+            @if (_error is not null)
+            {
+                <p class="error" role="alert">@_error</p>
+            }
+            <EditForm Model="Input" method="post" OnValidSubmit="SignInAsync" FormName="login" class="form">
+                <DataAnnotationsValidator />
+                <label class="field"><span>User name</span><InputText @bind-Value="Input!.UserName" autocomplete="username" /></label>
+                <label class="field"><span>Password</span><InputText type="password" @bind-Value="Input!.Password" autocomplete="current-password" /></label>
+                <ValidationSummary />
+                <button type="submit" class="primary">Sign in</button>
+            </EditForm>
+        </div>
+    </section>
+</div>
 
 @code {
     [SupplyParameterFromForm]

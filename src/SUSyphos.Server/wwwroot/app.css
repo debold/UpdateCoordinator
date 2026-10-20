@@ -317,3 +317,10 @@ details.multi .options label:hover { background: var(--surface-2); }
 
 /* Plain lists inside boxes and dialogs. */
 ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+
+/* Sign-in and first setup: no navigation, the card centred on the whole page. */
+.shell > main:only-child { grid-column: 1 / -1; }
+.auth-page { min-height: calc(100vh - 6rem); display: flex; align-items: center; justify-content: center; }
+.auth-card { width: min(30rem, 100%); }
+.auth-card h1 { font-size: 1.4rem; margin: 0; }
+.auth-brand { font-weight: 700; font-size: 1.05rem; }

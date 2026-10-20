@@ -48,6 +48,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Server detail: Windows Automatic Updates shows a clear OK or problem with the reason and the setting; pre-flight checks (readable names, problems first) and update history each use the full width.
 - Ring page: Add servers… (Admin) moves selected servers, listed by their current ring, into the ring as a manual assignment; audited.
 - Agents page: the suggested address for the installer download is always a fully qualified name (the machine FQDN for localhost or the short machine name, otherwise resolved through DNS).
+- Sign-in and first setup use the common design, centred on the whole page.
 - Fixed: edit and delete links on Users, Groups, Assignment rules and Release rules opened no dialog in browsers.
 - Blackout periods (UTC, with reason) pause installations everywhere like the global pause; spread per ring (0–168 h) gives each server a fixed offset for the earliest installation.
 - Scheduled backup: daily archive into a local folder or share at a chosen time, keeping a chosen number of archives; password stored DPAPI-protected on the server (not in the backup), "Run now", failures notified (`Backup:*`).

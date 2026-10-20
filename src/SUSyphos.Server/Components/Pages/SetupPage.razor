@@ -7,36 +7,42 @@
 
 <PageTitle>Setup</PageTitle>
 
-<h1>Create the first administrator</h1>
-
-@if (!SetupFlow.IsAvailable)
-{
-    <p>The setup has already been completed. <a href="@DashboardServiceCollectionExtensions.LoginPath">Sign in</a></p>
-}
-else
-{
-    <p>Enter the one-time setup token. It is stored on the central server in the file named in the service log and can only be read by local administrators.</p>
-
-    @if (_errors.Count > 0)
-    {
-        <ul class="error" role="alert">
-            @foreach (var error in _errors)
+<div class="auth-page">
+    <section class="auth-card box">
+        <header class="box-head"><span class="auth-brand">SUSyphos</span><span class="hint">First start</span></header>
+        <div class="box-body form">
+            <h1>Create the first administrator</h1>
+            @if (!SetupFlow.IsAvailable)
             {
-                <li>@error</li>
+                <p>The setup has already been completed. <a href="@DashboardServiceCollectionExtensions.LoginPath">Sign in</a></p>
             }
-        </ul>
-    }
-
-    <EditForm Model="Input" method="post" OnValidSubmit="CompleteAsync" FormName="setup">
-        <DataAnnotationsValidator />
-        <label>Setup token <InputText @bind-Value="Input!.Token" autocomplete="off" /></label>
-        <label>User name <InputText @bind-Value="Input!.UserName" autocomplete="username" /></label>
-        <label>Password (at least 12 characters) <InputText type="password" @bind-Value="Input!.Password" autocomplete="new-password" /></label>
-        <label>Repeat password <InputText type="password" @bind-Value="Input!.ConfirmPassword" autocomplete="new-password" /></label>
-        <ValidationSummary />
-        <button type="submit">Create administrator</button>
-    </EditForm>
-}
+            else
+            {
+                <p class="note">Enter the one-time setup token. It is stored on the central server in the file named in the service log and can only be read by local administrators.</p>
+                @if (_errors.Count > 0)
+                {
+                    <ul class="error" role="alert">
+                        @foreach (var error in _errors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                }
+                <EditForm Model="Input" method="post" OnValidSubmit="CompleteAsync" FormName="setup" class="form">
+                    <DataAnnotationsValidator />
+                    <label class="field"><span>Setup token</span><InputText @bind-Value="Input!.Token" autocomplete="off" /></label>
+                    <label class="field"><span>User name</span><InputText @bind-Value="Input!.UserName" autocomplete="username" /></label>
+                    <div class="form-row">
+                        <label class="field"><span>Password</span><InputText type="password" @bind-Value="Input!.Password" autocomplete="new-password" /><span class="help">At least 12 characters</span></label>
+                        <label class="field"><span>Repeat password</span><InputText type="password" @bind-Value="Input!.ConfirmPassword" autocomplete="new-password" /></label>
+                    </div>
+                    <ValidationSummary />
+                    <button type="submit" class="primary">Create administrator</button>
+                </EditForm>
+            }
+        </div>
+    </section>
+</div>
 
 @code {
     [SupplyParameterFromForm]
