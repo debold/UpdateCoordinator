@@ -88,3 +88,32 @@ internal sealed class HealthCheckEntry
 
     public string? Detail { get; set; }
 }
+
+/// <summary>
+/// An entry of the Windows Update history of a client, as last reported by its inventory (last 90 days). Unlike
+/// <see cref="InstallationEntity"/> it includes installations started outside SUSyphos; the title is kept here because
+/// such updates may be missing from the catalog.
+/// </summary>
+internal sealed class ClientUpdateHistoryEntity
+{
+    public long Id { get; set; }
+
+    public Guid ClientId { get; set; }
+
+    public Guid UpdateId { get; set; }
+
+    public int Revision { get; set; }
+
+    public required string Title { get; set; }
+
+    public DateTime DateUtc { get; set; }
+
+    public SUSyphos.Contracts.Agents.UpdateOperation Operation { get; set; }
+
+    public SUSyphos.Contracts.Agents.InstallResultCode ResultCode { get; set; }
+
+    public int HResult { get; set; }
+
+    /// <summary>Application that started the operation as Windows recorded it; null if none.</summary>
+    public string? ClientApplicationId { get; set; }
+}

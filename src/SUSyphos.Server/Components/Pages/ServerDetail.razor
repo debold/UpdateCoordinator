@@ -166,6 +166,7 @@ else
                 <dt>Agent update</dt><dd>@if (_client.AgentUpdateError is { } agentError) { <span class="pill fail">failed</span> <span>@agentError</span> } else { <span>agent @_client.AgentVersion</span> }@if (AgentUpdates.IsBelowMinimum(_client.AgentVersion)) { <span class="pill fail">below minimum @AgentUpdates.Minimum</span> }</dd>
                 <dt>Automatic updates</dt><dd>@if (_client.AutoUpdateMode is null) { <span class="note">reported by agents from version 0.3</span> } else if (_client.AutomaticUpdatesBypass) { <span class="pill fail">problem</span> <span>Windows may install or restart on its own, outside rings and windows (<a href="/servers/@Id#checks">details</a>); setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> } else { <span class="pill ok">OK</span> <span>Windows does not install on its own; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> }</dd>
                 <dt>Restart</dt><dd>@if (!_client.RebootPending) { <span>not pending</span> } else if (_client.RebootWait is { } wait) { <span class="pill queue">pending</span> <span>@LiveStatus.RebootWaitText(wait) (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> } else { <span class="pill queue">pending</span> <span>the agent reports why it waits from version 0.7 (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> }</dd>
+                <dt>Outside SUSyphos</dt><dd>@if (_externalInstalls > 0) { <span class="pill queue">@_externalInstalls</span> <span>installations in the last @SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays days were started by Windows or an administrator, not by SUSyphos (<a href="/servers/@Id#windows-history">history</a>)</span> } else { <span>none in the reported history</span> }</dd>
                 <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
                 <dt>Registered (UTC)</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
             </dl>
@@ -271,6 +272,30 @@ else
                             <td>@installation.Source</td>
                             <td>@ResultText(installation)</td>
                             <td>@RebootText(installation)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
+
+    <Box Title="Windows Update history" Anchor="windows-history" Hint="@($"last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days as recorded by Windows, including installations outside SUSyphos; updated with the inventory")" Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Date (UTC)</th><th>Update</th><th>Operation</th><th>Result</th><th>Started by</th></tr></thead>
+                <tbody>
+                    @if (_windowsHistory.Count == 0)
+                    {
+                        <tr><td colspan="5" class="note">Nothing reported yet; agents from version 0.7 send the history with their inventory.</td></tr>
+                    }
+                    @foreach (var entry in _windowsHistory)
+                    {
+                        <tr>
+                            <td class="nowrap">@Format(entry.DateUtc)</td>
+                            <td class="wrap">@entry.Title</td>
+                            <td>@entry.Operation</td>
+                            <td>@UpdateHistoryText.Result(entry.ResultCode, entry.HResult)</td>
+                            <td>@if (UpdateHistoryText.IsAgent(entry.ClientApplicationId)) { <span class="pill ok">SUSyphos</span> } else { <span class="pill queue">outside SUSyphos</span> <span>@UpdateHistoryText.Source(entry.ClientApplicationId)</span> }</td>
                         </tr>
                     }
                 </tbody>
@@ -598,6 +623,13 @@ else
             ? [.. _open.Where(o => o.Entry.EarliestInstallAtUtc is { } earliest && earliest <= window.End && o.Entry.State is DeploymentState.Pending or DeploymentState.Failed)]
             : [];
         _paused = await Pause.IsActiveAsync(CancellationToken.None);
+
+        _windowsHistory = await Db.ClientUpdateHistory.AsNoTracking()
+            .Where(h => h.ClientId == Id)
+            .OrderByDescending(h => h.DateUtc).ThenBy(h => h.Id)
+            .Take(MaxHistory)
+            .ToListAsync();
+        _externalInstalls = _windowsHistory.Count(h => h.Operation == SUSyphos.Contracts.Agents.UpdateOperation.Installation && !UpdateHistoryText.IsAgent(h.ClientApplicationId));
     }
 
     private const int MaxHistory = 200;
@@ -605,6 +637,8 @@ else
     /// <summary>Reload interval of the page while the agent reports an activity.</summary>
     private const int LiveRefreshSeconds = 10;
 
+    private List<ClientUpdateHistoryEntity> _windowsHistory = [];
+    private int _externalInstalls;
     private SUSyphos.Contracts.Agents.AgentPhase? _livePhase;
     private List<(Guid UpdateId, string Title)> _liveUpdates = [];
 
@@ -650,9 +684,7 @@ else
     };
 
     private static string ResultText(InstallationEntity installation) =>
-        installation.ResultCode is (int)SUSyphos.Contracts.Agents.InstallResultCode.Succeeded or (int)SUSyphos.Contracts.Agents.InstallResultCode.SucceededWithErrors
-            ? ((SUSyphos.Contracts.Agents.InstallResultCode)installation.ResultCode).ToString()
-            : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(SUSyphos.Contracts.Agents.InstallResultCode)installation.ResultCode}, 0x{installation.HResult:X8}: {SUSyphos.Server.Agents.HResultCatalog.Describe(installation.HResult)}");
+        UpdateHistoryText.Result((SUSyphos.Contracts.Agents.InstallResultCode)installation.ResultCode, installation.HResult);
 
     /// <summary>Next opening of the effective windows in the server's time zone, with the UTC time for comparison.</summary>
     private string NextWindowText

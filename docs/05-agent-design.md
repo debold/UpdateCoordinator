@@ -143,6 +143,8 @@ Implemented (2026-10-20) on the central server, from data it already has: the se
 
 Updates installed outside our own maintenance are detected and reported with their source.
 
+**Implemented (2026-10-20):** the inventory carries the Windows Update history of the last 90 days (at most 500 entries, newest first; read locally with `IUpdateSearcher.QueryHistory`, no network): update ID, revision, title, date, installation or uninstallation, result, error code and the client application ID Windows recorded. The agent's own sessions use `SUSyphos.Agent`, so every other ID (e.g. `AutomaticUpdates`, the update orchestrator behind Settings, Defender, `wusa`) marks an installation outside SUSyphos. The central server shows the history on the server detail page and counts these installations. Typical cause: Windows Automatic Updates still installs on its own (section 3; enable "Manage Automatic Updates" centrally).
+
 ## 6. Remote actions
 
 The agent fetches actions from the queue, executes them in the given order and reports status with progress: restart service, immediate update search with report, restart server, check-in with agent update search, full resync, later log retrieval.

@@ -1,4 +1,5 @@
 using SUSyphos.Agent.Wua;
+using SUSyphos.Contracts.Agents;
 
 namespace SUSyphos.Agent.Inventory;
 
@@ -8,12 +9,15 @@ namespace SUSyphos.Agent.Inventory;
 internal interface IInstalledUpdateSource
 {
     Task<IReadOnlyList<WuaUpdate>?> GetInstalledUpdatesAsync(CancellationToken cancellationToken);
+
+    /// <summary>Windows Update history of the last <see cref="UpdateHistoryEntry.HistoryDays"/> days; null if it cannot be read.</summary>
+    Task<IReadOnlyList<UpdateHistoryEntry>?> GetHistoryAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
 /// Installed updates from the local WUA cache (Online = false), so no internet access is needed.
 /// </summary>
-internal sealed partial class WuaInstalledUpdateSource(ILogger<WuaInstalledUpdateSource> logger) : IInstalledUpdateSource
+internal sealed partial class WuaInstalledUpdateSource(TimeProvider timeProvider, ILogger<WuaInstalledUpdateSource> logger) : IInstalledUpdateSource
 {
     private const string InstalledCriteria = "IsInstalled=1 and IsHidden=0";
 
@@ -33,6 +37,26 @@ internal sealed partial class WuaInstalledUpdateSource(ILogger<WuaInstalledUpdat
                 }
             },
             cancellationToken);
+
+    public Task<IReadOnlyList<UpdateHistoryEntry>?> GetHistoryAsync(CancellationToken cancellationToken) =>
+        Task.Run<IReadOnlyList<UpdateHistoryEntry>?>(
+            () =>
+            {
+                try
+                {
+                    var since = timeProvider.GetUtcNow().UtcDateTime.AddDays(-UpdateHistoryEntry.HistoryDays);
+                    return WireFormat.ToHistory(WuaHistory.Query(since, UpdateHistoryEntry.MaxEntries));
+                }
+                catch (WuaException ex)
+                {
+                    LogHistoryUnavailable(ex.Message);
+                    return null;
+                }
+            },
+            cancellationToken);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The Windows Update history cannot be read ({Reason}); the inventory is sent without it.")]
+    private partial void LogHistoryUnavailable(string reason);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Installed updates cannot be read ({Reason}); the inventory is sent without them.")]
     private partial void LogUnavailable(string reason);

@@ -16,6 +16,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<ClientAvailableUpdateEntity> ClientAvailableUpdates => Set<ClientAvailableUpdateEntity>();
 
+    public DbSet<ClientUpdateHistoryEntity> ClientUpdateHistory => Set<ClientUpdateHistoryEntity>();
+
     public DbSet<ReleaseEntity> Releases => Set<ReleaseEntity>();
 
     public DbSet<InstallationEntity> Installations => Set<InstallationEntity>();
@@ -259,6 +261,14 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         available.HasKey(a => new { a.ClientId, a.UpdateId, a.Revision });
         available.HasOne<ClientEntity>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Cascade);
         available.HasOne<UpdateEntity>().WithMany().HasForeignKey(a => new { a.UpdateId, a.Revision }).OnDelete(DeleteBehavior.Restrict);
+
+        var history = modelBuilder.Entity<ClientUpdateHistoryEntity>();
+        history.ToTable("ClientUpdateHistory");
+        history.HasKey(h => h.Id);
+        history.Property(h => h.Title).HasMaxLength(512).IsRequired();
+        history.Property(h => h.ClientApplicationId).HasMaxLength(128);
+        history.HasIndex(h => new { h.ClientId, h.DateUtc });
+        history.HasOne<ClientEntity>().WithMany().HasForeignKey(h => h.ClientId).OnDelete(DeleteBehavior.Cascade);
 
         var release = modelBuilder.Entity<ReleaseEntity>();
         release.ToTable("Releases");

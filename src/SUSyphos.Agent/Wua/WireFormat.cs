@@ -54,6 +54,30 @@ internal static partial class WireFormat
             MsrcSeverity = Match(update.MsrcSeverity, LettersRegex(), 32),
         });
 
+    /// <summary>History entries with a valid identity and operation, newest first, capped; odd values are cleaned, not dropped.</summary>
+    public static List<UpdateHistoryEntry> ToHistory(IEnumerable<WuaHistoryRecord> raw) =>
+    [
+        .. raw
+            .Where(r => Guid.TryParse(r.UpdateId, out _) && r.Revision >= 0 && Enum.IsDefined((UpdateOperation)r.Operation))
+            .OrderByDescending(r => r.Date)
+            .Take(UpdateHistoryEntry.MaxEntries)
+            .Select(r =>
+            {
+                var id = Guid.Parse(r.UpdateId!);
+                return new UpdateHistoryEntry
+                {
+                    UpdateId = id,
+                    Revision = r.Revision,
+                    Title = Text(r.Title, 512) ?? id.ToString(),
+                    Date = new DateTimeOffset(DateTime.SpecifyKind(r.Date, DateTimeKind.Utc)),
+                    Operation = (UpdateOperation)r.Operation,
+                    ResultCode = Enum.IsDefined((InstallResultCode)r.ResultCode) ? (InstallResultCode)r.ResultCode : InstallResultCode.Failed,
+                    HResult = r.HResult,
+                    ClientApplicationId = Text(r.ClientApplicationId, 128),
+                };
+            }),
+    ];
+
     /// <summary>Drops entries without valid identity, removes duplicates, sorts and caps the list.</summary>
     private static List<T> Normalize<T>(IEnumerable<WuaUpdate> raw, int max, Func<WuaUpdate, Guid, T> create)
         where T : UpdateInfo =>

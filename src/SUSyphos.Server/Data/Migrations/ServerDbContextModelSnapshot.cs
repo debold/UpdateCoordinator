@@ -632,6 +632,49 @@ namespace SUSyphos.Server.Data.Migrations
                     b.ToTable("ClientUpdates", (string)null);
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.ClientUpdateHistoryEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClientApplicationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("HResult")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Operation")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ResultCode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId", "DateUtc");
+
+                    b.ToTable("ClientUpdateHistory", (string)null);
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.ComplianceSnapshotEntity", b =>
                 {
                     b.Property<DateOnly>("Day")
@@ -1248,6 +1291,15 @@ namespace SUSyphos.Server.Data.Migrations
                         .WithMany()
                         .HasForeignKey("UpdateId", "Revision")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.ClientUpdateHistoryEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

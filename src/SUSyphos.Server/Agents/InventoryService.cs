@@ -48,6 +48,11 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
             await ReplaceInstalledUpdatesAsync(clientId, installed, now, cancellationToken).ConfigureAwait(false);
         }
 
+        if (inventory.UpdateHistory is { } history)
+        {
+            await ReplaceHistoryAsync(clientId, history, now, cancellationToken).ConfigureAwait(false);
+        }
+
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -70,6 +75,29 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
             Revision = u.Revision,
             ReportedAtUtc = now,
         }));
+    }
+
+    /// <summary>
+    /// Replaces the reported Windows Update history. The agent clock is not trusted: entries dated in the future are
+    /// dropped, so they cannot pin themselves to the top of the list.
+    /// </summary>
+    private async Task ReplaceHistoryAsync(Guid clientId, IReadOnlyList<UpdateHistoryEntry> history, DateTime now, CancellationToken cancellationToken)
+    {
+        await db.ClientUpdateHistory.Where(h => h.ClientId == clientId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        db.ClientUpdateHistory.AddRange(history
+            .Where(h => h.Date.UtcDateTime <= now.AddHours(1) && Enum.IsDefined(h.Operation) && Enum.IsDefined(h.ResultCode))
+            .Select(h => new ClientUpdateHistoryEntity
+            {
+                ClientId = clientId,
+                UpdateId = h.UpdateId,
+                Revision = h.Revision,
+                Title = h.Title,
+                DateUtc = h.Date.UtcDateTime,
+                Operation = h.Operation,
+                ResultCode = h.ResultCode,
+                HResult = h.HResult,
+                ClientApplicationId = h.ClientApplicationId,
+            }));
     }
 
     /// <summary>Host name and domain are attributes of the GUID: changes are logged but need no new approval (docs/03, 3.1).</summary>

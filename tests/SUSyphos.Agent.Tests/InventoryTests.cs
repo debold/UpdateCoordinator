@@ -20,6 +20,10 @@ internal sealed class FakeInstalledUpdates : IInstalledUpdateSource
         Calls++;
         return Task.FromResult(Updates);
     }
+
+    public IReadOnlyList<UpdateHistoryEntry>? History { get; set; } = [];
+
+    public Task<IReadOnlyList<UpdateHistoryEntry>?> GetHistoryAsync(CancellationToken cancellationToken) => Task.FromResult(History);
 }
 
 public sealed class InventoryCollectorTests

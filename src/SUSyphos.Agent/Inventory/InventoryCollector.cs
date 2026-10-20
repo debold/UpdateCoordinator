@@ -21,6 +21,7 @@ internal sealed partial class InventoryCollector(
     public async Task<InventoryRequest> CollectAsync(CancellationToken cancellationToken)
     {
         var installed = await updates.GetInstalledUpdatesAsync(cancellationToken).ConfigureAwait(false);
+        var history = await updates.GetHistoryAsync(cancellationToken).ConfigureAwait(false);
         return new InventoryRequest
         {
             HostName = environment.HostName,
@@ -30,6 +31,7 @@ internal sealed partial class InventoryCollector(
             Roles = roles.Detect(),
             UpdateSource = ReadUpdateSource(probe),
             InstalledUpdates = installed is null ? null : WireFormat.ToInstalledUpdates(installed),
+            UpdateHistory = history,
         };
     }
 

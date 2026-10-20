@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace SUSyphos.Contracts.Agents;
 
@@ -41,6 +42,66 @@ public sealed record InventoryRequest
     /// <summary>Installed updates; null if they could not be read (the central server then keeps the previous list).</summary>
     [MaxLength(MaxInstalledUpdates)]
     public IReadOnlyList<InstalledUpdate>? InstalledUpdates { get; init; }
+
+    /// <summary>
+    /// Windows Update history of the last <see cref="UpdateHistoryEntry.HistoryDays"/> days, newest first, including
+    /// installations Windows or an administrator started outside SUSyphos; null if it could not be read.
+    /// </summary>
+    [MaxLength(UpdateHistoryEntry.MaxEntries)]
+    public IReadOnlyList<UpdateHistoryEntry>? UpdateHistory { get; init; }
+}
+
+/// <summary>
+/// One entry of the Windows Update history (IUpdateHistoryEntry), with the application that started it, so the central
+/// server can tell installations outside SUSyphos (docs/05-agent-design.md, section 5, detection of external updates).
+/// </summary>
+public sealed record UpdateHistoryEntry
+{
+    /// <summary>Upper bound for history entries per inventory.</summary>
+    public const int MaxEntries = 500;
+
+    /// <summary>The agent reports the history of this many days.</summary>
+    public const int HistoryDays = 90;
+
+    /// <summary>Client application ID the agent uses for its own WUA sessions.</summary>
+    public const string AgentClientApplicationId = "SUSyphos.Agent";
+
+    [Required]
+    public required Guid UpdateId { get; init; }
+
+    [Range(0, int.MaxValue)]
+    public required int Revision { get; init; }
+
+    [Required]
+    [StringLength(512, MinimumLength = 1)]
+    [RegularExpression(ValidationPatterns.PrintableText)]
+    public required string Title { get; init; }
+
+    [Required]
+    public required DateTimeOffset Date { get; init; }
+
+    [Required]
+    public required UpdateOperation Operation { get; init; }
+
+    [Required]
+    public required InstallResultCode ResultCode { get; init; }
+
+    public int HResult { get; init; }
+
+    /// <summary>Application that started the operation, e.g. "SUSyphos.Agent" or "AutomaticUpdates"; null if Windows did not record one.</summary>
+    [StringLength(128, MinimumLength = 1)]
+    [RegularExpression(ValidationPatterns.PrintableText)]
+    public string? ClientApplicationId { get; init; }
+}
+
+/// <summary>
+/// Kind of a Windows Update history entry (UpdateOperation of the WUA API).
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<UpdateOperation>))]
+public enum UpdateOperation
+{
+    Installation = 1,
+    Uninstallation = 2,
 }
 
 public sealed record OperatingSystemInfo
