@@ -6,6 +6,7 @@
 @inject ServerDbContext Db
 @inject AgentPackageStore Store
 @inject AgentPackageAdministration Administration
+@inject AgentUpdateService Updates
 
 <PageTitle>Agents</PageTitle>
 
@@ -131,7 +132,11 @@
                         <td class="mono">@version</td>
                         <td class="n">@count</td>
                         <td>
-                            @if (_newestReleased is { } released && AgentVersion.TryParse(version, out var parsed) && AgentVersion.TryParse(released.Version, out var target) && parsed < target)
+                            @if (Updates.IsBelowMinimum(version))
+                            {
+                                <span class="pill fail">below the minimum version @Updates.Minimum</span>
+                            }
+                            else if (_newestReleased is { } released && AgentVersion.TryParse(version, out var parsed) && AgentVersion.TryParse(released.Version, out var target) && parsed < target)
                             {
                                 <span class="pill queue">older than the newest released version</span>
                             }

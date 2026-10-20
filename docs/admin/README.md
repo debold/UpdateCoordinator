@@ -476,5 +476,6 @@ Dashboard page **Agents** (role `Operator` to download, `Admin` to check and rel
 | `AgentPackages:CheckInterval` | `1.00:00:00` | interval of the check (1 h to 30 days) |
 | `AgentPackages:Repository` | `debold/UpdateCoordinator` | GitHub repository whose releases carry the agent MSI |
 | `AgentPackages:IncludePrereleases` | `true` | also offer pre-releases (every release before 1.0 is one) |
+| `AgentPackages:MinimumVersion` | empty (built-in 0.4.0) | agents below it get the package shipped with the central server without a release; can only raise the built-in minimum |
 | `AgentPackages:MaxPackageSize` | `314572800` | largest package downloaded (bytes) |
 | `AgentPackages:Directory` | `%ProgramData%\SUSyphos\Server\AgentPackages` | where the packages are kept |

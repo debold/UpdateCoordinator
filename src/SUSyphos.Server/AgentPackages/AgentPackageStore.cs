@@ -34,6 +34,13 @@ internal sealed class AgentPackageOptions
     /// <summary>Also offers pre-releases; every release before 1.0 is one.</summary>
     public bool IncludePrereleases { get; set; } = true;
 
+    /// <summary>
+    /// Agents below this version are updated with the package shipped with the central server even without a release; it can
+    /// only raise the built-in minimum (the first version that updates itself). Empty: the built-in minimum.
+    /// </summary>
+    [RegularExpression(@"^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$")]
+    public string? MinimumVersion { get; set; }
+
     /// <summary>Upper bound for a downloaded package.</summary>
     [Range(1L * 1024 * 1024, 1024L * 1024 * 1024)]
     public long MaxPackageSize { get; set; } = 300L * 1024 * 1024;

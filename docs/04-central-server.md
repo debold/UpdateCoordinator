@@ -123,7 +123,7 @@ Reboot policy (implemented 2026-10-18) follows the same three levels: server set
 - Packages: the agent MSI shipped with the central server installer, and newer versions found by a daily (and manual, "Check for new versions now") check of the GitHub releases (`release/vX.Y.Z`, verified against `SHA256SUMS.txt`). Entity `AgentPackage` (version, source, file, SHA-256, size, released through ring order).
 - Release: ring by ring ("Release to <ring>") or "Release to all rings now"; "Withdraw" stops further updates. An agent gets the newest version released for its ring that is newer than its own (never a downgrade), announced in the heartbeat (`agentUpdate`: version, SHA-256, size) and downloaded from `GET /api/v1/agents/package/{version}` (only that version, only approved agents).
 - Visibility: agent versions per server and failed self-updates (`agentUpdateError` in the heartbeat) on the dashboard page Agents and the server detail; notifications for a version waiting for release and for failed updates.
-- Not implemented: a minimum agent version that the central server enforces (coupling for breaking protocol changes); so far the protocol version in the route covers this.
+- Minimum agent version (implemented 2026-10-20): built in 0.4.0 (the first version that updates itself), raised by `AgentPackages:MinimumVersion` for breaking changes. An agent below it also gets the package shipped with the central server without a release, because it may no longer understand the protocol; GitHub packages still need a release. The Agents page and the server detail mark such agents.
 
 ## 6. Security of administration
 

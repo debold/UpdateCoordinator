@@ -118,9 +118,17 @@ internal sealed class AgentPackageServerFactory : ServerFactory
 {
     public FakeAgentReleaseSource Releases { get; } = new();
 
+    /// <summary>AgentPackages:MinimumVersion; null keeps the built-in minimum.</summary>
+    public string? MinimumVersion { get; init; }
+
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
+        if (MinimumVersion is not null)
+        {
+            builder.UseSetting("AgentPackages:MinimumVersion", MinimumVersion);
+        }
+
         Microsoft.AspNetCore.TestHost.WebHostBuilderExtensions.ConfigureTestServices(builder, services => services.AddSingleton<IAgentReleaseSource>(Releases));
     }
 }
@@ -232,6 +240,40 @@ public sealed class AgentPackageTests : IAsyncDisposable
         using var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AgentBelowMinimum_GetsTheShippedPackageWithoutRelease()
+    {
+        await using var scenario = new ScenarioClients(_factory);
+        var old = await scenario.AddClientAsync("OLD01", RingEntity.ProductionId);
+        await AddPackageAsync(_factory, "1.3.0", AgentPackageSource.Bundled);
+
+        Assert.Equal("1.3.0", (await HeartbeatAsync(scenario.Http, old, "0.3.0")).AgentUpdate?.Version);
+        Assert.Equal(HttpStatusCode.OK, (await GetPackageAsync(scenario.Http, old, "1.3.0")).StatusCode);
+        // At or above the minimum, an unreleased package stays unreleased.
+        Assert.Null((await HeartbeatAsync(scenario.Http, old, "1.2.3")).AgentUpdate);
+    }
+
+    [Fact]
+    public async Task AgentBelowMinimum_NeverGetsAnUnreleasedGitHubPackage()
+    {
+        await using var scenario = new ScenarioClients(_factory);
+        var old = await scenario.AddClientAsync("OLD01", RingEntity.ProductionId);
+        await AddPackageAsync("1.3.0");
+
+        Assert.Null((await HeartbeatAsync(scenario.Http, old, "0.3.0")).AgentUpdate);
+    }
+
+    [Fact]
+    public async Task ConfiguredMinimum_RaisesTheBuiltInOne()
+    {
+        await using var factory = new AgentPackageServerFactory { MinimumVersion = "1.3.0" };
+        await using var scenario = new ScenarioClients(factory);
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.ProductionId);
+        await AddPackageAsync(factory, "1.3.0", AgentPackageSource.Bundled);
+
+        Assert.Equal("1.3.0", (await HeartbeatAsync(scenario.Http, client, "1.2.3")).AgentUpdate?.Version);
     }
 
     [Fact]
@@ -381,10 +423,14 @@ public sealed class AgentPackageTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
 
-    private async Task AddPackageAsync(string version)
+    private Task AddPackageAsync(string version) => AddPackageAsync(_factory, version, AgentPackageSource.GitHub);
+
+    private static async Task AddPackageAsync(AgentPackageServerFactory factory, string version, AgentPackageSource source)
     {
         Assert.True(AgentVersion.TryParse(version, out var parsed));
-        Assert.True(await WithAsync<AgentPackageStore, bool>(s => s.AddAsync(parsed, AgentPackageSource.GitHub, new MemoryStream(Package), null, CancellationToken.None)));
+        factory.StartServer();
+        await using var scope = factory.Services.CreateAsyncScope();
+        Assert.True(await scope.ServiceProvider.GetRequiredService<AgentPackageStore>().AddAsync(parsed, source, new MemoryStream(Package), null, CancellationToken.None));
     }
 
     private async Task<DashboardClient> LoginAsync(string role)
