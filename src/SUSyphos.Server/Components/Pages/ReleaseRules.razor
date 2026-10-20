@@ -157,8 +157,43 @@
                     }
                     <p class="help">Further rings get the update at once, e.g. definition updates in every ring. Rings not selected follow their transition rules.</p>
                 </fieldset>
+                @{
+                    var preview = PreviewMatches(rule, classification, severity, TitlePattern ?? rule?.TitlePattern ?? (_dialog == "rule-new" ? PrefillTitle : null));
+                }
+                <fieldset>
+                    <legend>Matching updates (@preview.Count of @_previewUpdates.Count known, not archived)</legend>
+                    @if (preview.Count == 0)
+                    {
+                        <p class="help">No known update matches these conditions. Check classification, severity and the title pattern (it must match the whole title; use * for the varying parts).</p>
+                    }
+                    <ul class="plain">
+                        @foreach (var (update, taken) in preview.Take(15))
+                        {
+                            <li>
+                                <a href="/updates/@update.UpdateId/@update.Revision">@UpdateText.Title(update, update.UpdateId)</a>
+                                @if (taken)
+                                {
+                                    <span class="pill neutral">a rule with a lower priority number decides</span>
+                                }
+                                else if (_started.Contains((update.UpdateId, update.Revision)))
+                                {
+                                    <span class="pill ok">already started</span>
+                                }
+                                else
+                                {
+                                    <span class="pill queue">waiting: starts when saved (automatic)</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                    @if (preview.Count > 15)
+                    {
+                        <p class="help">and @(preview.Count - 15) more.</p>
+                    }
+                    <p class="help">Rules are applied when a server reports an update, when a rule is saved and every minute to all waiting updates.</p>
+                </fieldset>
             </div>
-            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(rule is null ? "Create start rule" : "Save")</button></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" name="Preview" value="yes">Preview matches</button><button type="submit" class="primary">@(rule is null ? "Create start rule" : "Save")</button></div>
         </form>
     </Dialog>
 }
@@ -295,8 +330,34 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
 
     private static string Days(TimeSpan value) => ((int)value.TotalDays).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
+    [SupplyParameterFromForm(FormName = "release-dialog")] private string? Preview { get; set; }
+
+    private List<UpdateEntity> _previewUpdates = [];
+    private HashSet<(Guid, int)> _started = [];
+
+    /// <summary>Known updates a rule with these conditions decides, and whether another rule with a lower priority number takes them first.</summary>
+    private IReadOnlyList<(UpdateEntity Update, bool TakenByOtherRule)> PreviewMatches(StartRuleEntity? rule, string? classification, string? severity, string? pattern)
+    {
+        var priority = int.TryParse(Priority, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : rule?.Priority ?? 100;
+        var candidate = new StartRuleEntity
+        {
+            Id = rule?.Id ?? int.MaxValue,
+            Priority = priority,
+            Classification = string.IsNullOrEmpty(classification) ? null : classification,
+            MsrcSeverity = string.IsNullOrEmpty(severity) ? null : severity,
+            TitlePattern = string.IsNullOrWhiteSpace(pattern) ? null : pattern.Trim(),
+        };
+        return StartRulePatterns.Matches(candidate, _startRules, _previewUpdates);
+    }
+
     private async Task SaveAsync()
     {
+        if (Preview == "yes" && Mode is "rule-create" or "rule-edit")
+        {
+            // Show the matches for the entered values without saving; the dialog stays open with them.
+            _dialog = DialogName;
+            return;
+        }
         var actor = await GetActorAsync();
         var invariant = System.Globalization.CultureInfo.InvariantCulture;
         int? id = int.TryParse(Id, System.Globalization.NumberStyles.None, invariant, out var parsedId) ? parsedId : null;
@@ -362,5 +423,10 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
         _startRules = await Db.StartRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync();
         _servers = await Db.Clients.Where(c => c.RingId != null && c.State == RegistrationState.Approved).GroupBy(c => c.RingId!.Value).ToDictionaryAsync(g => g.Key, g => g.Count());
         _catalogClassifications = await Db.Updates.AsNoTracking().Where(u => u.Classification != null).Select(u => u.Classification!).Distinct().Take(50).ToListAsync();
+        if (DialogName is "rule" or "rule-new")
+        {
+            _previewUpdates = await Db.Updates.AsNoTracking().Where(u => u.ArchivedAtUtc == null).OrderByDescending(u => u.FirstSeenAtUtc).Take(5000).ToListAsync();
+            _started = [.. (await Db.Rollouts.AsNoTracking().Select(r => new { r.UpdateId, r.Revision }).ToListAsync()).Select(r => (r.UpdateId, r.Revision))];
+        }
     }
 }

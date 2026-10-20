@@ -125,6 +125,8 @@ internal sealed class StartRuleEntity
     /// <summary>Title pattern with * and ? wildcards, e.g. "*Cumulative Update*".</summary>
     public string? TitlePattern { get; set; }
 
+    public const int MaxTitlePatternLength = 128;
+
     public StartMode Mode { get; set; }
 
     /// <summary>Delay between the start of the rollout and the earliest installation in the first ring.</summary>

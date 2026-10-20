@@ -314,3 +314,6 @@ details.multi .options label:hover { background: var(--surface-2); }
     .grid-side { grid-template-columns: 1fr; }
     .facts { grid-template-columns: 1fr; }
 }
+
+/* Plain lists inside boxes and dialogs. */
+ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }

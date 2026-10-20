@@ -63,15 +63,42 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
             return;
         }
 
-        var rules = await db.StartRules.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
         var ids = updates.Select(u => u.UpdateId).Distinct().ToList();
         var candidates = await db.Updates.AsNoTracking()
             .Where(u => ids.Contains(u.UpdateId))
             .Where(u => !db.Rollouts.Any(r => r.UpdateId == u.UpdateId && r.Revision == u.Revision))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+        await StartMatchingAsync([.. candidates.Where(c => updates.Contains((c.UpdateId, c.Revision)))], cancellationToken).ConfigureAwait(false);
+    }
 
-        foreach (var update in candidates.Where(c => updates.Contains((c.UpdateId, c.Revision))))
+    /// <summary>
+    /// Applies the start rules to every waiting update (no rollout yet, not archived, needed by an approved server), so a new
+    /// or changed rule also catches updates reported before it existed. Runs after a rule is saved and with the ring logic.
+    /// </summary>
+    public async Task<int> AutoStartWaitingAsync(CancellationToken cancellationToken)
+    {
+        var approved = db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
+        var candidates = await db.Updates.AsNoTracking()
+            .Where(u => u.ArchivedAtUtc == null)
+            .Where(u => !db.Rollouts.Any(r => r.UpdateId == u.UpdateId && r.Revision == u.Revision))
+            .Where(u => db.ClientAvailableUpdates.Any(a => a.UpdateId == u.UpdateId && a.Revision == u.Revision && approved.Contains(a.ClientId)))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var started = await StartMatchingAsync(candidates, cancellationToken).ConfigureAwait(false);
+        if (started > 0)
+        {
+            await releases.SyncAsync(null, cancellationToken).ConfigureAwait(false);
+        }
+
+        return started;
+    }
+
+    private async Task<int> StartMatchingAsync(IReadOnlyList<UpdateEntity> candidates, CancellationToken cancellationToken)
+    {
+        var rules = await db.StartRules.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
+        var started = 0;
+        foreach (var update in candidates)
         {
             if (FindStartRule(rules, update) is not { Mode: StartMode.Automatic } rule)
             {
@@ -93,7 +120,10 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
             var details = string.Create(CultureInfo.InvariantCulture, $"automatic start by start rule {rule.Id}, delay {rule.Delay.TotalHours:0} hours");
             await audit.WriteAsync(RuleActor, "Rollout.Started", Describe(update.KbArticle, update.Title, update.UpdateId, update.Revision), details, cancellationToken).ConfigureAwait(false);
             LogAutoStarted(update.UpdateId, update.Revision, rule.Id, rule.Delay);
+            started++;
         }
+
+        return started;
     }
 
     /// <summary>

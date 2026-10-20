@@ -52,9 +52,23 @@ else
         }
     </ActionBand>
 
+    <Box Title="Start rule" Hint="Which start rule decides how this update enters the rings">
+        @if (_startRule is { } rule)
+        {
+            <p>
+                <a href="/administration/release-rules?dialog=rule&id=@rule.Id">Start rule with priority @rule.Priority</a>
+                (@(rule.Classification ?? "any classification"), @(rule.MsrcSeverity ?? "any severity"), title @(rule.TitlePattern ?? "any"))
+                <span class="pill @(rule.Mode == StartMode.Automatic ? "ok" : "queue")">@(rule.Mode == StartMode.Automatic ? $"starts automatically, delay {rule.Delay.TotalHours:0} h" : "manual start")</span>
+            </p>
+        }
+        else
+        {
+            <p><span class="pill queue">no start rule matches</span> The update stays queued until an operator starts it or a matching rule is created.</p>
+        }
+    </Box>
+
     <div class="grid-side">
-        <Box Title="Progress by ring" Flush="true">
-            <div class="scroll">
+        <Box Title="Progress by ring" Flush="true">            <div class="scroll">
                 <table>
                     <thead><tr><th>Ring</th><th>State</th><th>Released (UTC)</th><th class="n">Feedback</th><th class="n">Success</th><th>Status (servers)</th></tr></thead>
                     <tbody>
@@ -198,7 +212,7 @@ else
         : "/administration/release-rules?dialog=rule-new"
             + (_update.Classification is { } classification ? $"&classification={Uri.EscapeDataString(classification)}" : string.Empty)
             + (_update.MsrcSeverity is { } severity ? $"&severity={Uri.EscapeDataString(severity)}" : string.Empty)
-            + $"&title={Uri.EscapeDataString(_update.Title.Length > 60 ? _update.Title[..60] : _update.Title)}";
+            + $"&title={Uri.EscapeDataString(StartRulePatterns.FromTitle(_update.Title))}";
 
     [SupplyParameterFromForm(FormName = "update")]
     private string? Action { get; set; }
@@ -304,8 +318,11 @@ else
         })];
         _serverPage = TablePaging.Apply(servers, _table, ServerColumns, s => s.HostName);
 
+        _startRule = RolloutService.FindStartRule(await Db.StartRules.AsNoTracking().ToListAsync(), _update);
         await LoadTimelineAsync(rings, states);
     }
+
+    private StartRuleEntity? _startRule;
 
     private async Task LoadTimelineAsync(List<RingEntity> rings, Dictionary<int, RolloutRingEntity> states)
     {

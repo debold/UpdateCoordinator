@@ -194,7 +194,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
             return new Outcome("The severity must be a single word, e.g. Critical.");
         }
 
-        if (titlePattern is not null && (titlePattern.Length > 128 || titlePattern.Any(char.IsControl)))
+        if (titlePattern is not null && (titlePattern.Length > StartRuleEntity.MaxTitlePatternLength || titlePattern.Any(char.IsControl)))
         {
             return new Outcome("The title pattern may have at most 128 characters and no control characters.");
         }
@@ -234,6 +234,9 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var details = string.Create(CultureInfo.InvariantCulture, $"priority {priority}, classification {classification ?? "-"}, severity {msrcSeverity ?? "-"}, title {titlePattern ?? "-"}, {mode}, delay {delayHours} hours, also starts in rings {rule.StartRingIds ?? "-"}");
         await audit.WriteAsync(actor, ruleId is null ? "StartRule.Created" : "StartRule.Changed", mode.ToString(), details, cancellationToken).ConfigureAwait(false);
+
+        // A new or changed rule also applies to updates that were reported before it existed.
+        await rollouts.AutoStartWaitingAsync(cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
     }
 
