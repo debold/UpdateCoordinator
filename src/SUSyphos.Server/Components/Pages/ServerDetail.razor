@@ -79,35 +79,67 @@ else
         </div>
     </section>
 
-    @if (_livePhase is { } livePhase)
+    @if (_livePhase is not null && Dialog is null && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
     {
-        @if (Dialog is null && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
-        {
-            @* Live status: reload while the agent works; not after a form post, so unsaved input is never lost. *@
-            <HeadContent><meta http-equiv="refresh" content="@LiveRefreshSeconds" /></HeadContent>
-        }
-        <Box Title="Live status" Hint="@($"updates every {LiveRefreshSeconds} seconds while the agent works")" Anchor="live">
-            <p class="live-line">
-                <span class="pill pend">@LiveStatus.PhaseLabel(livePhase)</span>
-                @if (_client.ActivityPercent is { } percent)
-                {
-                    <progress max="100" value="@percent" aria-label="Progress">@percent %</progress>
-                    <span>@percent %</span>
-                }
-                <span class="note">since @Format(_client.ActivityStartedAtUtc)</span>
-            </p>
-            @if (_liveUpdates.Count > 0)
-            {
-                <ul class="plain">
-                    @foreach (var (updateId, title) in _liveUpdates)
-                    {
-                        <li><a href="/updates/@updateId">@title</a></li>
-                    }
-                </ul>
-            }
-        </Box>
+        @* Reload while the agent works; not after a form post, so unsaved input is never lost. *@
+        <HeadContent><meta http-equiv="refresh" content="@LiveRefreshSeconds" /></HeadContent>
     }
-
+    <Box Title="Tasks" Anchor="tasks" Hint="@(_livePhase is null ? "what the agent does next, in order; heartbeats are not listed" : $"running now; the page updates every {LiveRefreshSeconds} seconds while the agent works")" Flush="true">
+        @if (_livePhase is { } livePhase)
+        {
+            <div class="box-body">
+                <p class="live-line">
+                    <span class="pill pend">Running</span>
+                    <b>@LiveStatus.PhaseLabel(livePhase)</b>
+                    @if (_client.ActivityPercent is { } percent)
+                    {
+                        <progress max="100" value="@percent" aria-label="Progress">@percent %</progress>
+                        <span>@percent %</span>
+                    }
+                    <span class="note">since @Format(_client.ActivityStartedAtUtc)</span>
+                </p>
+                @if (_liveUpdates.Count > 0)
+                {
+                    <ul class="plain">
+                        @foreach (var (updateId, title) in _liveUpdates)
+                        {
+                            <li><a href="/updates/@updateId">@title</a></li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+        <div class="scroll">
+            <table>
+                <thead><tr><th>When</th><th>Task</th><th>Details</th></tr></thead>
+                <tbody>
+                    @if (_tasks.Count == 0)
+                    {
+                        <tr><td colspan="3" class="note">Nothing planned yet; agents from version 0.7.1 report when they search and collect the inventory next.</td></tr>
+                    }
+                    @foreach (var task in _tasks)
+                    {
+                        <tr>
+                            <td class="nowrap">@task.When</td>
+                            <td class="nowrap"><span class="pill @task.Class">@task.Kind</span></td>
+                            <td class="wrap">
+                                @task.Detail
+                                @if (task.Updates.Count > 0)
+                                {
+                                    <ul class="plain task-updates">
+                                        @foreach (var (entry, title) in task.Updates)
+                                        {
+                                            <li><a href="/updates/@entry.UpdateId/@entry.Revision">@title</a>@if (entry.State == DeploymentState.Failed) { <span class="pill fail">tried again</span> }</li>
+                                        }
+                                    </ul>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
     <div class="grid-side">
         <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="assign">
             <Authorized>
@@ -186,36 +218,6 @@ else
             </dl>
         </Box>
     </div>
-
-    <Box Title="Planned for the next maintenance window" Hint="@PlannedHint" Anchor="planned" Flush="true">
-        @if (_paused)
-        {
-            <p class="card-text"><span class="pill queue">global pause</span> No installation starts while the global pause is on.</p>
-        }
-        @if (_client.RequiresLease)
-        {
-            <p class="card-text"><span class="pill neutral">coordinated</span> The server installs only when its group grants a lease.</p>
-        }
-        <div class="scroll">
-            <table>
-                <thead><tr><th>Update</th><th>Status</th><th>Earliest installation</th></tr></thead>
-                <tbody>
-                    @if (_planned.Count == 0)
-                    {
-                        <tr><td colspan="3" class="note">@(_window is null ? "No maintenance window, so nothing is installed." : "Nothing is released for this window.")</td></tr>
-                    }
-                    @foreach (var (entry, title) in _planned)
-                    {
-                        <tr>
-                            <td class="wrap"><a href="/updates/@entry.UpdateId/@entry.Revision">@title</a></td>
-                            <td><span class="pill @DeploymentText.PillClass(entry.State)">@(entry.State == DeploymentState.Failed ? "Failed, tried again" : "Released")</span></td>
-                            <td class="nowrap">@Format(entry.EarliestInstallAtUtc)</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </Box>
 
     <Box Title="Missing updates" Anchor="missing" Flush="true">
         <div class="scroll">
@@ -748,6 +750,7 @@ else
             ? [.. _open.Where(o => o.Entry.EarliestInstallAtUtc is { } earliest && earliest <= window.End && o.Entry.State is DeploymentState.Pending or DeploymentState.Failed)]
             : [];
         _paused = await Pause.IsActiveAsync(CancellationToken.None);
+        _tasks = BuildTasks(now);
 
         _windowsHistory = await Db.ClientUpdateHistory.AsNoTracking()
             .Where(h => h.ClientId == Id)
@@ -763,6 +766,80 @@ else
     }
 
     private const int MaxHistory = 200;
+
+    /// <summary>One planned task of the agent; Sort orders by time, unknown times ("next heartbeat") first.</summary>
+    private sealed record PlannedTask(DateTime Sort, string When, string Kind, string Class, string Detail, IReadOnlyList<(DeploymentEntry Entry, string Title)> Updates);
+
+    private List<PlannedTask> _tasks = [];
+
+    /// <summary>
+    /// What the agent does next: queued remote actions, the next update search and inventory (reported by the agent),
+    /// installations and a restart in the next maintenance window. Heartbeats are not listed.
+    /// </summary>
+    private List<PlannedTask> BuildTasks(DateTime now)
+    {
+        if (_client is null)
+        {
+            return [];
+        }
+
+        var tasks = new List<PlannedTask>();
+        foreach (var action in _actions.Where(a => a.State is AgentActionState.Queued or AgentActionState.Delivered))
+        {
+            tasks.Add(new(now, action.State == AgentActionState.Queued ? "next heartbeat" : "now", "Remote action", "queue", $"{ActionLabel(action.Kind)}, requested by {action.RequestedBy}", []));
+        }
+
+        if (_client.NextSearchAtUtc is { } search)
+        {
+            tasks.Add(new(search, Format(search), "Update search", "pend", _client.LastSearchAtUtc is { } last ? $"Last search {Format(last)}{(_client.LastSearchSucceeded == false ? " (failed)" : string.Empty)}" : "First search", []));
+        }
+
+        if (_client.NextInventoryAtUtc is { } inventory)
+        {
+            tasks.Add(new(inventory, Format(inventory), "Inventory", "neutral", _client.InventoryAtUtc is { } last ? $"Last inventory {Format(last)}" : "First inventory", []));
+        }
+
+        if (_window is { } window)
+        {
+            var notes = new List<string> { $"Maintenance window {Format(window.Start)} to {Format(window.End)}" };
+            if (_paused)
+            {
+                notes.Add("global pause: nothing starts while it is on");
+            }
+
+            if (_client.RequiresLease)
+            {
+                notes.Add("coordinated group: installs only with a lease");
+            }
+
+            if (_planned.Count > 0)
+            {
+                var start = _planned.Select(p => p.Entry.EarliestInstallAtUtc ?? window.Start).Append(window.Start).Max();
+                tasks.Add(new(start > window.Start ? start : window.Start, Format(start > window.Start ? start : window.Start), "Installation", "ok", $"{_planned.Count} {(_planned.Count == 1 ? "update" : "updates")}; {string.Join("; ", notes)}", _planned));
+            }
+
+            var restartPlanned = _client.RebootPending && _client.EffectiveRebootPolicy == SUSyphos.Contracts.Agents.RebootPolicy.InsideMaintenanceWindow;
+            if (!_client.RestartRequested && (restartPlanned || (_planned.Count > 0 && _client.EffectiveRebootPolicy == SUSyphos.Contracts.Agents.RebootPolicy.InsideMaintenanceWindow)))
+            {
+                tasks.Add(new(window.Start.AddSeconds(1), Format(window.Start), "Restart", "fail", restartPlanned
+                    ? $"A restart is pending; allowed in the window if it stays open at least 30 more minutes{(_client.RebootWait is { } wait ? $" ({LiveStatus.RebootWaitText(wait)})" : string.Empty)}"
+                    : "If the installation needs one; allowed in the window if it stays open at least 30 more minutes", []));
+            }
+        }
+        else
+        {
+            tasks.Add(new(DateTime.MaxValue, "â€“", "Installation", "neutral", _client.TimeZoneId is null
+                ? "The server has not reported its time zone yet, so the next window cannot be calculated."
+                : "No maintenance window, so nothing is installed.", []));
+        }
+
+        if (_client.RestartRequested)
+        {
+            tasks.Add(new(_client.PlannedRestartAtUtc ?? DateTime.MaxValue, _client.PlannedRestartAtUtc is { } planned ? Format(planned) : "unknown", "Restart", "fail", $"Requested by an administrator{(_client.RebootWait is { } wait ? $"; {LiveStatus.RebootWaitText(wait)}" : string.Empty)}", []));
+        }
+
+        return [.. tasks.OrderBy(t => t.Sort)];
+    }
 
     /// <summary>Reload interval of the page while the agent reports an activity.</summary>
     private const int LiveRefreshSeconds = 10;
@@ -821,7 +898,6 @@ else
 
     private static DateTime ToUtc(DateTime local, TimeZoneInfo zone) => TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), zone);
 
-    private string PlannedHint => _window is { } window ? $"{Format(window.Start)} to {Format(window.End)}" : _client?.TimeZoneId is null ? "the server has not reported its time zone yet" : "no window";
 
     private static string CheckName(string name) => name switch
     {

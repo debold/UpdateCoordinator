@@ -133,6 +133,8 @@ Download and installation progress can be read as a percentage via the WUA API.
 
 **Implemented (2026-10-20):** search, download, installation and inventory announce themselves in an activity tracker; the heartbeat carries the current activity, and because the main loop waits for these steps, a separate pulse sends it in between (`docs/03-communication-protocol.md`, section 5.1). Download and installation run as asynchronous WUA jobs (`BeginDownload`/`BeginInstall` with callback objects); the agent polls the job every 2 seconds for the overall percentage. If WUA refuses the asynchronous call, the agent logs a warning and uses the synchronous call without progress. The heartbeat also reports why a pending reboot waits (the decision of the reboot planner, section 4), so the central server can show it. Not yet: reboot started/completed as a phase, the next scheduled run.
 
+**Next tasks (2026-10-20):** the heartbeat also carries when the agent searches for updates next (`nextSearchAt`) and collects the inventory next (`nextInventoryAt`); the central server shows them with the installations of the next window and a planned restart as one list of tasks. It ignores times more than a day late or more than 30 days ahead.
+
 ### Preview
 
 The central server can see the **planned installations of the next maintenance window** per server, not only status and history.

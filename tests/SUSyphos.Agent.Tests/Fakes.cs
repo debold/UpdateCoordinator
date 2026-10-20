@@ -177,6 +177,8 @@ internal sealed class FakeUpdateReporter : IUpdateReporter
 
     public IReadOnlySet<(Guid UpdateId, int Revision)>? LastMissingUpdates { get; set; }
 
+    public DateTimeOffset? NextRunAt { get; set; }
+
     public void RequestRun() => RunRequests++;
 
     public Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
@@ -210,6 +212,8 @@ internal sealed class FakeInventoryReporter : IInventoryReporter
     public int Reports { get; private set; }
 
     public int Resets { get; private set; }
+
+    public DateTimeOffset? NextCollectionAt { get; set; }
 
     public Task<bool> ReportIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {

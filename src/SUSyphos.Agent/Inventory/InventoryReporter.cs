@@ -14,6 +14,9 @@ internal interface IInventoryReporter
 
     /// <summary>Forces a full inventory with the next cycle (e.g. after a new registration).</summary>
     void Reset();
+
+    /// <summary>When the next collection is due; null if it runs with the next cycle.</summary>
+    DateTimeOffset? NextCollectionAt { get; }
 }
 
 internal sealed partial class InventoryReporter(
@@ -23,6 +26,8 @@ internal sealed partial class InventoryReporter(
     Status.ActivityTracker activity,
     ILogger<InventoryReporter> logger) : IInventoryReporter
 {
+    public DateTimeOffset? NextCollectionAt => scheduler.NextCollectionAt;
+
     public async Task<bool> ReportIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
         if (!scheduler.IsCollectionDue)

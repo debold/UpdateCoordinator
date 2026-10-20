@@ -10,6 +10,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- The heartbeat reports when the next update search and the next inventory are due.
 - Microsoft Update on request of the central server: the agent registers the service and searches, inventories and installs through it, so other Microsoft products are covered; it removes only its own registration again.
 - The update search also finds drivers: everything Windows Update offers is reported and can be released.
 - New remote actions "restart in the next maintenance window" (held until a window is open long enough, regardless of the reboot policy, local veto still applies; planned time reported with the heartbeat) and "cancel restart" (also aborts an announced restart).
@@ -46,6 +47,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Server detail: a "Tasks" box lists the running step and what comes next, sorted by time with coloured tags: remote actions, next update search and inventory (reported by the agent), installations in the next maintenance window with their updates, and restarts. It replaces the separate live status and preview boxes.
 - Microsoft Update as system default and group setting ("Windows Update only" in one group wins), delivered with the release list.
 - The dashboard loads one own script (`app.js`, `script-src 'self'`, progressive enhancement): dependent fields become inert while their switch is off, long column filters get a search box, and the maintenance window preview updates on every change without a button.
 - All dashboard times in the time zone of the central server and in 24-hour format (blackout periods and backup time without AM/PM pickers); the zone is named in the navigation.

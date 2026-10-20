@@ -42,7 +42,7 @@ public sealed class LiveStatusTests
         }
 
         var page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.Contains("Live status", page, StringComparison.Ordinal);
+        Assert.Contains("pill pend\">Running", page, StringComparison.Ordinal);
         Assert.Contains("http-equiv=\"refresh\"", page, StringComparison.Ordinal);
         Assert.Contains("45 %", page, StringComparison.Ordinal);
         Assert.Contains($"/updates/{updateId}", page, StringComparison.Ordinal);
@@ -53,7 +53,7 @@ public sealed class LiveStatusTests
         }
 
         page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.DoesNotContain("Live status", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("pill pend\">Running", page, StringComparison.Ordinal);
         Assert.DoesNotContain("http-equiv=\"refresh\"", page, StringComparison.Ordinal);
     }
 

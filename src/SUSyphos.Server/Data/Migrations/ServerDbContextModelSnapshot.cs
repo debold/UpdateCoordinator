@@ -542,6 +542,12 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<int?>("ManualRingId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("NextInventoryAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("NextSearchAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("OsDisplayVersion")
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");

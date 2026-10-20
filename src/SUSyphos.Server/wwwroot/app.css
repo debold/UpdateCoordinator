@@ -401,6 +401,7 @@ details.multi:has(input[data-i='63']:checked) .tag.pick[data-i='63'] { display: 
 
 .date-time { display: flex; gap: 0.4rem; }
 .js .js-hide { display: none; }
+.task-updates { margin-top: 0.35rem; font-size: 0.85rem; }
 .filter-search { width: 100%; margin-bottom: 0.4rem; }
 .filter-options { max-height: 18rem; overflow-y: auto; display: grid; }
 /* Fields that only matter when a switch is on (or, with .inverse, off) are greyed out and cannot be clicked; their values

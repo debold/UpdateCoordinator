@@ -81,6 +81,12 @@ internal sealed class ClientEntity
     /// <summary>Why the pending reboot waits, as decided by the agent; null if no reboot is pending or the agent does not report it.</summary>
     public RebootWait? RebootWait { get; set; }
 
+    /// <summary>When the agent plans its next update search, as reported with the heartbeat.</summary>
+    public DateTime? NextSearchAtUtc { get; set; }
+
+    /// <summary>When the agent plans its next inventory, as reported with the heartbeat.</summary>
+    public DateTime? NextInventoryAtUtc { get; set; }
+
     /// <summary>The agent holds an administrator's request to restart in the maintenance window.</summary>
     public bool RestartRequested { get; set; }
 

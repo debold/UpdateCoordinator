@@ -287,6 +287,11 @@ internal static class AgentEndpoints
         var activity = LiveStatus.Normalize(request.Activity, now);
         RebootWait? rebootWait = (request.RebootPending || request.RestartRequested) && request.RebootWait is { } wait && Enum.IsDefined(wait) ? wait : null;
 
+        // Plans of the agent are shown only if plausible: up to a day late (agent busy) and at most 30 days ahead.
+        DateTime? Plausible(DateTimeOffset? value) => value is { } v && v.UtcDateTime > now.AddDays(-1) && v.UtcDateTime < now.AddDays(30) ? v.UtcDateTime : null;
+        var nextSearch = Plausible(request.NextSearchAt);
+        var nextInventory = Plausible(request.NextInventoryAt);
+
         // The agent clock is not trusted: a planned restart in the past (beyond an hour) or more than 60 days ahead is not shown.
         DateTime? plannedRestart = request.RestartRequested && request.PlannedRestartAt is { } planned && planned.UtcDateTime > now.AddHours(-1) && planned.UtcDateTime < now.AddDays(60) ? planned.UtcDateTime : null;
 
@@ -304,6 +309,8 @@ internal static class AgentEndpoints
                         .SetProperty(c => c.RebootWait, rebootWait)
                         .SetProperty(c => c.RestartRequested, request.RestartRequested)
                         .SetProperty(c => c.PlannedRestartAtUtc, plannedRestart)
+                        .SetProperty(c => c.NextSearchAtUtc, nextSearch)
+                        .SetProperty(c => c.NextInventoryAtUtc, nextInventory)
                         .SetProperty(c => c.AgentUpdateError, request.AgentUpdateError)
                         .SetProperty(c => c.LastBootAtUtc, c => lastBoot ?? c.LastBootAtUtc);
                     LiveStatus.Apply(setters, activity, now);

@@ -21,6 +21,9 @@ internal sealed class InventoryScheduler(IOptions<InventoryOptions> options, Tim
 
     public bool IsCollectionDue => _lastCollected is null || timeProvider.GetUtcNow() - _lastCollected >= options.Value.CollectInterval;
 
+    /// <summary>When the next collection is due; null if it runs with the next cycle.</summary>
+    public DateTimeOffset? NextCollectionAt => _lastCollected + options.Value.CollectInterval;
+
     /// <summary>Records a collection and returns whether the result must be sent.</summary>
     public bool ShouldSend(InventoryRequest inventory)
     {

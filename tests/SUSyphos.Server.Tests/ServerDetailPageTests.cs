@@ -222,14 +222,64 @@ public sealed class ServerDetailPageTests
 
         // Before the server reports its time zone, the window cannot be calculated.
         var before = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.Contains("the server has not reported its time zone yet", before, StringComparison.Ordinal);
+        Assert.Contains("has not reported its time zone yet", before, StringComparison.Ordinal);
 
         await scenario.Factory.WithDbAsync(db => db.Clients.ExecuteUpdateAsync(s => s.SetProperty(c => c.TimeZoneId, "UTC"), TestContext.Current.CancellationToken));
         var page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var planned = page[page.IndexOf("Planned for the next maintenance window", StringComparison.Ordinal)..page.IndexOf("Missing updates", StringComparison.Ordinal)];
+        var tasks = page[page.IndexOf(">Tasks<", StringComparison.Ordinal)..page.IndexOf("Missing updates", StringComparison.Ordinal)];
 
-        Assert.Contains($"/updates/{update.UpdateId}/1", planned, StringComparison.Ordinal);
-        Assert.Contains("Released", planned, StringComparison.Ordinal);
+        Assert.Contains($"/updates/{update.UpdateId}/1", tasks, StringComparison.Ordinal);
+        Assert.Contains("pill ok\">Installation", tasks, StringComparison.Ordinal);
+        Assert.Contains("1 update; Maintenance window", tasks, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Tasks_ListSearchInventoryRestartAndActions_InOrder()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        var search = DateTime.UtcNow.AddHours(2);
+        var inventory = DateTime.UtcNow.AddHours(5);
+        using (var request = new HttpRequestMessage(HttpMethod.Post, new Uri(SUSyphos.Contracts.ApiRoutes.AgentHeartbeat, UriKind.Relative)) { Content = System.Net.Http.Json.JsonContent.Create(new HeartbeatRequest { AgentVersion = "0.7.1", NextSearchAt = search, NextInventoryAt = inventory, RestartRequested = true, PlannedRestartAt = DateTime.UtcNow.AddHours(9) }) })
+        {
+            request.Headers.Authorization = AgentCredentials.ToHeader(client.ClientId, client.ClientSecret);
+            using var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken);
+            Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        }
+
+        Assert.True((await scenario.WithServiceAsync<SUSyphos.Server.Agents.AgentActionService, Outcome>(a => a.QueueAsync(client.ClientId, AgentActionKind.SearchNow, "alice", CancellationToken.None))).Succeeded);
+        await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        var page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var tasks = page[page.IndexOf(">Tasks<", StringComparison.Ordinal)..page.IndexOf("Missing updates", StringComparison.Ordinal)];
+        var action = tasks.IndexOf("pill queue\">Remote action", StringComparison.Ordinal);
+        var next = tasks.IndexOf("pill pend\">Update search", StringComparison.Ordinal);
+        var collect = tasks.IndexOf("pill neutral\">Inventory", StringComparison.Ordinal);
+        var restart = tasks.IndexOf("pill fail\">Restart", StringComparison.Ordinal);
+        Assert.True(action >= 0 && next > action && collect > next && restart > collect, "Tasks are listed by time: action, search, inventory, restart.");
+        Assert.Contains(DisplayTime.Format(search), tasks, StringComparison.Ordinal);
+        Assert.Contains("Search for updates, requested by alice", tasks, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ImplausiblePlans_FromTheAgentAreIgnored()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        using (var request = new HttpRequestMessage(HttpMethod.Post, new Uri(SUSyphos.Contracts.ApiRoutes.AgentHeartbeat, UriKind.Relative)) { Content = System.Net.Http.Json.JsonContent.Create(new HeartbeatRequest { AgentVersion = "0.7.1", NextSearchAt = DateTime.UtcNow.AddYears(3), NextInventoryAt = DateTime.UtcNow.AddDays(-5) }) })
+        {
+            request.Headers.Authorization = AgentCredentials.ToHeader(client.ClientId, client.ClientSecret);
+            using var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken);
+            Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        }
+
+        var stored = await scenario.Factory.WithDbAsync(db => db.Clients.AsNoTracking().SingleAsync(c => c.Id == client.ClientId, TestContext.Current.CancellationToken));
+        Assert.Null(stored.NextSearchAtUtc);
+        Assert.Null(stored.NextInventoryAtUtc);
     }
 
     [Theory]

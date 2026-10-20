@@ -20,6 +20,9 @@ internal interface IUpdateReporter
 
     /// <summary>Makes the next cycle run check, search and report regardless of the interval (e.g. after an installation).</summary>
     void RequestRun();
+
+    /// <summary>When the next search is due; null if it runs with the next cycle.</summary>
+    DateTimeOffset? NextRunAt { get; }
 }
 
 internal sealed partial class UpdateReporter(
@@ -36,6 +39,8 @@ internal sealed partial class UpdateReporter(
     public IReadOnlySet<(Guid UpdateId, int Revision)>? LastMissingUpdates { get; private set; }
 
     public void RequestRun() => _lastRun = null;
+
+    public DateTimeOffset? NextRunAt => _lastRun + options.Value.SearchInterval;
 
     public async Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
