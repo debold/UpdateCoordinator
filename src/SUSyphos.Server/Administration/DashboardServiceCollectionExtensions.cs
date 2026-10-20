@@ -139,6 +139,13 @@ internal static class DashboardServiceCollectionExtensions
             http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         });
         services.AddHostedService<AgentPackages.AgentPackageWorker>();
+
+        services.AddOptions<ScheduledBackupOptions>()
+            .Bind(configuration.GetSection(ScheduledBackupOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<ScheduledBackup>();
+        services.AddHostedService<ScheduledBackupWorker>();
         return services;
     }
 

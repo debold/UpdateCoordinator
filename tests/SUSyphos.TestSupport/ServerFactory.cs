@@ -61,6 +61,8 @@ public class ServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Notifications:SecretsPath", Path.Combine(_directory, "notification-secrets.dat"));
         // Never contact GitHub from tests; packages live in the temporary folder.
         builder.UseSetting("AgentPackages:CheckEnabled", "false");
+        builder.UseSetting("Backup:PasswordPath", Path.Combine(_directory, "backup-password.dat"));
+        builder.UseSetting("Backup:CheckInterval", "01:00:00");
         builder.UseSetting("AgentPackages:Directory", AgentPackageDirectory);
         builder.UseSetting("AgentPackages:BundledDirectory", Path.Combine(_directory, "bundled"));
         builder.ConfigureTestServices(services =>

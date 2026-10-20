@@ -22,6 +22,7 @@
 | Agent | Central server | HTTPS, `GET /api/v1/agents/releases` | when the release version in the heartbeat changes (approved agents) | released updates with earliest installation time |
 | Agent | Central server | HTTPS, `POST /api/v1/agents/installations` | after each installation run, or later if the central server was unreachable | result per update, reboot needed |
 | Agent | Central server | HTTPS, `GET /api/v1/agents/package/{version}` | when the heartbeat announces a released newer agent version | download of the agent package for the self-update (section 22) |
+| Central server | Backup folder (local disk or SMB share) | file system / SMB, as LocalSystem (computer account) | daily at the configured time, if the scheduled backup is on | encrypted backup archives (section 19) |
 | Central server | GitHub (`api.github.com`, `github.com` and its download storage) | HTTPS | daily and on "Check for new versions now" (`AgentPackages:CheckEnabled`) | new agent versions of the project; downloaded and verified, never released automatically |
 | Agent | Windows Update (or WSUS) | HTTPS, via the Windows Update Agent API | during the update search | search for available updates; the agent itself contacts no other internet address |
 | Admin browser | Central server | HTTPS | on demand | dashboard and administration |
@@ -396,7 +397,12 @@ Keep archive and password apart. Without the password the trust anchor cannot be
 
 The restore refuses to run while the service runs. It checks everything first (archive complete, format supported, password decrypts the trust anchor, anchor matches the manifest) and only then replaces the database and the trust anchor, so a failed restore leaves the current installation untouched. Since the restore runs under your account and the service as LocalSystem, the trust anchor is first staged as `trust-anchor.key.restore` (DPAPI machine scope, readable only by administrators and LocalSystem); on its next start the service protects it for its own account and deletes the staged file.
 
-A scheduled automatic backup is not implemented yet; create backups from the dashboard and keep them with your regular server backup.
+**Scheduled backup** (same page, box "Scheduled backup", role `Admin`): every day at the chosen server time the central server writes the same archive into a folder (local, e.g. `D:\Backup\SUSyphos`, or a share `\fileserver\backup\susyphos`; the service runs as LocalSystem, so grant the computer account of the central server write access to a share) as `susyphos-backup-scheduled-<UTC time>.zip`, and deletes the oldest of these files beyond the number to keep (other files in the folder are never touched). The backup password is entered once and stored DPAPI-protected for the service account in `Backup:PasswordPath` (default `%ProgramData%\SUSyphos\Server\backup-password.dat`); it is not part of any backup, so keep it somewhere else too. "Run now" writes an archive right away. A failed run is shown on the page, logged and notified until a later run succeeds; settings changes are audited.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Backup:PasswordPath` | `%ProgramData%\SUSyphos\Server\backup-password.dat` | protected file with the password of the scheduled backup |
+| `Backup:CheckInterval` | `00:15:00` | how often the central server looks whether the daily backup is due (1 min to 1 h) |
 
 ## 20. Notifications
 

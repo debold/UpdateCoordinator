@@ -21,6 +21,7 @@ internal enum NotificationKind
     CertificateChanged,
     AgentVersionAvailable,
     AgentUpdateFailed,
+    BackupFailed,
 }
 
 /// <summary>
@@ -87,6 +88,13 @@ internal sealed class NotificationEvents(
             .Select(c => new { c.Id, c.HostName, c.AgentUpdateError })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         events.AddRange(failedUpdates.Select(c => new NotificationEvent($"agent.update-failed:{c.Id}", NotificationKind.AgentUpdateFailed, $"Agent update failed on {c.HostName}: {c.AgentUpdateError}", $"servers/{c.Id}")));
+
+        // The last scheduled backup failed: reported until a later run succeeds.
+        var backupRun = await db.Settings.AsNoTracking().Where(s => s.Key == Administration.ScheduledBackup.LastRunKey).Select(s => s.Value).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        if (backupRun is not null && System.Text.Json.JsonSerializer.Deserialize<Administration.ScheduledBackupRun>(backupRun) is { Error: { } backupError } failed)
+        {
+            events.Add(new NotificationEvent($"backup.failed:{failed.AtUtc.Ticks}", NotificationKind.BackupFailed, $"The scheduled backup failed: {backupError}", "administration/backup"));
+        }
 
         var certificate = certificates.Certificate;
         var notAfter = certificate.NotAfter.ToUniversalTime();

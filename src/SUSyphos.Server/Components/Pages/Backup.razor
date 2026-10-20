@@ -1,5 +1,7 @@
 @page "/administration/backup"
 @attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@inject ScheduledBackup Schedule
 
 <PageTitle>Backup</PageTitle>
 
@@ -9,6 +11,7 @@
 {
     <p class="error" role="alert">@Error</p>
 }
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <div class="grid-2">
     <form method="post" action="@BackupEndpoints.Route" class="box">
@@ -28,17 +31,103 @@
         <footer class="box-foot"><span class="note">The download is recorded in the audit log.</span><button type="submit" class="primary">Create and download</button></footer>
     </form>
 
-    <Box Title="Restore" Hint="On the command line of the central server">
-        <p>Install the central server, stop its service, then run as administrator in the installation folder:</p>
-        <pre>SUSyphos.Server.exe restore &lt;backup.zip&gt;</pre>
-        <p>
-            It asks for the backup password (or reads it from the environment variable <code>SUSYPHOS_BACKUP_PASSWORD</code>),
-            checks the archive and only then replaces the database and the trust anchor. Start the service afterwards.
-        </p>
-    </Box>
+    <form method="post" @formname="backup-schedule" @onsubmit="SaveScheduleAsync" class="box">
+        <AntiforgeryToken />
+        <header class="box-head">
+            <h2>Scheduled backup</h2>
+            <span class="pill @(_settings.Enabled ? "ok" : "neutral")">@(_settings.Enabled ? "on" : "off")</span>
+        </header>
+        <div class="box-body form">
+            <label class="check"><input type="checkbox" name="ScheduleEnabled" value="yes" checked="@_settings.Enabled" /> Create a backup every day</label>
+            <label class="field"><span>Folder</span><input name="Folder" value="@_settings.Folder" maxlength="240" placeholder="D:\Backup\SUSyphos or \\fileserver\backup\susyphos" /><span class="help">The service account (LocalSystem) writes there; for a share grant the computer account of the central server write access</span></label>
+            <div class="form-row">
+                <label class="field"><span>Time (server time)</span><input name="Time" type="time" value="@_settings.TimeOfDay.ToString("hh\\:mm", System.Globalization.CultureInfo.InvariantCulture)" required /></label>
+                <label class="field"><span>Keep</span><input name="Keep" type="number" min="1" max="@ScheduledBackupSettings.MaxKeep" value="@_settings.Keep" required /><span class="help">Older scheduled archives are deleted</span></label>
+            </div>
+            <div class="form-row">
+                <label class="field"><span>Backup password</span><input name="SchedulePassword" type="password" autocomplete="new-password" /><span class="help">@(_hasPassword ? "Empty: keep the stored one" : $"At least {BackupService.MinimumPasswordLength} characters")</span></label>
+                <label class="field"><span>Repeat password</span><input name="SchedulePasswordRepeat" type="password" autocomplete="new-password" /></label>
+            </div>
+            <p class="note">
+                The password is stored protected on this server and is not part of any backup; keep it elsewhere too, because without it an archive cannot be restored.
+                Last run: @(_lastRun is { } run ? $"{run.AtUtc.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} UTC, {(run.Error is null ? run.FileName : "failed: " + run.Error)}" : "not yet").
+            </p>
+        </div>
+        <footer class="box-foot">
+            <button type="submit" name="ScheduleAction" value="run" disabled="@(!_settings.Enabled)">Run now</button>
+            <button type="submit" name="ScheduleAction" value="save" class="primary">Save</button>
+        </footer>
+    </form>
 </div>
+
+<Box Title="Restore" Hint="On the command line of the central server">
+    <p>Install the central server, stop its service, then run as administrator in the installation folder:</p>
+    <pre>SUSyphos.Server.exe restore &lt;backup.zip&gt;</pre>
+    <p>
+        It asks for the backup password (or reads it from the environment variable <code>SUSYPHOS_BACKUP_PASSWORD</code>),
+        checks the archive and only then replaces the database and the trust anchor. Start the service afterwards.
+    </p>
+</Box>
 
 @code {
     [SupplyParameterFromQuery(Name = "error")]
     public string? Error { get; set; }
+
+    [SupplyParameterFromForm(FormName = "backup-schedule")] private string? ScheduleAction { get; set; }
+    [SupplyParameterFromForm(FormName = "backup-schedule")] private string? ScheduleEnabled { get; set; }
+    [SupplyParameterFromForm(FormName = "backup-schedule")] private string? Folder { get; set; }
+    [SupplyParameterFromForm(FormName = "backup-schedule")] private string? Time { get; set; }
+    [SupplyParameterFromForm(FormName = "backup-schedule")] private string? Keep { get; set; }
+    [SupplyParameterFromForm(FormName = "backup-schedule")] private string? SchedulePassword { get; set; }
+    [SupplyParameterFromForm(FormName = "backup-schedule")] private string? SchedulePasswordRepeat { get; set; }
+
+    private ScheduledBackupSettings _settings = new();
+    private ScheduledBackupRun? _lastRun;
+    private bool _hasPassword;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task SaveScheduleAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators can change the scheduled backup.", string.Empty);
+            return;
+        }
+
+        if (ScheduleAction == "run")
+        {
+            var current = await Schedule.GetSettingsAsync(CancellationToken.None);
+            var run = current.Enabled ? await Schedule.RunAsync(current, CancellationToken.None) : null;
+            ShowResult(run is null ? "Turn the scheduled backup on first." : run.Error is null ? null : $"The backup failed: {run.Error}", $"Backup written: {run?.FileName}.");
+            await LoadAsync();
+            return;
+        }
+
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        Outcome outcome;
+        if (!TimeSpan.TryParseExact(Time, "hh\\:mm", invariant, out var time) || !int.TryParse(Keep, System.Globalization.NumberStyles.None, invariant, out var keep))
+        {
+            outcome = new Outcome("Enter a time (hh:mm) and a whole number of backups to keep.");
+        }
+        else if (!string.Equals(SchedulePassword ?? string.Empty, SchedulePasswordRepeat ?? string.Empty, StringComparison.Ordinal))
+        {
+            outcome = new Outcome("The two passwords differ.");
+        }
+        else
+        {
+            var settings = new ScheduledBackupSettings { Enabled = ScheduleEnabled == "yes", Folder = Folder, TimeOfDay = time, Keep = keep };
+            outcome = await Schedule.SaveAsync(settings, string.IsNullOrEmpty(SchedulePassword) ? null : SchedulePassword, await GetActorAsync(), CancellationToken.None);
+        }
+
+        ShowResult(outcome.Error, "The scheduled backup was saved.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _settings = await Schedule.GetSettingsAsync(CancellationToken.None);
+        _lastRun = await Schedule.GetLastRunAsync(CancellationToken.None);
+        _hasPassword = Schedule.HasPassword;
+    }
 }
