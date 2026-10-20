@@ -39,6 +39,19 @@
                     }
                 </select>
             </label>
+            <label>weeks
+                <select name="@WindowPickerForm.WeekModeField(Prefix, number)" aria-label="Weeks of the month of window @(number + 1)">
+                    <option value="every" selected="@(WindowPickerForm.WeekMode(row) == "every")">every week</option>
+                    <option value="only" selected="@(WindowPickerForm.WeekMode(row) == "only")">only in</option>
+                    <option value="except" selected="@(WindowPickerForm.WeekMode(row) == "except")">all except</option>
+                </select>
+            </label>
+            <span class="weeks" role="group" aria-label="Weeks of window @(number + 1)">
+                @foreach (var choice in WindowPickerForm.WeekChoices)
+                {
+                    <label class="day"><input type="checkbox" name="@WindowPickerForm.WeeksField(Prefix, number)" value="@choice.Value" checked="@((row.Weeks ?? row.ExceptWeeks ?? []).Contains(choice.Week))" /><span>@choice.Label</span></label>
+                }
+            </span>
             @if (row.Days.Count == 0)
             {
                 <span class="note">select days</span>
@@ -69,12 +82,17 @@
         }
     </div>
     <div class="window-summary">@Summary</div>
+    @if (_openings.Count > 0)
+    {
+        <div class="window-openings note">Next openings (server time, from today): @string.Join(", ", _openings.Select(o => o.ToString("ddd yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)))</div>
+    }
 </div>
 
 @code {
     private List<WindowDraft> _rows = [];
     private bool[,] _cover = new bool[7, 24];
     private bool _inherited;
+    private IReadOnlyList<DateTime> _openings = [];
 
     /// <summary>Prefix of the form fields; read back with <see cref="WindowPickerForm.Read"/>.</summary>
     [Parameter, EditorRequired]
@@ -103,11 +121,12 @@
 
     protected override void OnParametersSet()
     {
-        _rows = Draft is { } draft ? [.. draft.Drafts] : [.. (Windows ?? []).Select(w => new WindowDraft(w.Days, w.Start, w.End))];
+        _rows = Draft is { } draft ? [.. draft.Drafts] : [.. (Windows ?? []).Select(w => new WindowDraft(w.Days, w.Start, w.End) { Weeks = w.Weeks, ExceptWeeks = w.ExceptWeeks })];
         _inherited = AllowInherit && (Draft?.Inherit ?? Inherited);
         var own = WindowPickerForm.ToWindows(_rows);
         var effective = _inherited ? InheritedWindows ?? [] : own;
         _cover = WindowPickerForm.Coverage(effective);
+        _openings = effective.Any(w => w.HasWeekRule) ? WindowPickerForm.NextOpenings(effective, DateTime.Now, 6) : [];
         Summary = effective.Count == 0
             ? "No window: installations never start."
             : $"{(_inherited ? "Inherited: " : string.Empty)}installations may start {WindowPickerForm.Describe(effective)} (server time). A window that ends before it starts runs past midnight.";

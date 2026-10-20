@@ -9,7 +9,8 @@ namespace SUSyphos.Server.Assignment;
 
 /// <summary>
 /// Text format for maintenance windows in the dashboard, one window per line:
-/// <c>Mon-Fri 19:00-05:00</c>, <c>Sat,Sun 00:00-24:00</c>. Also the JSON form stored in the database.
+/// <c>Mon-Fri 19:00-05:00</c>, <c>Sat,Sun 00:00-24:00</c>, optionally with a week rule:
+/// <c>Tue 22:00-02:00 weeks 2</c> (second Tuesday), <c>Sat 00:00-24:00 except 1,last</c>. Also the JSON form stored in the database.
 /// </summary>
 internal static class MaintenanceWindowFormat
 {
@@ -51,8 +52,17 @@ internal static class MaintenanceWindowFormat
                 .Append(' ')
                 .Append(FormatTime(window.Start))
                 .Append('-')
-                .Append(FormatTime(window.End))
-                .Append('\n');
+                .Append(FormatTime(window.End));
+            if (window.Weeks is { Count: > 0 } weeks)
+            {
+                builder.Append(" weeks ").Append(FormatWeeks(weeks));
+            }
+            else if (window.ExceptWeeks is { Count: > 0 } except)
+            {
+                builder.Append(" except ").Append(FormatWeeks(except));
+            }
+
+            builder.Append('\n');
         }
 
         return builder.ToString().TrimEnd();
@@ -83,14 +93,62 @@ internal static class MaintenanceWindowFormat
     {
         window = null!;
         var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length != 2 || !TryParseDays(parts[0], out var days) || !TryParseRange(parts[1], out var start, out var end))
+        if (parts.Length is not (2 or 4) || !TryParseDays(parts[0], out var days) || !TryParseRange(parts[1], out var start, out var end))
         {
             return false;
         }
 
-        window = new MaintenanceWindow { Days = days, Start = start, End = end };
+        List<WeekOfMonth>? weeks = null;
+        List<WeekOfMonth>? except = null;
+        if (parts.Length == 4)
+        {
+            if (!TryParseWeeks(parts[3], out var list))
+            {
+                return false;
+            }
+
+            switch (parts[2].ToLowerInvariant())
+            {
+                case "weeks":
+                    weeks = list;
+                    break;
+                case "except":
+                    except = list;
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        window = new MaintenanceWindow { Days = days, Start = start, End = end, Weeks = weeks, ExceptWeeks = except };
         return IsValid(window);
     }
+
+    /// <summary>"1,2,last": weeks of the month by number (1 to 4) or "last".</summary>
+    private static bool TryParseWeeks(string text, out List<WeekOfMonth> weeks)
+    {
+        weeks = [];
+        foreach (var token in text.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (string.Equals(token, "last", StringComparison.OrdinalIgnoreCase))
+            {
+                weeks.Add(WeekOfMonth.Last);
+            }
+            else if (token.Length == 1 && token[0] is >= '1' and <= '4')
+            {
+                weeks.Add((WeekOfMonth)(token[0] - '0'));
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        return weeks.Count > 0 && weeks.Distinct().Count() == weeks.Count;
+    }
+
+    private static string FormatWeeks(IEnumerable<WeekOfMonth> weeks) =>
+        string.Join(',', weeks.Order().Select(w => w == WeekOfMonth.Last ? "last" : ((int)w).ToString(CultureInfo.InvariantCulture)));
 
     private static bool TryParseDays(string text, out List<DayOfWeek> days)
     {

@@ -11,12 +11,13 @@ public static class MaintenanceSchedule
     {
         ArgumentNullException.ThrowIfNull(windows);
         var time = localTime.TimeOfDay;
-        var today = localTime.DayOfWeek;
-        var yesterday = localTime.AddDays(-1).DayOfWeek;
+        var today = localTime.Date;
+        var yesterday = today.AddDays(-1);
 
+        // A window that runs over midnight belongs to the day it starts; its week rule is checked for that day.
         return windows.Any(window => window.End > window.Start
-            ? window.Days.Contains(today) && time >= window.Start && time < window.End
-            : (window.Days.Contains(today) && time >= window.Start) || (window.Days.Contains(yesterday) && time < window.End));
+            ? window.StartsOn(today) && time >= window.Start && time < window.End
+            : (window.StartsOn(today) && time >= window.Start) || (window.StartsOn(yesterday) && time < window.End));
     }
 
     /// <summary>
@@ -31,11 +32,13 @@ public static class MaintenanceSchedule
             return localTime;
         }
 
+        // Weekly windows open within a week; windows on some weeks of the month within about two months.
         DateTime? next = null;
-        for (var offset = 0; offset <= 7; offset++)
+        var horizon = windows.Any(w => w.HasWeekRule) ? 70 : 7;
+        for (var offset = 0; offset <= horizon && next is null; offset++)
         {
             var day = localTime.Date.AddDays(offset);
-            foreach (var window in windows.Where(w => w.Days.Contains(day.DayOfWeek)))
+            foreach (var window in windows.Where(w => w.StartsOn(day)))
             {
                 var start = day + window.Start;
                 if (start > localTime && (next is null || start < next))

@@ -1,10 +1,26 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace SUSyphos.Contracts.Agents;
 
 /// <summary>
+/// Occurrence of a weekday within its month: the first to fourth, or the last one (which can also be the fourth).
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<WeekOfMonth>))]
+public enum WeekOfMonth
+{
+    First = 1,
+    Second = 2,
+    Third = 3,
+    Fourth = 4,
+    Last = 5,
+}
+
+/// <summary>
 /// A maintenance window on the given weekdays in local server time (docs/04-central-server.md, section 4).
 /// If <see cref="End"/> is not after <see cref="Start"/>, the window runs over midnight into the next day.
+/// <see cref="Weeks"/> limits it to some occurrences of the weekday in the month (e.g. the second Tuesday),
+/// <see cref="ExceptWeeks"/> leaves some out (e.g. every Saturday except the last); the day the window starts counts.
 /// </summary>
 public sealed record MaintenanceWindow : IValidatableObject
 {
@@ -19,6 +35,33 @@ public sealed record MaintenanceWindow : IValidatableObject
 
     /// <summary>End of the window; up to 1.00:00:00 (end of day).</summary>
     public required TimeSpan End { get; init; }
+
+    /// <summary>Only these occurrences of the weekday in the month; null or empty means every week.</summary>
+    [MaxLength(5)]
+    public IReadOnlyList<WeekOfMonth>? Weeks { get; init; }
+
+    /// <summary>Not on these occurrences of the weekday in the month; null or empty leaves none out.</summary>
+    [MaxLength(5)]
+    public IReadOnlyList<WeekOfMonth>? ExceptWeeks { get; init; }
+
+    /// <summary>True if the window has a rule on weeks of the month (agents before 0.7.1 do not understand it).</summary>
+    [JsonIgnore]
+    public bool HasWeekRule => Weeks is { Count: > 0 } || ExceptWeeks is { Count: > 0 };
+
+    /// <summary>True if a window of this kind starts on <paramref name="date"/>: the weekday and the week rule match.</summary>
+    public bool StartsOn(DateTime date)
+    {
+        if (!Days.Contains(date.DayOfWeek))
+        {
+            return false;
+        }
+
+        var occurrence = ((date.Day - 1) / 7) + 1;
+        var last = date.Day + 7 > DateTime.DaysInMonth(date.Year, date.Month);
+        bool Matches(WeekOfMonth week) => week == WeekOfMonth.Last ? last : (int)week == occurrence;
+        return (Weeks is not { Count: > 0 } weeks || weeks.Any(Matches))
+            && (ExceptWeeks is not { Count: > 0 } except || !except.Any(Matches));
+    }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
@@ -35,6 +78,19 @@ public sealed record MaintenanceWindow : IValidatableObject
         if (End <= TimeSpan.Zero || End > TimeSpan.FromDays(1))
         {
             yield return new ValidationResult("A maintenance window must end after 00:00 and at the latest at 1.00:00:00.", [nameof(End)]);
+        }
+
+        foreach (var (list, name) in new[] { (Weeks, nameof(Weeks)), (ExceptWeeks, nameof(ExceptWeeks)) })
+        {
+            if (list is not null && (list.Any(week => !Enum.IsDefined(week)) || list.Distinct().Count() != list.Count))
+            {
+                yield return new ValidationResult("Every week of the month must be valid and listed once.", [name]);
+            }
+        }
+
+        if (Weeks is { Count: > 0 } && ExceptWeeks is { Count: > 0 })
+        {
+            yield return new ValidationResult("A window either names its weeks or the weeks it leaves out, not both.", [nameof(ExceptWeeks)]);
         }
     }
 

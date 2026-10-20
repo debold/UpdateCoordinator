@@ -26,6 +26,40 @@ internal static class WindowPickerForm
 
     public static string ToField(string prefix, int row) => $"{prefix}.{row.ToString(CultureInfo.InvariantCulture)}.to";
 
+    public static string WeekModeField(string prefix, int row) => $"{prefix}.{row.ToString(CultureInfo.InvariantCulture)}.weekmode";
+
+    public static string WeeksField(string prefix, int row) => $"{prefix}.{row.ToString(CultureInfo.InvariantCulture)}.weeks";
+
+    /// <summary>Week choices of a row: value posted and label shown.</summary>
+    public static readonly (WeekOfMonth Week, string Value, string Label)[] WeekChoices =
+    [
+        (WeekOfMonth.First, "1", "1st"),
+        (WeekOfMonth.Second, "2", "2nd"),
+        (WeekOfMonth.Third, "3", "3rd"),
+        (WeekOfMonth.Fourth, "4", "4th"),
+        (WeekOfMonth.Last, "last", "last"),
+    ];
+
+    /// <summary>Week mode of a row: every week, only the chosen weeks, or all except the chosen ones.</summary>
+    public static string WeekMode(WindowDraft draft) =>
+        draft.Weeks is { Count: > 0 } ? "only" : draft.ExceptWeeks is { Count: > 0 } ? "except" : "every";
+
+    private static List<WeekOfMonth> ReadWeeks(IFormCollection form, string prefix, int row) =>
+        [.. form[WeeksField(prefix, row)].Select(v => WeekChoices.FirstOrDefault(c => c.Value == v)).Where(c => c.Value is not null).Select(c => c.Week).Distinct()];
+
+    /// <summary>The text suffix of a row's week rule for <see cref="MaintenanceWindowFormat"/>; a mode without weeks is left out.</summary>
+    private static string WeekSuffix(string mode, List<WeekOfMonth> weeks)
+    {
+        var list = string.Join(',', weeks.Order().Select(w => WeekChoices.First(c => c.Week == w).Value));
+        return weeks.Count == 0 ? string.Empty : mode switch
+        {
+            "only" => $" weeks {list}",
+            "except" => $" except {list}",
+            "every" => string.Empty,
+            _ => " invalid",
+        };
+    }
+
     public static string ShortName(DayOfWeek day) => CultureInfo.InvariantCulture.DateTimeFormat.AbbreviatedDayNames[(int)day][..2];
 
     public static string Format(TimeSpan time) => time >= TimeSpan.FromDays(1) ? "24:00" : time.ToString(@"hh\:mm", CultureInfo.InvariantCulture);
@@ -77,7 +111,7 @@ internal static class WindowPickerForm
             // Unknown times make the line invalid, so the parser reports it instead of silently using a default.
             var from = form[FromField(prefix, row)].ToString();
             var to = form[ToField(prefix, row)].ToString();
-            lines.Add($"{string.Join(',', days.OrderBy(d => Array.IndexOf(WeekOrder, d)).Select(d => CultureInfo.InvariantCulture.DateTimeFormat.AbbreviatedDayNames[(int)d]))} {from}-{to}");
+            lines.Add($"{string.Join(',', days.OrderBy(d => Array.IndexOf(WeekOrder, d)).Select(d => CultureInfo.InvariantCulture.DateTimeFormat.AbbreviatedDayNames[(int)d]))} {from}-{to}{WeekSuffix(form[WeekModeField(prefix, row)].ToString() is { Length: > 0 } mode ? mode : "every", ReadWeeks(form, prefix, row))}");
         }
 
         return string.Join('\n', lines);
@@ -112,7 +146,13 @@ internal static class WindowPickerForm
                 .Select(d => d!.Value)
                 .Distinct()
                 .ToList();
-            drafts.Add(new WindowDraft(days, ParseTime(form[FromField(prefix, row)]) ?? DefaultStart, ParseTime(form[ToField(prefix, row)]) ?? DefaultEnd));
+            var weeks = ReadWeeks(form, prefix, row);
+            var mode = form[WeekModeField(prefix, row)].ToString();
+            drafts.Add(new WindowDraft(days, ParseTime(form[FromField(prefix, row)]) ?? DefaultStart, ParseTime(form[ToField(prefix, row)]) ?? DefaultEnd)
+            {
+                Weeks = mode == "only" && weeks.Count > 0 ? weeks : null,
+                ExceptWeeks = mode == "except" && weeks.Count > 0 ? weeks : null,
+            });
         }
 
         if (action == "add" && drafts.Count < MaintenanceWindow.MaxWindows)
@@ -131,7 +171,21 @@ internal static class WindowPickerForm
 
     /// <summary>The drafts that form a valid window (days chosen, start and end differ), for the preview.</summary>
     public static IReadOnlyList<MaintenanceWindow> ToWindows(IEnumerable<WindowDraft> drafts) =>
-        [.. drafts.Where(d => d.Days.Count > 0 && d.Start != d.End).Select(d => new MaintenanceWindow { Days = d.Days, Start = d.Start, End = d.End })];
+        [.. drafts.Where(d => d.Days.Count > 0 && d.Start != d.End).Select(d => new MaintenanceWindow { Days = d.Days, Start = d.Start, End = d.End, Weeks = d.Weeks, ExceptWeeks = d.ExceptWeeks })];
+
+    /// <summary>The next window openings from <paramref name="localNow"/>, for the preview of windows with week rules.</summary>
+    public static IReadOnlyList<DateTime> NextOpenings(IReadOnlyList<MaintenanceWindow> windows, DateTime localNow, int count)
+    {
+        var openings = new List<DateTime>();
+        var probe = localNow;
+        while (openings.Count < count && MaintenanceSchedule.NextWindow(windows, probe) is { } window)
+        {
+            openings.Add(window.Start);
+            probe = window.End.AddMinutes(1);
+        }
+
+        return openings;
+    }
 
     public static readonly TimeSpan DefaultStart = TimeSpan.FromHours(19);
 
@@ -170,7 +224,16 @@ internal static class WindowPickerForm
 
     /// <summary>E.g. "Mon–Fri 19:00–05:00; Sat, Sun 00:00–24:00".</summary>
     public static string Describe(IReadOnlyList<MaintenanceWindow> windows) =>
-        string.Join("; ", windows.Select(w => $"{Days(w.Days)} {Format(w.Start)}–{Format(w.End)}"));
+        string.Join("; ", windows.Select(w => $"{Days(w.Days)} {Format(w.Start)}–{Format(w.End)}{WeekText(w)}"));
+
+    /// <summary>E.g. " (2nd week of the month)" or " (except the last week)".</summary>
+    private static string WeekText(MaintenanceWindow window)
+    {
+        static string Names(IEnumerable<WeekOfMonth> weeks) => string.Join(" and ", weeks.Order().Select(w => WeekChoices.First(c => c.Week == w).Label));
+        return window.Weeks is { Count: > 0 } weeks ? $" ({Names(weeks)} week of the month)"
+            : window.ExceptWeeks is { Count: > 0 } except ? $" (except the {Names(except)} week)"
+            : string.Empty;
+    }
 
     private static string Days(IReadOnlyList<DayOfWeek> days)
     {
@@ -184,7 +247,14 @@ internal static class WindowPickerForm
 }
 
 /// <summary>A window row as entered, possibly without days yet.</summary>
-public sealed record WindowDraft(IReadOnlyList<DayOfWeek> Days, TimeSpan Start, TimeSpan End);
+public sealed record WindowDraft(IReadOnlyList<DayOfWeek> Days, TimeSpan Start, TimeSpan End)
+{
+    /// <summary>Only these weeks of the month; null for every week.</summary>
+    public IReadOnlyList<WeekOfMonth>? Weeks { get; init; }
+
+    /// <summary>Every week except these; null for none.</summary>
+    public IReadOnlyList<WeekOfMonth>? ExceptWeeks { get; init; }
+}
 
 /// <summary>The picker rows after one of its own buttons, shown again without saving.</summary>
 public sealed record WindowPickerState(IReadOnlyList<WindowDraft> Drafts, bool Inherit);

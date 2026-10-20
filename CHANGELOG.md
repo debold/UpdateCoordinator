@@ -6,6 +6,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Both
 
+- Maintenance windows can be limited to weeks of the month ("only in" the 1st–4th or last week, or "all except" some of them), for monthly windows such as the second Tuesday or every Saturday except the last. Agents before 0.7.1 get nothing to install and no reboot permission while such windows apply.
 - Renamed from the working title UpdateCoordinator to **SUSyphos**: namespaces, projects, packages (`SUSyphos.Agent.msi`, `SUSyphos.Server.msi`), services, registry keys (`HKLM\SOFTWARE\SUSyphos\…`, policy key `HKLM\SOFTWARE\Policies\SUSyphos\Agent`), data folders (`%ProgramData%\SUSyphos`), webhook header (`X-SUSyphos-Signature`). Installations of UpdateCoordinator (up to 0.4.0) are not upgraded: uninstall them and install SUSyphos anew. The protected files and the trust binding use new purpose strings.
 
 ### Agent

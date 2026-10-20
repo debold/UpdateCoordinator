@@ -52,8 +52,10 @@
             const selects = row.querySelectorAll('select');
             const start = minutes(selects[0]?.value);
             const end = minutes(selects[1]?.value);
+            const mode = selects[2]?.value ?? 'every';
+            const weeks = [...row.querySelectorAll('.weeks input:checked')].map((box) => box.nextElementSibling?.textContent ?? box.value);
             if (days.length > 0 && start !== null && end !== null) {
-                windows.push({ days, start, end });
+                windows.push({ days, start, end, rule: mode === 'every' || weeks.length === 0 ? '' : mode === 'only' ? ` (${weeks.join(' and ')} week of the month)` : ` (except the ${weeks.join(' and ')} week)` });
             }
         }
 
@@ -97,7 +99,13 @@
         if (summary) {
             summary.textContent = windows.length === 0
                 ? 'No window: installations never start.'
-                : `${inherited ? 'Inherited: ' : ''}installations may start ${windows.map((w) => `${weekOrder.filter((d) => w.days.includes(d)).map((d) => dayNames[d]).join(', ')} ${format(w.start)}–${format(w.end)}`).join('; ')} (server time).${inherited ? '' : ' Not saved yet.'}`;
+                : `${inherited ? 'Inherited: ' : ''}installations may start ${windows.map((w) => `${weekOrder.filter((d) => w.days.includes(d)).map((d) => dayNames[d]).join(', ')} ${format(w.start)}–${format(w.end)}${w.rule ?? ''}`).join('; ')} (server time).${inherited ? '' : ' Not saved yet.'}`;
+        }
+
+        // The week preview shows weekdays only; the list of next openings follows week rules and is calculated on the server.
+        const openings = picker.querySelector('.window-openings');
+        if (openings && !inherited) {
+            openings.textContent = 'Next openings are calculated again when the windows are saved.';
         }
     };
 
