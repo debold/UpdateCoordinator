@@ -56,6 +56,26 @@ public sealed class FeedbackPageTests
         Assert.Contains("name=\"Roles\" value=\"ClusterNode\" data-i=\"0\"", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Overview_ListsTheNextInstallations()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("PILOT01", Data.RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates");
+        using var browser = await LoginAsync(scenario.Factory, AdminRoles.Reader);
+
+        var empty = await (await browser.GetAsync("/")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("No released update is waiting for installation.", empty, StringComparison.Ordinal);
+
+        await scenario.ReportAsync(client, update);
+        var html = await (await browser.GetAsync("/")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var start = html.IndexOf("Next installations", StringComparison.Ordinal);
+        var next = html.Substring(start, Math.Min(4000, html.Length - start));
+
+        Assert.Contains($"/updates/{update.UpdateId}/1", next, StringComparison.Ordinal);
+        Assert.Contains("Pilot", next, StringComparison.Ordinal);
+    }
+
     private static async Task<DashboardClient> LoginAsync(ServerFactory factory, string role)
     {
         await factory.CreateUserAsync("user", Password, role);

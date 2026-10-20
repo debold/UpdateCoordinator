@@ -122,6 +122,29 @@
     </Box>
 </div>
 
+<Box Title="Next installations" Hint="Released updates not installed yet, by earliest installation; each server installs within its maintenance window" Flush="true">
+    <div class="scroll">
+        <table>
+            <thead><tr><th>Update</th><th>Earliest installation (UTC)</th><th class="n">Servers</th><th>Rings</th></tr></thead>
+            <tbody>
+                @if (_next.Count == 0)
+                {
+                    <tr><td colspan="4" class="note">No released update is waiting for installation.</td></tr>
+                }
+                @foreach (var next in _next)
+                {
+                    <tr>
+                        <td class="wrap"><a href="/updates/@next.UpdateId/@next.Revision">@next.Title</a></td>
+                        <td class="nowrap">@(next.EarliestUtc <= _now ? "due now" : Format(next.EarliestUtc))</td>
+                        <td class="n">@next.Servers</td>
+                        <td>@foreach (var ring in next.Rings) { <span class="tag">@ring</span> }</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</Box>
+
 <Box Title="Patch compliance, last 90 days" Hint="Share of approved servers with every released update installed">
     <TrendChart Points="@_trend" />
 </Box>
@@ -137,6 +160,9 @@
     private DateTime _now;
     private bool _paused;
     private BlackoutPeriod? _blackout;
+    private List<NextInstallation> _next = [];
+
+    private sealed record NextInstallation(Guid UpdateId, int Revision, string Title, DateTime EarliestUtc, int Servers, IReadOnlyList<string> Rings);
     private bool _canOperate;
     private List<AttentionItem> _attention = [];
     private List<RingRow> _rings = [];
@@ -202,7 +228,19 @@
         _approved = clients.Count;
         _reporting = health.Values.Count(h => h != ServerHealthState.Offline);
         var released = entries.Where(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful).ToList();
-        _pendingUpdates = released.Count;
+        // The next installations: per update, the earliest pending time, how many servers and in which rings.
+        var ringNames = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id, r => (r.Order, r.Name));
+        var nextKeys = released
+            .Where(e => e.State == DeploymentState.Pending)
+            .GroupBy(e => (e.UpdateId, e.Revision))
+            .Select(g => (Key: g.Key, Earliest: g.Min(e => e.EarliestInstallAtUtc!.Value), Servers: g.Select(e => e.ClientId).Distinct().Count(),
+                Rings: g.Where(e => e.RingId is not null && ringNames.ContainsKey(e.RingId.Value)).Select(e => ringNames[e.RingId!.Value]).Distinct().OrderBy(r => r.Order).Select(r => r.Name).ToList()))
+            .OrderBy(n => n.Earliest)
+            .Take(10)
+            .ToList();
+        var nextIds = nextKeys.Select(n => n.Key.UpdateId).ToList();
+        var nextUpdates = await Db.Updates.AsNoTracking().Where(u => nextIds.Contains(u.UpdateId)).ToListAsync();
+        _next = [.. nextKeys.Select(n => new NextInstallation(n.Key.UpdateId, n.Key.Revision, UpdateText.Title(nextUpdates.FirstOrDefault(u => u.UpdateId == n.Key.UpdateId && u.Revision == n.Key.Revision), n.Key.UpdateId), n.Earliest, n.Servers, n.Rings))];        _pendingUpdates = released.Count;
         _pendingServers = released.Select(e => e.ClientId).Distinct().Count();
         _wsus = clients.Count(c => c.WsusServer is not null);
         _selfInstalling = clients.Count(c => c.AutomaticUpdatesBypass);
