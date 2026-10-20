@@ -17,7 +17,7 @@ internal enum ApprovalResult
 /// Approval decisions for newly registered clients (docs/03-communication-protocol.md, section 4.1).
 /// Only pending clients can be decided; every decision is written to the audit log.
 /// </summary>
-internal sealed partial class ClientApprovalService(ServerDbContext db, AuditLog audit, ILogger<ClientApprovalService> logger)
+internal sealed partial class ClientApprovalService(ServerDbContext db, AuditLog audit, SUSyphos.Server.Agents.ClientActivityLog activity, ILogger<ClientApprovalService> logger)
 {
     public const string RuleActor = "rule";
 
@@ -45,6 +45,11 @@ internal sealed partial class ClientApprovalService(ServerDbContext db, AuditLog
         var host = await db.Clients.Where(c => c.Id == clientId).Select(c => c.HostName).SingleAsync(cancellationToken).ConfigureAwait(false);
         var action = decision == RegistrationState.Approved ? "Client.Approved" : "Client.Rejected";
         await audit.WriteAsync(actor, action, $"{host} ({clientId:D})", reason, cancellationToken).ConfigureAwait(false);
+        await activity.AddNowAsync(
+            clientId,
+            decision == RegistrationState.Approved ? SUSyphos.Server.Agents.ClientActivityKind.Approved : SUSyphos.Server.Agents.ClientActivityKind.Rejected,
+            $"{(decision == RegistrationState.Approved ? "Approved" : "Rejected")} by {actor}{(string.IsNullOrEmpty(reason) ? string.Empty : $": {reason}")}",
+            cancellationToken).ConfigureAwait(false);
         LogDecision(clientId, host, decision, actor);
         return ApprovalResult.Done;
     }

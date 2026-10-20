@@ -58,6 +58,7 @@ internal static class ServerServiceCollectionExtensions
         services.AddScoped<CertificateAdministration>();
         services.AddScoped<TrustBindingService>();
         services.AddScoped<UpdateCatalog>();
+        services.AddScoped<ClientActivityLog>();
         services.AddScoped<InventoryService>();
         services.AddScoped<UpdateReportService>();
         services.AddScoped<InstallationService>();

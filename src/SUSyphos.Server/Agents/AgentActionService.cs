@@ -127,6 +127,13 @@ internal sealed partial class AgentActionService(
 
         // The detail comes from the agent: control characters are dropped before it reaches the dashboard and logs.
         action.Detail = result.Detail is null ? null : new string([.. result.Detail.Where(c => !char.IsControl(c))]);
+        db.ClientActivities.Add(new ClientActivityEntity
+        {
+            ClientId = clientId,
+            AtUtc = action.CompletedAtUtc.Value,
+            Kind = ClientActivityKind.RemoteAction,
+            Detail = $"{action.Kind}: {action.State}{(action.Detail is { Length: > 0 } detail ? $" ({(detail.Length > 160 ? detail[..160] : detail)})" : string.Empty)}",
+        });
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         LogCompleted(clientId, action.Kind, action.State);
         return true;

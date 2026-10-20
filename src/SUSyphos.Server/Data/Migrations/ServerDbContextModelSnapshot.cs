@@ -249,6 +249,35 @@ namespace SUSyphos.Server.Data.Migrations
                     b.ToTable("AgentPackages", (string)null);
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Agents.ClientActivityEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("AtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AtUtc");
+
+                    b.HasIndex("ClientId", "AtUtc");
+
+                    b.ToTable("ClientActivities", (string)null);
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Approval.DirectoryComputerEntity", b =>
                 {
                     b.Property<string>("Name")
@@ -1195,6 +1224,15 @@ namespace SUSyphos.Server.Data.Migrations
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Agents.ClientActivityEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

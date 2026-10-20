@@ -9,7 +9,7 @@ namespace SUSyphos.Server.Agents;
 /// <summary>
 /// Stores an agent inventory: client attributes, the installed updates of the client and new catalog entries.
 /// </summary>
-internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog catalog, AssignmentService assignment, TimeProvider timeProvider, ILogger<InventoryService> logger)
+internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog catalog, AssignmentService assignment, ClientActivityLog activity, TimeProvider timeProvider, ILogger<InventoryService> logger)
 {
     /// <summary>Returns false if the client no longer exists.</summary>
     public async Task<bool> StoreAsync(Guid clientId, InventoryRequest inventory, CancellationToken cancellationToken)
@@ -53,6 +53,9 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
             await ReplaceHistoryAsync(clientId, history, now, cancellationToken).ConfigureAwait(false);
         }
 
+        activity.Add(clientId, ClientActivityKind.Inventory, string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"Inventory received: {(inventory.InstalledUpdates is { } list ? $"{list.Count} installed updates" : "installed updates not readable")}, {inventory.Roles.Count} roles, {inventory.OperatingSystem.Version}."));
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 

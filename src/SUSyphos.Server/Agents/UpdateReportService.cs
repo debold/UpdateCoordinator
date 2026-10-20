@@ -11,7 +11,7 @@ namespace SUSyphos.Server.Agents;
 /// Stores update reports (pre-flight checks and available updates) and serves releases.
 /// </summary>
 internal sealed partial class UpdateReportService(
-    ServerDbContext db, UpdateCatalog catalog, RolloutService rollouts, ReleasePlanner releases, TimeProvider timeProvider, ILogger<UpdateReportService> logger)
+    ServerDbContext db, UpdateCatalog catalog, RolloutService rollouts, ReleasePlanner releases, ClientActivityLog activity, TimeProvider timeProvider, ILogger<UpdateReportService> logger)
 {
     /// <summary>Returns false if the client no longer exists.</summary>
     public async Task<bool> StoreAsync(Guid clientId, UpdateReport report, CancellationToken cancellationToken)
@@ -49,6 +49,12 @@ internal sealed partial class UpdateReportService(
                 ReportedAtUtc = now,
             }));
         }
+
+        activity.Add(clientId, ClientActivityKind.Search, report.SearchSucceeded
+            ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Update search succeeded: {report.AvailableUpdates?.Count ?? 0} updates available.")
+            : report.HealthChecks.Any(check => check.Status == HealthStatus.Failed)
+                ? $"Update search skipped: pre-flight check failed ({string.Join(", ", report.HealthChecks.Where(c => c.Status == HealthStatus.Failed).Select(c => c.Name))})."
+                : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Update search failed: 0x{report.SearchHResult ?? 0:X8} {HResultCatalog.Describe(report.SearchHResult ?? 0)}"));
 
         if (report.HealthChecks.Any(check => check.Status == HealthStatus.Failed))
         {

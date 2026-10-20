@@ -247,6 +247,13 @@ internal static class AgentEndpoints
         };
 
         db.Clients.Add(client);
+        db.ClientActivities.Add(new ClientActivityEntity
+        {
+            ClientId = client.Id,
+            AtUtc = client.RegisteredAtUtc,
+            Kind = ClientActivityKind.Registered,
+            Detail = $"Registered from {client.RegisteredFromAddress ?? "an unknown address"} with agent {client.AgentVersion}.",
+        });
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await assignment.RecalculateAsync(client.Id, cancellationToken).ConfigureAwait(false);
 
@@ -265,6 +272,7 @@ internal static class AgentEndpoints
         AgentActionService actions,
         Approval.ClientLifecycle lifecycle,
         AgentPackages.AgentUpdateService agentUpdates,
+        ClientActivityLog activityLog,
         CancellationToken cancellationToken)
     {
         var clientId = httpContext.User.GetClientId();
@@ -272,6 +280,9 @@ internal static class AgentEndpoints
 
         // The agent clock is not trusted: a boot time in the future or before 2000 is ignored.
         DateTime? lastBoot = request.LastBootAt is { } boot && boot.UtcDateTime <= now.AddHours(1) && boot.Year >= 2000 ? boot.UtcDateTime : null;
+
+        // Restarts and agent updates go to the activity list; one indexed read per heartbeat.
+        var previous = await db.Clients.AsNoTracking().Where(c => c.Id == clientId).Select(c => new { c.LastBootAtUtc, c.AgentVersion }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
         var activity = LiveStatus.Normalize(request.Activity, now);
         RebootWait? rebootWait = request.RebootPending && request.RebootWait is { } wait && Enum.IsDefined(wait) ? wait : null;
@@ -299,6 +310,21 @@ internal static class AgentEndpoints
         {
             // The client was hard-deleted between authentication and this update.
             return TypedResults.Unauthorized();
+        }
+
+        if (previous is not null)
+        {
+            if (lastBoot is { } started && previous.LastBootAtUtc is { } before && started > before.AddMinutes(1))
+            {
+                activityLog.Add(clientId, ClientActivityKind.Restarted, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"The server started again at {started:yyyy-MM-dd HH:mm} UTC."));
+            }
+
+            if (!string.Equals(previous.AgentVersion, request.AgentVersion, StringComparison.Ordinal))
+            {
+                activityLog.Add(clientId, ClientActivityKind.AgentUpdated, $"Agent version changed from {previous.AgentVersion} to {request.AgentVersion}.");
+            }
+
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
         if (request.TrustReset)

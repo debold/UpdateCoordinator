@@ -8,7 +8,7 @@ namespace SUSyphos.Server.Agents;
 /// <summary>
 /// Stores install reports as installation history.
 /// </summary>
-internal sealed partial class InstallationService(ServerDbContext db, TimeProvider timeProvider, ILogger<InstallationService> logger)
+internal sealed partial class InstallationService(ServerDbContext db, ClientActivityLog activity, TimeProvider timeProvider, ILogger<InstallationService> logger)
 {
     public const string CoordinatorSource = "Coordinator";
 
@@ -77,6 +77,10 @@ internal sealed partial class InstallationService(ServerDbContext db, TimeProvid
             LogInstallFailed(clientId, failed.UpdateId, failed.Revision, failed.HResult, HResultCatalog.Describe(failed.HResult));
         }
 
+        var succeeded = accepted.Count(r => r.ResultCode is InstallResultCode.Succeeded or InstallResultCode.SucceededWithErrors);
+        activity.Add(clientId, ClientActivityKind.Installation, string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"Installation finished: {succeeded} succeeded, {accepted.Count - succeeded} not successful{(client.RebootPending ? ", reboot required" : string.Empty)}."));
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return true;

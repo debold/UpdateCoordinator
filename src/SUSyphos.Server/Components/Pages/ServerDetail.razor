@@ -168,6 +168,8 @@ else
                 <dt>Restart</dt><dd>@if (!_client.RebootPending) { <span>not pending</span> } else if (_client.RebootWait is { } wait) { <span class="pill queue">pending</span> <span>@LiveStatus.RebootWaitText(wait) (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> } else { <span class="pill queue">pending</span> <span>the agent reports why it waits from version 0.7 (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> }</dd>
                 <dt>Outside SUSyphos</dt><dd>@if (_externalInstalls > 0) { <span class="pill queue">@_externalInstalls</span> <span>installations in the last @SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays days were started by Windows or an administrator, not by SUSyphos (<a href="/servers/@Id#windows-history">history</a>)</span> } else { <span>none in the reported history</span> }</dd>
                 <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
+                <dt>Uptime</dt><dd>@UptimeText</dd>
+                <dt>Last update search</dt><dd>@if (_client.LastSearchAtUtc is null) { <span>none reported yet</span> } else if (_client.LastSearchSucceeded == true) { <span class="pill ok">OK</span> <span>@Format(_client.LastSearchAtUtc) UTC</span> } else { <span class="pill fail">failed</span> <span>@Format(_client.LastSearchAtUtc) UTC (<a href="/servers/@Id#missing">details</a>)</span> }</dd>
                 <dt>Registered (UTC)</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
             </dl>
         </Box>
@@ -296,6 +298,28 @@ else
                             <td>@entry.Operation</td>
                             <td>@UpdateHistoryText.Result(entry.ResultCode, entry.HResult)</td>
                             <td>@if (UpdateHistoryText.IsAgent(entry.ClientApplicationId)) { <span class="pill ok">SUSyphos</span> } else { <span class="pill queue">outside SUSyphos</span> <span>@UpdateHistoryText.Source(entry.ClientApplicationId)</span> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
+
+    <Box Title="Recent activity" Anchor="activity" Hint="@($"what the agent did and reported, newest first; kept for {ClientActivityLog.Retention.TotalDays:0} days, heartbeats are not listed")" Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Time (UTC)</th><th>Activity</th><th>Detail</th></tr></thead>
+                <tbody>
+                    @if (_activities.Count == 0)
+                    {
+                        <tr><td colspan="3" class="note">No activity recorded yet.</td></tr>
+                    }
+                    @foreach (var entry in _activities)
+                    {
+                        <tr>
+                            <td class="nowrap">@Format(entry.AtUtc)</td>
+                            <td class="nowrap">@ClientActivityLog.Label(entry.Kind)</td>
+                            <td class="wrap">@entry.Detail</td>
                         </tr>
                     }
                 </tbody>
@@ -629,6 +653,11 @@ else
             .OrderByDescending(h => h.DateUtc).ThenBy(h => h.Id)
             .Take(MaxHistory)
             .ToListAsync();
+        _activities = await Db.ClientActivities.AsNoTracking()
+            .Where(a => a.ClientId == Id)
+            .OrderByDescending(a => a.AtUtc).ThenByDescending(a => a.Id)
+            .Take(MaxActivities)
+            .ToListAsync();
         _externalInstalls = _windowsHistory.Count(h => h.Operation == SUSyphos.Contracts.Agents.UpdateOperation.Installation && !UpdateHistoryText.IsAgent(h.ClientApplicationId));
     }
 
@@ -637,7 +666,33 @@ else
     /// <summary>Reload interval of the page while the agent reports an activity.</summary>
     private const int LiveRefreshSeconds = 10;
 
+    private const int MaxActivities = 100;
+
     private List<ClientUpdateHistoryEntity> _windowsHistory = [];
+    private List<ClientActivityEntity> _activities = [];
+
+    /// <summary>Time since the last boot the agent reported, e.g. "3 days 4 h (since 2026-10-17 08:12 UTC)".</summary>
+    private string UptimeText
+    {
+        get
+        {
+            if (_client?.LastBootAtUtc is not { } boot)
+            {
+                return "unknown";
+            }
+
+            var up = Time.GetUtcNow().UtcDateTime - boot;
+            if (up < TimeSpan.Zero)
+            {
+                up = TimeSpan.Zero;
+            }
+
+            var text = up.TotalDays >= 1
+                ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(int)up.TotalDays} {((int)up.TotalDays == 1 ? "day" : "days")} {up.Hours} h")
+                : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{up.Hours} h {up.Minutes} min");
+            return $"{text} (since {Format(boot)} UTC)";
+        }
+    }
     private int _externalInstalls;
     private SUSyphos.Contracts.Agents.AgentPhase? _livePhase;
     private List<(Guid UpdateId, string Title)> _liveUpdates = [];

@@ -43,6 +43,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Server detail: uptime and last update search with its result in the System box, and a "Recent activity" list (registration, approval, inventory, update searches, installations, remote action results, restarts, agent updates; no heartbeats; kept 90 days).
 - Agent versions are shown short (e.g. 0.6.0, full version as tooltip); the server list has an agent version column with filter and grouping, and the version on the server detail and Agents pages opens the server list filtered to it.
 - Column filters use a funnel icon; sorting uses a small triangle.
 - Ring status counts every server of the ring for every update released there, including "Not needed" (installed otherwise or not applicable), in the donut, its legend and the bars per update.

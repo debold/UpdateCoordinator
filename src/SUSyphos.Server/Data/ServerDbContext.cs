@@ -18,6 +18,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<ClientUpdateHistoryEntity> ClientUpdateHistory => Set<ClientUpdateHistoryEntity>();
 
+    public DbSet<SUSyphos.Server.Agents.ClientActivityEntity> ClientActivities => Set<SUSyphos.Server.Agents.ClientActivityEntity>();
+
     public DbSet<ReleaseEntity> Releases => Set<ReleaseEntity>();
 
     public DbSet<InstallationEntity> Installations => Set<InstallationEntity>();
@@ -261,6 +263,14 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         available.HasKey(a => new { a.ClientId, a.UpdateId, a.Revision });
         available.HasOne<ClientEntity>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Cascade);
         available.HasOne<UpdateEntity>().WithMany().HasForeignKey(a => new { a.UpdateId, a.Revision }).OnDelete(DeleteBehavior.Restrict);
+
+        var activity = modelBuilder.Entity<SUSyphos.Server.Agents.ClientActivityEntity>();
+        activity.ToTable("ClientActivities");
+        activity.HasKey(a => a.Id);
+        activity.Property(a => a.Detail).HasMaxLength(SUSyphos.Server.Agents.ClientActivityLog.MaxDetailLength).IsRequired();
+        activity.HasIndex(a => new { a.ClientId, a.AtUtc });
+        activity.HasIndex(a => a.AtUtc);
+        activity.HasOne<ClientEntity>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Cascade);
 
         var history = modelBuilder.Entity<ClientUpdateHistoryEntity>();
         history.ToTable("ClientUpdateHistory");

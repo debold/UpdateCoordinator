@@ -62,6 +62,7 @@ internal sealed partial class RolloutWorker(
         var actions = scope.ServiceProvider.GetRequiredService<SUSyphos.Server.Agents.AgentActionService>();
         await actions.ExpireAsync(cancellationToken).ConfigureAwait(false);
         await actions.DeleteOldLogsAsync(cancellationToken).ConfigureAwait(false);
+        await scope.ServiceProvider.GetRequiredService<SUSyphos.Server.Agents.ClientActivityLog>().DeleteOldAsync(cancellationToken).ConfigureAwait(false);
         await scope.ServiceProvider.GetRequiredService<SUSyphos.Server.Assignment.LeaseService>().ExpireAsync(cancellationToken).ConfigureAwait(false);
         return changes;
     }
