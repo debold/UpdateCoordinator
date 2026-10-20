@@ -10,6 +10,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- The log no longer records four lines per heartbeat: HTTP client messages (`System.Net.Http.HttpClient`) are logged from level Warning (also on the central server).
 - The inventory carries the Windows Update history of the last 90 days with the application that started each operation, so installations outside SUSyphos (Automatic Updates, Settings, Defender, wusa) become visible.
 - Live status: search, download, installation and inventory are reported to the central server while they run, with progress in percent for download and installation (asynchronous WUA jobs; falls back to the synchronous calls if Windows refuses them). The heartbeat also tells why a pending reboot waits (policy "Never", local veto, pause, outside the window, window ends soon, recently requested, waiting for a lease) or that the agent is restarting the server.
 - Registers once at the central server and stores client GUID and client secret encrypted with DPAPI under `%ProgramData%\SUSyphos\Agent`.
@@ -42,6 +43,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Agent versions are shown short (e.g. 0.6.0, full version as tooltip); the server list has an agent version column with filter and grouping, and the version on the server detail and Agents pages opens the server list filtered to it.
+- Column filters use a funnel icon; sorting uses a small triangle.
+- Ring status counts every server of the ring for every update released there, including "Not needed" (installed otherwise or not applicable), in the donut, its legend and the bars per update.
 - Server detail: "Windows Update history" box with who started each installation (SUSyphos or outside SUSyphos with the recorded application) and a count of installations outside SUSyphos in the System box.
 - Live status: new endpoint `POST /api/v1/agents/activity`; the server detail page shows a "Live status" box (step, progress, updates, start) that reloads every 10 seconds while the agent works, the status is "Updating" during download and installation instead of an older "Reboot pending", and the System box explains why a pending restart waits.
 - Overview: a "Next installations" box lists the next pending updates by their earliest installation time with the number of servers and the rings.

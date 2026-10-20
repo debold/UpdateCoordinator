@@ -34,6 +34,19 @@ internal sealed partial record AgentVersion(int Major, int Minor, int Patch, str
         return version.ToString().Length <= MaxLength;
     }
 
+    /// <summary>
+    /// Short form for lists and filters: major.minor.patch without prerelease and build metadata (e.g. "0.5.0"); the full
+    /// version stays available as tooltip. Text that is no version is returned as it is.
+    /// </summary>
+    public static string Short(string? text) => TryParse(text, out var version)
+        ? string.Create(CultureInfo.InvariantCulture, $"{version.Major}.{version.Minor}.{version.Patch}")
+        : text ?? string.Empty;
+
+    /// <summary>Sort key of the short form, so 0.10.0 sorts after 0.9.0; text that is no version sorts first.</summary>
+    public static long SortKey(string? text) => TryParse(text, out var version)
+        ? (Math.Min(version.Major, 999_999L) * 1_000_000_000_000L) + (Math.Min(version.Minor, 999_999L) * 1_000_000L) + Math.Min(version.Patch, 999_999L)
+        : -1;
+
     public int CompareTo(AgentVersion? other)
     {
         if (other is null)

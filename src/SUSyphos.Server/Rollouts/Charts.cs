@@ -5,7 +5,7 @@ namespace SUSyphos.Server.Rollouts;
 /// <summary>Geometry and text for the dashboard charts, shared by bar and donut.</summary>
 internal static class Charts
 {
-    /// <summary>Segments in the order successful, pending, queued, failed, scaled to <paramref name="length"/>; empty states are left out.</summary>
+    /// <summary>Segments in the order successful, pending, queued, failed, not needed, scaled to <paramref name="length"/>; empty states are left out.</summary>
     public static IEnumerable<(string Class, double Offset, double Length)> Segments(DeploymentCounts counts, double length)
     {
         ArgumentNullException.ThrowIfNull(counts);
@@ -15,7 +15,7 @@ internal static class Charts
         }
 
         var offset = 0.0;
-        foreach (var (cls, value) in new[] { ("ok", counts.Successful), ("pend", counts.Pending), ("queue", counts.Queued), ("fail", counts.Failed) })
+        foreach (var (cls, value) in new[] { ("ok", counts.Successful), ("pend", counts.Pending), ("queue", counts.Queued), ("fail", counts.Failed), ("none", counts.NotNeeded) })
         {
             if (value == 0)
             {
@@ -31,7 +31,7 @@ internal static class Charts
     public static string Describe(DeploymentCounts counts)
     {
         ArgumentNullException.ThrowIfNull(counts);
-        return string.Create(CultureInfo.InvariantCulture, $"{counts.Successful} successful, {counts.Pending} pending, {counts.Queued} queued, {counts.Failed} failed");
+        return string.Create(CultureInfo.InvariantCulture, $"{counts.Successful} successful, {counts.Pending} pending, {counts.Queued} queued, {counts.Failed} failed{(counts.NotNeeded > 0 ? $", {counts.NotNeeded} not needed" : string.Empty)}");
     }
 
     /// <summary>Number for an SVG attribute: invariant culture, two decimals at most.</summary>

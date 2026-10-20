@@ -87,7 +87,7 @@ else
                 <Donut Counts="@_ringCounts" />
                 <Legend Counts="@_ringCounts" Vertical="true" />
             </div>
-            <p class="note">Pending: released, waiting for the maintenance window or installing. Queued: reported as missing, not released for this ring yet.</p>
+            <p class="note">Every server of the ring for every update released here. Pending: released, waiting for the maintenance window or installing. Queued: reported as missing, not released for this ring yet. Not needed: already installed otherwise or not applicable to the server.</p>
         </Box>
     </div>
 
@@ -326,7 +326,7 @@ else
         {
             var update = updates.FirstOrDefault(u => u.UpdateId == state.UpdateId && u.Revision == state.Revision);
             var statistics = await Rollouts.GetStatisticsAsync(state.UpdateId, state.Revision, RingId, CancellationToken.None);
-            var counts = DeploymentCounts.Of(entries.Where(e => e.UpdateId == state.UpdateId && e.Revision == state.Revision));
+            var counts = DeploymentCounts.Of(entries.Where(e => e.UpdateId == state.UpdateId && e.Revision == state.Revision), _servers);
             var (label, cls) = state.State switch
             {
                 RingRolloutState.Alarm => ($"Alarm: {state.Reason}", "fail"),
@@ -346,6 +346,12 @@ else
                 released,
                 WaitText(state, now)));
         }
+
+        // Every server of the ring for every active update, plus what waits before the ring (queued), so the donut
+        // accounts for all released updates including servers that do not need them.
+        var activeKeys = _active.Select(a => a.Key).ToHashSet();
+        _ringCounts = _active.Aggregate(DeploymentCounts.Empty, (sum, a) => sum + a.Counts)
+            + DeploymentCounts.Of(entries.Where(e => !activeKeys.Contains(Key(e.UpdateId, e.Revision))));
 
         _selected = _active.FirstOrDefault(a => a.Key == UpdateKey) ?? _active.FirstOrDefault();
         await LoadServersAsync(entries);

@@ -39,6 +39,7 @@
                     <SortHeader Table="_table" Column="build" Label="Build" />
                     <SortHeader Table="_table" Column="ring" Label="Ring" Options="@Options("ring")" />
                     <SortHeader Table="_table" Column="group" Label="Groups" Options="@Options("group")" />
+                    <SortHeader Table="_table" Column="agent" Label="Agent" Options="@Options("agent")" />
                     <SortHeader Table="_table" Column="status" Label="Status" Options="@Options("status")" />
                     <SortHeader Table="_table" Column="pending" Label="Pending updates" Class="n" Options="@Options("pending")" />
                     <SortHeader Table="_table" Column="seen" Label="Last heartbeat (UTC)" />
@@ -47,13 +48,13 @@
             <tbody>
                 @if (_page.Rows.Count == 0)
                 {
-                    <tr><td colspan="10" class="note">No server matches the search and filters.</td></tr>
+                    <tr><td colspan="11" class="note">No server matches the search and filters.</td></tr>
                 }
                 @foreach (var (group, rows) in Groups())
                 {
                     @if (group is not null)
                     {
-                        <tr class="group-row"><td colspan="10">@(group.Length == 0 ? "(none)" : group) · @rows.Count</td></tr>
+                        <tr class="group-row"><td colspan="11">@(group.Length == 0 ? "(none)" : group) · @rows.Count</td></tr>
                     }
                     @foreach (var row in rows)
                     {
@@ -65,6 +66,7 @@
                             <td class="mono">@row.Build</td>
                             <td>@row.Ring@(row.ManualRing ? " (manual)" : "")</td>
                             <td class="nowrap">@string.Join(", ", row.Groups)</td>
+                            <td class="mono nowrap" title="@row.AgentVersion">@SUSyphos.Server.AgentPackages.AgentVersion.Short(row.AgentVersion)</td>
                             <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span></td>
                             <td class="n">@row.Pending</td>
                             <td class="nowrap">@(row.LastHeartbeat?.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "–")</td>
@@ -78,8 +80,8 @@
 </Box>
 
 @code {
-    private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("os", "Operating system"), ("ring", "Ring"), ("group", "Group"), ("status", "Status"), ("domain", "Domain")];
-    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["domain"] = "Domain", ["os"] = "Operating system", ["ring"] = "Ring", ["group"] = "Group", ["status"] = "Status", ["pending"] = "Updates" };
+    private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("os", "Operating system"), ("ring", "Ring"), ("group", "Group"), ("agent", "Agent version"), ("status", "Status"), ("domain", "Domain")];
+    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["domain"] = "Domain", ["os"] = "Operating system", ["ring"] = "Ring", ["group"] = "Group", ["agent"] = "Agent", ["status"] = "Status", ["pending"] = "Updates" };
 
     /// <summary>Filter values of the pending column; the overview links to them.</summary>
     public const string PendingYes = "Updates pending";
@@ -89,7 +91,7 @@
     public static string Link(string column, params string[] values) =>
         "/servers?" + string.Join("&", values.Select(v => $"{Uri.EscapeDataString(TableQuery.FilterField(column))}={Uri.EscapeDataString(v)}"));
 
-    private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, ServerHealthState Health, int Pending, DateTime? LastHeartbeat);
+    private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, string AgentVersion, ServerHealthState Health, int Pending, DateTime? LastHeartbeat);
 
     private static readonly IReadOnlyList<TableColumn<Row>> Columns =
     [
@@ -99,6 +101,7 @@
         new("build", "Build", r => r.Build),
         new("ring", "Ring", r => r.RingOrder, r => [r.Ring]),
         new("group", "Groups", r => r.Groups.FirstOrDefault(), r => r.Groups.Count == 0 ? [string.Empty] : r.Groups),
+        new("agent", "Agent", r => SUSyphos.Server.AgentPackages.AgentVersion.SortKey(r.AgentVersion), r => [SUSyphos.Server.AgentPackages.AgentVersion.Short(r.AgentVersion)]),
         new("status", "Status", r => (int)r.Health, r => [ServerHealth.Label(r.Health)]),
         new("pending", "Pending updates", r => r.Pending, r => [r.Pending > 0 ? PendingYes : PendingNo]),
         new("seen", "Last heartbeat", r => r.LastHeartbeat),
@@ -196,6 +199,7 @@
                 ring?.Order ?? int.MaxValue,
                 c.ManualRingId is not null,
                 [.. memberships[c.Id].Where(groups.ContainsKey).Select(g => groups[g]).Order(StringComparer.CurrentCulture)],
+                c.AgentVersion,
                 ServerHealth.Evaluate(c, failed.Contains(c.Id), now),
                 pending.GetValueOrDefault(c.Id),
                 c.LastHeartbeatAtUtc);

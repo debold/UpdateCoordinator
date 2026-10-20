@@ -169,7 +169,8 @@ td.nowrap { white-space: nowrap; }
 a.sort { color: var(--muted); display: inline-flex; align-items: center; gap: 0.25rem; }
 a.sort:hover { color: var(--text); text-decoration: none; }
 a.sort.active { color: var(--text); }
-.sort-mark { font-size: 0.7rem; }
+.sort-mark { font-size: 0.75rem; line-height: 1; }
+details.col-filter > summary .funnel { display: block; }
 details.col-filter { display: inline-block; }
 details.col-filter > summary { list-style: none; cursor: pointer; color: var(--idle); border-radius: 4px; padding: 0.05rem 0.25rem; font-size: 0.8rem; }
 details.col-filter > summary::-webkit-details-marker { display: none; }
@@ -196,6 +197,7 @@ details.col-filter[open] > summary { color: var(--accent); background: var(--acc
 .seg-pend { fill: var(--pend); }
 .seg-queue { fill: var(--queue); }
 .seg-fail { fill: var(--fail); }
+.seg-none { fill: var(--idle); opacity: 0.45; }
 .donut { width: 9rem; height: 9rem; flex: 0 0 auto; }
 .donut.small { width: 2.5rem; height: 2.5rem; }
 .donut .track { stroke: var(--line); }
@@ -203,6 +205,7 @@ details.col-filter[open] > summary { color: var(--accent); background: var(--acc
 .donut .pend { stroke: var(--pend); }
 .donut .queue { stroke: var(--queue); }
 .donut .fail { stroke: var(--fail); }
+.donut .none { stroke: var(--idle); opacity: 0.45; }
 .donut text { fill: var(--text); font-family: inherit; }
 .donut .caption { fill: var(--muted); }
 .legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.82rem; color: var(--muted); }
@@ -212,6 +215,7 @@ details.col-filter[open] > summary { color: var(--accent); background: var(--acc
 .swatch.pend { background: var(--pend); }
 .swatch.queue { background: var(--queue); }
 .swatch.fail { background: var(--fail); }
+.swatch.none { background: var(--idle); opacity: 0.45; }
 .trend { width: 100%; height: auto; margin-top: 0.75rem; }
 .trend .grid { stroke: var(--line); }
 .trend .axis { fill: var(--muted); font-size: 11px; }

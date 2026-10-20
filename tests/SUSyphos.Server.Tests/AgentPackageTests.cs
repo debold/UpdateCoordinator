@@ -20,6 +20,25 @@ namespace SUSyphos.Server.Tests;
 public sealed class AgentVersionTests
 {
     [Theory]
+    [InlineData("0.5.0", "0.5.0")]
+    [InlineData("0.5.0-alpha.0.7+abcdef", "0.5.0")]
+    [InlineData("1.2.3+build", "1.2.3")]
+    [InlineData("not a version", "not a version")]
+    [InlineData(null, "")]
+    public void Short_DropsPrereleaseAndMetadata(string? text, string expected)
+    {
+        Assert.Equal(expected, AgentVersion.Short(text));
+    }
+
+    [Fact]
+    public void SortKey_OrdersNumerically()
+    {
+        Assert.True(AgentVersion.SortKey("0.10.0") > AgentVersion.SortKey("0.9.9"));
+        Assert.True(AgentVersion.SortKey("1.0.0") > AgentVersion.SortKey("0.999.999"));
+        Assert.Equal(-1, AgentVersion.SortKey("garbage"));
+    }
+
+    [Theory]
     [InlineData("1.2.3", "1.2.4")]
     [InlineData("1.2.3", "1.3.0")]
     [InlineData("1.9.9", "2.0.0")]

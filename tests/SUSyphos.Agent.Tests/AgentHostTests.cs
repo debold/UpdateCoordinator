@@ -19,6 +19,19 @@ public sealed class AgentHostTests
     }
 
     [Fact]
+    public void Logging_KeepsHttpRequestsOfEveryHeartbeatOutOfTheLog_ButNotWarnings()
+    {
+        var logs = Path.Combine(Path.GetTempPath(), "SUSyphos.Tests", Guid.NewGuid().ToString("N"));
+        var builder = AgentHostBuilder.Create(["--CentralServer:BaseAddress=https://central.example.local/", $"--Logging:File:Directory={logs}"]);
+
+        using var host = builder.Build();
+        var logger = host.Services.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>().CreateLogger("System.Net.Http.HttpClient.ICentralServerClient.LogicalHandler");
+
+        Assert.False(logger.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Information));
+        Assert.True(logger.IsEnabled(Microsoft.Extensions.Logging.LogLevel.Warning));
+    }
+
+    [Fact]
     public void Options_WithHttpsAddress_AreValid()
     {
         Assert.Empty(Validate(new CentralServerOptions { BaseAddress = new Uri("https://central.example.local/") }));

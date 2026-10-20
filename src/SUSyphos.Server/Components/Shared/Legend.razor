@@ -4,6 +4,10 @@
     <span><span class="swatch pend"></span>Pending @if (Counts is not null) { <b>@Counts.Pending</b> }</span>
     <span><span class="swatch queue"></span>Queued @if (Counts is not null) { <b>@Counts.Queued</b> }</span>
     <span><span class="swatch fail"></span>Failed @if (Counts is not null) { <b>@Counts.Failed</b> }</span>
+    @if (Counts is { NotNeeded: > 0 })
+    {
+        <span><span class="swatch none"></span>Not needed <b>@Counts.NotNeeded</b></span>
+    }
 </div>
 
 @code {

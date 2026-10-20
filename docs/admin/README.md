@@ -159,7 +159,7 @@ Each component writes rolling log files for troubleshooting; warnings and errors
 | `Logging:File:RetainedFileCountLimit` | `31` | number of files kept; older files are deleted |
 | `Logging:File:FileSizeLimitBytes` | `10485760` (10 MB) | size at which a new file is started within the same day |
 
-A new file is started every day and when the size limit is reached. Client secrets and keys are never written to the logs. For a detailed trace, set `Logging:File:MinimumLevel` to `Debug` (environment variable `Logging__File__MinimumLevel=Debug`) and restart the service.
+A new file is started every day and when the size limit is reached. Client secrets and keys are never written to the logs. For a detailed trace, set `Logging:File:MinimumLevel` to `Debug` (environment variable `Logging__File__MinimumLevel=Debug`) and restart the service. The HTTP requests of every heartbeat (`System.Net.Http.HttpClient`) are logged only from level `Warning`; set `Logging:LogLevel:System.Net.Http.HttpClient` to `Information` to see them.
 
 ## 5. Data on disk
 
@@ -312,8 +312,8 @@ Every start, stop, override, approval and rule change is recorded in the audit l
 Every page follows one pattern: page header, an **action band** with all actions of the page (primary first, destructive ones at the end, confirmed in a dialog), then boxed content. Lists sort by clicking a column, filter through the funnel icon in a column header (clickable values with counts), search, group (where offered) and page through 25 rows at a time; the view is part of the address, so a filtered list can be bookmarked or shared. New and edit open a dialog over the list.
 
 - **Overview** (role `Reader`): key figures as tiles; each tile opens the server list filtered to exactly what it counts. Items that wait for a human decision, deployment per ring and the patch compliance trend. Operators pause and resume all installations in the action band; the pause is announced to the agents with their next heartbeat and recorded in the audit log.
-- **Servers** (role `Reader`, actions `Operator`): operating system as a readable name with the build, filters for domain, operating system, ring, group, status and pending updates, grouping, and "Search for updates now" or "Sync inventory" for the selected servers.
-- **Server detail** (role `Reader`): status tiles, assignment as one saved configuration (ring, reboot policy, groups, maintenance windows; role `Admin`), system facts, missing updates, update history, pre-flight checks and remote actions.
+- **Servers** (role `Reader`, actions `Operator`): operating system as a readable name with the build, filters for domain, operating system, ring, group, agent version (short form such as 0.6.0; the full version is the tooltip), status and pending updates, grouping, and "Search for updates now" or "Sync inventory" for the selected servers.
+- **Server detail** (role `Reader`): status tiles, assignment as one saved configuration (ring, reboot policy, groups, maintenance windows; role `Admin`), system facts (the agent version opens the server list filtered to it), missing updates, update history, Windows Update history, pre-flight checks and remote actions.
 - **Rings** (role `Reader`): one page per ring with its updates as a table (state, day, feedback, success), the ring status donut, the servers of the ring as their own tab and the status of a selected update per server as a second tab.
 - **Updates** and **update detail** (role `Reader`, actions `Operator`): see section 12; the detail page shows progress per ring, all servers with filters, and the timeline.
 - A server counts as **offline** after one hour without heartbeat. **Patch compliance** is the share of approved servers without any released update left to install; the central server stores one value per day for 400 days.

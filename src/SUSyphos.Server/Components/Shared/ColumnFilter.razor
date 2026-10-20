@@ -1,6 +1,6 @@
 @* Filter icon in a column header: a disclosure with clickable criteria and their counts, applied by a GET form. *@
 <details class="col-filter @(_selected.Count > 0 ? "active" : null)">
-    <summary aria-label="Filter @Label" title="Filter @Label">&#x23F7;</summary>
+    <summary aria-label="Filter @Label" title="Filter @Label"><svg class="funnel" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1.5 2h13a.5.5 0 0 1 .4.8L10 9v4.5a.5.5 0 0 1-.28.45l-3 1.5A.5.5 0 0 1 6 15V9L1.1 2.8A.5.5 0 0 1 1.5 2z"/></svg></summary>
     <div class="filter-pop">
         <form method="get">
             @foreach (var field in Table.HiddenFieldsExcept(TableQuery.FilterField(Column)))

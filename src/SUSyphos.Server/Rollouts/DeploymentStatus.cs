@@ -36,11 +36,30 @@ internal sealed record DeploymentEntry(
     int? HResult);
 
 /// <summary>Counts per deployment state, e.g. for a ring or an update.</summary>
-public sealed record DeploymentCounts(int Queued, int Pending, int Successful, int Failed)
+/// <param name="Queued">Reported as missing, not released yet.</param>
+/// <param name="Pending">Released, not installed yet.</param>
+/// <param name="Successful">Last installation succeeded.</param>
+/// <param name="Failed">Last installation failed.</param>
+/// <param name="NotNeeded">Servers that need no installation (installed otherwise or not applicable); only counted where a page knows the servers in scope.</param>
+public sealed record DeploymentCounts(int Queued, int Pending, int Successful, int Failed, int NotNeeded = 0)
 {
     public static DeploymentCounts Empty { get; } = new(0, 0, 0, 0);
 
-    public int Total => Queued + Pending + Successful + Failed;
+    public int Total => Queued + Pending + Successful + Failed + NotNeeded;
+
+    public static DeploymentCounts operator +(DeploymentCounts left, DeploymentCounts right)
+    {
+        ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(right);
+        return new(left.Queued + right.Queued, left.Pending + right.Pending, left.Successful + right.Successful, left.Failed + right.Failed, left.NotNeeded + right.NotNeeded);
+    }
+
+    /// <summary>Counts of one update over <paramref name="servers"/> servers: every server without an entry needs no installation.</summary>
+    internal static DeploymentCounts Of(IEnumerable<DeploymentEntry> entries, int servers)
+    {
+        var counts = Of(entries);
+        return counts with { NotNeeded = Math.Max(0, servers - counts.Total) };
+    }
 
     internal static DeploymentCounts Of(IEnumerable<DeploymentEntry> entries)
     {

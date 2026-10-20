@@ -310,6 +310,55 @@ public sealed class DashboardViewTests
     }
 
     [Fact]
+    public async Task RingStatus_CountsServersThatDoNotNeedTheUpdate()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        await scenario.AddClientAsync("PILOT02", RingEntity.PilotId);
+        await scenario.AddClientAsync("PILOT03", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(pilot, update);
+        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Succeeded);
+        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
+
+        var html = await (await browser.GetAsync($"/rings/{RingEntity.PilotId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("1 successful, 0 pending, 0 queued, 0 failed, 2 not needed", html, StringComparison.Ordinal);
+        Assert.Contains("Not needed <b>2</b>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Counts_AddUp_AndNeverGoBelowZeroForNotNeeded()
+    {
+        var sum = new DeploymentCounts(1, 2, 3, 4, 5) + new DeploymentCounts(1, 1, 1, 1);
+
+        Assert.Equal(new DeploymentCounts(2, 3, 4, 5, 5), sum);
+        Assert.Equal(19, sum.Total);
+        Assert.Equal(0, DeploymentCounts.Of([], 0).NotNeeded);
+    }
+
+    [Fact]
+    public async Task ServerList_FiltersByShortAgentVersion_AndTheServerPageLinksThere()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var old = await scenario.AddClientAsync("OLD01", RingEntity.PilotId);
+        var current = await scenario.AddClientAsync("NEW01", RingEntity.PilotId);
+        await scenario.Factory.WithDbAsync(db => db.Clients.Where(c => c.Id == old.ClientId).ExecuteUpdateAsync(s => s.SetProperty(c => c.AgentVersion, "0.5.0-alpha.0.7+abcdef"), TestContext.Current.CancellationToken));
+        await scenario.Factory.WithDbAsync(db => db.Clients.Where(c => c.Id == current.ClientId).ExecuteUpdateAsync(s => s.SetProperty(c => c.AgentVersion, "0.6.0"), TestContext.Current.CancellationToken));
+        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
+
+        var detail = await (await browser.GetAsync($"/servers/{old.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var link = SUSyphos.Server.Components.Pages.Servers.Link("agent", "0.5.0");
+        Assert.Contains($"href=\"{link}\"", detail, StringComparison.Ordinal);
+        Assert.Contains(">0.5.0</a>", detail, StringComparison.Ordinal);
+
+        var list = await (await browser.GetAsync(link)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("OLD01", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("NEW01", list, StringComparison.Ordinal);
+        Assert.Contains("title=\"0.5.0-alpha.0.7", list, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RingPage_ShowsActiveUpdateAndItsServers()
     {
         await using var scenario = await RolloutScenario.CreateAsync();

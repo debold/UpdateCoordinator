@@ -3,7 +3,7 @@
     <span class="th-inner">
         @if (Sortable)
         {
-            <a class="sort @(Active ? "active" : null)" href="@Table.SortLink(Column)">@Label@if (Active) { <span class="sort-mark" aria-hidden="true">@(Table.Descending ? "▼" : "▲")</span> }</a>
+            <a class="sort @(Active ? "active" : null)" href="@Table.SortLink(Column)">@Label@if (Active) { <span class="sort-mark" aria-hidden="true">@(Table.Descending ? "▾" : "▴")</span> }</a>
         }
         else
         {
