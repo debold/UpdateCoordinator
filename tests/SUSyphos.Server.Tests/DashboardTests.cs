@@ -295,6 +295,27 @@ public sealed class DashboardAuthorizationTests
         Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
         Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
     }
+
+    [Fact]
+    public async Task Scripts_ComeOnlyFromTheServerItself_AndNeverInline()
+    {
+        await using var factory = new ServerFactory();
+        using var browser = new DashboardClient(factory);
+
+        using var response = await browser.GetAsync("/login");
+        var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var policy = response.Headers.GetValues("Content-Security-Policy").Single();
+
+        Assert.Contains("script-src 'self';", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("unsafe-inline", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("unsafe-eval", policy, StringComparison.Ordinal);
+        var script = Assert.Single(System.Text.RegularExpressions.Regex.Matches(html, "<script[^>]*>"));
+        Assert.Matches("^<script src=\"app[^\"]*\\.js\" defer>$", script.Value);
+
+        using var file = await browser.GetAsync(System.Text.RegularExpressions.Regex.Match(script.Value, "src=\"([^\"]+)\"").Groups[1].Value);
+        Assert.Equal(HttpStatusCode.OK, file.StatusCode);
+        Assert.Contains("applyGates", await file.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
 }
 
 public sealed class AuditLogTests

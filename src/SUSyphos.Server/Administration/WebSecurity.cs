@@ -23,7 +23,7 @@ internal static class LocalReturnUrl
 internal static class SecurityHeaders
 {
     public const string ContentSecurityPolicy =
-        "default-src 'self'; script-src 'none'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'";
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'";
 
     public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app) => app.Use(async (context, next) =>
     {

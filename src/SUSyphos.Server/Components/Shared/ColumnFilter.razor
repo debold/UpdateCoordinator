@@ -7,10 +7,17 @@
             {
                 <input type="hidden" name="@field.Key" value="@field.Value" />
             }
-            @foreach (var option in Options)
+            @if (Options.Count > SearchFrom)
             {
-                <label><input type="checkbox" name="@TableQuery.FilterField(Column)" value="@option.Value" checked="@_selected.Contains(option.Value)" /> @(option.Value.Length == 0 ? "(none)" : option.Value)<span class="count">@option.Count</span></label>
+                @* Shown by app.js, which filters the criteria while typing; without script the full list stays. *@
+                <input type="search" class="filter-search" placeholder="Search…" aria-label="Search the @Label criteria" hidden />
             }
+            <div class="filter-options">
+                @foreach (var option in Options)
+                {
+                    <label><input type="checkbox" name="@TableQuery.FilterField(Column)" value="@option.Value" checked="@_selected.Contains(option.Value)" /> @(option.Value.Length == 0 ? "(none)" : option.Value)<span class="count">@option.Count</span></label>
+                }
+            </div>
             <div class="pop-foot">
                 <a class="btn ghost" href="@Table.WithFilter(Column)">Clear</a>
                 <button type="submit" class="primary">Apply</button>
@@ -20,6 +27,9 @@
 </details>
 
 @code {
+    /// <summary>Lists longer than this get a search box.</summary>
+    private const int SearchFrom = 6;
+
     private IReadOnlyList<string> _selected = [];
 
     [Parameter, EditorRequired]

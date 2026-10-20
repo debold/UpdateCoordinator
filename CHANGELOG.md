@@ -10,6 +10,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- The update search also finds drivers: everything Windows Update offers is reported and can be released.
 - New remote actions "restart in the next maintenance window" (held until a window is open long enough, regardless of the reboot policy, local veto still applies; planned time reported with the heartbeat) and "cancel restart" (also aborts an announced restart).
 - The log no longer records four lines per heartbeat: HTTP client messages (`System.Net.Http.HttpClient`) are logged from level Warning (also on the central server).
 - The inventory carries the Windows Update history of the last 90 days with the application that started each operation, so installations outside SUSyphos (Automatic Updates, Settings, Defender, wusa) become visible.
@@ -44,6 +45,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- The dashboard loads one own script (`app.js`, `script-src 'self'`, progressive enhancement): dependent fields become inert while their switch is off, long column filters get a search box, and the maintenance window preview updates on every change without a button.
 - All dashboard times in the time zone of the central server and in 24-hour format (blackout periods and backup time without AM/PM pickers); the zone is named in the navigation.
 - Start rules: the rollout records the rule that started it and the update page shows it; new rules count on from the existing priorities, and two rules can no longer share a priority.
 - Restart dialog with "now" or "in the next maintenance window", a prominent "Restart queued" bar with planned time and reason, and "Cancel restart".

@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
+    <script src="@Assets["app.js"]" defer></script>
     <HeadOutlet />
 </head>
 <body>
-    @* Static server rendering only: plain forms and page loads, no persistent connection and no script. *@
+    @* Static server rendering: plain forms and page loads, no persistent connection. app.js only adds conveniences; every page works without it. *@
     <Routes />
 </body>
 </html>

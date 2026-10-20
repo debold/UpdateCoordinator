@@ -289,3 +289,15 @@ public sealed class ReleaseSyncTests
 
     private ReleaseSync Create() => new(_client, NullLogger<ReleaseSync>.Instance);
 }
+
+public sealed class AvailableUpdateCriteriaTests
+{
+    [Fact]
+    public void Search_CoversDriversAsWellAsSoftware()
+    {
+        // A Type criterion would leave out drivers (or software); the goal is everything Windows Update offers.
+        Assert.DoesNotContain("Type", WuaAvailableUpdateSearch.AvailableCriteria, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IsInstalled=0", WuaAvailableUpdateSearch.AvailableCriteria, StringComparison.Ordinal);
+        Assert.Contains("IsHidden=0", WuaAvailableUpdateSearch.AvailableCriteria, StringComparison.Ordinal);
+    }
+}

@@ -14,7 +14,8 @@ internal interface IAvailableUpdateSearch
 
 internal sealed class WuaAvailableUpdateSearch(IOptions<UpdateOptions> options) : IAvailableUpdateSearch
 {
-    private const string AvailableCriteria = "IsInstalled=0 and IsHidden=0 and Type='Software'";
+    /// <summary>Every update type Windows Update offers, software and drivers alike (no Type criterion).</summary>
+    internal const string AvailableCriteria = "IsInstalled=0 and IsHidden=0";
 
     public Task<IReadOnlyList<WuaUpdate>> SearchAsync(CancellationToken cancellationToken) =>
         // Online search against the configured source; synchronous COM, so it runs off the caller's thread.

@@ -1,8 +1,8 @@
 @using SUSyphos.Contracts.Agents
 @* Maintenance window picker: one row per window (weekday toggles, from, to) with remove, an add button, a week preview and
-   a plain-language summary. No free text, so a window cannot be mistyped. The buttons post the enclosing form without
+   a plain-language summary. No free text, so a window cannot be mistyped. app.js redraws the preview on every change; the buttons post the enclosing form without
    saving (WindowPickerForm.ReadEdit); the page shows the rows again with the change and an updated preview. *@
-<div class="window-picker gated inverse">
+<div class="window-picker gated inverse" data-inherited="@InheritedJson">
     @if (AllowInherit)
     {
         <label class="check gate"><input type="checkbox" name="@WindowPickerForm.InheritField(Prefix)" value="yes" checked="@_inherited" /> @InheritLabel</label>
@@ -51,7 +51,7 @@
         {
             <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="add" formnovalidate>Add window</button>
         }
-        <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="preview" formnovalidate>Refresh preview</button>
+        <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="preview" formnovalidate class="js-hide">Refresh preview</button>
         @if (Draft is not null)
         {
             <span class="note">Not saved yet.</span>
@@ -64,7 +64,7 @@
             <span>@WindowPickerForm.ShortName(day)</span>
             @for (var hour = 0; hour < 24; hour++)
             {
-                <span class="hour @(_cover[(int)day, hour] ? "on" : null)"></span>
+                <span class="hour @(_cover[(int)day, hour] ? "on" : null)" data-day="@((int)day)" data-hour="@hour"></span>
             }
         }
     </div>
@@ -114,4 +114,12 @@
     }
 
     private string Summary { get; set; } = string.Empty;
+
+    /// <summary>Inherited windows for the preview app.js draws while "inherit" is ticked: days as numbers, start and end in minutes.</summary>
+    private string InheritedJson => System.Text.Json.JsonSerializer.Serialize((InheritedWindows ?? []).Select(w => new
+    {
+        days = w.Days.Select(d => (int)d),
+        start = (int)w.Start.TotalMinutes,
+        end = (int)w.End.TotalMinutes,
+    }));
 }

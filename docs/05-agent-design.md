@@ -145,6 +145,8 @@ Updates installed outside our own maintenance are detected and reported with the
 
 **Implemented (2026-10-20):** the inventory carries the Windows Update history of the last 90 days (at most 500 entries, newest first; read locally with `IUpdateSearcher.QueryHistory`, no network): update ID, revision, title, date, installation or uninstallation, result, error code and the client application ID Windows recorded. The agent's own sessions use `SUSyphos.Agent`, so every other ID (e.g. `AutomaticUpdates`, the update orchestrator behind Settings, Defender, `wusa`) marks an installation outside SUSyphos. The central server shows the history on the server detail page and counts these installations. Typical cause: Windows Automatic Updates still installs on its own (section 3; enable "Manage Automatic Updates" centrally).
 
+**Update types (2026-10-20):** the update search uses `IsInstalled=0 and IsHidden=0` without a `Type` criterion, so drivers are found, reported and can be released like software updates (before, only `Type='Software'` was searched). Updates for other Microsoft products need the Microsoft Update service, which the agent does not register yet.
+
 ## 6. Remote actions
 
 **Restart in the maintenance window (2026-10-20):** the agent stores the request (`installations.dat`), treats it like a pending reboot allowed by policy and restarts with the usual rules (open window for at least 30 more minutes, warning, local veto, global pause, lease in coordinated groups). It reports the planned time (start of the next window long enough) and why it waits; the request ends when the server has started after it, or with `CancelRestart`.
