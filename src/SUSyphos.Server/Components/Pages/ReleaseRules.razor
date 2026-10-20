@@ -48,10 +48,10 @@
                             }
                         </td>
                         <td class="n"><span class="row-actions">
-                            <a class="btn" href="@Path?dialog=ring&amp;id=@ring.Id">Edit</a>
+                            <a class="btn" href="@Path?dialog=ring&id=@ring.Id">Edit</a>
                             @if (!final)
                             {
-                                <a class="btn danger" href="@Path?dialog=ring-delete&amp;id=@ring.Id">Delete</a>
+                                <a class="btn danger" href="@Path?dialog=ring-delete&id=@ring.Id">Delete</a>
                             }
                         </span></td>
                     </tr>
@@ -80,8 +80,8 @@
                         <td>@(rule.Mode == StartMode.Automatic ? (rule.Delay == TimeSpan.Zero ? "Automatically" : $"Automatically after {(int)rule.Delay.TotalHours} hours") : "Manually")</td>
                         <td>@foreach (var name in StartRingNames(rule)) { <span class="tag">@name</span> }</td>
                         <td class="n"><span class="row-actions">
-                            <a class="btn" href="@Path?dialog=rule&amp;id=@rule.Id">Edit</a>
-                            <a class="btn danger" href="@Path?dialog=rule-delete&amp;id=@rule.Id">Delete</a>
+                            <a class="btn" href="@Path?dialog=rule&id=@rule.Id">Edit</a>
+                            <a class="btn danger" href="@Path?dialog=rule-delete&id=@rule.Id">Delete</a>
                         </span></td>
                     </tr>
                 }

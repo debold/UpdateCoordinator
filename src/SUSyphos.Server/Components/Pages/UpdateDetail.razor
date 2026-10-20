@@ -61,7 +61,7 @@ else
                         @foreach (var ring in _ringRows)
                         {
                             <tr>
-                                <td class="nowrap"><a href="/rings/@ring.RingId?update=@Key&amp;tab=update">@ring.Order · @ring.Name</a></td>
+                                <td class="nowrap"><a href="/rings/@ring.RingId?update=@Key&tab=update">@ring.Order · @ring.Name</a></td>
                                 <td><span class="pill @RingStateClass(ring.State)">@RingStateLabel(ring)</span></td>
                                 <td class="nowrap">@Format(ring.ReleasedAtUtc)</td>
                                 <td class="n">@Percent(ring.Statistics.FeedbackPercent) <span class="note">(@ring.Statistics.Reported/@ring.Statistics.Targeted)</span></td>

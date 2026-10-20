@@ -35,7 +35,7 @@
                         </td>
                         <td class="n">
                             <span class="row-actions">
-                                <a class="btn" href="@Path?dialog=edit&amp;id=@Uri.EscapeDataString(user.Id)">Edit</a>
+                                <a class="btn" href="@Path?dialog=edit&id=@Uri.EscapeDataString(user.Id)">Edit</a>
                                 @if (user.LockedOut)
                                 {
                                     <button type="submit" name="Action" value="unlock:@user.Id">Unlock</button>
@@ -44,7 +44,7 @@
                                 {
                                     <button type="submit" name="Action" value="lock:@user.Id">Lock</button>
                                 }
-                                <a class="btn danger" href="@Path?dialog=delete&amp;id=@Uri.EscapeDataString(user.Id)">Delete</a>
+                                <a class="btn danger" href="@Path?dialog=delete&id=@Uri.EscapeDataString(user.Id)">Delete</a>
                             </span>
                         </td>
                     </tr>
