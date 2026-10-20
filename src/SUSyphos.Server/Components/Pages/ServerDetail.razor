@@ -122,7 +122,7 @@ else
                         </div>
                         <div class="field">
                             <span class="field-label">Maintenance windows</span>
-                            <WindowPicker Prefix="Windows" Windows="@_ownWindows" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
+                            <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
                         </div>
                     </div>
                     <footer class="box-foot">
@@ -419,6 +419,13 @@ else
             groups.Add(group);
         }
 
+        // Add, remove and preview of the picker show the rows again without saving.
+        if (HttpContext?.Request.HasFormContentType == true && WindowPickerForm.ReadEdit(HttpContext.Request.Form, "Windows") is { } draft)
+        {
+            _windowDraft = draft;
+            return;
+        }
+
         var actor = await GetActorAsync();
         var windows = HttpContext?.Request.HasFormContentType == true ? WindowPickerForm.Read(HttpContext.Request.Form, "Windows", out _) : string.Empty;
         var outcome = RebootPolicyText.TryParse(Reboot, out var reboot)
@@ -650,4 +657,6 @@ else
     private string RingName(int? id) => _rings.FirstOrDefault(r => r.Id == id)?.Name ?? "–";
 
     private string GroupName(int id) => _groups.FirstOrDefault(g => g.Id == id)?.Name ?? "?";
+
+    private WindowPickerState? _windowDraft;
 }

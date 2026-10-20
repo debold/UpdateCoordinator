@@ -188,3 +188,93 @@ public sealed class ServerDetailPageTests
         Assert.DoesNotContain("role=\"dialog\"", page, StringComparison.Ordinal);
     }
 }
+
+public sealed class WindowPickerEditTests
+{
+    private const string Password = "correct horse battery";
+
+    [Fact]
+    public void Buttons_AddRemoveAndPreview_WithoutSaving()
+    {
+        var form = new Microsoft.AspNetCore.Http.FormCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
+        {
+            ["W.0.days"] = new(["1", "2"]), ["W.0.from"] = "19:00", ["W.0.to"] = "05:00",
+            ["W.1.days"] = "6", ["W.1.from"] = "00:00", ["W.1.to"] = "24:00",
+            ["W.action"] = "add",
+        });
+
+        var added = WindowPickerForm.ReadEdit(form, "W");
+
+        Assert.NotNull(added);
+        Assert.Equal(3, added.Drafts.Count);
+        Assert.Empty(added.Drafts[2].Days);
+        Assert.Equal(TimeSpan.FromDays(1), added.Drafts[1].End);
+
+        form = new Microsoft.AspNetCore.Http.FormCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>(form.ToDictionary(f => f.Key, f => f.Value)) { ["W.action"] = "remove:0" });
+        var removed = WindowPickerForm.ReadEdit(form, "W")!;
+        Assert.Equal([DayOfWeek.Saturday], Assert.Single(removed.Drafts).Days);
+        Assert.Single(WindowPickerForm.ToWindows(removed.Drafts));
+    }
+
+    [Theory]
+    [InlineData("remove:7")]
+    [InlineData("remove:x")]
+    [InlineData("preview")]
+    [InlineData("nonsense")]
+    public void UnknownOrOutOfRangeActions_ChangeNoRow(string action)
+    {
+        var form = new Microsoft.AspNetCore.Http.FormCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
+        {
+            ["W.0.days"] = "1", ["W.0.from"] = "<script>", ["W.0.to"] = "05:00", ["W.action"] = action,
+        });
+
+        var state = WindowPickerForm.ReadEdit(form, "W")!;
+
+        Assert.Single(state.Drafts);
+        Assert.Equal(WindowPickerForm.DefaultStart, state.Drafts[0].Start);
+    }
+
+    [Fact]
+    public void SaveSubmit_IsNoPickerAction()
+    {
+        var form = new Microsoft.AspNetCore.Http.FormCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues> { ["W.0.days"] = "1" });
+
+        Assert.Null(WindowPickerForm.ReadEdit(form, "W"));
+    }
+
+    [Fact]
+    public async Task MaintenancePage_AddsARowWithoutSaving_AndSavesAfterRemoving()
+    {
+        await using var factory = new ServerFactory();
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var admin = new DashboardClient(factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        var form = new Dictionary<string, string>
+        {
+            ["_handler"] = "maintenance", ["Windows.0.days"] = "1", ["Windows.0.from"] = "19:00", ["Windows.0.to"] = "05:00",
+            ["Windows.1.days"] = "6", ["Windows.1.from"] = "00:00", ["Windows.1.to"] = "24:00", ["Windows.action"] = "add",
+        };
+        using (var added = await admin.PostFormAsync("/administration/maintenance", form))
+        {
+            var html = await added.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(3, System.Text.RegularExpressions.Regex.Count(html, "class=\"window-row\""));
+            Assert.Contains("Not saved yet.", html, StringComparison.Ordinal);
+        }
+
+        Assert.Null(await factory.WithDbAsync(db => db.Settings.Where(s => s.Key == SettingEntity.SystemMaintenanceWindows).Select(s => s.Value).SingleOrDefaultAsync(TestContext.Current.CancellationToken)));
+
+        form.Remove("Windows.action");
+        form.Remove("Windows.1.days");
+        form.Remove("Windows.1.from");
+        form.Remove("Windows.1.to");
+        using (await admin.PostFormAsync("/administration/maintenance", form))
+        {
+        }
+
+        var saved = MaintenanceWindowFormat.FromJson(await factory.WithDbAsync(db => db.Settings.Where(s => s.Key == SettingEntity.SystemMaintenanceWindows).Select(s => s.Value).SingleAsync(TestContext.Current.CancellationToken)));
+        Assert.Equal([DayOfWeek.Monday], Assert.Single(saved!).Days);
+    }
+}

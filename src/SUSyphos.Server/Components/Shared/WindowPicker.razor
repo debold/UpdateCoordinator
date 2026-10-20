@@ -1,10 +1,15 @@
 @using SUSyphos.Contracts.Agents
-@* Maintenance window picker: weekday toggles and from/to per window, a week preview and a plain-language summary.
-   No free text, so a window cannot be mistyped. Two empty rows add windows without script; a row without days is ignored. *@
+@* Maintenance window picker: one row per window (weekday toggles, from, to) with remove, an add button, a week preview and
+   a plain-language summary. No free text, so a window cannot be mistyped. The buttons post the enclosing form without
+   saving (WindowPickerForm.ReadEdit); the page shows the rows again with the change and an updated preview. *@
 <div class="window-picker">
     @if (AllowInherit)
     {
-        <label class="check"><input type="checkbox" name="@WindowPickerForm.InheritField(Prefix)" value="yes" checked="@Inherited" /> @InheritLabel</label>
+        <label class="check"><input type="checkbox" name="@WindowPickerForm.InheritField(Prefix)" value="yes" checked="@_inherited" /> @InheritLabel</label>
+    }
+    @if (_rows.Count == 0)
+    {
+        <p class="note">No window of its own yet.</p>
     }
     @for (var index = 0; index < _rows.Count; index++)
     {
@@ -14,31 +19,43 @@
             <div class="days" role="group" aria-label="Weekdays of window @(number + 1)">
                 @foreach (var day in WindowPickerForm.WeekOrder)
                 {
-                    <label class="day"><input type="checkbox" name="@WindowPickerForm.DaysField(Prefix, number)" value="@((int)day)" checked="@(row?.Days.Contains(day) == true)" /><span>@WindowPickerForm.ShortName(day)</span></label>
+                    <label class="day"><input type="checkbox" name="@WindowPickerForm.DaysField(Prefix, number)" value="@((int)day)" checked="@row.Days.Contains(day)" /><span>@WindowPickerForm.ShortName(day)</span></label>
                 }
             </div>
             <label>from
                 <select name="@WindowPickerForm.FromField(Prefix, number)" aria-label="Start of window @(number + 1)">
-                    @foreach (var time in WindowPickerForm.Times(row?.Start, includeEndOfDay: false))
+                    @foreach (var time in WindowPickerForm.Times(row.Start, includeEndOfDay: false))
                     {
-                        <option value="@WindowPickerForm.Format(time)" selected="@(time == (row?.Start ?? DefaultStart))">@WindowPickerForm.Format(time)</option>
+                        <option value="@WindowPickerForm.Format(time)" selected="@(time == row.Start)">@WindowPickerForm.Format(time)</option>
                     }
                 </select>
             </label>
             <label>to
                 <select name="@WindowPickerForm.ToField(Prefix, number)" aria-label="End of window @(number + 1)">
-                    @foreach (var time in WindowPickerForm.Times(row?.End, includeEndOfDay: true))
+                    @foreach (var time in WindowPickerForm.Times(row.End, includeEndOfDay: true))
                     {
-                        <option value="@WindowPickerForm.Format(time)" selected="@(time == (row?.End ?? DefaultEnd))">@WindowPickerForm.Format(time)</option>
+                        <option value="@WindowPickerForm.Format(time)" selected="@(time == row.End)">@WindowPickerForm.Format(time)</option>
                     }
                 </select>
             </label>
-            @if (row is null)
+            @if (row.Days.Count == 0)
             {
-                <span class="note">New window: select days to add it</span>
+                <span class="note">select days</span>
             }
+            <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="remove:@number" formnovalidate class="danger" aria-label="Remove window @(number + 1)">Remove</button>
         </div>
     }
+    <div class="actions">
+        @if (_rows.Count < MaintenanceWindow.MaxWindows)
+        {
+            <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="add" formnovalidate>Add window</button>
+        }
+        <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="preview" formnovalidate>Refresh preview</button>
+        @if (Draft is not null)
+        {
+            <span class="note">Not saved yet.</span>
+        }
+    </div>
     <div class="week" aria-hidden="true">
         @foreach (var day in WindowPickerForm.WeekOrder)
         {
@@ -53,19 +70,21 @@
 </div>
 
 @code {
-    private static readonly TimeSpan DefaultStart = TimeSpan.FromHours(19);
-    private static readonly TimeSpan DefaultEnd = TimeSpan.FromHours(5);
-
-    private List<MaintenanceWindow?> _rows = [];
+    private List<WindowDraft> _rows = [];
     private bool[,] _cover = new bool[7, 24];
+    private bool _inherited;
 
     /// <summary>Prefix of the form fields; read back with <see cref="WindowPickerForm.Read"/>.</summary>
     [Parameter, EditorRequired]
     public string Prefix { get; set; } = "Windows";
 
-    /// <summary>Windows set at this level; null or empty when inherited.</summary>
+    /// <summary>Windows saved at this level; null or empty when inherited.</summary>
     [Parameter]
     public IReadOnlyList<MaintenanceWindow>? Windows { get; set; }
+
+    /// <summary>Rows as entered after one of the picker buttons; shown instead of <see cref="Windows"/>.</summary>
+    [Parameter]
+    public WindowPickerState? Draft { get; set; }
 
     /// <summary>Windows that apply when this level inherits; shown in the preview.</summary>
     [Parameter]
@@ -82,12 +101,14 @@
 
     protected override void OnParametersSet()
     {
-        _rows = [.. (Windows ?? []).Select(w => (MaintenanceWindow?)w), null, null];
-        var effective = Inherited ? InheritedWindows ?? [] : Windows ?? [];
+        _rows = Draft is { } draft ? [.. draft.Drafts] : [.. (Windows ?? []).Select(w => new WindowDraft(w.Days, w.Start, w.End))];
+        _inherited = AllowInherit && (Draft?.Inherit ?? Inherited);
+        var own = WindowPickerForm.ToWindows(_rows);
+        var effective = _inherited ? InheritedWindows ?? [] : own;
         _cover = WindowPickerForm.Coverage(effective);
         Summary = effective.Count == 0
             ? "No window: installations never start."
-            : $"{(Inherited ? "Inherited: " : string.Empty)}installations may start {WindowPickerForm.Describe(effective)} (server time). A window that ends before it starts runs past midnight.";
+            : $"{(_inherited ? "Inherited: " : string.Empty)}installations may start {WindowPickerForm.Describe(effective)} (server time). A window that ends before it starts runs past midnight.";
     }
 
     private string Summary { get; set; } = string.Empty;

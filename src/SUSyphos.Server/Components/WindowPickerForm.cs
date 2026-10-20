@@ -83,6 +83,64 @@ internal static class WindowPickerForm
         return string.Join('\n', lines);
     }
 
+    public static string ActionField(string prefix) => $"{prefix}.action";
+
+    /// <summary>
+    /// The picker's own buttons (add, remove, refresh preview) post the form without saving. Returns the rows as entered,
+    /// with the action applied, or null if the form was submitted to save.
+    /// </summary>
+    public static WindowPickerState? ReadEdit(IFormCollection form, string prefix)
+    {
+        ArgumentNullException.ThrowIfNull(form);
+        var action = form[ActionField(prefix)].ToString();
+        if (string.IsNullOrEmpty(action))
+        {
+            return null;
+        }
+
+        var drafts = new List<WindowDraft>();
+        for (var row = 0; row < MaxRows; row++)
+        {
+            if (!form.ContainsKey(FromField(prefix, row)))
+            {
+                continue;
+            }
+
+            var days = form[DaysField(prefix, row)]
+                .Select(v => int.TryParse(v, NumberStyles.None, CultureInfo.InvariantCulture, out var day) && day is >= 0 and <= 6 ? (DayOfWeek?)day : null)
+                .Where(d => d is not null)
+                .Select(d => d!.Value)
+                .Distinct()
+                .ToList();
+            drafts.Add(new WindowDraft(days, ParseTime(form[FromField(prefix, row)]) ?? DefaultStart, ParseTime(form[ToField(prefix, row)]) ?? DefaultEnd));
+        }
+
+        if (action == "add" && drafts.Count < MaintenanceWindow.MaxWindows)
+        {
+            drafts.Add(new WindowDraft([], DefaultStart, DefaultEnd));
+        }
+        else if (action.StartsWith("remove:", StringComparison.Ordinal)
+            && int.TryParse(action["remove:".Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+            && index < drafts.Count)
+        {
+            drafts.RemoveAt(index);
+        }
+
+        return new WindowPickerState(drafts, form[InheritField(prefix)] == "yes");
+    }
+
+    /// <summary>The drafts that form a valid window (days chosen, start and end differ), for the preview.</summary>
+    public static IReadOnlyList<MaintenanceWindow> ToWindows(IEnumerable<WindowDraft> drafts) =>
+        [.. drafts.Where(d => d.Days.Count > 0 && d.Start != d.End).Select(d => new MaintenanceWindow { Days = d.Days, Start = d.Start, End = d.End })];
+
+    public static readonly TimeSpan DefaultStart = TimeSpan.FromHours(19);
+
+    public static readonly TimeSpan DefaultEnd = TimeSpan.FromHours(5);
+
+    private static TimeSpan? ParseTime(string? value) =>
+        value == "24:00" ? TimeSpan.FromDays(1)
+        : TimeSpan.TryParseExact(value, @"hh\:mm", CultureInfo.InvariantCulture, out var time) && time.Ticks % Step.Ticks == 0 ? time : null;
+
     /// <summary>Hours of the week (Sunday = 0) in which an installation may start.</summary>
     public static bool[,] Coverage(IReadOnlyList<MaintenanceWindow> windows)
     {
@@ -124,3 +182,9 @@ internal static class WindowPickerForm
             : string.Join(", ", ordered.Select(name));
     }
 }
+
+/// <summary>A window row as entered, possibly without days yet.</summary>
+public sealed record WindowDraft(IReadOnlyList<DayOfWeek> Days, TimeSpan Start, TimeSpan End);
+
+/// <summary>The picker rows after one of its own buttons, shown again without saving.</summary>
+public sealed record WindowPickerState(IReadOnlyList<WindowDraft> Drafts, bool Inherit);

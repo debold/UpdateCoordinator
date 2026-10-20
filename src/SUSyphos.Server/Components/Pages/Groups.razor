@@ -86,7 +86,7 @@
                 </div>
                 <div class="field">
                     <span class="field-label">Maintenance windows</span>
-                    <WindowPicker Prefix="Windows" Windows="@(MaintenanceWindowFormat.FromJson(group?.MaintenanceWindowsJson) ?? [])" InheritedWindows="@_systemWindows" AllowInherit="true" Inherited="@(group?.MaintenanceWindowsJson is null)" InheritLabel="Use the system default" />
+                    <WindowPicker Prefix="Windows" Draft="@_windowDraft" Windows="@(MaintenanceWindowFormat.FromJson(group?.MaintenanceWindowsJson) ?? [])" InheritedWindows="@_systemWindows" AllowInherit="true" Inherited="@(group?.MaintenanceWindowsJson is null)" InheritLabel="Use the system default" />
                 </div>
                 <div class="form-row">
                     <label class="field"><span>Reboots</span>
@@ -200,6 +200,14 @@ else if (_dialog == "delete" && Editing is { } doomed)
         {
             (outcome, success) = (await Administration.DeleteGroupAsync(deleteId, actor, CancellationToken.None), "The group was deleted.");
         }
+        else if (Mode is "create" or "edit" && form is not null && WindowPickerForm.ReadEdit(form, "Windows") is { } draft)
+        {
+            // Add, remove and preview of the picker show the dialog again without saving.
+            _windowDraft = draft;
+            _dialog = DialogName;
+            await LoadAsync();
+            return;
+        }
         else if (Mode is "create" or "edit" && form is not null)
         {
             var windows = WindowPickerForm.Read(form, "Windows", out _);
@@ -273,4 +281,6 @@ else if (_dialog == "delete" && Editing is { } doomed)
         _members = await Db.ClientGroups.AsNoTracking().GroupBy(m => m.GroupId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count);
         _systemWindows = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
     }
+
+    private WindowPickerState? _windowDraft;
 }

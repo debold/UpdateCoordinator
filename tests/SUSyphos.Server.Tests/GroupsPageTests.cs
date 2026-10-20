@@ -17,7 +17,7 @@ public sealed class GroupsPageTests
         using var admin = await LoginAsync(factory);
 
         var create = await (await admin.GetAsync("/administration/groups?dialog=new")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        foreach (var setting in new[] { "name=\"Name\"", "name=\"Description\"", "Windows.0.days", "name=\"Reboot\"", "name=\"Coordinated\"", "name=\"Percent\"" })
+        foreach (var setting in new[] { "name=\"Name\"", "name=\"Description\"", "value=\"add\"", "name=\"Reboot\"", "name=\"Coordinated\"", "name=\"Percent\"" })
         {
             Assert.Contains(setting, create, StringComparison.Ordinal);
         }

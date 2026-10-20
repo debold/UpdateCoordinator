@@ -18,7 +18,7 @@
         <AntiforgeryToken />
         <header class="box-head"><h2>Maintenance windows</h2><span class="hint">Local server time; a window that ends before it starts runs past midnight</span></header>
         <div class="box-body">
-            <WindowPicker Prefix="Windows" Windows="@_current" />
+            <WindowPicker Prefix="Windows" Windows="@_current" Draft="@_windowDraft" />
         </div>
         <footer class="box-foot">
             <span class="note">Delivered to the agents with their next heartbeat.</span>
@@ -133,8 +133,18 @@
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
+    private WindowPickerState? _windowDraft;
+
     private async Task SaveAsync()
     {
+        // Add, remove and preview of the picker show the rows again without saving.
+        if (HttpContext?.Request.HasFormContentType == true && WindowPickerForm.ReadEdit(HttpContext.Request.Form, "Windows") is { } draft)
+        {
+            _windowDraft = draft;
+            await LoadAsync();
+            return;
+        }
+
         var windows = HttpContext?.Request.HasFormContentType == true ? WindowPickerForm.Read(HttpContext.Request.Form, "Windows", out _) : string.Empty;
         var outcome = await Administration.SetSystemWindowsAsync(windows, await GetActorAsync(), CancellationToken.None);
         ShowResult(outcome.Error, "The system default was saved and is delivered to the agents.");
