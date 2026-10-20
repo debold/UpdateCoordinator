@@ -85,6 +85,8 @@ Configuration and triggering of the central server's backup function.
 
 Visibility of agent versions, state of the internal agent rollout, minimum version.
 
+Implemented (2026-10-20): page Agents (role Operator; Admin for checking and releasing) with the agent versions the central server holds (source, release state per ring as tags, servers per version), release actions, "Check for new versions now", the installer download with address and anchor fingerprint in the file name, the agent versions reported by the servers and failed self-updates. The server detail shows the agent update state.
+
 ## 6. Permissions (sketch)
 
 | Area | Reader | Operator | Admin |

@@ -52,6 +52,7 @@ Guidelines (always apply):
 - Installers: MSI packages built with WiX Toolset 7, self-contained publish; CI on GitHub Actions installs them on the runner (Marc, 2026-10-19). Marc accepted the WiX Open Source Maintenance Fee EULA (no revenue from this project); revisit if that changes.
 - Agent operating limits (Marc, 2026-10-19): about 200 MB private memory (restart above it), below-normal process priority, backoff up to 5 minutes; configurable under `Resources:*` and `CentralServer:MaxBackoff`.
 - Windows Automatic Updates (Marc, 2026-10-20): the agent may change the local setting so Windows does not install on its own, but only when configured centrally (opt-in); otherwise it only detects and warns (`docs/05-agent-design.md`, section 3).
+- Agent download and updates (Marc, 2026-10-20): the downloaded agent installer carries address and trust anchor fingerprint in its file name; the interactive agent setup asks for the address. The central server checks the GitHub releases for new agent versions (daily and on demand), and an administrator releases them ring by ring or for all rings at once; no automatic release while the packages are not code-signed (no certificate yet).
 - Dashboard: Blazor with static server rendering by default (interactive only where it adds real value, e.g. live status), ASP.NET Core Identity with local accounts, first administrator via one-time browser setup with a local token, permissions as sketched in `docs/06-dashboard.md`.
 
 ## Open decisions (do not decide unilaterally)
@@ -61,4 +62,3 @@ Guidelines (always apply):
 - Permission assignment per function for Operator and Admin
 - Escalation of notifications (channels decided: e-mail via SMTP and a generic webhook, Marc 2026-10-19)
 - Encryption of the trust anchor in the backup
-- Whether the download file name also carries the trust anchor fingerprint (`docs/03-communication-protocol.md` 3.3)

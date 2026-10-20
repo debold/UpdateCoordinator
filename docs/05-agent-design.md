@@ -69,10 +69,11 @@ Configurable per server whether to search directly against Windows Update or aga
 
 ### Windows Automatic Updates
 
-Windows can install updates by itself, independent of the agent. Then updates arrive outside rings and maintenance windows and the coordination is bypassed. The agent **reads** the setting and reports it with the inventory (`updateSource.automaticUpdates`) and as pre-flight check `AutomaticUpdates`; it **never changes** it (Marc decided on 2026-10-20 that a central opt-in may let the agent change the local setting; not implemented yet).
+Windows can install updates by itself, independent of the agent. Then updates arrive outside rings and maintenance windows and the coordination is bypassed. The agent **reads** the setting and reports it with the inventory (`updateSource.automaticUpdates`) and as pre-flight check `AutomaticUpdates`; it changes it only on central opt-in (decided by Marc on 2026-10-20, see below).
 
 - Mode: `NoAutoUpdate = 1` in `HKLMSOFTWAREPoliciesMicrosoftWindowsWindowsUpdateAU` is `Disabled`; otherwise `AUOptions` from the policy key, and with option 5 (local administrator chooses) or without policy the local value in `HKLMSOFTWAREMicrosoftWindowsCurrentVersionWindowsUpdateAuto Update`. Unknown values count as not configured. Windows Server 2016 and later does not install on its own without configuration.
 - Bypasses the coordination (warning, server status "Warning"): `AUOptions = 4` (download and install on a schedule), `AlwaysAutoRebootAtScheduledTime = 1` or a compliance deadline (`SetComplianceDeadline = 1` in the WindowsUpdate policy key).
+- **Opt-in change (implemented 2026-10-20):** when the release list says `manageAutomaticUpdates` (system default or group setting on the central server; one group with "leave unchanged" wins), the agent writes `AUOptions = 3` to the policy key, the way sconfig does, unless a value it did not write is there (group policy or `NoAutoUpdate`; option 5 counts as "local administrator chooses" and is replaced). A marker `ManagedAutomaticUpdates` in the agent installer key records the agent's own value, so it only ever removes its own change when the setting is switched off or the server is no longer approved. The inventory reports `managedByAgent`.
 - Recommended: "Configure Automatic Updates" option 3 (download, notify before install; Defender signatures keep updating) or 7 (notify before install and restart), or disabled. On Windows Server 2016 and 2019 a group policy refresh can briefly reset the setting to the default (Microsoft known issue); option 3 or 7 keeps that harmless.
 
 ## 4. Installation
@@ -147,6 +148,8 @@ The agent fetches actions from the queue, executes them in the given order and r
 - The agent asks **only the central server** for updates.
 - If it is below the minimum version, it requests and installs an update on its own.
 - Repeated failure is made visible in the central server and escalated.
+
+**Implemented (2026-10-20):** the heartbeat announces a released newer version (version, SHA-256, size; see `04-central-server.md`, section 5). The agent downloads it from the central server with the same trust check as every message, streamed into `%ProgramData%\UpdateCoordinator\Agent\Update`, A FOLDER RECREATED FOR EVERY UPDATE WITH ACCESS FOR SYSTEM AND ADMINISTRATORS ONLY, AND KEEPS THE FILE OPEN WITH READ SHARING ONLY UNTIL MSIEXEC IS DONE, SO THE VERIFIED FILE CANNOT BE SWAPPED. IT CHECKS SIZE AND SHA-256 AND RUNS `MSIEXEC /I … /QN /NORESTART /L*V`. THE MSI STOPS THE SERVICE, REPLACES THE FILES AND STARTS THE NEW VERSION; NO REBOOT. THE ATTEMPT IS KEPT IN `AGENT-UPDATE.JSON`; AFTER THE RESTART THE RUNNING VERSION DECIDES SUCCESS. FAILURES (CHECKSUM, MSIEXEC EXIT CODE, TIMEOUT, OLD VERSION AFTER THE RESTART) ARE REPORTED WITH THE HEARTBEAT (`AGENTUPDATEERROR`) AND RETRIED AFTER `AGENTUPDATE:RETRYDELAY` (6 H). A MINIMUM VERSION IS NOT ENFORCED YET.
 
 ## 8. Installation and uninstallation
 

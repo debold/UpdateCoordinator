@@ -21,6 +21,8 @@
 | Agent | Central server | HTTPS, `POST /api/v1/agents/updates` | every 4 h (approved agents) | pre-flight checks and available updates |
 | Agent | Central server | HTTPS, `GET /api/v1/agents/releases` | when the release version in the heartbeat changes (approved agents) | released updates with earliest installation time |
 | Agent | Central server | HTTPS, `POST /api/v1/agents/installations` | after each installation run, or later if the central server was unreachable | result per update, reboot needed |
+| Agent | Central server | HTTPS, `GET /api/v1/agents/package/{version}` | when the heartbeat announces a released newer agent version | download of the agent package for the self-update (section 22) |
+| Central server | GitHub (`api.github.com`, `github.com` and its download storage) | HTTPS | daily and on "Check for new versions now" (`AgentPackages:CheckEnabled`) | new agent versions of the project; downloaded and verified, never released automatically |
 | Agent | Windows Update (or WSUS) | HTTPS, via the Windows Update Agent API | during the update search | search for available updates; the agent itself contacts no other internet address |
 | Admin browser | Central server | HTTPS | on demand | dashboard and administration |
 | Central server | SMTP server | SMTP with STARTTLS (587), TLS (465) or plain (internal relay) | when new events occur (checked every minute) | e-mail notifications (section 20) |
@@ -115,6 +117,10 @@ Registry values are read when the agent service starts. The product name in the 
 | `Installation:Windows` | system default | maintenance windows in local server time; default Mon–Fri 19:00–05:00 and Sat/Sun all day (see below) |
 | `Installation:PullForwardTolerance` | `00:30:00` | releases due within this time join a batch that is already due (0 to 4 h) |
 | `Installation:RetryDelay` | `06:00:00` | an attempted update is not retried before this time (1 h to 7 days) |
+| `AgentUpdate:Enabled` | `true` | `false` switches the self-update off on this server |
+| `AgentUpdate:RetryDelay` | `06:00:00` | a failed self-update of one version is tried again after this time (10 min to 7 days) |
+| `AgentUpdate:MaxPackageSize` | `524288000` | largest agent package accepted (bytes) |
+| `AgentUpdate:InstallTimeout` | `00:30:00` | how long msiexec may run before the attempt counts as failed |
 
 Invalid configuration stops the service at startup with a clear error in the event log instead of running with wrong settings.
 
@@ -161,10 +167,11 @@ A new file is started every day and when the size limit is reached. Client secre
 | Central server | `Trust:AnchorPath` | private key of the trust anchor, DPAPI-protected for the service account |
 | Agent | `%ProgramData%\UpdateCoordinator\Agent\identity.dat` | client GUID and client secret, DPAPI-protected for the service account |
 | Agent | `%ProgramData%\UpdateCoordinator\Agent\trust.dat` | pinned trust anchor, accepted certificate key and highest binding serial, DPAPI-protected |
-| Agent | `%ProgramData%\UpdateCoordinator\Agent\installations.dat` | install reports not yet delivered (at most 50) and the last attempt per update, DPAPI-protected |
+| Agent | `%ProgramData%\UpdateCoordinator\Agent\installations.dat` | install reports not yet delivered (at most 50), the last attempt per update and a held lease, DPAPI-protected |
+| Agent | `%ProgramData%\UpdateCoordinator\Agent\agent-update.json` | last self-update attempt (version, time, error); deleted after a successful update |
+| Agent | `%ProgramData%\UpdateCoordinator\Agent\Update` | downloaded agent package and msiexec log of the last self-update; recreated for every update with access for SYSTEM and administrators only |
+| Central server | `AgentPackages:Directory` (`%ProgramData%\UpdateCoordinator\Server\AgentPackages`) | agent packages: the one shipped with the central server and those downloaded from GitHub |
 | Both | `Logging:File:Directory` | rolling log files |
-| Agent | `%ProgramData%\UpdateCoordinator\Agent\installations.dat` | install reports not yet delivered, the last attempt per update and a held lease, DPAPI-protected |
-| BOTH | `LOGGING:FILE:DIRECTORY` | ROLLING LOG FILES |
 
 If the agent identity file is deleted or unreadable, the agent registers again and appears as a new pending client. If the trust file is deleted, the next contact is a first contact again.
 
@@ -180,13 +187,13 @@ If the trust anchor file of the central server exists but cannot be read (e.g. d
 | `Blocked` | clone suspicion, waiting for an admin | nothing (`403`) |
 | `Deleted` | unregistered or soft-deleted | nothing (`403`) |
 
-Approval is not yet available in the user interface; it follows with the dashboard.
+New servers are approved on the dashboard page Approvals (section 10) or by rule.
 
 ## 7. Trust between agent and central server
 
 Details in `docs/03-communication-protocol.md`, section 3.2.
 
-- On first contact the agent pins the trust anchor of the central server. Install new agents in a trusted network: whoever answers the first contact gets pinned.
+- On first contact the agent pins the trust anchor of the central server. An agent installed from the installer downloaded on the dashboard page Agents (section 22) knows the fingerprint of the anchor from the file name and pins only this central server. Otherwise install new agents in a trusted network: whoever answers the first contact gets pinned.
 - A new TLS certificate is approved on the central server (section 3). Agents follow automatically, also after being offline.
 - The trust anchor file is part of the central server backup. If it is lost, every agent must be reset locally.
 - If an agent does not trust the central server, it sends nothing and logs "Central server not trusted" in the event log every retry.
@@ -350,7 +357,9 @@ msiexec /i UpdateCoordinator.Agent.msi SERVERURL=https://central.example.local:8
 
 - Installs to `%ProgramFiles%\UpdateCoordinator\Agent` and registers the service `UpdateCoordinator.Agent` (LocalSystem, automatic start). The service restarts on failure, also when it ends with an error exit code (needed for the remote action "restart agent service").
 - `SERVERURL` is written to `HKLM\SOFTWARE\UpdateCoordinator\Agent\CentralServerUrl`; a group policy value under `HKLM\SOFTWARE\Policies\UpdateCoordinator\Agent` still wins. Without any address the service is installed but not started.
-- No certificate or other runtime data is part of the installer; the agent pins the central server on first contact.
+- **Download from the central server:** the dashboard page Agents (section 22) offers the agent installer as `UpdateCoordinator.Agent-<version>_<host>_<port>_<fingerprint>.msi`. The file content is the unchanged MSI; the installer reads address and trust anchor fingerprint from its own file name (also with a browser suffix such as ` (1)`), so `msiexec /i <file> /qn` needs no option. The fingerprint is written to `TrustAnchorFingerprint` in the same key, and the agent then pins only the central server with that anchor. A renamed file simply carries no address. Order: `SERVERURL` on the command line, then the file name, then the installed value.
+- **Interactive installation** (double-click): welcome, license, a page for the central server address (pre-filled from the command line, the file name or the installed value; checked for `https://` and a valid host) and a ready page. If the address from the file name is changed, the fingerprint is not written and the agent pins on first contact.
+- No certificate or other runtime data is part of the installer.
 - Identity and trust state stay under `%ProgramData%\UpdateCoordinator\Agent` on uninstall, so a reinstalled agent keeps its registration. Delete the folder to register anew.
 
 **Upgrades:** install the newer MSI the same way; options can be left out, the installed values are kept. Downgrades are refused.
@@ -424,7 +433,7 @@ If no channel is configured, nothing is sent and nothing is lost: the events go 
 
 ## 21. Windows Automatic Updates and group policy
 
-The coordination only works if Windows does not install updates on its own. The agent reads the Automatic Updates setting (group policy first, then the local setting) and reports it; it never changes it.
+The coordination only works if Windows does not install updates on its own. The agent reads the Automatic Updates setting (group policy first, then the local setting) and reports it. It changes the setting only when the central server asks for it (below).
 
 | Setting on the server | Effect | Shown as |
 |---|---|---|
@@ -436,6 +445,8 @@ The coordination only works if Windows does not install updates on its own. The 
 
 Where to see it: server detail ("Automatic updates" in the System box, tag "bypasses rings"), pre-flight check `AutomaticUpdates`, server status "Warning" and the overview tile "Servers with warnings".
 
+**Letting the agent change it** (Administration → Maintenance windows, box "Windows Automatic Updates", role `Admin`; groups can override it in the group dialog): with "Keep Windows from installing on its own" the agent sets "Configure Automatic Updates" to option 3 (`AUOptions = 3` under `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU`, as sconfig does) on servers where no group policy controls the setting, and records this in `ManagedAutomaticUpdates` under its own key. Group policy always wins: a value it did not write is never changed. Switched off (or the server is no longer approved), the agent removes only its own value again. Among groups, one group with "Leave unchanged" wins. The server detail page then shows "(set by UpdateCoordinator)". Uninstalling the agent leaves an applied option 3 in place; remove the value by hand or by group policy if needed. Default: off.
+
 **Recommended group policy** for servers managed by UpdateCoordinator (Computer Configuration > Administrative Templates > Windows Components > Windows Update):
 
 - **Configure Automatic Updates**: enabled, option **3 – Auto download and notify for install** (Defender signatures keep updating) or **7 – Notify for install and notify for restart**.
@@ -444,3 +455,24 @@ Where to see it: server detail ("Automatic updates" in the System box, tag "bypa
 - **Specify intranet Microsoft update service location**: not configured, unless WSUS is used on purpose (reported as a warning, see `Updates:Source`).
 
 Note: on Windows Server 2016 and 2019 a group policy refresh can briefly reset the setting to the Windows default (Microsoft known issue "Windows unexpectedly installs updates when automatic updates are disabled by Group Policy"). With option 3 or 7 and no configured schedule this has no effect.
+
+## 22. Agents: installation and self-update
+
+Dashboard page **Agents** (role `Operator` to download, `Admin` to check and release).
+
+**Installing new agents:** enter the address the servers reach the central server at (pre-filled with the address the dashboard is opened with; on the central server itself with its fully qualified name) and download the installer. Its file name carries the address and the fingerprint of the trust anchor (section 17), so `msiexec /i <file> /qn` installs a working agent that trusts only this central server. The installer is the newest agent package the central server holds. Downloads are audited.
+
+**Agent packages:** the central server installer ships the agent MSI of the same release (`%ProgramFiles%\UpdateCoordinator\Server\agent`); it is registered as the first package at start. Once a day, and on **Check for new versions now**, the central server reads the GitHub releases of the project (`AgentPackages:Repository`, tags `release/vX.Y.Z`). A release newer than every known package is downloaded and accepted only if its SHA-256 matches `SHA256SUMS.txt` of the same release. The packages are not code-signed yet, so the checksum protects against corrupt downloads, not against a manipulated release; this is why nothing is released automatically. A downloaded version waits for release and is notified ("Agent version … is available").
+
+**Release:** per version, **Release to <ring>** adds the next ring (Pilot first), **Release to all rings now** releases it everywhere at once (also for rings added later), **Withdraw** stops further updates to it (agents already on it stay). An agent gets the newest version released for its ring that is newer than its own; never a downgrade. A server without a ring gets only versions released for all rings.
+
+**Self-update on the agent:** the heartbeat announces version, size and SHA-256. The agent downloads the package from the central server (`GET /api/v1/agents/package/{version}`, only the announced version, only for approved agents) into a folder only SYSTEM and administrators can access, checks size and SHA-256 and runs `msiexec /i … /qn /norestart` with a log. The MSI stops the service, replaces the files and starts the new version; settings, identity and trust stay. No reboot is needed or triggered. The running version after the restart tells whether it worked. A failure (checksum, msiexec exit code, still the old version after the restart) is reported with the next heartbeat, shown on the page Agents and on the server detail page, notified, and tried again after `AgentUpdate:RetryDelay`.
+
+| Key (central server) | Default | Meaning |
+|---|---|---|
+| `AgentPackages:CheckEnabled` | `true` | daily check of the GitHub releases |
+| `AgentPackages:CheckInterval` | `1.00:00:00` | interval of the check (1 h to 30 days) |
+| `AgentPackages:Repository` | `debold/UpdateCoordinator` | GitHub repository whose releases carry the agent MSI |
+| `AgentPackages:IncludePrereleases` | `true` | also offer pre-releases (every release before 1.0 is one) |
+| `AgentPackages:MaxPackageSize` | `314572800` | largest package downloaded (bytes) |
+| `AgentPackages:Directory` | `%ProgramData%\UpdateCoordinator\Server\AgentPackages` | where the packages are kept |
