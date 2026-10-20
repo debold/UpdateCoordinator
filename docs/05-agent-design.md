@@ -69,7 +69,7 @@ Configurable per server whether to search directly against Windows Update or aga
 
 ### Windows Automatic Updates
 
-Windows can install updates by itself, independent of the agent. Then updates arrive outside rings and maintenance windows and the coordination is bypassed. The agent **reads** the setting and reports it with the inventory (`updateSource.automaticUpdates`) and as pre-flight check `AutomaticUpdates`; it **never changes** it (decision pending whether an opt-in may set the local setting on servers without policy).
+Windows can install updates by itself, independent of the agent. Then updates arrive outside rings and maintenance windows and the coordination is bypassed. The agent **reads** the setting and reports it with the inventory (`updateSource.automaticUpdates`) and as pre-flight check `AutomaticUpdates`; it **never changes** it (Marc decided on 2026-10-20 that a central opt-in may let the agent change the local setting; not implemented yet).
 
 - Mode: `NoAutoUpdate = 1` in `HKLMSOFTWAREPoliciesMicrosoftWindowsWindowsUpdateAU` is `Disabled`; otherwise `AUOptions` from the policy key, and with option 5 (local administrator chooses) or without policy the local value in `HKLMSOFTWAREMicrosoftWindowsCurrentVersionWindowsUpdateAuto Update`. Unknown values count as not configured. Windows Server 2016 and later does not install on its own without configuration.
 - Bypasses the coordination (warning, server status "Warning"): `AUOptions = 4` (download and install on a schedule), `AlwaysAutoRebootAtScheduledTime = 1` or a compliance deadline (`SetComplianceDeadline = 1` in the WindowsUpdate policy key).

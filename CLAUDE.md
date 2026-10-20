@@ -51,6 +51,7 @@ Guidelines (always apply):
 - Public repository https://github.com/debold/UpdateCoordinator under the MIT license.
 - Installers: MSI packages built with WiX Toolset 7, self-contained publish; CI on GitHub Actions installs them on the runner (Marc, 2026-10-19). Marc accepted the WiX Open Source Maintenance Fee EULA (no revenue from this project); revisit if that changes.
 - Agent operating limits (Marc, 2026-10-19): about 200 MB private memory (restart above it), below-normal process priority, backoff up to 5 minutes; configurable under `Resources:*` and `CentralServer:MaxBackoff`.
+- Windows Automatic Updates (Marc, 2026-10-20): the agent may change the local setting so Windows does not install on its own, but only when configured centrally (opt-in); otherwise it only detects and warns (`docs/05-agent-design.md`, section 3).
 - Dashboard: Blazor with static server rendering by default (interactive only where it adds real value, e.g. live status), ASP.NET Core Identity with local accounts, first administrator via one-time browser setup with a local token, permissions as sketched in `docs/06-dashboard.md`.
 
 ## Open decisions (do not decide unilaterally)
@@ -61,4 +62,3 @@ Guidelines (always apply):
 - Escalation of notifications (channels decided: e-mail via SMTP and a generic webhook, Marc 2026-10-19)
 - Encryption of the trust anchor in the backup
 - Whether the download file name also carries the trust anchor fingerprint (`docs/03-communication-protocol.md` 3.3)
-- Whether the agent may set the local Automatic Updates setting to "notify" on servers without group policy (opt-in per group); until then it only detects and warns (`docs/05-agent-design.md`, section 3)
