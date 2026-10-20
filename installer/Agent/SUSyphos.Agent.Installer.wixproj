@@ -6,8 +6,10 @@
     <!-- Open Source Maintenance Fee EULA of WiX v7 accepted by Marc on 2026-10-19 (no revenue from this project). -->
     <AcceptEula>wix7</AcceptEula>
     <SuppressValidation>false</SuppressValidation>
-    <!-- ICE61 flags AllowSameVersionUpgrades, which is intended: rebuilt packages of the same version replace each other. -->
-    <SuppressIces>ICE61</SuppressIces>
+    <!-- ICE61 flags AllowSameVersionUpgrades, which is intended: rebuilt packages of the same version replace each other.
+         ICE46 sporadically reports the public property SERVERURL as "differing from a defined property by case only"
+         (twice on release builds of an unchanged commit that passed on retry); SERVERURL is spelled the same everywhere. -->
+    <SuppressIces>ICE61;ICE46</SuppressIces>
     <!-- Supplied by the build script: published files and the product version derived from the git tag agent/vX.Y.Z. -->
     <PublishDir Condition="'$(PublishDir)' == ''">..\..\artifacts\publish\agent</PublishDir>
     <ProductVersion Condition="'$(ProductVersion)' == ''">0.0.0</ProductVersion>

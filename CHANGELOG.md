@@ -122,6 +122,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Installers and CI
 
+- The agent MSI no longer runs the validation ICE46, which sporadically failed release builds of unchanged commits.
 - Browser tests of the dashboard (`tests/SUSyphos.UiTests`, Playwright with Microsoft Edge): every page in four window sizes against the layout rules, plus dialogs, filters and script features.
 
 - MSI packages for agent and central server (WiX Toolset 7, self-contained publish, Windows Server 2016 or newer): Windows services under LocalSystem with restart on failure (agent also on error exit codes), options `SERVERURL` (agent) and `CERTTHUMBPRINT`/`HTTPSPORT` (central server, read from `HKLM\SOFTWARE\SUSyphos\Server`), firewall rule for the HTTPS port, upgrades keep options and data, data under ProgramData kept on uninstall. The central server service also starts without `CERTTHUMBPRINT` (own certificate); the CI install test covers that path.
