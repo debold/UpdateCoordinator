@@ -38,6 +38,7 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
         client.WsusServer = inventory.UpdateSource.WsusServer;
         client.AutoUpdateMode = inventory.UpdateSource.AutomaticUpdates?.Mode;
         client.AutomaticUpdatesByPolicy = inventory.UpdateSource.AutomaticUpdates?.ByPolicy == true;
+        client.AutomaticUpdatesManagedByAgent = inventory.UpdateSource.AutomaticUpdates?.ManagedByAgent == true;
         client.AutomaticUpdatesBypass = inventory.UpdateSource.AutomaticUpdates?.BypassesCoordination() == true;
         client.InventoryAtUtc = now;
 

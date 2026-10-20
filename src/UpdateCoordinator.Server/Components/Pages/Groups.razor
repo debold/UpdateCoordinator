@@ -98,6 +98,15 @@
                             }
                         </select>
                     </label>
+                    <label class="field"><span>Windows Automatic Updates</span>
+                        <select name="AutomaticUpdates">
+                            <option value="" selected="@(group?.ManageAutomaticUpdates is null)">Inherit from the system default</option>
+                            <option value="leave" selected="@(group?.ManageAutomaticUpdates == false)">Leave unchanged, only warn</option>
+                            <option value="prevent" selected="@(group?.ManageAutomaticUpdates == true)">Keep Windows from installing on its own</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="form-row">
                     <fieldset>
                         <legend>Coordination (leases)</legend>
                         <label class="check"><input type="checkbox" name="Coordinated" value="true" checked="@(group?.Coordinated == true)" /> Only part of the group installs at the same time</label>
@@ -142,6 +151,9 @@ else if (_dialog == "delete" && Editing is { } doomed)
 
     [SupplyParameterFromForm(FormName = "group-dialog")]
     private string? Reboot { get; set; }
+
+    [SupplyParameterFromForm(FormName = "group-dialog")]
+    private string? AutomaticUpdates { get; set; }
 
     [SupplyParameterFromForm(FormName = "group-dialog")]
     private string? Coordinated { get; set; }
@@ -195,6 +207,10 @@ else if (_dialog == "delete" && Editing is { } doomed)
             {
                 outcome = new Outcome("The reboot policy is invalid.");
             }
+            else if (AutomaticUpdates is not (null or "" or "leave" or "prevent"))
+            {
+                outcome = new Outcome("The Automatic Updates setting is invalid.");
+            }
             else if (!int.TryParse(Percent, System.Globalization.NumberStyles.None, invariant, out var percent) || !int.TryParse(Max, System.Globalization.NumberStyles.None, invariant, out var maximum))
             {
                 outcome = new Outcome("Share and maximum must be whole numbers.");
@@ -225,6 +241,12 @@ else if (_dialog == "delete" && Editing is { } doomed)
                 if (outcome.Succeeded && groupId is { } target)
                 {
                     outcome = await Administration.SetGroupRebootPolicyAsync(target, reboot, actor, CancellationToken.None);
+                }
+
+                if (outcome.Succeeded && groupId is { } automaticGroup)
+                {
+                    bool? manage = AutomaticUpdates switch { "prevent" => true, "leave" => false, _ => null };
+                    outcome = await Administration.SetGroupManageAutomaticUpdatesAsync(automaticGroup, manage, actor, CancellationToken.None);
                 }
 
                 if (outcome.Succeeded && groupId is { } coordinatedGroup)

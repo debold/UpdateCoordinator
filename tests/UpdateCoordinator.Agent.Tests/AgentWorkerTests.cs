@@ -258,6 +258,8 @@ public sealed class AgentWorkerTests
         _updates,
         _installation,
         new UpdateCoordinator.Agent.Actions.ActionRunner(_client, _updates, _inventory, _restarter, new FakeRestart(), new FakeLogCollector(), Options.Create(new UpdateCoordinator.Agent.Installation.InstallationOptions()), NullLogger<UpdateCoordinator.Agent.Actions.ActionRunner>.Instance),
+        AgentSelfUpdaterTests.CreateDisabled("1.2.3"),
+        AutomaticUpdatesManagerTests.Create(new FakeSystemProbe(), new FakeRegistryWriter(new FakeSystemProbe())),
         new ResourceGuard(_process, _restarter, Options.Create(new ResourceOptions()), NullLogger<ResourceGuard>.Instance),
         Options.Create(new CentralServerOptions
         {

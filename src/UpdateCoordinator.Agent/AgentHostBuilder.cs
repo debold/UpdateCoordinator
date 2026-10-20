@@ -54,6 +54,8 @@ internal static class AgentHostBuilder
         services.AddSingleton<InventoryCollector>();
         services.AddSingleton<InventoryScheduler>();
         services.AddSingleton<IInventoryReporter, InventoryReporter>();
+        services.AddSingleton<IRegistryWriter, WindowsRegistryWriter>();
+        services.AddSingleton<AutomaticUpdatesManager>();
 
         services.AddOptions<UpdateOptions>()
             .Bind(configuration.GetSection(UpdateOptions.SectionName))
@@ -104,6 +106,21 @@ internal static class AgentHostBuilder
                 // with its own back-off; this handler contributes timeouts and the circuit breaker.
                 resilience.Retry.DisableForUnsafeHttpMethods();
             });
+
+        services.AddOptions<SelfUpdate.AgentUpdateOptions>()
+            .Bind(configuration.GetSection(SelfUpdate.AgentUpdateOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<SelfUpdate.IAgentUpdateStateStore>(_ => new SelfUpdate.JsonAgentUpdateStateStore(SelfUpdate.JsonAgentUpdateStateStore.DefaultPath));
+        services.AddSingleton<SelfUpdate.IPackageInstaller, SelfUpdate.MsiexecInstaller>();
+        services.AddSingleton<SelfUpdate.AgentSelfUpdater>();
+        // Same trust check as every message, but streamed and with a timeout long enough for a package over a slow link.
+        services.AddHttpClient<SelfUpdate.IAgentPackageClient, SelfUpdate.AgentPackageClient>((provider, http) =>
+            {
+                http.BaseAddress = provider.GetRequiredService<IOptions<CentralServerOptions>>().Value.BaseAddress;
+                http.Timeout = TimeSpan.FromMinutes(30);
+            })
+            .ConfigurePrimaryHttpMessageHandler(provider => provider.GetRequiredService<ServerTrust>().CreateValidatingHandler());
 
         services.AddHostedService<AgentWorker>();
         return services;

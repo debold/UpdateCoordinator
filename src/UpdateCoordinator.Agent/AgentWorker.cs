@@ -28,6 +28,8 @@ internal sealed partial class AgentWorker(
     IUpdateReporter updates,
     IInstallationRunner installation,
     IActionRunner actions,
+    SelfUpdate.AgentSelfUpdater selfUpdate,
+    AutomaticUpdatesManager automaticUpdates,
     ResourceGuard resources,
     IOptions<CentralServerOptions> options,
     TimeProvider timeProvider,
@@ -105,6 +107,7 @@ internal sealed partial class AgentWorker(
                     HostName = environment.HostName,
                     RebootPending = environment.RebootPending,
                     LastBootAt = environment.LastBootAt,
+                    AgentUpdateError = selfUpdate.LastError,
                 },
                 cancellationToken)
             .ConfigureAwait(false);
@@ -128,7 +131,9 @@ internal sealed partial class AgentWorker(
 
         // Each step returns false if the central server no longer accepts the credentials.
         var accepted = await releases.SyncAsync(identity, response, cancellationToken).ConfigureAwait(false)
+            && ApplyAutomaticUpdates()
             && await actions.RunAnnouncedAsync(identity, response, cancellationToken).ConfigureAwait(false)
+            && await selfUpdate.UpdateIfAnnouncedAsync(identity, response, cancellationToken).ConfigureAwait(false)
             && await inventory.ReportIfDueAsync(identity, cancellationToken).ConfigureAwait(false)
             && (response.State != RegistrationState.Approved
                 || (await updates.RunIfDueAsync(identity, cancellationToken).ConfigureAwait(false)
@@ -138,6 +143,21 @@ internal sealed partial class AgentWorker(
         {
             ForgetIdentity(identity);
         }
+    }
+
+    /// <summary>Applies the Automatic Updates setting of the release list; a registry error is logged and never stops the cycle.</summary>
+    private bool ApplyAutomaticUpdates()
+    {
+        try
+        {
+            automaticUpdates.Apply(releases.Current.ManageAutomaticUpdates);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            LogAutomaticUpdatesFailed(ex);
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -173,6 +193,9 @@ internal sealed partial class AgentWorker(
     private static bool IsTlsFailure(Exception ex) => ex is HttpRequestException { InnerException: AuthenticationException };
 
     private static bool IsRecoverable(Exception ex) => ex is not (OutOfMemoryException or StackOverflowException or AccessViolationException);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Changing the Windows Automatic Updates setting failed; the agent tries again with the next cycle.")]
+    private partial void LogAutomaticUpdatesFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Agent {Version} started.")]
     private partial void LogStarted(string version);

@@ -12,7 +12,10 @@
     <SuppressIces>ICE61;ICE60;ICE38;ICE43;ICE57</SuppressIces>
     <PublishDir Condition="'$(PublishDir)' == ''">..\..\artifacts\publish\server</PublishDir>
     <ProductVersion Condition="'$(ProductVersion)' == ''">0.0.0</ProductVersion>
-    <DefineConstants>PublishDir=$(PublishDir);ProductVersion=$(ProductVersion)</DefineConstants>
+    <!-- The agent MSI shipped for download and as the first agent package; empty for a server package without it. -->
+    <AgentMsi Condition="'$(AgentMsi)' == ''"></AgentMsi>
+    <AgentVersion Condition="'$(AgentVersion)' == ''">0.0.0</AgentVersion>
+    <DefineConstants>PublishDir=$(PublishDir);ProductVersion=$(ProductVersion);AgentMsi=$(AgentMsi);AgentVersion=$(AgentVersion)</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

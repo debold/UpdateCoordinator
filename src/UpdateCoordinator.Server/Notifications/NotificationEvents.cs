@@ -19,6 +19,8 @@ internal enum NotificationKind
     LeasesHalted,
     CertificateExpiring,
     CertificateChanged,
+    AgentVersionAvailable,
+    AgentUpdateFailed,
 }
 
 /// <summary>
@@ -72,6 +74,19 @@ internal sealed class NotificationEvents(
 
         var halted = await db.Groups.AsNoTracking().Where(g => g.LeasesHalted).Select(g => new { g.Id, g.Name }).ToListAsync(cancellationToken).ConfigureAwait(false);
         events.AddRange(halted.Select(g => new NotificationEvent($"group.halted:{g.Id}", NotificationKind.LeasesHalted, $"Installations in group {g.Name} stopped after failures; an operator must resume them.", "administration/groups")));
+
+        // A downloaded agent version waits for an administrator; failed self-updates need a look at the server.
+        var packages = await db.AgentPackages.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (UpdateCoordinator.Server.AgentPackages.AgentPackageStore.Newest(packages) is { ReleasedThroughRingOrder: null } waiting)
+        {
+            events.Add(new NotificationEvent($"agent.available:{waiting.Version}", NotificationKind.AgentVersionAvailable, $"Agent version {waiting.Version} is available and waits for release.", "agents"));
+        }
+
+        var failedUpdates = await db.Clients.AsNoTracking()
+            .Where(c => c.State == RegistrationState.Approved && c.AgentUpdateError != null)
+            .Select(c => new { c.Id, c.HostName, c.AgentUpdateError })
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        events.AddRange(failedUpdates.Select(c => new NotificationEvent($"agent.update-failed:{c.Id}", NotificationKind.AgentUpdateFailed, $"Agent update failed on {c.HostName}: {c.AgentUpdateError}", $"servers/{c.Id}")));
 
         var certificate = certificates.Certificate;
         var notAfter = certificate.NotAfter.ToUniversalTime();

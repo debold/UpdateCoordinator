@@ -192,6 +192,49 @@ public sealed class AgentPackageTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task FailedSelfUpdate_IsStoredShownAndNotified()
+    {
+        await using var scenario = new ScenarioClients(_factory);
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        await AddPackageAsync("1.3.0");
+
+        await HeartbeatAsync(scenario.Http, pilot, error: "msiexec ended with exit code 1603.");
+
+        Assert.Equal("msiexec ended with exit code 1603.", await _factory.WithDbAsync(db => db.Clients.Where(c => c.Id == pilot.ClientId).Select(c => c.AgentUpdateError).SingleAsync(TestContext.Current.CancellationToken)));
+        var events = await WithAsync<Notifications.NotificationEvents, List<Notifications.NotificationEvent>>(e => e.CollectAsync(CancellationToken.None));
+        Assert.Contains(events, e => e.Kind == Notifications.NotificationKind.AgentUpdateFailed && e.Text.Contains("PILOT01", StringComparison.Ordinal));
+        Assert.Contains(events, e => e.Kind == Notifications.NotificationKind.AgentVersionAvailable && e.Key == "agent.available:1.3.0");
+
+        using var browser = await LoginAsync(AdminRoles.Operator);
+        using (var page = await browser.GetAsync("/agents"))
+        {
+            Assert.Contains("exit code 1603", await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        // A successful attempt (no error in the heartbeat) clears it.
+        await HeartbeatAsync(scenario.Http, pilot);
+        Assert.Null(await _factory.WithDbAsync(db => db.Clients.Where(c => c.Id == pilot.ClientId).Select(c => c.AgentUpdateError).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Theory]
+    [InlineData("line\nbreak")]
+    [InlineData("bell\u0007")]
+    public async Task Heartbeat_WithInvalidUpdateError_IsRejected(string error)
+    {
+        await using var scenario = new ScenarioClients(_factory);
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(ApiRoutes.AgentHeartbeat, UriKind.Relative))
+        {
+            Content = JsonContent.Create(new HeartbeatRequest { AgentVersion = "1.2.3", AgentUpdateError = error }),
+        };
+        request.Headers.Authorization = AgentCredentials.ToHeader(pilot.ClientId, pilot.ClientSecret);
+
+        using var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Release_OfUnknownVersion_IsRefused()
     {
         var outcome = await WithAsync<AgentPackageAdministration, Outcome>(a => a.ReleaseAsync("9.9.9", AgentPackageAdministration.ReleaseScope.AllRings, "admin", CancellationToken.None));
@@ -360,11 +403,11 @@ public sealed class AgentPackageTests : IAsyncDisposable
         return await action(scope.ServiceProvider.GetRequiredService<TService>());
     }
 
-    private static async Task<HeartbeatResponse> HeartbeatAsync(HttpClient http, RegisterResponse client, string version = "1.2.3")
+    private static async Task<HeartbeatResponse> HeartbeatAsync(HttpClient http, RegisterResponse client, string version = "1.2.3", string? error = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(ApiRoutes.AgentHeartbeat, UriKind.Relative))
         {
-            Content = JsonContent.Create(new HeartbeatRequest { AgentVersion = version }),
+            Content = JsonContent.Create(new HeartbeatRequest { AgentVersion = version, AgentUpdateError = error }),
         };
         request.Headers.Authorization = AgentCredentials.ToHeader(client.ClientId, client.ClientSecret);
         using var response = await http.SendAsync(request, TestContext.Current.CancellationToken);

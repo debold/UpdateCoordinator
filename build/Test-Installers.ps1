@@ -122,7 +122,18 @@ Check 'server keeps certificate setting' { (Get-ItemProperty $serverKey).Certifi
 Check 'server keeps its database' { Test-Path "$env:ProgramData\UpdateCoordinator\Server\server.db" }
 Check 'server runs after upgrade' { Wait-Until { (Invoke-WebRequest $healthUrl -SkipCertificateCheck -UseBasicParsing).StatusCode -eq 200 } 90 }
 
-Check 'agent upgrades' { (Invoke-Msi "/i `"$Version2Directory\UpdateCoordinator.Agent.msi`"" 'agent-upgrade.log') -eq 0 }
+Check 'server ships the agent package' { Test-Path "$env:ProgramFiles\UpdateCoordinator\Server\agent\UpdateCoordinator.Agent-0.2.0.msi" }
+
+# The agent is upgraded from a file named like a download from the central server: address and anchor fingerprint
+# come from the file name, without any installer option.
+$binding = Invoke-RestMethod "https://localhost:$Port/api/v1/trust/binding" -SkipCertificateCheck
+$fingerprint = -join ([System.Security.Cryptography.SHA256]::HashData([Convert]::FromBase64String($binding.anchorPublicKey))[0..15] | ForEach-Object { $_.ToString('x2') })
+$downloaded = Join-Path $renamed "UpdateCoordinator.Agent-0.2.0_localhost_$($Port)_$fingerprint (1).msi"
+Copy-Item "$Version2Directory\UpdateCoordinator.Agent.msi" $downloaded
+Check 'agent upgrades from a downloaded file name' { (Invoke-Msi "/i `"$downloaded`"" 'agent-upgrade.log') -eq 0 }
+Check 'agent address and anchor fingerprint from the file name' {
+    (Get-ItemProperty $agentKey).CentralServerUrl -eq "https://localhost:$Port/" -and (Get-ItemProperty $agentKey).TrustAnchorFingerprint -eq $fingerprint
+}
 Check 'agent version 2 installed once' { (Get-ProductVersion 'UpdateCoordinator Agent') -eq '0.2.0' }
 Check 'agent upgrade replaced the product (new product code)' { (Get-ProductCode 'UpdateCoordinator Agent') -ne $agentCodeV1 }
 Check 'agent keeps its address' { (Get-ItemProperty $agentKey).CentralServerUrl -eq "https://localhost:$Port/" }

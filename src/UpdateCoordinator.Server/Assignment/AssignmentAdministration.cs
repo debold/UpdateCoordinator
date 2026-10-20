@@ -296,6 +296,44 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         return await CompleteAsync(actor, "Reboot.SystemDefaultChanged", "system default", policy.ToString(), null, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>System default: whether agents keep Windows from installing updates on its own (docs/05-agent-design.md, section 3).</summary>
+    public async Task<Outcome> SetSystemManageAutomaticUpdatesAsync(bool manage, string actor, CancellationToken cancellationToken)
+    {
+        var value = manage ? "true" : "false";
+        var setting = await db.Settings.SingleOrDefaultAsync(s => s.Key == SettingEntity.SystemManageAutomaticUpdates, cancellationToken).ConfigureAwait(false);
+        if (setting is null)
+        {
+            db.Settings.Add(new SettingEntity { Key = SettingEntity.SystemManageAutomaticUpdates, Value = value });
+        }
+        else
+        {
+            setting.Value = value;
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return await CompleteAsync(actor, "AutomaticUpdates.SystemDefaultChanged", "system default", manage ? "prevent automatic installation" : "leave unchanged", null, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Sets the Automatic Updates handling of a group; null leaves it to other groups or the system default.</summary>
+    public async Task<Outcome> SetGroupManageAutomaticUpdatesAsync(int groupId, bool? manage, string actor, CancellationToken cancellationToken)
+    {
+        var group = await db.Groups.SingleOrDefaultAsync(g => g.Id == groupId, cancellationToken).ConfigureAwait(false);
+        if (group is null)
+        {
+            return new Outcome("The group no longer exists.");
+        }
+
+        if (group.ManageAutomaticUpdates == manage)
+        {
+            return Outcome.Ok;
+        }
+
+        group.ManageAutomaticUpdates = manage;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        var text = manage switch { true => "prevent automatic installation", false => "leave unchanged", null => "inherited" };
+        return await CompleteAsync(actor, "Group.AutomaticUpdatesChanged", group.Name, text, null, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Sets the reboot policy of a group; null leaves it to other groups or the system default.</summary>
     public async Task<Outcome> SetGroupRebootPolicyAsync(int groupId, RebootPolicy? policy, string actor, CancellationToken cancellationToken)
     {

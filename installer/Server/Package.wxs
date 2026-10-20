@@ -46,7 +46,9 @@
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="ProductFolder" Name="UpdateCoordinator">
-        <Directory Id="INSTALLFOLDER" Name="Server" />
+        <Directory Id="INSTALLFOLDER" Name="Server">
+          <Directory Id="AgentPackageFolder" Name="agent" />
+        </Directory>
       </Directory>
     </StandardDirectory>
 
@@ -57,7 +59,17 @@
       <ComponentRef Id="ServerCertificate" />
       <ComponentRef Id="ServerServiceStart" />
       <ComponentRef Id="DashboardShortcut" />
+      <?if $(var.AgentMsi) != "" ?>
+      <ComponentRef Id="BundledAgentPackage" />
+      <?endif?>
     </Feature>
+
+    <?if $(var.AgentMsi) != "" ?>
+    <!-- The agent installer of the same release: offered for download in the dashboard and the first agent package for updates. -->
+    <Component Id="BundledAgentPackage" Directory="AgentPackageFolder">
+      <File Id="BundledAgentMsi" Source="$(var.AgentMsi)" Name="UpdateCoordinator.Agent-$(var.AgentVersion).msi" KeyPath="yes" />
+    </Component>
+    <?endif?>
 
     <ComponentGroup Id="ServerFiles" Directory="INSTALLFOLDER">
       <Files Include="$(var.PublishDir)\**">

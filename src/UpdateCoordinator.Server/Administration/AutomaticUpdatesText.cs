@@ -5,7 +5,7 @@ namespace UpdateCoordinator.Server.Administration;
 /// <summary>Readable text for the Windows Automatic Updates mode an agent reports.</summary>
 internal static class AutomaticUpdatesText
 {
-    public static string Describe(AutomaticUpdateMode? mode, bool byPolicy)
+    public static string Describe(AutomaticUpdateMode? mode, bool byPolicy, bool managedByAgent = false)
     {
         if (mode is null)
         {
@@ -22,6 +22,6 @@ internal static class AutomaticUpdatesText
             AutomaticUpdateMode.NotifyInstallAndRestart => "notify before install and restart",
             _ => "not configured (Windows Server default: no automatic installation)",
         };
-        return mode == AutomaticUpdateMode.NotConfigured ? text : $"{text} ({(byPolicy ? "group policy" : "local setting")})";
+        return mode == AutomaticUpdateMode.NotConfigured ? text : $"{text} ({(managedByAgent ? "set by UpdateCoordinator" : byPolicy ? "group policy" : "local setting")})";
     }
 }

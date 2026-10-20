@@ -96,8 +96,8 @@ internal sealed class PreFlightCheck(ISystemProbe probe, IDiskSpace disk, IOptio
         return new HealthCheckResult { Name = UpdateSourceCheck, Status = HealthStatus.Warning, Detail = detail.Length <= 512 ? detail : detail[..512] };
     }
     /// <summary>
-    /// Windows installing or restarting on its own bypasses rings and maintenance windows: a warning, since the agent only reads
-    /// the setting and never changes it (see docs/05-agent-design.md, section 3, "Windows Automatic Updates").
+    /// Windows installing or restarting on its own bypasses rings and maintenance windows: a warning, also where the central
+    /// server lets the agent change the setting, because group policy may prevent it (see docs/05-agent-design.md, section 3).
     /// </summary>
     private HealthCheckResult CheckAutomaticUpdates()
     {

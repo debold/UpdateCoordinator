@@ -4,7 +4,7 @@ namespace UpdateCoordinator.Agent.Inventory;
 
 /// <summary>
 /// Reads how Windows itself installs updates: group policy first, then the local setting
-/// (see docs/05-agent-design.md, section 3, "Windows Automatic Updates"). Only reads; the agent never changes these settings.
+/// (see docs/05-agent-design.md, section 3, "Windows Automatic Updates"). Only reads; <see cref="AutomaticUpdatesManager"/> changes the setting when the central server asks for it.
 /// </summary>
 internal static class AutomaticUpdatesReader
 {
@@ -18,7 +18,7 @@ internal static class AutomaticUpdatesReader
         var scheduledRestart = probe.GetRegistryValue(PolicyAuPath, "AlwaysAutoRebootAtScheduledTime") == "1";
         var deadline = probe.GetRegistryValue(PolicyPath, "SetComplianceDeadline") == "1";
         var (mode, byPolicy) = ReadMode(probe);
-        return new AutomaticUpdatesInfo { Mode = mode, ByPolicy = byPolicy, ScheduledRestart = scheduledRestart, Deadline = deadline };
+        return new AutomaticUpdatesInfo { Mode = mode, ByPolicy = byPolicy, ScheduledRestart = scheduledRestart, Deadline = deadline, ManagedByAgent = AutomaticUpdatesManager.IsManagedByAgent(probe) };
     }
 
     private static (AutomaticUpdateMode Mode, bool ByPolicy) ReadMode(ISystemProbe probe)

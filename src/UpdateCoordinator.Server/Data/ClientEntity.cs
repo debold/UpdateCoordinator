@@ -52,6 +52,9 @@ internal sealed class ClientEntity
 
     public bool AutomaticUpdatesByPolicy { get; set; }
 
+    /// <summary>The agent itself set Automatic Updates to option 3 on request of the central server.</summary>
+    public bool AutomaticUpdatesManagedByAgent { get; set; }
+
     /// <summary>Windows installs or restarts on its own (scheduled install, scheduled restart or compliance deadline).</summary>
     public bool AutomaticUpdatesBypass { get; set; }
 
@@ -107,6 +110,9 @@ internal sealed class ClientEntity
 
     /// <summary>Effective reboot policy delivered to the agent.</summary>
     public UpdateCoordinator.Contracts.Agents.RebootPolicy EffectiveRebootPolicy { get; set; }
+
+    /// <summary>Effective setting delivered to the agent: keep Windows from installing updates on its own (docs/05-agent-design.md, section 3).</summary>
+    public bool EffectiveManageAutomaticUpdates { get; set; }
 
     /// <summary>The server is in at least one coordinated group and needs a lease before installing or rebooting.</summary>
     public bool RequiresLease { get; set; }

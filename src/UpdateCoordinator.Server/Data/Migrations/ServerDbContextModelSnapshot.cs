@@ -440,9 +440,15 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<bool>("AutomaticUpdatesBypass")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("AutomaticUpdatesManagedByAgent")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("DomainName")
                         .HasMaxLength(253)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("EffectiveManageAutomaticUpdates")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("EffectiveRebootPolicy")
                         .HasColumnType("INTEGER");
@@ -655,6 +661,9 @@ namespace UpdateCoordinator.Server.Data.Migrations
                     b.Property<string>("MaintenanceWindowsJson")
                         .HasMaxLength(4096)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool?>("ManageAutomaticUpdates")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()

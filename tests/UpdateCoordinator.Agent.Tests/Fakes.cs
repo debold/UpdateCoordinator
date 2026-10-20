@@ -16,7 +16,7 @@ internal sealed class FakeEnvironment : IAgentEnvironment
 
     public string OsVersion => "10.0.20348.2700";
 
-    public string AgentVersion => "1.2.3";
+    public string AgentVersion { get; init; } = "1.2.3";
 
     public bool RebootPending { get; set; }
 

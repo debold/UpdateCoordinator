@@ -99,6 +99,23 @@
     </form>
 </div>
 
+@if (_failed.Count > 0)
+{
+    <Box Title="Failed agent updates" Hint="The agent tries again after six hours; the msiexec log is on the server" Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Server</th><th>Agent</th><th>Error</th></tr></thead>
+                <tbody>
+                    @foreach (var client in _failed)
+                    {
+                        <tr><td><a href="/servers/@client.Id">@client.HostName</a></td><td class="mono">@client.AgentVersion</td><td>@client.AgentUpdateError</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
+}
+
 <Box Title="Agent versions on the servers" Flush="true">
     <div class="scroll">
         <table>
@@ -145,6 +162,7 @@
     private AgentPackageEntity? _newestReleased;
     private AgentPackageCheck? _lastCheck;
     private string _address = string.Empty;
+    private List<ClientEntity> _failed = [];
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -190,6 +208,7 @@
         _newest = AgentPackageStore.Newest(_packages);
         _newestReleased = AgentPackageStore.Newest(_packages.Where(p => p.ReleasedThroughRingOrder is not null));
         _lastCheck = await Administration.GetLastCheckAsync(CancellationToken.None);
+        _failed = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved && c.AgentUpdateError != null).OrderBy(c => c.HostName).Take(200).ToListAsync();
         var versions = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).Select(c => c.AgentVersion).ToListAsync();
         _serversByVersion = versions
             .GroupBy(v => AgentVersion.TryParse(v, out var parsed) ? parsed.ToString() : v)

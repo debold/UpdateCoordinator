@@ -119,6 +119,9 @@ public sealed record AutomaticUpdatesInfo
     /// <summary>A compliance deadline policy forces installation and restart after a deadline.</summary>
     public bool Deadline { get; init; }
 
+    /// <summary>The policy value is the one the agent set on request of the central server (option 3), not group policy.</summary>
+    public bool ManagedByAgent { get; init; }
+
     /// <summary>True if Windows installs or restarts on its own, bypassing rings and maintenance windows.</summary>
     public bool BypassesCoordination() => Mode == AutomaticUpdateMode.ScheduledInstall || ScheduledRestart || Deadline;
 }

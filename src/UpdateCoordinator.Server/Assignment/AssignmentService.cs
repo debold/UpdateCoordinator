@@ -22,6 +22,7 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
         var groups = await db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, cancellationToken).ConfigureAwait(false);
         var systemWindows = await GetSystemWindowsAsync(cancellationToken).ConfigureAwait(false);
         var systemReboot = await GetSystemRebootPolicyAsync(cancellationToken).ConfigureAwait(false);
+        var systemManage = await GetSystemManageAutomaticUpdatesAsync(cancellationToken).ConfigureAwait(false);
 
         var clients = await db.Clients
             .Where(c => clientId == null || c.Id == clientId)
@@ -64,11 +65,16 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
             var json = MaintenanceWindowFormat.ToJson(windows);
             var requiresLease = groupIds.Any(g => groups.TryGetValue(g, out var group) && group.Coordinated);
 
-            if (json != client.EffectiveWindowsJson || reboot != client.EffectiveRebootPolicy || requiresLease != client.RequiresLease)
+            // Automatic Updates: the agent changes a server only if no group says otherwise ("leave unchanged" wins); else the system default.
+            var groupManage = groupIds.Select(g => groups.TryGetValue(g, out var group) ? group.ManageAutomaticUpdates : null).Where(m => m is not null).ToList();
+            var manage = groupManage.Count == 0 ? systemManage : groupManage.All(m => m == true);
+
+            if (json != client.EffectiveWindowsJson || reboot != client.EffectiveRebootPolicy || requiresLease != client.RequiresLease || manage != client.EffectiveManageAutomaticUpdates)
             {
                 client.EffectiveWindowsJson = json;
                 client.EffectiveRebootPolicy = reboot;
                 client.RequiresLease = requiresLease;
+                client.EffectiveManageAutomaticUpdates = manage;
                 client.ReleasesVersion++;
             }
         }
@@ -88,6 +94,14 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
             .ConfigureAwait(false);
         return MaintenanceWindowFormat.FromJson(stored) ?? MaintenanceWindow.SystemDefault;
     }
+
+    /// <summary>System default for Automatic Updates: off (only detect and warn) unless an administrator turned it on.</summary>
+    public async Task<bool> GetSystemManageAutomaticUpdatesAsync(CancellationToken cancellationToken) =>
+        await db.Settings.AsNoTracking()
+            .Where(s => s.Key == SettingEntity.SystemManageAutomaticUpdates)
+            .Select(s => s.Value)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false) == "true";
 
     /// <summary>System default reboot policy; Never unless an administrator changed it.</summary>
     public async Task<RebootPolicy> GetSystemRebootPolicyAsync(CancellationToken cancellationToken)

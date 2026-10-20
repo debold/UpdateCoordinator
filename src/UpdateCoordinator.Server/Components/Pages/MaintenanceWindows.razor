@@ -24,6 +24,7 @@
         </footer>
     </form>
 
+    <div class="stack">
     <form method="post" @formname="reboot" @onsubmit="SaveRebootAsync" class="box">
         <AntiforgeryToken />
         <header class="box-head"><h2>Reboots</h2></header>
@@ -44,17 +45,41 @@
         </div>
         <footer class="box-foot"><span></span><button type="submit" class="primary">Save reboot policy</button></footer>
     </form>
+
+    <form method="post" @formname="automatic-updates" @onsubmit="SaveAutomaticUpdatesAsync" class="box">
+        <AntiforgeryToken />
+        <header class="box-head"><h2>Windows Automatic Updates</h2></header>
+        <div class="box-body form">
+            <label class="field"><span>System default</span>
+                <select name="AutomaticUpdates">
+                    <option value="leave" selected="@(!_manageAutomaticUpdates)">Leave unchanged, only warn</option>
+                    <option value="prevent" selected="@_manageAutomaticUpdates">Keep Windows from installing on its own</option>
+                </select>
+            </label>
+            <p class="note">
+                With "keep Windows from installing on its own" the agent sets "Configure Automatic Updates" to option 3 (download, notify before
+                install) on servers where no group policy controls it, and restores the setting when it is switched off. Group policy always wins.
+                Groups can override this default ("leave unchanged" in one group wins).
+            </p>
+        </div>
+        <footer class="box-foot"><span></span><button type="submit" class="primary">Save</button></footer>
+    </form>
+    </div>
 </div>
 
 @code {
     [SupplyParameterFromForm(FormName = "reboot")]
     private string? Reboot { get; set; }
 
+    [SupplyParameterFromForm(FormName = "automatic-updates")]
+    private string? AutomaticUpdates { get; set; }
+
     [CascadingParameter]
     private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
 
     private IReadOnlyList<MaintenanceWindow> _current = [];
     private RebootPolicy _reboot;
+    private bool _manageAutomaticUpdates;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -75,9 +100,22 @@
         await LoadAsync();
     }
 
+    private async Task SaveAutomaticUpdatesAsync()
+    {
+        var outcome = AutomaticUpdates switch
+        {
+            "prevent" => await Administration.SetSystemManageAutomaticUpdatesAsync(true, await GetActorAsync(), CancellationToken.None),
+            "leave" => await Administration.SetSystemManageAutomaticUpdatesAsync(false, await GetActorAsync(), CancellationToken.None),
+            _ => new Outcome("The Automatic Updates setting is invalid."),
+        };
+        ShowResult(outcome.Error, "The Automatic Updates setting was saved and is delivered to the agents.");
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
         _current = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
         _reboot = await Assignment.GetSystemRebootPolicyAsync(CancellationToken.None);
+        _manageAutomaticUpdates = await Assignment.GetSystemManageAutomaticUpdatesAsync(CancellationToken.None);
     }
 }
