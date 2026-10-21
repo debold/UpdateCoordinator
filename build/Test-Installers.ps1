@@ -70,6 +70,15 @@ $serverKey = 'HKLM:\SOFTWARE\SUSyphos\Server'
 $agentKey = 'HKLM:\SOFTWARE\SUSyphos\Agent'
 $healthUrl = "https://localhost:$Port/health"
 $dashboardShortcut = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\SUSyphos\SUSyphos Dashboard.url"
+# The Start menu link names the machine by its fully qualified DNS name, as Windows keeps it for TCP/IP.
+$tcpip = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters'
+$dashboardHost = if ($tcpip.Domain) { "$($tcpip.Hostname).$($tcpip.Domain)" } else { $tcpip.Hostname }
+function Get-DisplayIcon([string] $Name) {
+    Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' |
+        ForEach-Object { Get-ItemProperty $_.PSPath } |
+        Where-Object { $_.DisplayName -eq $Name } |
+        Select-Object -ExpandProperty DisplayIcon -First 1
+}
 $certificate = New-SelfSignedCertificate -DnsName 'localhost' -CertStoreLocation 'Cert:\LocalMachine\My' -NotAfter (Get-Date).AddDays(7)
 
 # --- Version 1: fresh installation ------------------------------------------------------------------------------
@@ -80,12 +89,18 @@ $serverCodeV1 = Get-ProductCode 'SUSyphos Central Server'
 Check 'server restarts on failure' { (sc.exe qfailure SUSyphos.Server | Out-String) -match 'RESTART' }
 Check 'firewall rule for the port' { (Get-NetFirewallRule -DisplayName 'SUSyphos Central Server (HTTPS)' | Get-NetFirewallPortFilter).LocalPort -eq "$Port" }
 Check 'health endpoint answers' { Wait-Until { (Invoke-WebRequest $healthUrl -SkipCertificateCheck -UseBasicParsing).StatusCode -eq 200 } 90 }
-Check 'start menu entry opens the dashboard' { (Get-Content $dashboardShortcut -Raw) -match "URL=https://$($env:COMPUTERNAME):$Port/" }
+Check 'start menu entry opens the dashboard by the fully qualified name' { (Get-Content $dashboardShortcut -Raw) -match "URL=https://$([regex]::Escape($dashboardHost)):$Port/" }
+Check 'start menu entry shows the SUSyphos icon' {
+    $icon = [regex]::Match((Get-Content $dashboardShortcut -Raw), '(?m)^IconFile=(.+)$').Groups[1].Value.Trim()
+    $icon -like '*\SUSyphos\Server\susyphos.ico' -and (Test-Path $icon)
+}
+Check 'server shows the SUSyphos icon in Programs and Features' { $icon = Get-DisplayIcon 'SUSyphos Central Server'; $icon -and (Test-Path $icon) }
 
 Check 'agent installs' { (Invoke-Msi "/i `"$Version1Directory\SUSyphos.Agent.msi`" SERVERURL=https://localhost:$Port/" 'agent-install.log') -eq 0 }
 Check 'agent service runs' { Wait-Until { (Get-Service SUSyphos.Agent).Status -eq 'Running' } 60 }
 Check 'agent address in registry' { (Get-ItemProperty $agentKey).CentralServerUrl -eq "https://localhost:$Port/" }
 $agentCodeV1 = Get-ProductCode 'SUSyphos Agent'
+Check 'agent shows the SUSyphos icon in Programs and Features' { $icon = Get-DisplayIcon 'SUSyphos Agent'; $icon -and (Test-Path $icon) }
 Check 'agent restarts on failure, also on error exit codes' {
     ((sc.exe qfailure SUSyphos.Agent | Out-String) -match 'RESTART') -and ((sc.exe qfailureflag SUSyphos.Agent | Out-String) -match ':\s*TRUE')
 }
@@ -119,6 +134,8 @@ Start-Service SUSyphos.Server -ErrorAction SilentlyContinue
 Check 'server version 2 installed once' { (Get-ProductVersion 'SUSyphos Central Server') -eq '0.2.0' }
 Check 'server upgrade replaced the product (new product code)' { (Get-ProductCode 'SUSyphos Central Server') -ne $serverCodeV1 }
 Check 'server keeps certificate setting' { (Get-ItemProperty $serverKey).CertificateThumbprint -eq $certificate.Thumbprint }
+Check 'server keeps its port' { (Get-ItemProperty $serverKey).HttpsPort -eq "$Port" -and (Get-ItemProperty $serverKey).HttpsUrl -eq "https://*:$Port" }
+Check 'start menu entry keeps the port' { (Get-Content $dashboardShortcut -Raw) -match "URL=https://$([regex]::Escape($dashboardHost)):$Port/" }
 Check 'server keeps its database' { Test-Path "$env:ProgramData\SUSyphos\Server\server.db" }
 Check 'server runs after upgrade' { Wait-Until { (Invoke-WebRequest $healthUrl -SkipCertificateCheck -UseBasicParsing).StatusCode -eq 200 } 90 }
 

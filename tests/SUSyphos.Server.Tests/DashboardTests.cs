@@ -316,6 +316,91 @@ public sealed class DashboardAuthorizationTests
         Assert.Equal(HttpStatusCode.OK, file.StatusCode);
         Assert.Contains("applyGates", await file.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("/favicon.ico", "image/x-icon")]
+    [InlineData("/susyphos-icon.svg", "image/svg+xml")]
+    [InlineData("/susyphos-mark-white.svg", "image/svg+xml")]
+    public async Task Icons_AreServedWithoutSignIn(string path, string contentType)
+    {
+        await using var factory = new ServerFactory();
+        using var browser = new DashboardClient(factory);
+
+        using var response = await browser.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(contentType, response.Content.Headers.ContentType?.MediaType);
+        var body = await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken);
+        if (contentType == "image/x-icon")
+        {
+            // ICONDIR: reserved 0, type 1 (icon), three images (16, 32 and 48 px).
+            Assert.Equal(new byte[] { 0, 0, 1, 0, 3, 0 }, body[..6]);
+        }
+        else
+        {
+            // Served as images under img-src 'self': no scripts, no external references.
+            var svg = System.Text.Encoding.UTF8.GetString(body);
+            Assert.StartsWith("<svg", svg.TrimStart(), StringComparison.Ordinal);
+            Assert.DoesNotContain("<script", svg, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("href", svg, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
+    public async Task Pages_LinkTheFaviconAndShowTheLogo()
+    {
+        await using var factory = new ServerFactory();
+        using var browser = new DashboardClient(factory);
+
+        using var response = await browser.GetAsync("/login");
+        var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("<link rel=\"icon\" href=\"favicon.ico\"", html, StringComparison.Ordinal);
+        Assert.Contains("<link rel=\"icon\" href=\"susyphos-icon.svg\" type=\"image/svg+xml\"", html, StringComparison.Ordinal);
+        Assert.Contains("<img src=\"susyphos-icon.svg\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Navigation_ShowsTheWhiteMarkAndTheServerVersion()
+    {
+        await using var factory = new ServerFactory();
+        await factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var browser = new DashboardClient(factory);
+        using (await browser.LoginAsync("reader", Password))
+        {
+        }
+
+        using var overview = await browser.GetAsync("/");
+        var html = await overview.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("<img src=\"susyphos-mark-white.svg\"", html, StringComparison.Ordinal);
+        Assert.Contains($"Version {ServerVersion.Display}</span>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("+", ServerVersion.Display, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ServerVersion_IsNotShownBeforeSignIn()
+    {
+        await using var factory = new ServerFactory();
+        using var browser = new DashboardClient(factory);
+
+        using var response = await browser.GetAsync("/login");
+
+        Assert.DoesNotContain($"Version {ServerVersion.Display}", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("0.7.2+3f1c2ab", "0.7.2")]
+    [InlineData("0.7.2-alpha.0.4+3f1c2ab", "0.7.2-alpha.0.4")]
+    [InlineData("0.7.2", "0.7.2")]
+    [InlineData("", "")]
+    [InlineData("+3f1c2ab", "")]
+    public void ServerVersion_DropsTheBuildMetadata(string version, string expected) =>
+        Assert.Equal(expected, ServerVersion.WithoutBuildMetadata(version));
+
+    [Fact]
+    public void ServerVersion_RejectsNull() =>
+        Assert.Throws<ArgumentNullException>(() => ServerVersion.WithoutBuildMetadata(null!));
 }
 
 public sealed class AuditLogTests

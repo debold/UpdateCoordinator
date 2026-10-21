@@ -125,6 +125,10 @@
       <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Agent" Name="TrustAnchorFingerprint" Type="string" Value="[FILENAMEFINGERPRINT]" KeyPath="yes" />
     </Component>
 
+    <!-- The SUSyphos icon in Programs and Features. -->
+    <Icon Id="ProductIcon.ico" SourceFile="..\..\assets\logo\susyphos.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon.ico" />
+
     <!-- Interactive installation: welcome, license, central server address, ready. msiexec /qn needs no dialog. -->
     <WixVariable Id="WixUILicenseRtf" Value="..\License.rtf" />
     <UI Id="AgentUI">

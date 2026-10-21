@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -50,7 +49,7 @@ internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions
         {
             await CopyDatabaseAsync(copy, cancellationToken).ConfigureAwait(false);
 
-            var manifest = new BackupManifest(FormatVersion, timeProvider.GetUtcNow().UtcDateTime, ServerVersion, Convert.ToBase64String(anchor.PublicKey));
+            var manifest = new BackupManifest(FormatVersion, timeProvider.GetUtcNow().UtcDateTime, ServerVersion.Full, Convert.ToBase64String(anchor.PublicKey));
             using (var zip = new ZipArchive(target, ZipArchiveMode.Create, leaveOpen: true))
             {
                 await using (var entry = await zip.CreateEntry(ManifestEntry).OpenAsync(cancellationToken).ConfigureAwait(false))
@@ -195,7 +194,4 @@ internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions
 
     private const int SqliteBusy = 5;
     private const int SqliteLocked = 6;
-
-    private static string ServerVersion =>
-        typeof(BackupService).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
 }

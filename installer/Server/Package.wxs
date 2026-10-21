@@ -1,7 +1,6 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
-     xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall"
-     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+     xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall">
 
   <!--
     Central server installer. Installs the self-contained central server as a Windows service running as LocalSystem.
@@ -59,6 +58,7 @@
       <ComponentRef Id="ServerCertificate" />
       <ComponentRef Id="ServerServiceStart" />
       <ComponentRef Id="DashboardShortcut" />
+      <ComponentRef Id="DashboardShortcutIcon" />
       <?if $(var.AgentMsi) != "" ?>
       <ComponentRef Id="BundledAgentPackage" />
       <?endif?>
@@ -115,31 +115,116 @@
       <ServiceControl Id="ServerServiceStartControl" Name="SUSyphos.Server" Start="install" Wait="no" />
     </Component>
 
-    <!-- Start menu entry that opens the dashboard on this machine. -->
+    <!--
+      Address of this machine for the Start menu link and the final page: the DNS host name and primary DNS suffix as
+      Windows keeps them for TCP/IP (the fully qualified name), or the computer name when they are missing.
+    -->
+    <Property Id="DNSHOSTNAME">
+      <RegistrySearch Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" Name="Hostname" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="DNSDOMAIN">
+      <RegistrySearch Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" Name="Domain" Type="raw" Bitness="always64" />
+    </Property>
+    <SetProperty Id="DASHBOARDHOST" Value="[ComputerName]" After="AppSearch" Sequence="both" Condition="NOT DNSHOSTNAME" />
+    <SetProperty Action="SetDashboardHostName" Id="DASHBOARDHOST" Value="[DNSHOSTNAME]" After="SetDASHBOARDHOST" Sequence="both" Condition="DNSHOSTNAME" />
+    <SetProperty Action="SetDashboardHostDomain" Id="DASHBOARDHOST" Value="[DASHBOARDHOST].[DNSDOMAIN]" After="SetDashboardHostName" Sequence="both" Condition="DNSDOMAIN" />
+
+    <!-- Start menu entry that opens the dashboard on this machine, with the SUSyphos icon (also in Programs and Features). -->
+    <Icon Id="ProductIcon.ico" SourceFile="..\..\assets\logo\susyphos.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon.ico" />
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="ProductMenuFolder" Name="SUSyphos" />
     </StandardDirectory>
     <Component Id="DashboardShortcut" Directory="ProductMenuFolder" Guid="3B7E9A41-6C2D-4F85-9E1A-5D8C2B7F4E63">
-      <util:InternetShortcut Id="DashboardLink" Name="SUSyphos Dashboard" Target="[DASHBOARDURL]" Type="url" />
+      <util:InternetShortcut Id="DashboardLink" Name="SUSyphos Dashboard" Target="[DASHBOARDURL]" Type="url" IconFile="[#DashboardIcon]" IconIndex="0" />
       <RemoveFolder Id="RemoveProductMenuFolder" On="uninstall" />
       <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="DashboardShortcut" Type="integer" Value="1" KeyPath="yes" />
     </Component>
+    <Component Id="DashboardShortcutIcon" Directory="INSTALLFOLDER">
+      <File Id="DashboardIcon" Source="..\..\assets\logo\susyphos.ico" Name="susyphos.ico" KeyPath="yes" />
+    </Component>
 
     <!--
-      Interactive installation: license, progress and a final page with the dashboard address and an option to open it.
-      Port and certificate stay command line options; the defaults (8443, own certificate) need no input.
+      The dashboard address follows the port, which the dialog may change: computed for the execute sequence, and again
+      in the user interface after the installation ran (before the final page), for its text and the option to open the dashboard.
     -->
-    <SetProperty Id="DASHBOARDURL" Value="https://[ComputerName]:[HTTPSPORT]/" After="SetDefaultHttpsPort" Sequence="both" />
-    <SetProperty Id="WixShellExecTarget" Value="[DASHBOARDURL]" After="SetDASHBOARDURL" Sequence="ui" />
-    <SetProperty Id="WIXUI_EXITDIALOGOPTIONALTEXT" After="SetDASHBOARDURL" Sequence="ui"
+    <SetProperty Id="DASHBOARDURL" Value="https://[DASHBOARDHOST]:[HTTPSPORT]/" After="SetDashboardHostDomain" Sequence="execute" />
+    <SetProperty Action="SetDashboardUrlUi" Id="DASHBOARDURL" Value="https://[DASHBOARDHOST]:[HTTPSPORT]/" After="ExecuteAction" Sequence="ui" />
+    <SetProperty Id="WixShellExecTarget" Value="[DASHBOARDURL]" After="SetDashboardUrlUi" Sequence="ui" />
+    <SetProperty Id="WIXUI_EXITDIALOGOPTIONALTEXT" After="SetDashboardUrlUi" Sequence="ui"
                  Value="The dashboard is at [DASHBOARDURL]. On the first visit, create the first administrator with the one-time token from %ProgramData%\SUSyphos\Server\setup-token.txt (readable by administrators only)." />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Open the dashboard" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <CustomAction Id="OpenDashboard" BinaryRef="Wix4UtilCA_X64" DllEntry="WixShellExec" Impersonate="yes" Return="ignore" />
-    <ui:WixUI Id="WixUI_Minimal" />
+
+    <!--
+      Interactive installation: welcome, license, HTTPS port (first installation only: an upgrade keeps the installed
+      port without asking), ready, and a final page with the dashboard address. The certificate stays a command line
+      option; without it the central server creates its own. msiexec /qn needs no dialog.
+    -->
     <WixVariable Id="WixUILicenseRtf" Value="..\License.rtf" />
-    <UI>
-      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="OpenDashboard" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    <UI Id="ServerUI">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+      <TextStyle Id="ServerUI_Font_Error" FaceName="Tahoma" Size="8" Red="200" />
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="Minimal" />
+
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+
+      <!-- The edit field takes digits only (Integer, at most five); the range is checked before going on. -->
+      <Dialog Id="HttpsPortDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}HTTPS port" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="The port agents and administrators connect to." />
+        <Control Id="Intro" Type="Text" X="20" Y="60" Width="330" Height="30" NoPrefix="yes"
+                 Text="The central server accepts the agents and the dashboard over HTTPS on this port. Setup opens it in Windows Firewall." />
+        <Control Id="PortLabel" Type="Text" X="20" Y="96" Width="330" Height="10" NoPrefix="yes" Text="&amp;Port (1 to 65535, default 8443):" />
+        <Control Id="PortEdit" Type="Edit" X="20" Y="108" Width="60" Height="18" Property="HTTPSPORT" Integer="yes" Text="{5}" />
+        <Control Id="Invalid" Type="Text" X="20" Y="130" Width="330" Height="20" NoPrefix="yes" Hidden="yes"
+                 Text="{\ServerUI_Font_Error}Enter a port from 1 to 65535." ShowCondition="HTTPSPORTVALID = &quot;0&quot;" />
+        <Control Id="LaterHint" Type="Text" X="20" Y="186" Width="330" Height="30" NoPrefix="yes"
+                 Text="Agents keep the address they were installed with, so choose the port before installing the first agents. Upgrades keep it." />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Property="HTTPSPORTVALID" Value="0" Order="1" />
+          <Publish Property="HTTPSPORTVALID" Value="1" Order="2" Condition="HTTPSPORT &gt;= 1 AND HTTPSPORT &lt;= 65535" />
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Order="3" Condition="HTTPSPORTVALID = &quot;1&quot;" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg" Condition="NOT Installed" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="Installed AND PATCH" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="HttpsPortDlg" Condition="LicenseAccepted = &quot;1&quot; AND NOT INSTALLEDPORT" />
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Condition="LicenseAccepted = &quot;1&quot; AND INSTALLEDPORT" />
+      <Publish Dialog="HttpsPortDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="HttpsPortDlg" Order="1" Condition="NOT Installed AND NOT INSTALLEDPORT" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" Order="1" Condition="NOT Installed AND INSTALLEDPORT" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2" Condition="Installed AND NOT PATCH" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" Condition="Installed AND PATCH" />
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="OpenDashboard" Order="1" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999" />
+
+      <Property Id="ARPNOMODIFY" Value="1" />
     </UI>
+    <UIRef Id="WixUI_Common" />
   </Package>
 </Wix>

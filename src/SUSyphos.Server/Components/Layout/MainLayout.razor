@@ -6,7 +6,7 @@
     <AuthorizeView Policy="@AdminRoles.Policies.Read">
         <Authorized>
             <nav class="nav" aria-label="Main">
-                <span class="brand">SUSyphos</span>
+                <span class="brand"><img src="susyphos-mark-white.svg" alt="" width="28" height="28" />SUSyphos</span>
                 <NavLink href="/" Match="NavLinkMatch.All">Overview</NavLink>
                 <NavLink href="@($"/rings/{RingEntity.PilotId}")" Match="NavLinkMatch.Prefix">Rings</NavLink>
                 <NavLink href="/servers">Servers</NavLink>
@@ -33,6 +33,7 @@
                     <span class="zone" title="All times in the dashboard are in the time zone of the central server">Times: @DisplayTime.ZoneLabel(DateTime.UtcNow)</span>
                     Signed in as <span class="user">@context.User.Identity?.Name</span>
                     <button type="submit">Sign out</button>
+                    <span class="version" title="@ServerVersion.Full">Version @ServerVersion.Display</span>
                 </form>
             </nav>
         </Authorized>

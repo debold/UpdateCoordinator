@@ -58,7 +58,9 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Shell: navigation rail and content. */
 .shell { display: grid; grid-template-columns: 15rem minmax(0, 1fr); min-height: 100vh; }
 .nav { background: var(--nav); padding: 1.25rem 0.65rem; display: flex; flex-direction: column; gap: 2px; }
-.nav .brand { color: #FFFFFF; font-weight: 650; padding: 0.25rem 0.8rem 1.25rem; }
+.nav .brand { color: #FFFFFF; font-weight: 650; font-size: 1.05rem; padding: 0.25rem 0.8rem 1.25rem; display: flex; align-items: center; gap: 0.6rem; }
+.nav .brand img, .auth-brand img { flex: none; display: block; }
+.nav .account .version { color: #6F7A8A; font-size: 0.75rem; }
 .nav a { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; border-radius: var(--r-sm); color: var(--nav-text); }
 .nav a:hover, .nav a.active { background: var(--nav-hover); color: #FFFFFF; text-decoration: none; }
 .nav .section { color: #8590A0; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 1.1rem 0.8rem 0.4rem; }
@@ -334,7 +336,7 @@ ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem;
 .auth-page { min-height: calc(100vh - 6rem); display: flex; align-items: center; justify-content: center; }
 .auth-card { width: min(30rem, 100%); }
 .auth-card h1 { font-size: 1.4rem; margin: 0; }
-.auth-brand { font-weight: 700; font-size: 1.05rem; }
+.auth-brand { font-weight: 700; font-size: 1.05rem; display: inline-flex; align-items: center; gap: 0.55rem; }
 /* Multi-select: the summary shows the checked options (MultiSelect.razor, at most 64). */
 details.multi .tag.pick { display: none; }
 details.multi:has(input:checked) .placeholder, details.multi:has(.tag.fixed) .placeholder { display: none; }

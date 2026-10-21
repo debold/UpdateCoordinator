@@ -226,7 +226,7 @@ Details in `docs/03-communication-protocol.md`, section 3.2.
 
 ## 9. Web administration (dashboard)
 
-The dashboard runs on the same HTTPS endpoint as the agent API (default `https://<central server>:8443/`). It uses no scripts and no external resources.
+The dashboard runs on the same HTTPS endpoint as the agent API (default `https://<central server>:8443/`). It loads no external resources; its only script is its own file `app.js`, and every page works without it. The navigation shows the SUSyphos logo and, at the bottom, the version of the central server (the full version with the commit as tooltip). Browsers show the SUSyphos icon (`/favicon.ico`, `/susyphos-icon.svg`).
 
 **First start:** as long as no account exists, the central server writes a one-time setup token to `Administration:SetupTokenPath` (default `%ProgramData%\SUSyphos\Server\setup-token.txt`). The file is readable only by SYSTEM, local administrators and the service account; its path is also written to the service log. Open `/setup`, enter the token and create the first administrator. The token file is deleted and the setup is closed for good; a restart with existing accounts never reopens it.
 
@@ -356,10 +356,10 @@ msiexec /i SUSyphos.Server.msi CERTTHUMBPRINT=<thumbprint> HTTPSPORT=8443 /qn /l
 ```
 
 - Installs to `%ProgramFiles%\SUSyphos\Server` and registers the service `SUSyphos.Server` (LocalSystem, automatic start, restart on failure).
-- `CERTTHUMBPRINT` and `HTTPSPORT` (default 8443) are stored under `HKLM\SOFTWARE\SUSyphos\Server` (`CertificateThumbprint`, `HttpsUrl`) and override `appsettings.json`. The service is started right away, with or without a thumbprint.
+- `CERTTHUMBPRINT` and `HTTPSPORT` (1 to 65535, default 8443) are stored under `HKLM\SOFTWARE\SUSyphos\Server` (`CertificateThumbprint`, `HttpsPort`, `HttpsUrl`) and override `appsettings.json`. An upgrade keeps both unless given again on the command line. The service is started right away, with or without a thumbprint.
 - Opens the HTTPS port in the Windows firewall for the service.
-- Interactive installation (double-click): license page, progress and a final page with the dashboard address (`https://<computer name>:<port>/`), the note on the setup token and an option to open the dashboard right away. The defaults need no input; port and certificate are set on the command line when needed.
-- Start menu entry "SUSyphos Dashboard" (all users) that opens the dashboard on this machine.
+- Interactive installation (double-click): welcome, license, the HTTPS port (first installation only, pre-filled with 8443 or the `HTTPSPORT` from the command line; an upgrade keeps the installed port and skips the page), ready, progress and a final page with the dashboard address, the note on the setup token and an option to open the dashboard right away. Choose the port before installing agents: they keep the address they were installed with. The certificate is set on the command line when needed.
+- Start menu entry "SUSyphos Dashboard" (all users, SUSyphos icon) that opens the dashboard by the fully qualified name of this machine: `https://<host>.<primary DNS suffix>:<port>/` from the TCP/IP settings of Windows, or the computer name if the machine has no DNS suffix. Both packages show the SUSyphos icon in Programs and Features.
 - A startup error of the service (e.g. an unreadable trust anchor) is written to the server log as a critical entry before the service ends; service recovery restarts it after 60 seconds.
 - Database, trust anchor, setup token and logs stay under `%ProgramData%\SUSyphos\Server`, also on uninstall. Back them up before removing a server for good.
 
