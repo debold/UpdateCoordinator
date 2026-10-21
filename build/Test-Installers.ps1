@@ -78,7 +78,7 @@ function Get-DisplayIcon([string] $Name) {
     $code = Get-ProductCode $Name
     if (-not $code) { return $null }
     $installer = New-Object -ComObject WindowsInstaller.Installer
-    $installer.GetType().InvokeMember('ProductInfo', 'GetProperty', $null, $installer, @($code, 'ProductIcon'))
+    $installer.GetType().InvokeMember('ProductInfo', 'GetProperty', $null, $installer, @([string]$code, 'ProductIcon'))
 }
 $certificate = New-SelfSignedCertificate -DnsName 'localhost' -CertStoreLocation 'Cert:\LocalMachine\My' -NotAfter (Get-Date).AddDays(7)
 
