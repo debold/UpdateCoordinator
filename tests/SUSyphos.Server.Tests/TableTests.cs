@@ -47,7 +47,7 @@ public sealed class TableTests
         var page = TablePaging.Apply(Items, TableQuery.Parse(address, "name"), Columns, i => i.Name);
 
         Assert.InRange(page.Page, 1, page.Pages);
-        Assert.True(page.Rows.Count <= TableQuery.PageSize);
+        Assert.True(page.Rows.Count <= TableQuery.DefaultPageSize);
     }
 
     [Fact]
@@ -61,6 +61,73 @@ public sealed class TableTests
         Assert.DoesNotContain(query.HiddenFieldsExcept("q"), f => f.Key is "q" or "page");
         Assert.Equal(2, query.HiddenFieldsExcept("q").Count(f => f.Key == "f.ring"));
     }
+
+    [Theory]
+    [InlineData("/x?size=10", 10, 6)]
+    [InlineData("/x?size=100", 60, 1)]
+    [InlineData("/x?size=50", 50, 2)]
+    public void PageSize_ComesFromTheAddress(string address, int rows, int pages)
+    {
+        var page = TablePaging.Apply(Items, TableQuery.Parse(address, "name"), Columns, i => i.Name);
+
+        Assert.Equal(rows, page.Rows.Count);
+        Assert.Equal(pages, page.Pages);
+        Assert.Equal(PageInfo.Of(page).PageSize, TableQuery.Parse(address, "name").PageSize);
+    }
+
+    [Theory]
+    [InlineData("/x?size=7")]
+    [InlineData("/x?size=100000")]
+    [InlineData("/x?size=-10")]
+    [InlineData("/x?size=abc")]
+    public void PageSize_OutsideTheOfferedSizes_FallsBackToTheDefault(string address)
+    {
+        var page = TablePaging.Apply(Items, TableQuery.Parse(address, "name"), Columns, i => i.Name);
+
+        Assert.Equal(TableQuery.DefaultPageSize, page.Rows.Count);
+    }
+
+    [Fact]
+    public void PrefixedTables_KeepTheirOwnView_AndTheViewOfTheOthers()
+    {
+        const string Address = "/servers/1?q=sql&page=2&hist.q=kb5&hist.f.result=Failed&hist.page=3&hist.size=10";
+        var main = TableQuery.Parse(Address, "name");
+        var history = TableQuery.Parse(Address, "time", "hist.");
+
+        Assert.Equal("sql", main.Search);
+        Assert.Equal(2, main.Page);
+        Assert.Equal(TableQuery.DefaultPageSize, main.PageSize);
+        Assert.Empty(main.ActiveFilters);
+        Assert.Equal("kb5", history.Search);
+        Assert.Equal(3, history.Page);
+        Assert.Equal(10, history.PageSize);
+        Assert.Equal([("result", "Failed")], history.ActiveFilters);
+
+        var link = history.PageLink(4);
+        Assert.Contains("hist.page=4", link, StringComparison.Ordinal);
+        Assert.Contains("page=2", link.Replace("hist.page", "x", StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.Contains("q=sql", link, StringComparison.Ordinal);
+
+        var sorted = history.SortLink("time");
+        Assert.Contains("hist.sort=time", sorted, StringComparison.Ordinal);
+        Assert.DoesNotContain("hist.page", sorted, StringComparison.Ordinal);
+        Assert.Contains("&page=2", sorted, StringComparison.Ordinal);
+
+        var hidden = history.HiddenFieldsExcept(history.SearchField).ToList();
+        Assert.DoesNotContain(hidden, f => f.Key is "hist.q" or "hist.page");
+        Assert.Contains(hidden, f => f.Key == "q" && f.Value == "sql");
+        Assert.Contains(hidden, f => f.Key == "page");
+        Assert.Equal("hist.f.result", history.FilterField("result"));
+        Assert.Equal("hist-", history.IdPrefix);
+    }
+
+    [Theory]
+    [InlineData("Hist.")]
+    [InlineData("hist")]
+    [InlineData("a&b.")]
+    [InlineData("toolongprefix.")]
+    public void Prefix_MustBeLowercaseLettersAndADot(string prefix) =>
+        Assert.Throws<ArgumentException>(() => TableQuery.Parse("/x", "name", prefix));
 
     [Fact]
     public void Search_IsCappedAndLiteral()

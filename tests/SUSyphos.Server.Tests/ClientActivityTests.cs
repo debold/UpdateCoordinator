@@ -97,6 +97,64 @@ public sealed class ClientActivityTests
     }
 
     [Fact]
+    public async Task ServerDetail_PagesEachListOnItsOwn()
+    {
+        await using var factory = new ServerFactory();
+        using var http = factory.CreateClient();
+        var client = await RegisterTests.RegisterAsync(http);
+        var start = DateTime.UtcNow.AddHours(-1);
+        await factory.WithDbAsync(async db =>
+        {
+            for (var n = 1; n <= 30; n++)
+            {
+                db.ClientActivities.Add(new ClientActivityEntity { ClientId = client.ClientId, AtUtc = start.AddMinutes(n), Kind = n % 2 == 0 ? ClientActivityKind.Search : ClientActivityKind.Inventory, Detail = $"entry {n:00}" });
+            }
+
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        await factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        // Newest first (the registration, then entry 30), ten rows by default; the list states what it shows.
+        var first = await PageAsync(reader, $"/servers/{client.ClientId}");
+        Assert.Contains("entry 30", first, StringComparison.Ordinal);
+        Assert.Contains("entry 22", first, StringComparison.Ordinal);
+        Assert.DoesNotContain("entry 21", first, StringComparison.Ordinal);
+        Assert.Contains("1–10 of 31 entries", first, StringComparison.Ordinal);
+        Assert.Contains("name=\"act.size\"", first, StringComparison.Ordinal);
+
+        // Page, size, search and filter of the activity list do not touch the other lists.
+        var second = await PageAsync(reader, $"/servers/{client.ClientId}?act.page=2&hist.page=5");
+        Assert.Contains("entry 21", second, StringComparison.Ordinal);
+        Assert.DoesNotContain("entry 22", second, StringComparison.Ordinal);
+        Assert.Contains("hist.page=5", second, StringComparison.Ordinal);
+
+        var all = await PageAsync(reader, $"/servers/{client.ClientId}?act.size=50");
+        Assert.Contains("entry 01", all, StringComparison.Ordinal);
+        Assert.Contains("1–31 of 31 entries", all, StringComparison.Ordinal);
+
+        var searched = await PageAsync(reader, $"/servers/{client.ClientId}?act.q=entry+0&act.f.activity={Uri.EscapeDataString(ClientActivityLog.Label(ClientActivityKind.Search))}");
+        Assert.Contains("entry 08", searched, StringComparison.Ordinal);
+        Assert.DoesNotContain("entry 07", searched, StringComparison.Ordinal);
+        Assert.DoesNotContain("entry 12", searched, StringComparison.Ordinal);
+        Assert.Contains("(filtered from 31)", searched, StringComparison.Ordinal);
+
+        // Values outside the offered page sizes fall back to the default.
+        var invalid = await PageAsync(reader, $"/servers/{client.ClientId}?act.size=100000&act.page=-1");
+        Assert.Contains("1–10 of 31 entries", invalid, StringComparison.Ordinal);
+    }
+
+    private static async Task<string> PageAsync(DashboardClient browser, string path)
+    {
+        using var response = await browser.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return System.Net.WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void EveryKind_HasItsOwnLabel()
     {
         Assert.All(Enum.GetValues<ClientActivityKind>(), kind => Assert.False(string.IsNullOrWhiteSpace(ClientActivityLog.Label(kind))));

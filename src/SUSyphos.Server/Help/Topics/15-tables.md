@@ -36,3 +36,6 @@ Lists with actions for several rows at once (servers, updates, approvals) have a
 ## Pages {#pages}
 
 Long lists are split into pages of 25 rows (50 in the audit log). The line below the list says which rows are shown and how many match ("26–50 of 312 servers", with "filtered from …" when a search or filter hides rows); the page numbers and the arrows move between pages. Search, filters and sorting apply to the whole list, not only to the page.
+
+- **Rows per page**: shows 10, 25, 50 or 100 rows per page. The choice applies at once (without the dashboard script with **Show**) and is part of the address like the rest of the view.
+- **Several lists on one page**, for example on the server detail: each list keeps its own search, filters, sorting, page and page size, so paging through one list does not change the others.

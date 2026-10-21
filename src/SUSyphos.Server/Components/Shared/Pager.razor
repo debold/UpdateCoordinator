@@ -1,6 +1,24 @@
-@* Paging links; a range of pages around the current one. *@
-<div class="pager">
+@* Paging links (a range of pages around the current one) and the number of rows per page. *@
+<div class="pager" data-help="tables#pages">
     <span>@Summary</span>
+    @if (Page.Total > TableQuery.PageSizes[0])
+    {
+        <form method="get" class="page-size">
+            @foreach (var field in Table.HiddenFieldsExcept(Table.SizeField))
+            {
+                <input type="hidden" name="@field.Key" value="@field.Value" />
+            }
+            <label for="@(Table.IdPrefix)page-size">Rows per page</label>
+            <select id="@(Table.IdPrefix)page-size" name="@Table.SizeField" data-auto-submit>
+                @foreach (var size in TableQuery.PageSizes)
+                {
+                    <option value="@size" selected="@(size == Page.PageSize)">@size</option>
+                }
+            </select>
+            @* Without the dashboard script the choice is applied with this button; app.js submits on change and hides it. *@
+            <button type="submit" class="ghost" data-auto-submit-button>Show</button>
+        </form>
+    }
     @if (Page.Pages > 1)
     {
         <nav class="pages" aria-label="Pages">

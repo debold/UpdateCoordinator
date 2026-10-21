@@ -52,8 +52,6 @@ else
 </Box>
 
 @code {
-    private const int PageSize = 50;
-
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["actor"] = "Actor", ["action"] = "Action", ["target"] = "Target" };
 
     private TableQuery _table = default!;
@@ -61,12 +59,12 @@ else
     private IReadOnlyList<FilterOption> _actors = [];
     private IReadOnlyList<FilterOption> _actions = [];
     private IReadOnlyList<FilterOption> _targets = [];
-    private PageInfo _pageInfo = new(1, 1, 0, 0, PageSize);
+    private PageInfo _pageInfo = new(1, 1, 0, 0);
     private long? _broken;
 
     protected override async Task OnInitializedAsync()
     {
-        _table = TableQuery.From(Navigation, "time", defaultDescending: true);
+        _table = TableQuery.From(Navigation, "time", defaultDescending: true, defaultPageSize: 50);
 
         // The audit log grows without limit, so filtering and paging run in the database; values are parameters.
         var all = Db.AuditEntries.AsNoTracking();
@@ -97,10 +95,11 @@ else
 
         var total = await all.CountAsync();
         var matching = await query.CountAsync();
-        var pages = Math.Max(1, (matching + PageSize - 1) / PageSize);
+        var pageSize = _table.PageSize;
+        var pages = Math.Max(1, (matching + pageSize - 1) / pageSize);
         var page = Math.Min(_table.Page, pages);
-        _entries = await query.OrderByDescending(e => e.Id).Skip((page - 1) * PageSize).Take(PageSize).ToListAsync();
-        _pageInfo = new PageInfo(page, pages, matching, total, PageSize);
+        _entries = await query.OrderByDescending(e => e.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        _pageInfo = new PageInfo(page, pages, matching, total, pageSize);
         _actors = await all.GroupBy(e => e.Actor).OrderBy(g => g.Key).Select(g => new FilterOption(g.Key, g.Count())).Take(200).ToListAsync();
         _actions = await all.GroupBy(e => e.Action).OrderBy(g => g.Key).Select(g => new FilterOption(g.Key, g.Count())).Take(200).ToListAsync();
         // The most frequent targets; others are found with the search.

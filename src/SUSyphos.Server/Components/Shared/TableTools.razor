@@ -1,16 +1,16 @@
 @* Search, optional grouping and the active filters as removable chips. *@
 <div class="table-tools" data-help="tables#tools">
     <form method="get" role="search">
-        @foreach (var field in Table.HiddenFieldsExcept("q", "group"))
+        @foreach (var field in Table.HiddenFieldsExcept(Table.SearchField, Table.GroupField))
         {
             <input type="hidden" name="@field.Key" value="@field.Value" />
         }
-        <label class="visually-hidden" for="table-search">Search</label>
-        <input id="table-search" type="search" name="q" value="@Table.Search" maxlength="@TableQuery.MaxSearchLength" placeholder="@Placeholder" />
+        <label class="visually-hidden" for="@(Table.IdPrefix)table-search">Search</label>
+        <input id="@(Table.IdPrefix)table-search" type="search" name="@Table.SearchField" value="@Table.Search" maxlength="@TableQuery.MaxSearchLength" placeholder="@Placeholder" />
         @if (GroupOptions is { Count: > 0 })
         {
-            <label class="visually-hidden" for="table-group">Group by</label>
-            <select id="table-group" name="group">
+            <label class="visually-hidden" for="@(Table.IdPrefix)table-group">Group by</label>
+            <select id="@(Table.IdPrefix)table-group" name="@Table.GroupField">
                 <option value="">No grouping</option>
                 @foreach (var (key, label) in GroupOptions)
                 {

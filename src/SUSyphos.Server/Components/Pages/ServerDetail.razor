@@ -220,26 +220,16 @@ else
     </div>
 
     <Box Title="Missing updates" Anchor="missing" Help="server-detail#missing" Flush="true">
-        <div class="scroll">
-            <table>
-                <thead><tr><th>Update</th><th>Status</th><th>Earliest installation</th><th>Result</th></tr></thead>
-                <tbody>
-                    @if (_open.Count == 0)
-                    {
-                        <tr><td colspan="4" class="note">The last search reported no missing update.</td></tr>
-                    }
-                    @foreach (var (entry, title) in _open)
-                    {
-                        <tr>
-                            <td class="wrap"><a href="/updates/@entry.UpdateId/@entry.Revision">@title</a></td>
-                            <td><span class="pill @DeploymentText.PillClass(entry.State)">@(entry.State == DeploymentState.Queued ? "Not released" : entry.State.ToString())</span></td>
-                            <td class="nowrap">@Format(entry.EarliestInstallAtUtc)</td>
-                            <td>@(entry.HResult is { } hresult ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{hresult:X8}: {SUSyphos.Server.Agents.HResultCatalog.Describe(hresult)}") : null)</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+        <ListTable Table="_openTable" Page="_openPage" Columns="OpenColumns" Search="Search update" Noun="updates" Empty="The last search reported no missing update.">
+            <Row Context="row">
+                <tr>
+                    <td class="wrap"><a href="/updates/@row.Entry.UpdateId/@row.Entry.Revision">@row.Title</a></td>
+                    <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@OpenStatus(row.Entry)</span></td>
+                    <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
+                    <td>@(row.Entry.HResult is { } hresult ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{hresult:X8}: {SUSyphos.Server.Agents.HResultCatalog.Describe(hresult)}") : null)</td>
+                </tr>
+            </Row>
+        </ListTable>
     </Box>
 
     <Box Title="Pre-flight checks" Anchor="checks" Help="server-detail#checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)}" : null)" Flush="true">
@@ -272,40 +262,22 @@ else
     </Box>
 
     <Box Title="Update history" Anchor="history" Help="server-detail#history" Flush="true">
-        <div class="scroll">
-            <table>
-                <thead><tr><th>Finished</th><th>Update</th><th>Source</th><th>Result</th><th>Reboot</th></tr></thead>
-                <tbody>
-                    @if (_history.Count == 0)
-                    {
-                        <tr><td colspan="5" class="note">No installation reported yet.</td></tr>
-                    }
-                    @foreach (var (installation, title) in _history)
-                    {
-                        <tr>
-                            <td class="nowrap">@Format(installation.FinishedAtUtc)</td>
-                            <td class="wrap"><a href="/updates/@installation.UpdateId/@installation.Revision">@title</a></td>
-                            <td>@installation.Source</td>
-                            <td>@ResultText(installation)</td>
-                            <td>@RebootText(installation)</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+        <ListTable Table="_historyTable" Page="_historyPage" Columns="HistoryColumns" Search="Search update" Noun="installations" Empty="No installation reported yet.">
+            <Row Context="row">
+                <tr>
+                    <td class="nowrap">@Format(row.Installation.FinishedAtUtc)</td>
+                    <td class="wrap"><a href="/updates/@row.Installation.UpdateId/@row.Installation.Revision">@row.Title</a></td>
+                    <td>@row.Installation.Source</td>
+                    <td>@ResultText(row.Installation)</td>
+                    <td>@RebootText(row.Installation)</td>
+                </tr>
+            </Row>
+        </ListTable>
     </Box>
 
     <Box Title="Windows Update history" Anchor="windows-history" Help="server-detail#windows-history" Hint="@($"last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days as recorded by Windows, including installations outside SUSyphos; updated with the inventory")" Flush="true">
-        <div class="scroll">
-            <table>
-                <thead><tr><th>Date</th><th>Update</th><th>Operation</th><th>Result</th><th>Started by</th></tr></thead>
-                <tbody>
-                    @if (_windowsHistory.Count == 0)
-                    {
-                        <tr><td colspan="5" class="note">Nothing reported yet; agents from version 0.7 send the history with their inventory.</td></tr>
-                    }
-                    @foreach (var entry in _windowsHistory)
-                    {
+        <ListTable Table="_windowsTable" Page="_windowsPage" Columns="WindowsColumns" Search="Search update" Noun="entries" Empty="Nothing reported yet; agents from version 0.7 send the history with their inventory.">
+            <Row Context="entry">
                         <tr>
                             <td class="nowrap">@Format(entry.DateUtc)</td>
                             <td class="wrap">@entry.Title</td>
@@ -313,45 +285,26 @@ else
                             <td>@UpdateHistoryText.Result(entry.ResultCode, entry.HResult)</td>
                             <td>@if (UpdateHistoryText.IsAgent(entry.ClientApplicationId)) { <span class="pill ok">SUSyphos</span> } else { <span class="pill queue">outside SUSyphos</span> <span>@UpdateHistoryText.Source(entry.ClientApplicationId)</span> }</td>
                         </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+            </Row>
+        </ListTable>
     </Box>
 
     <Box Title="Recent activity" Anchor="activity" Help="server-detail#activity" Hint="@($"what the agent did and reported, newest first; kept for {ClientActivityLog.Retention.TotalDays:0} days, heartbeats are not listed")" Flush="true">
-        <div class="scroll">
-            <table>
-                <thead><tr><th>Time</th><th>Activity</th><th>Detail</th></tr></thead>
-                <tbody>
-                    @if (_activities.Count == 0)
-                    {
-                        <tr><td colspan="3" class="note">No activity recorded yet.</td></tr>
-                    }
-                    @foreach (var entry in _activities)
-                    {
-                        <tr>
-                            <td class="nowrap">@Format(entry.AtUtc)</td>
-                            <td class="nowrap">@ClientActivityLog.Label(entry.Kind)</td>
-                            <td class="wrap">@entry.Detail</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+        <ListTable Table="_activityTable" Page="_activityPage" Columns="ActivityColumns" Search="Search activity or detail" Noun="entries" Empty="No activity recorded yet.">
+            <Row Context="entry">
+                <tr>
+                    <td class="nowrap">@Format(entry.AtUtc)</td>
+                    <td class="nowrap">@ClientActivityLog.Label(entry.Kind)</td>
+                    <td class="wrap">@entry.Detail</td>
+                </tr>
+            </Row>
+        </ListTable>
     </Box>
 
     <Box Title="Remote actions" Help="server-detail#remote-actions" Hint="The agent picks actions up with its next heartbeat; the central server never connects to the agent." Flush="true">
-        <div class="scroll">
-            <table>
-                <thead><tr><th>Requested</th><th>Action</th><th>By</th><th>State</th><th>Detail</th><th></th></tr></thead>
-                <tbody>
-                    @if (_actions.Count == 0)
-                    {
-                        <tr><td colspan="6" class="note">No action requested yet.</td></tr>
-                    }
-                    @foreach (var action in _actions)
-                    {
+        <ListTable Table="_actionTable" Page="_actionPage" Columns="ActionColumns" Search="Search action, user or detail" Noun="actions" Empty="No action requested yet." ExtraColumns="1">
+            <ExtraHeader><th></th></ExtraHeader>
+            <Row Context="action">
                         <tr>
                             <td class="nowrap">@Format(action.RequestedAtUtc)</td>
                             <td>@ActionLabel(action.Kind)</td>
@@ -371,10 +324,8 @@ else
                                 }
                             </td>
                         </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+            </Row>
+        </ListTable>
     </Box>
 
     @if (Dialog == "restart")
@@ -710,7 +661,9 @@ else
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         _memberships = await Db.ClientGroups.AsNoTracking().Where(m => m.ClientId == Id).ToListAsync();
-        _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(20).ToListAsync();
+        _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(MaxHistory).ToListAsync();
+        _actionTable = TableQuery.From(Navigation, "requested", defaultDescending: true, prefix: "ra.", defaultPageSize: 10);
+        _actionPage = TablePaging.Apply(_actions, _actionTable, ActionColumns, a => $"{ActionLabel(a.Kind)} {a.RequestedBy} {a.Detail}");
         if (_client is null)
         {
             return;
@@ -742,6 +695,10 @@ else
             .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
             .Select(e => (e, Title(e.UpdateId, e.Revision)))];
         _history = [.. installations.Select(i => (i, Title(i.UpdateId, i.Revision)))];
+        _openTable = TableQuery.From(Navigation, "status", defaultDescending: true, prefix: "mu.", defaultPageSize: 10);
+        _openPage = TablePaging.Apply(_open, _openTable, OpenColumns, o => o.Title);
+        _historyTable = TableQuery.From(Navigation, "finished", defaultDescending: true, prefix: "hist.", defaultPageSize: 10);
+        _historyPage = TablePaging.Apply(_history, _historyTable, HistoryColumns, h => h.Title);
         _liveUpdates = [.. liveIds.Select(id => updates.Where(u => u.UpdateId == id).MaxBy(u => u.Revision) is { } update ? (id, update.Revision, UpdateText.Title(update, id)) : (id, 0, UpdateText.Title(null, id)))];
 
         // Preview: what the agent installs in the next window (released, not installed, due before the window closes).
@@ -762,10 +719,77 @@ else
             .OrderByDescending(a => a.AtUtc).ThenByDescending(a => a.Id)
             .Take(MaxActivities)
             .ToListAsync();
+        _windowsTable = TableQuery.From(Navigation, "date", defaultDescending: true, prefix: "wu.", defaultPageSize: 10);
+        _windowsPage = TablePaging.Apply(_windowsHistory, _windowsTable, WindowsColumns, h => h.Title);
+        _activityTable = TableQuery.From(Navigation, "time", defaultDescending: true, prefix: "act.", defaultPageSize: 10);
+        _activityPage = TablePaging.Apply(_activities, _activityTable, ActivityColumns, a => $"{ClientActivityLog.Label(a.Kind)} {a.Detail}");
         _externalInstalls = _windowsHistory.Count(h => h.Operation == SUSyphos.Contracts.Agents.UpdateOperation.Installation && !UpdateHistoryText.IsAgent(h.ClientApplicationId));
     }
 
-    private const int MaxHistory = 200;
+    /// <summary>Rows loaded per list; the lists page through them in memory.</summary>
+    private const int MaxHistory = 1000;
+
+    private TableQuery _openTable = default!;
+    private TablePage<(DeploymentEntry Entry, string Title)> _openPage = default!;
+    private TableQuery _historyTable = default!;
+    private TablePage<(InstallationEntity Installation, string Title)> _historyPage = default!;
+    private TableQuery _windowsTable = default!;
+    private TablePage<ClientUpdateHistoryEntity> _windowsPage = default!;
+    private TableQuery _activityTable = default!;
+    private TablePage<ClientActivityEntity> _activityPage = default!;
+    private TableQuery _actionTable = default!;
+    private TablePage<AgentActionEntity> _actionPage = default!;
+
+    private static string OpenStatus(DeploymentEntry entry) => entry.State == DeploymentState.Queued ? "Not released" : entry.State.ToString();
+
+    private static string HResultCode(int? hresult) => hresult is { } value ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{value:X8}") : string.Empty;
+
+    private static readonly IReadOnlyList<TableColumn<(DeploymentEntry Entry, string Title)>> OpenColumns =
+    [
+        new("update", "Update", o => o.Title),
+        new("status", "Status", o => (int)o.Entry.State, o => [OpenStatus(o.Entry)]),
+        new("earliest", "Earliest installation", o => o.Entry.EarliestInstallAtUtc),
+        new("result", "Result", o => o.Entry.HResult, o => [HResultCode(o.Entry.HResult)]),
+    ];
+
+    private IReadOnlyList<TableColumn<(InstallationEntity Installation, string Title)>>? _historyColumns;
+
+    private IReadOnlyList<TableColumn<(InstallationEntity Installation, string Title)>> HistoryColumns => _historyColumns ??=
+    [
+        new("finished", "Finished", h => h.Installation.FinishedAtUtc),
+        new("update", "Update", h => h.Title),
+        new("source", "Source", h => h.Installation.Source.ToString(), h => [h.Installation.Source.ToString()]),
+        new("result", "Result", h => ResultText(h.Installation), h => [ResultText(h.Installation)]),
+        new("reboot", "Reboot", h => RebootKind(h.Installation), h => [RebootKind(h.Installation)]),
+    ];
+
+    private static readonly IReadOnlyList<TableColumn<ClientUpdateHistoryEntity>> WindowsColumns =
+    [
+        new("date", "Date", h => h.DateUtc),
+        new("update", "Update", h => h.Title),
+        new("operation", "Operation", h => h.Operation.ToString(), h => [h.Operation.ToString()]),
+        new("result", "Result", h => UpdateHistoryText.Result(h.ResultCode, h.HResult), h => [UpdateHistoryText.Result(h.ResultCode, h.HResult)]),
+        new("started", "Started by", h => StartedBy(h), h => [StartedBy(h)]),
+    ];
+
+    private static string StartedBy(ClientUpdateHistoryEntity entry) =>
+        UpdateHistoryText.IsAgent(entry.ClientApplicationId) ? "SUSyphos" : UpdateHistoryText.Source(entry.ClientApplicationId);
+
+    private static readonly IReadOnlyList<TableColumn<ClientActivityEntity>> ActivityColumns =
+    [
+        new("time", "Time", a => a.AtUtc),
+        new("activity", "Activity", a => ClientActivityLog.Label(a.Kind), a => [ClientActivityLog.Label(a.Kind)]),
+        new("detail", "Detail", a => a.Detail, Sortable: false),
+    ];
+
+    private static readonly IReadOnlyList<TableColumn<AgentActionEntity>> ActionColumns =
+    [
+        new("requested", "Requested", a => a.RequestedAtUtc),
+        new("action", "Action", a => ActionLabel(a.Kind), a => [ActionLabel(a.Kind)]),
+        new("by", "By", a => a.RequestedBy, a => [a.RequestedBy]),
+        new("state", "State", a => a.State.ToString(), a => [a.State.ToString()]),
+        new("detail", "Detail", a => a.Detail, Sortable: false),
+    ];
 
     /// <summary>One planned task of the agent; Sort orders by time, unknown times ("next heartbeat") first.</summary>
     private sealed record PlannedTask(DateTime Sort, string When, string Kind, string Class, string Detail, IReadOnlyList<(DeploymentEntry Entry, string Title)> Updates);
@@ -946,6 +970,11 @@ else
                 : $"{next.ToString("ddd yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)} server time ({Format(utc)} central server time)";
         }
     }
+
+    /// <summary>Reboot state for the filter, without the time of the restart.</summary>
+    private string RebootKind(InstallationEntity installation) => !installation.RebootRequired
+        ? "No"
+        : _client?.LastBootAtUtc is { } boot && boot > installation.FinishedAtUtc ? "Required, restarted" : "Required, pending";
 
     private string RebootText(InstallationEntity installation) => !installation.RebootRequired
         ? "No"

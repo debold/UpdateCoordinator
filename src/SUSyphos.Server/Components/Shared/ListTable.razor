@@ -1,0 +1,70 @@
+@typeparam TRow
+@* A list with search, column filters, sorting, pages and page size from the address (TableQuery); the page supplies
+   the cells of each row. Headers come from the columns, so a list is declared once. *@
+@if (Page.Total > 0 && Search is not null)
+{
+    <TableTools Table="Table" Placeholder="@Search" Labels="TablePaging.Labels(Columns)" GroupOptions="GroupOptions" />
+}
+<div class="scroll">
+    <table>
+        <thead>
+            <tr>
+                @foreach (var column in Columns)
+                {
+                    <SortHeader Table="Table" Column="@column.Key" Label="@column.Label" Sortable="column.Sortable" Class="@column.Class" Options="@(Page.Total > 0 ? Page.Options.GetValueOrDefault(column.Key) : null)" />
+                }
+                @ExtraHeader
+            </tr>
+        </thead>
+        <tbody>
+            @if (Page.Rows.Count == 0)
+            {
+                <tr><td colspan="@(Columns.Count + ExtraColumns)" class="note">@(Page.Total == 0 ? Empty : "Nothing matches the search or filters.")</td></tr>
+            }
+            @foreach (var row in Page.Rows)
+            {
+                @Row(row)
+            }
+        </tbody>
+    </table>
+</div>
+@if (Page.Total > 0)
+{
+    <Pager Table="Table" Page="PageInfo.Of(Page)" Noun="@Noun" />
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public TableQuery Table { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public TablePage<TRow> Page { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<TableColumn<TRow>> Columns { get; set; } = [];
+
+    /// <summary>Cells of one row, including the &lt;tr&gt;.</summary>
+    [Parameter, EditorRequired]
+    public RenderFragment<TRow> Row { get; set; } = default!;
+
+    /// <summary>Placeholder of the search field; null for a list without search bar.</summary>
+    [Parameter]
+    public string? Search { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<(string Key, string Label)>? GroupOptions { get; set; }
+
+    /// <summary>Text when the list has no rows at all.</summary>
+    [Parameter]
+    public string Empty { get; set; } = "No entries yet.";
+
+    [Parameter]
+    public string Noun { get; set; } = "entries";
+
+    /// <summary>Header cells after the columns, e.g. an empty one for row buttons.</summary>
+    [Parameter]
+    public RenderFragment? ExtraHeader { get; set; }
+
+    [Parameter]
+    public int ExtraColumns { get; set; }
+}

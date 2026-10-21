@@ -138,6 +138,10 @@
             applyGates();
         }
 
+        if (target instanceof HTMLSelectElement && target.hasAttribute('data-auto-submit') && target.form) {
+            target.form.requestSubmit();
+        }
+
         const picker = target.closest('.window-picker');
         if (picker) {
             updatePicker(picker);
@@ -152,6 +156,10 @@
 
     for (const search of document.querySelectorAll('.filter-search')) {
         search.hidden = false;
+    }
+
+    for (const button of document.querySelectorAll('[data-auto-submit-button]')) {
+        button.hidden = true;
     }
 
     // First setup opened by the installer: the token comes after # in the address, so it is never sent to the server or

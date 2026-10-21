@@ -8,31 +8,56 @@ namespace SUSyphos.Server.Components;
 
 /// <summary>
 /// State of a dashboard table taken from the address: search (<c>q</c>), sort (<c>sort</c>, <c>dir</c>), page
-/// (<c>page</c>), grouping (<c>group</c>) and column filters (<c>f.&lt;column&gt;</c>, repeatable). Every view is a
-/// link that can be bookmarked and shared, and no script is needed. Values are only compared with known values,
+/// (<c>page</c>), grouping (<c>group</c>) and column filters (<c>f.&lt;column&gt;</c>, repeatable) and page size (<c>size</c>). Every view is a
+/// link that can be bookmarked and shared, and no script is needed. A page with several tables gives each a prefix
+/// (e.g. <c>hist.</c>), so each keeps its own view and the links of one keep the view of the others. Values are only compared with known values,
 /// never interpreted, so an unknown or manipulated value simply matches nothing.
 /// </summary>
 public sealed class TableQuery
 {
-    public const int PageSize = 25;
+    public const int DefaultPageSize = 25;
     public const int MaxSearchLength = 200;
     private const string FilterPrefix = "f.";
 
+    /// <summary>Page sizes offered below every table.</summary>
+    public static readonly IReadOnlyList<int> PageSizes = [10, 25, 50, 100];
+
     private readonly string _path;
     private readonly Dictionary<string, StringValues> _values;
+    private readonly string _prefix;
 
-    private TableQuery(string path, Dictionary<string, StringValues> values, string defaultSort, bool defaultDescending = false)
+    private TableQuery(string path, Dictionary<string, StringValues> values, string defaultSort, bool defaultDescending, string prefix, int defaultPageSize)
     {
+        if (prefix.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(prefix, "^[a-z]{1,10}\\.$"))
+        {
+            throw new ArgumentException("A table prefix is a few lowercase letters and a dot.", nameof(prefix));
+        }
+
         _path = path;
         _values = values;
-        var sort = Get("sort");
+        _prefix = prefix;
+        var sort = Get(Key("sort"));
         Sort = string.IsNullOrEmpty(sort) ? defaultSort : sort;
-        Descending = Get("dir") is { } dir ? dir == "desc" : string.IsNullOrEmpty(sort) && defaultDescending;
-        Page = int.TryParse(Get("page"), NumberStyles.None, CultureInfo.InvariantCulture, out var page) && page > 0 ? page : 1;
-        var search = Get("q")?.Trim();
+        Descending = Get(Key("dir")) is { } dir ? dir == "desc" : string.IsNullOrEmpty(sort) && defaultDescending;
+        Page = int.TryParse(Get(Key("page")), NumberStyles.None, CultureInfo.InvariantCulture, out var page) && page > 0 ? page : 1;
+        PageSize = int.TryParse(Get(Key("size")), NumberStyles.None, CultureInfo.InvariantCulture, out var size) && PageSizes.Contains(size) ? size : defaultPageSize;
+        var search = Get(Key("q"))?.Trim();
         Search = string.IsNullOrEmpty(search) ? null : search.Length > MaxSearchLength ? search[..MaxSearchLength] : search;
-        Group = Get("group");
+        Group = Get(Key("group"));
     }
+
+    /// <summary>Rows per page: one of <see cref="PageSizes"/>.</summary>
+    public int PageSize { get; }
+
+    /// <summary>Name of the search field in the address.</summary>
+    public string SearchField => Key("q");
+
+    public string GroupField => Key("group");
+
+    public string SizeField => Key("size");
+
+    /// <summary>Prefix of this table in ids of the page, e.g. "hist-" (empty for the only table of a page).</summary>
+    public string IdPrefix => _prefix.Replace(".", "-", StringComparison.Ordinal);
 
     public string? Search { get; }
 
@@ -47,49 +72,54 @@ public sealed class TableQuery
     /// <param name="navigation">Current address.</param>
     /// <param name="defaultSort">Column sorted by when the address names none.</param>
     /// <param name="defaultDescending">True to list the default column newest or largest first.</param>
-    public static TableQuery From(NavigationManager navigation, string defaultSort, bool defaultDescending = false)
+    /// <param name="prefix">Prefix of the address values when a page has several tables, e.g. "hist."; empty for one table.</param>
+    /// <param name="defaultPageSize">Rows per page when the address names none.</param>
+    public static TableQuery From(NavigationManager navigation, string defaultSort, bool defaultDescending = false, string prefix = "", int defaultPageSize = DefaultPageSize)
     {
         ArgumentNullException.ThrowIfNull(navigation);
         var uri = new Uri(navigation.Uri);
-        return new TableQuery(uri.AbsolutePath, QueryHelpers.ParseQuery(uri.Query), defaultSort, defaultDescending);
+        return new TableQuery(uri.AbsolutePath, QueryHelpers.ParseQuery(uri.Query), defaultSort, defaultDescending, prefix, defaultPageSize);
     }
 
     /// <summary>For tests and pages that build a query from known values.</summary>
-    public static TableQuery Parse(string pathAndQuery, string defaultSort)
+    public static TableQuery Parse(string pathAndQuery, string defaultSort, string prefix = "")
     {
+        ArgumentNullException.ThrowIfNull(pathAndQuery);
         var index = pathAndQuery.IndexOf('?', StringComparison.Ordinal);
         return index < 0
-            ? new TableQuery(pathAndQuery, [], defaultSort)
-            : new TableQuery(pathAndQuery[..index], QueryHelpers.ParseQuery(pathAndQuery[index..]), defaultSort);
+            ? new TableQuery(pathAndQuery, [], defaultSort, false, prefix, DefaultPageSize)
+            : new TableQuery(pathAndQuery[..index], QueryHelpers.ParseQuery(pathAndQuery[index..]), defaultSort, false, prefix, DefaultPageSize);
     }
 
     public string? Get(string key) => _values.TryGetValue(key, out var value) ? value.ToString() : null;
 
     /// <summary>Selected values of a column filter; empty means no filter.</summary>
     public IReadOnlyList<string> Filter(string column) =>
-        _values.TryGetValue(FilterPrefix + column, out var values) ? [.. values.Where(v => !string.IsNullOrEmpty(v)).Select(v => v!).Distinct(StringComparer.Ordinal)] : [];
+        _values.TryGetValue(FilterField(column), out var values) ? [.. values.Where(v => !string.IsNullOrEmpty(v)).Select(v => v!).Distinct(StringComparer.Ordinal)] : [];
 
     public IEnumerable<(string Column, string Value)> ActiveFilters =>
-        _values.Where(p => p.Key.StartsWith(FilterPrefix, StringComparison.Ordinal))
-            .SelectMany(p => Filter(p.Key[FilterPrefix.Length..]).Select(v => (p.Key[FilterPrefix.Length..], v)));
+        _values.Where(p => p.Key.StartsWith(_prefix + FilterPrefix, StringComparison.Ordinal))
+            .Select(p => p.Key[(_prefix.Length + FilterPrefix.Length)..])
+            .SelectMany(column => Filter(column).Select(v => (column, v)));
 
-    public static string FilterField(string column) => FilterPrefix + column;
+    /// <summary>Name of a column filter in the address.</summary>
+    public string FilterField(string column) => _prefix + FilterPrefix + column;
 
     public string SortLink(string column) =>
         With(values =>
         {
             var descending = Sort == column && !Descending;
-            values["sort"] = column;
-            values["dir"] = descending ? "desc" : "asc";
-            values.Remove("page");
+            values[Key("sort")] = column;
+            values[Key("dir")] = descending ? "desc" : "asc";
+            values.Remove(Key("page"));
         });
 
-    public string PageLink(int page) => With(values => values["page"] = page.ToString(CultureInfo.InvariantCulture));
+    public string PageLink(int page) => With(values => values[Key("page")] = page.ToString(CultureInfo.InvariantCulture));
 
     public string WithoutFilter(string column, string value) =>
         With(values =>
         {
-            var key = FilterPrefix + column;
+            var key = FilterField(column);
             var remaining = Filter(column).Where(v => v != value).ToArray();
             if (remaining.Length == 0)
             {
@@ -100,14 +130,14 @@ public sealed class TableQuery
                 values[key] = remaining;
             }
 
-            values.Remove("page");
+            values.Remove(Key("page"));
         });
 
     public string WithFilter(string column, params string[] filterValues) =>
         With(values =>
         {
-            values[FilterPrefix + column] = filterValues;
-            values.Remove("page");
+            values[FilterField(column)] = filterValues;
+            values.Remove(Key("page"));
         });
 
     public string With(string key, string? value) =>
@@ -123,10 +153,16 @@ public sealed class TableQuery
             }
         });
 
-    /// <summary>Hidden fields that keep the rest of the view when a GET form changes some of it.</summary>
+    /// <summary>
+    /// Hidden fields that keep the rest of the view (and the views of other tables on the page) when a GET form changes
+    /// some of it; <paramref name="keys"/> are full names in the address, e.g. <see cref="SearchField"/>. The page of
+    /// this table starts over.
+    /// </summary>
     public IEnumerable<KeyValuePair<string, string>> HiddenFieldsExcept(params string[] keys) =>
-        _values.Where(p => !keys.Contains(p.Key) && p.Key != "page")
+        _values.Where(p => !keys.Contains(p.Key) && p.Key != Key("page"))
             .SelectMany(p => p.Value.Where(v => v is not null).Select(v => new KeyValuePair<string, string>(p.Key, v!)));
+
+    private string Key(string name) => _prefix + name;
 
     private string With(Action<Dictionary<string, StringValues>> change)
     {
@@ -142,25 +178,28 @@ public sealed class TableQuery
 /// <param name="Label">Header text.</param>
 /// <param name="SortKey">Value used for sorting.</param>
 /// <param name="FilterValues">Values used for filtering and grouping (several for e.g. group memberships); null if the column has no filter.</param>
-public sealed record TableColumn<T>(string Key, string Label, Func<T, IComparable?> SortKey, Func<T, IReadOnlyList<string>>? FilterValues = null)
+/// <param name="Class">CSS class of the header cell, e.g. "n" for numbers.</param>
+/// <param name="Sortable">False for a column that is only shown (e.g. details); its sort key is never used.</param>
+public sealed record TableColumn<T>(string Key, string Label, Func<T, IComparable?> SortKey, Func<T, IReadOnlyList<string>>? FilterValues = null, string? Class = null, bool Sortable = true)
 {
     /// <summary>Group a row belongs to when the list is grouped by this column: its first filter value.</summary>
     public string GroupKey(T row) => FilterValues?.Invoke(row) is [var first, ..] ? first : string.Empty;
 }
 
 /// <summary>One page of rows after search, filters and sorting, with the filter options and their counts.</summary>
-public sealed record TablePage<T>(IReadOnlyList<T> Rows, int Matching, int Total, int Page, int Pages, IReadOnlyDictionary<string, IReadOnlyList<FilterOption>> Options);
+public sealed record TablePage<T>(IReadOnlyList<T> Rows, int Matching, int Total, int Page, int Pages, IReadOnlyDictionary<string, IReadOnlyList<FilterOption>> Options, int PageSize = TableQuery.DefaultPageSize);
 
 public sealed record FilterOption(string Value, int Count);
 
 public static class TablePaging
 {
     /// <summary>Applies a table query to rows in memory (the dashboard handles thousands of servers, not millions).</summary>
-    public static TablePage<T> Apply<T>(IReadOnlyList<T> rows, TableQuery query, IReadOnlyList<TableColumn<T>> columns, Func<T, string> searchText, int pageSize = TableQuery.PageSize)
+    public static TablePage<T> Apply<T>(IReadOnlyList<T> rows, TableQuery query, IReadOnlyList<TableColumn<T>> columns, Func<T, string> searchText)
     {
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(columns);
+        var pageSize = query.PageSize;
         IEnumerable<T> filtered = rows;
         if (query.Search is { } search)
         {
@@ -176,7 +215,7 @@ public static class TablePaging
             }
         }
 
-        var sort = columns.FirstOrDefault(c => c.Key == query.Sort) ?? columns[0];
+        var sort = columns.FirstOrDefault(c => c.Key == query.Sort && c.Sortable) ?? columns[0];
 
         // Grouped lists are ordered by group first, so a group is not split across pages.
         var group = columns.FirstOrDefault(c => c.Key == query.Group && c.FilterValues is not null);
@@ -194,7 +233,14 @@ public static class TablePaging
             c => c.Key,
             c => (IReadOnlyList<FilterOption>)[.. rows.SelectMany(r => c.FilterValues!(r).Distinct(StringComparer.Ordinal)).GroupBy(v => v, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.CurrentCulture).Select(g => new FilterOption(g.Key, g.Count()))]);
 
-        return new TablePage<T>([.. matching.Skip((page - 1) * pageSize).Take(pageSize)], matching.Count, rows.Count, page, pages, options);
+        return new TablePage<T>([.. matching.Skip((page - 1) * pageSize).Take(pageSize)], matching.Count, rows.Count, page, pages, options, pageSize);
+    }
+
+    /// <summary>Labels of the filterable columns, for the filter chips.</summary>
+    public static IReadOnlyDictionary<string, string> Labels<T>(IReadOnlyList<TableColumn<T>> columns)
+    {
+        ArgumentNullException.ThrowIfNull(columns);
+        return columns.Where(c => c.FilterValues is not null).ToDictionary(c => c.Key, c => c.Label, StringComparer.Ordinal);
     }
 
     private sealed class NullSafeComparer : IComparer<IComparable?>

@@ -101,7 +101,7 @@
 
     /// <summary>Address of the server list filtered to the given values of one column.</summary>
     public static string Link(string column, params string[] values) =>
-        "/servers?" + string.Join("&", values.Select(v => $"{Uri.EscapeDataString(TableQuery.FilterField(column))}={Uri.EscapeDataString(v)}"));
+        "/servers?" + string.Join("&", values.Select(v => $"{Uri.EscapeDataString("f." + column)}={Uri.EscapeDataString(v)}"));
 
     private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, string AgentVersion, ServerHealthState Health, int Pending, DateTime? LastHeartbeat);
 
