@@ -23,7 +23,7 @@ Which start rule started the rollout and when, or, before a rollout, which rule 
 One row per ring:
 
 - **State**: *Waiting* (the previous ring has not met its transition rule yet), *Released*, *Waiting for manual release* (gate), *Alarm* with the reason, or nothing when the rollout has not reached the ring.
-- **Released**: when the update was released to the ring.
+- **Released**: when the update was released to the ring. For rings the rollout has not reached yet it shows the **expected** time: from the release of the last reached ring plus the minimum waits of the transitions (all servers report at once) to the same plus the maximum waits (a good success rate without full feedback). **manual approval** marks a ring that needs an operator on the way. It is an estimate: low feedback, alarms and gates change it, and rings behind an alarm or an open gate show none.
 - **Feedback**: share of the targeted servers of the ring that reported a result (reported / targeted).
 - **Success**: share of successful installations among the results. The last result per server counts, so a successful retry replaces a failure.
 - **Status (servers)**: the servers of the ring by state. Click the ring to see them one by one.

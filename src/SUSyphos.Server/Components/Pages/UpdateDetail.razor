@@ -91,7 +91,20 @@ else
                             <tr>
                                 <td class="nowrap"><a href="/rings/@ring.RingId?update=@Key&tab=update">@ring.Order · @ring.Name</a></td>
                                 <td><span class="pill @RingStateClass(ring.State)">@RingStateLabel(ring)</span></td>
-                                <td class="nowrap">@Format(ring.ReleasedAtUtc)</td>
+                                <td class="nowrap">
+                                    @if (ring.ReleasedAtUtc is not null || ring.Forecast is null)
+                                    {
+                                        @Format(ring.ReleasedAtUtc)
+                                    }
+                                    else
+                                    {
+                                        <span class="note" title="Estimate from the wait times of the ring transitions; low feedback, alarms and gates change it">expected @ForecastText(ring.Forecast.Value)</span>
+                                        @if (ring.Forecast.Value.ManualApproval)
+                                        {
+                                            <div><span class="pill queue">manual approval</span></div>
+                                        }
+                                    }
+                                </td>
                                 <td class="n">@Percent(ring.Statistics.FeedbackPercent) <span class="note">(@ring.Statistics.Reported/@ring.Statistics.Targeted)</span></td>
                                 <td class="n">@Percent(ring.Statistics.SuccessPercent)</td>
                                 <td><StackedBar Counts="@ring.Counts" /></td>
@@ -155,7 +168,11 @@ else
 
 @code {
 
-    private sealed record RingRow(int RingId, int Order, string Name, RingRolloutState? State, string? Reason, DateTime? ReleasedAtUtc, RingStatistics Statistics, DeploymentCounts Counts);
+    private sealed record RingRow(int RingId, int Order, string Name, RingRolloutState? State, string? Reason, DateTime? ReleasedAtUtc, RingStatistics Statistics, DeploymentCounts Counts, RingForecast? Forecast = null);
+
+    /// <summary>"2026-10-22 22:49 to 2026-10-27 22:49", or one time when both are the same.</summary>
+    private static string ForecastText(RingForecast forecast) =>
+        forecast.EarliestUtc == forecast.LatestUtc ? $"from {Format(forecast.EarliestUtc)}" : $"{Format(forecast.EarliestUtc)} to {Format(forecast.LatestUtc)}";
 
     /// <summary>State of the update on one server, as the server table shows it.</summary>
     private enum ServerUpdateStatus
@@ -299,12 +316,14 @@ else
         entries = [.. entries.Where(e => e.Revision == Revision)];
         _total = DeploymentCounts.Of(entries);
 
+        var transitions = await Db.RingTransitions.AsNoTracking().ToDictionaryAsync(t => t.FromRingId);
+        var forecasts = _rollout?.State == RolloutState.Active ? RolloutForecast.Estimate(rings, transitions, states) : new Dictionary<int, RingForecast>();
         _ringRows = [];
         foreach (var ring in rings)
         {
             var state = states.GetValueOrDefault(ring.Id);
             var statistics = await Rollouts.GetStatisticsAsync(UpdateId, Revision, ring.Id, CancellationToken.None);
-            _ringRows.Add(new RingRow(ring.Id, ring.Order, ring.Name, state?.State, state?.Reason, state?.ReleasedAtUtc, statistics, DeploymentCounts.Of(entries.Where(e => e.RingId == ring.Id))));
+            _ringRows.Add(new RingRow(ring.Id, ring.Order, ring.Name, state?.State, state?.Reason, state?.ReleasedAtUtc, statistics, DeploymentCounts.Of(entries.Where(e => e.RingId == ring.Id)), forecasts.TryGetValue(ring.Id, out var forecast) ? forecast : null));
         }
 
         // Every approved server gets a row: from its deployment entry, else installed per inventory, else not needed.
