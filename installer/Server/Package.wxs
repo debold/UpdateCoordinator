@@ -48,7 +48,8 @@
       installation creates it (or SETUPTOKEN comes from the command line), shows it on the port page to copy, opens the
       setup with it from the final page, and hands it to the central server through a registry key that only SYSTEM and
       administrators can read (protected ACL). The central server deletes the key once the first administrator exists.
-      Hidden: the value never appears in the installer log.
+      Hidden: the value never appears in the installer log, which is why a custom action writes the key (the Registry
+      table would log the value in clear text).
     -->
     <Property Id="SETUPTOKEN" Secure="yes" Hidden="yes" />
     <Property Id="SETUPTOKENCOPY" Hidden="yes" />
@@ -58,12 +59,12 @@
     <InstallUISequence>
       <Custom Action="CreateSetupToken" After="AppSearch" Condition="NOT Installed AND NOT INSTALLEDPORT" />
     </InstallUISequence>
-    <Component Id="SetupToken" Directory="INSTALLFOLDER" Condition="SETUPTOKEN" Guid="6D2A4F81-3B9C-4E57-A0D8-1C7E5B9F2A43">
-      <RegistryKey Root="HKLM" Key="SOFTWARE\SUSyphos\Server\Setup" ForceCreateOnInstall="yes">
-        <PermissionEx Sddl="D:PAI(A;;KA;;;SY)(A;;KA;;;BA)" />
-        <RegistryValue Name="Token" Type="string" Value="[SETUPTOKEN]" KeyPath="yes" />
-      </RegistryKey>
-    </Component>
+    <Property Id="WriteSetupToken" Hidden="yes" />
+    <SetProperty Id="WriteSetupToken" Value="[SETUPTOKEN]" Before="WriteSetupToken" Sequence="execute" Condition="SETUPTOKEN AND NOT REMOVE~=&quot;ALL&quot;" />
+    <CustomAction Id="WriteSetupToken" BinaryRef="InstallerCustomActions" DllEntry="WriteSetupToken" Execute="deferred" Impersonate="no" HideTarget="yes" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="WriteSetupToken" After="WriteRegistryValues" Condition="SETUPTOKEN AND NOT REMOVE~=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="ProductFolder" Name="SUSyphos">
@@ -81,8 +82,7 @@
       <ComponentRef Id="ServerServiceStart" />
       <ComponentRef Id="DashboardShortcut" />
       <ComponentRef Id="DashboardShortcutIcon" />
-      <ComponentRef Id="SetupToken" />
-      <?if $(var.AgentMsi) != "" ?>
+     <?if $(var.AgentMsi) != "" ?>
       <ComponentRef Id="BundledAgentPackage" />
       <?endif?>
     </Feature>
@@ -126,6 +126,8 @@
     <Component Id="ServerSettings" Directory="INSTALLFOLDER" Guid="5E0B9C1A-3F2D-4B8E-A7C6-1D4E9F2B6A30">
       <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="HttpsPort" Type="string" Value="[HTTPSPORT]" KeyPath="yes" />
       <RegistryValue Root="HKLM" Key="SOFTWARE\SUSyphos\Server" Name="HttpsUrl" Type="string" Value="https://*:[HTTPSPORT]" />
+      <!-- A setup token the central server did not use yet (written by WriteSetupToken). -->
+      <RemoveRegistryKey Root="HKLM" Key="SOFTWARE\SUSyphos\Server\Setup" Action="removeOnUninstall" />
     </Component>
 
     <Component Id="ServerCertificate" Directory="INSTALLFOLDER" Condition="CERTTHUMBPRINT" Guid="0B6E4D2F-9A3C-4E71-8D5B-2C7F1A9E3D60">

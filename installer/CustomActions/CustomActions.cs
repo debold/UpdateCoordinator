@@ -1,4 +1,7 @@
+using System.Security.AccessControl;
 using System.Security.Cryptography;
+
+using Microsoft.Win32;
 
 using SUSyphos.Contracts.Installation;
 
@@ -107,5 +110,66 @@ public static class CustomActions
         }
 
         return ActionResult.Success;
+    }
+
+    /// <summary>
+    /// Deferred, elevated: writes the setup token from CustomActionData to HKLM\SOFTWARE\SUSyphos\Server\Setup with an ACL that
+    /// lets only SYSTEM and administrators in (protected, no inheritance). A custom action instead of the Registry table,
+    /// because Windows Installer writes registry values in clear text to its log, also for hidden properties. A failure is
+    /// logged and ignored: the central server then creates its own token in its token file.
+    /// </summary>
+    [CustomAction]
+    public static ActionResult WriteSetupToken(Session session)
+    {
+        if (session is null)
+        {
+            return ActionResult.Success;
+        }
+
+        try
+        {
+            var token = session.CustomActionData.ToString();
+            if (!IsWellFormedToken(token))
+            {
+                session.Log("The setup token is malformed (32 to 128 letters, digits, - or _) and was not written.");
+                return ActionResult.Success;
+            }
+
+            var security = new RegistrySecurity();
+            security.SetSecurityDescriptorSddlForm("D:PAI(A;;KA;;;SY)(A;;KA;;;BA)");
+            using (var machine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
+            using (var key = machine.CreateSubKey(@"SOFTWARE\SUSyphos\Server\Setup", RegistryKeyPermissionCheck.ReadWriteSubTree, security))
+            {
+                key.SetAccessControl(security);
+                key.SetValue("Token", token, RegistryValueKind.String);
+            }
+
+            session.Log("Wrote the setup token for the central server.");
+        }
+        catch (Exception exception) when (exception is InstallerException or UnauthorizedAccessException or System.Security.SecurityException or System.IO.IOException)
+        {
+            session.Log("Writing the setup token failed; the central server creates its own: " + exception.Message);
+        }
+
+        return ActionResult.Success;
+    }
+
+    /// <summary>The token format the central server accepts (SetupService.IsWellFormed).</summary>
+    private static bool IsWellFormedToken(string token)
+    {
+        if (token is null || token.Length < 32 || token.Length > 128)
+        {
+            return false;
+        }
+
+        foreach (var c in token)
+        {
+            if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_'))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
