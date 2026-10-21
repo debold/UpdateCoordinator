@@ -1,6 +1,6 @@
-# Groups {#top}
+# Server groups {#top}
 
-Groups bundle servers, for example the domain controllers or the nodes of a cluster, and give them their own maintenance windows, reboot policy and settings, and optionally coordinate their installations so that not all members install and restart at the same time. Members without group settings use the system defaults from [Maintenance windows](help/maintenance-windows). Administrators only.
+Server groups bundle servers, for example the domain controllers or the nodes of a cluster, and give them their own maintenance windows, reboot policy and settings, and optionally coordinate their installations so that not all members install and restart at the same time. Members without group settings use the system defaults from [Maintenance windows](help/maintenance-windows). Administrators only.
 
 Servers join a group by hand on their [details page](help/server-detail#groups) or through [assignment rules](help/assignment-rules). A server can be in several groups.
 

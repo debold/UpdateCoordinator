@@ -20,7 +20,7 @@ Snapshots before the first installation make it easy to repeat updates.
 2. Install: `msiexec /i SUSyphos.Server.msi CERTTHUMBPRINT=<thumbprint> /qn /l*v server.log`, or without `CERTTHUMBPRINT` for the own certificate. Alternatively double-click the MSI: the final page shows the dashboard address and can open it. The own certificate and the installer interface need version 0.2.0 or newer.
 3. Check: service `SUSyphos.Server` runs; `https://uc01.lab.local:8443/health` answers; firewall rule "SUSyphos Central Server (HTTPS)" exists; Start menu entry "SUSyphos Dashboard" opens the dashboard.
 4. Open `https://uc01.lab.local:8443/setup`, enter the token from `%ProgramData%\SUSyphos\Server\setup-token.txt` (readable by administrators only) and create the first administrator. The token file disappears.
-5. Administration → Users: create an Operator and a Reader account for the role tests.
+5. Administration → Identity: create an Operator and a Reader account for the role tests.
 
 ## 3. Agents
 

@@ -10,7 +10,7 @@ The default windows for every server that has no windows of its own and is in no
 
 ## The window editor {#editor}
 
-The same editor for maintenance windows is used here, for [groups](help/groups) and for [single servers](help/server-detail#windows). Each row is one window:
+The same editor for maintenance windows is used here, for [server groups](help/groups) and for [single servers](help/server-detail#windows). Each row is one window:
 
 - **weekday** buttons (Mo to Su): the days on which the window starts. Select at least one.
 - **from** and **to**: start and end in half-hour steps, 24-hour clock. "to 24:00" ends at midnight; an end before the start runs into the next day.

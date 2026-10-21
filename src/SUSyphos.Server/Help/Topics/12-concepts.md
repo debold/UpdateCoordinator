@@ -32,7 +32,7 @@ A released update installs only inside a maintenance window of the server, in th
 
 ## Groups and coordination {#groups}
 
-Groups give servers common settings and, when **coordinated**, make sure that only a part of the group installs and restarts at the same time, for example domain controllers or cluster nodes ([Groups](help/groups)).
+Groups give servers common settings and, when **coordinated**, make sure that only a part of the group installs and restarts at the same time, for example domain controllers or cluster nodes ([Server groups](help/groups)).
 
 ## Assignment {#assignment}
 

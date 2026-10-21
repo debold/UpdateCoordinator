@@ -5,7 +5,7 @@ How to get into the dashboard: with a local account, with your Windows account, 
 ## Sign in {#sign-in}
 
 - **User name** and **Password** of a local account, then **Sign in**. After five failed attempts the account is locked for 15 minutes; the message does not say whether the name or the password was wrong.
-- **Sign in with Windows**: shown when Windows sign-in is switched on ([Users](help/users#windows)). On a computer in the domain the browser signs you in with your Windows account without a password; otherwise it asks for your Windows credentials. Your role comes from your AD groups; if you are in no mapped group, sign-in is refused.
+- **Sign in with Windows**: shown when Windows sign-in is switched on ([Identity](help/users#windows)). On a computer in the domain the browser signs you in with your Windows account without a password; otherwise it asks for your Windows credentials. Your role comes from your AD groups; if you are in no mapped group, sign-in is refused.
 
 The session ends after 8 hours without activity, or with **Sign out** at the bottom of the navigation. The navigation also shows the version of the central server. All times in the dashboard are in the time zone of the central server.
 

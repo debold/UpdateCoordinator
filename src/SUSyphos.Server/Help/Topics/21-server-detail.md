@@ -66,7 +66,7 @@ Whether the agent may restart the server after installing updates:
 Groups the server belongs to by hand; tick them in the drop-down.
 
 ![The drop-down of the groups field with the groups to tick](help-images/server-groups-dropdown.png)
- Groups added by an [assignment rule](help/assignment-rules) are shown with "(rule)" and cannot be removed here. Groups give servers common settings (reboots, maintenance windows, Microsoft Update) and coordinate installations, see [Groups](help/groups).
+ Groups added by an [assignment rule](help/assignment-rules) are shown with "(rule)" and cannot be removed here. Groups give servers common settings (reboots, maintenance windows, Microsoft Update) and coordinate installations, see [Server groups](help/groups).
 
 ### Maintenance windows {#windows}
 

@@ -5,16 +5,16 @@
 @inject ServerDbContext Db
 @inject AssignmentAdministration Administration
 
-<PageTitle>Groups</PageTitle>
+<PageTitle>Server groups</PageTitle>
 
-<PageHeader Title="Groups" Subtitle="Groups bundle servers, e.g. domain controllers or a cluster, with their own maintenance windows, reboot policy and coordination. Without settings, members use the system default." Help="groups" Crumbs="@([("Administration", null), ("Groups", null)])" />
+<PageHeader Title="Server groups" Subtitle="Server groups bundle servers, e.g. domain controllers or a cluster, with their own maintenance windows, reboot policy and coordination. Without settings, members use the system default." Help="groups" Crumbs="@([("Administration", null), ("Server groups", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <ActionBand>
     <a class="btn primary" href="@Path?dialog=new">New group</a>
 </ActionBand>
 
-<Box Title="Groups" Help="groups#list" Flush="true">
+<Box Title="Server groups" Help="groups#list" Flush="true">
     <div class="scroll">
         <table>
             <thead><tr><th>Name</th><th>Description</th><th class="n">Members</th><th>Maintenance windows</th><th>Reboots</th><th>Coordination</th><th class="n">Actions</th></tr></thead>

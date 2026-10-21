@@ -262,7 +262,7 @@ Only if both checks pass is the server approved, recorded in the audit log as ac
 
 **Rings:** every server is in exactly one ring. Out of the box the rings are `Pilot`, `Test` and `Production`. Administration → Release rules (role `Admin`) adds rings (always before the final ring, at most 10), renames them and deletes rings without servers and without assignment rules. The last ring is the **final ring**: it is deployed last, cannot be deleted and is the fallback for servers without manual or rule-based ring.
 
-**Groups:** Administration → Groups (role `Admin`). A group bundles servers, e.g. domain controllers, with its own maintenance windows, reboot policy and coordination (leases). New and edit use the same dialog.
+**Server groups:** Administration → Server groups (role `Admin`). A group bundles servers, e.g. domain controllers, with its own maintenance windows, reboot policy and coordination (leases). New and edit use the same dialog.
 
 **Assignment rules:** Administration → Assignment rules (role `Admin`). A rule has a priority, a target (a ring or a group) and up to three conditions, all of which must match: detected roles (chosen from a list; the rule matches servers with any of the selected roles), DNS domain and host name pattern (`*` any characters, `?` one character, case-insensitive). Rules can be edited.
 
@@ -386,9 +386,9 @@ msiexec /i SUSyphos.Agent.msi SERVERURL=https://central.example.local:8443/ /qn 
 
 ## 18. Accounts and removing servers
 
-**Users** (Administration → Users, role `Admin`): create accounts with one role, change the role, set a new password, lock, unlock and delete. Your own account cannot be locked or deleted, and the last active administrator can neither lose the Admin role nor be locked or deleted. A role change, lock or new password ends the sessions of that account within a minute. Every change is audited.
+**Identity** (Administration → Identity, role `Admin`): create accounts with one role, change the role, set a new password, lock, unlock and delete. Your own account cannot be locked or deleted, and the last active administrator can neither lose the Admin role nor be locked or deleted. A role change, lock or new password ends the sessions of that account within a minute. Every change is audited.
 
-**Sign-in with Windows (Active Directory)**, next to the local accounts (Administration → Users, box "Active Directory sign-in", role `Admin`):
+**Sign-in with Windows (Active Directory)**, next to the local accounts (Administration → Identity, box "Active Directory sign-in", role `Admin`):
 
 1. Requirements: the central server is a member of the domain and is opened by its FQDN (e.g. `https://susyphos.lab.local:8443/`). The service runs as LocalSystem, so Kerberos uses the computer account; for a DNS alias register an SPN once: `setspn -S HTTP/<alias> <COMPUTERNAME>`. The HTTPS endpoint speaks HTTP/1.1 (`Kestrel:Endpoints:Https:Protocols` = `Http1`), because Windows sign-in does not work over HTTP/2.
 2. Map AD groups to roles: enter the group as `DOMAIN\Group` (or its SID) and pick Reader, Operator or Admin. The SID is stored, so renaming the group does no harm. A user in several mapped groups gets the highest role; a user in none cannot sign in.

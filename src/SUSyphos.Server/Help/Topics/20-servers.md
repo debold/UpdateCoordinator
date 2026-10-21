@@ -18,7 +18,7 @@ The action is queued and each agent runs it with its next heartbeat (every 10 se
 | **Server** | Host name, with the DNS domain below it. The filter of this column filters by domain. |
 | **Operating system** | Windows version and edition, with the build number including the update revision (UBR) below it, for example 10.0.20348.4294. Sorted by build. |
 | **Ring** | The ring the server belongs to. "manual" below it: the ring was set by hand on the server's page and no assignment rule changes it. "–": no ring yet. |
-| **Groups** | The groups the server belongs to (coordination of installations, see [Groups](help/groups)). |
+| **Groups** | The groups the server belongs to (coordination of installations, see [Server groups](help/groups)). |
 | **Agent** | Version of the SUSyphos agent on the server; the full version is in the tooltip. |
 | **Status** | See below. |
 | **Pending** | Number of released updates the server still has to install. Its filter offers "Updates pending" and "Up to date". |

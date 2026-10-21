@@ -1,6 +1,6 @@
-# Users {#top}
+# Identity {#top}
 
-The accounts that can sign in to the dashboard: local accounts and accounts that sign in with Windows (Active Directory). Administrators only.
+Who may use the dashboard: local accounts, accounts that sign in with Windows (Active Directory) and the AD groups that give them their role. Administrators only. (AD groups here decide who signs in; groups of servers are [Server groups](help/groups).)
 
 ## Roles {#roles}
 
