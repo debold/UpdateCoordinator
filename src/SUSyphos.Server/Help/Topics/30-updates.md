@@ -26,6 +26,6 @@ All actions are recorded in the update's timeline and the [audit log](help/audit
 | **Severity** | Microsoft's severity (Critical, Important, Moderate, Low) where Microsoft gives one. |
 | **Restart** | Restart behaviour as Windows Update reports it: *No restart*, *May restart*, *Restart required*, or *Unknown* (reported before agents sent it). Start rules can use it as a condition. |
 | **First reported** | When a server reported it as missing for the first time. |
-| **Rollout** | *Queued* (no rollout yet), *Started* (waiting for the first ring), *Rolling out* (released up to the ring named below), *Released to all rings*, *Waiting at gate* (a manual gate waits for approval), *Alarm* (stopped before a ring, with the reason) or *Stopped*. |
+| **Rollout** | *Queued* (no rollout yet), *Started* (waiting for the first ring), *Rolling out* (released up to the ring named below), *Released to all rings*, *Waiting at gate* (a manual gate waits for approval), *Alarm* (stopped before a ring, with the reason), *Stopped* or *Superseded* (a newer update replaces it; "by KBâ€¦" names it). A superseded update with a running rollout keeps its state and shows "superseded by KBâ€¦" below it. |
 | **Missing** | Number of servers that still report it as missing. |
 | **Status** | The ring of successful installations among all servers concerned, with "installed / total". The colours are explained below the list. |

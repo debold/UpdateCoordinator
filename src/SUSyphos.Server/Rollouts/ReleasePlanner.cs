@@ -9,6 +9,8 @@ namespace SUSyphos.Server.Rollouts;
 /// Derives the releases of clients from the rollout state: an approved client gets an update when the active rollout
 /// released it for the client's ring and the client reported it as missing. A release stays until the update is
 /// reported as installed, so late install reports are still accepted. A change bumps the release version.
+/// An update superseded by another update the client gets or has installed is withdrawn for that client, so each
+/// ring gets the newer update as soon as it is released there and keeps the older one until then.
 /// </summary>
 internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvider)
 {
@@ -32,6 +34,14 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
                 .ConfigureAwait(false))
             .ToDictionary(r => (r.UpdateId, r.Revision, r.RingId), r => r.ReleasedAtUtc ?? DateTime.MinValue);
 
+        var releasedIds = released.Keys.Select(k => k.UpdateId).Distinct().ToList();
+        var supersededBy = (await db.UpdateSupersedence.AsNoTracking()
+                .Where(s => releasedIds.Contains(s.SupersededUpdateId))
+                .Select(s => new { s.SupersededUpdateId, s.UpdateId, s.Revision })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToLookup(s => s.SupersededUpdateId, s => (s.UpdateId, s.Revision));
+
         var spreads = await db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.SpreadHours, cancellationToken).ConfigureAwait(false);
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var ids = clients.Select(c => c.Id).ToList();
@@ -54,6 +64,12 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
                     {
                         desired[(updateId, revision)] = releasedAt + SpreadOffset(client.Id, updateId, spreads.GetValueOrDefault(ring));
                     }
+                }
+
+                var covered = desired.Keys.Concat(installed[client.Id]).ToHashSet();
+                foreach (var key in desired.Keys.Where(k => supersededBy[k.Item1].Any(covered.Contains)).ToList())
+                {
+                    desired.Remove(key);
                 }
             }
 

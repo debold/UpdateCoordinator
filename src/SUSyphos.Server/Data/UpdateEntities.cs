@@ -1,6 +1,19 @@
 namespace SUSyphos.Server.Data;
 
 /// <summary>
+/// An update replaces another (Windows Update "SupersededUpdateIDs"): <see cref="UpdateId"/> and <see cref="Revision"/>
+/// supersede every revision of <see cref="SupersededUpdateId"/>. From update reports.
+/// </summary>
+internal sealed class UpdateSupersedenceEntity
+{
+    public Guid UpdateId { get; set; }
+
+    public int Revision { get; set; }
+
+    public Guid SupersededUpdateId { get; set; }
+}
+
+/// <summary>
 /// Update catalog entry, aggregated from agent reports (see docs/01-architecture.md, section 5).
 /// Identified by update ID and revision.
 /// </summary>

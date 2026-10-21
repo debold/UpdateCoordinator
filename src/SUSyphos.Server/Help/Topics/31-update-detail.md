@@ -1,6 +1,8 @@
 # Update details {#top}
 
-One update with its rollout through the rings and its state on every server. The line under the title shows classification, severity, revision and when it was first reported; the tag next to the title shows the rollout state as in the [update list](help/updates#columns).
+One update with its rollout through the rings and its state on every server. The line under the title shows classification, severity, revision, restart behaviour and when it was first reported; the tag next to the title shows the rollout state as in the [update list](help/updates#columns).
+
+When a newer update replaces this one (Windows Update supersedence), a note names it. Each ring then gets the newer update as soon as it is released there: servers that get the newer one no longer get this one, the others keep it. Once the newer update has reached every ring this one reached, this rollout stops by itself ("Rollout stopped: superseded by â€¦" in the timeline).
 
 ## Actions for this update {#actions}
 

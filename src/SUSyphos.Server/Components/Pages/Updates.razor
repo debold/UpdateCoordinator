@@ -181,6 +181,8 @@
             ? await Db.Updates.AsNoTracking().Where(u => u.ArchivedAtUtc != null).Take(MaxRows).ToListAsync()
             : await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId) && u.ArchivedAtUtc == null).ToListAsync();
         var counts = (await Deployment.GetAsync(null, null, null, CancellationToken.None)).ToLookup(e => (e.UpdateId, e.Revision));
+        var listedIds = updates.Select(u => u.UpdateId).ToList();
+        var supersededBy = await Supersedence.NewerAsync(Db, listedIds);
 
         List<Row> rows = [.. updates
             .Where(u => ShowArchived || keys.Contains((u.UpdateId, u.Revision)))
@@ -189,6 +191,17 @@
             {
                 var key = (u.UpdateId, u.Revision);
                 var (rollout, cls, detail) = Describe(rollouts.GetValueOrDefault(key), ringStates[key].ToList(), rings);
+                if (supersededBy.TryGetValue(u.UpdateId, out var newer))
+                {
+                    // Replaced by a newer update: marked; without a running rollout it is not offered any more.
+                    if (rollouts.GetValueOrDefault(key) is not { State: RolloutState.Active })
+                    {
+                        (rollout, cls) = ("Superseded", "neutral");
+                    }
+
+                    detail = detail is null ? $"by {newer}" : $"{detail}; superseded by {newer}";
+                }
+
                 return new Row(
                     u.UpdateId,
                     u.Revision,

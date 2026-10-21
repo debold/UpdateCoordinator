@@ -18,10 +18,14 @@
 }
 else
 {
-    <PageHeader Title="@UpdateText.Title(_update, UpdateId)" Icon="@PageIcons.Updates" Subtitle="@($"{_update.Classification ?? "Unclassified"}{(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}")} · revision {Revision} · first reported {Format(_update.FirstSeenAtUtc)}")" Help="update-detail" Crumbs="@([("Updates", "/updates"), (_update.KbArticle is null ? "Update" : $"KB{_update.KbArticle}", null)])">
+    <PageHeader Title="@UpdateText.Title(_update, UpdateId)" Icon="@PageIcons.Updates" Subtitle="@($"{_update.Classification ?? "Unclassified"}{(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}")} · revision {Revision} · {UpdateText.Restart(_update.RebootBehavior).ToLowerInvariant()} · first reported {Format(_update.FirstSeenAtUtc)}")" Help="update-detail" Crumbs="@([("Updates", "/updates"), (_update.KbArticle is null ? "Update" : $"KB{_update.KbArticle}", null)])">
         <span class="pill @_stateClass">@_stateLabel</span>
     </PageHeader>
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
+    @if (_supersededBy is not null)
+    {
+        <p class="notice">Superseded by @_supersededBy: Windows Update offers the newer update instead. Each ring gets the newer one as soon as it is released there, and this rollout stops once the newer one reached every ring this one reached.</p>
+    }
 
     <ActionBand>
         @if (_canOperate)
@@ -247,6 +251,7 @@ else
     private bool _canOperate;
     private UpdateEntity? _update;
     private RolloutEntity? _rollout;
+    private string? _supersededBy;
     private string _stateLabel = string.Empty;
     private string _stateClass = "neutral";
     private DeploymentCounts _total = DeploymentCounts.Empty;
@@ -298,6 +303,7 @@ else
         }
 
         _rollout = await Db.Rollouts.AsNoTracking().SingleOrDefaultAsync(r => r.UpdateId == UpdateId && r.Revision == Revision);
+        _supersededBy = (await Supersedence.NewerAsync(Db, [UpdateId])).GetValueOrDefault(UpdateId);
         (_stateLabel, _stateClass) = _rollout switch
         {
             null => ("Queued: no rollout", "queue"),
@@ -404,6 +410,7 @@ else
         "Rollout.Stopped" => "Rollout stopped",
         "Rollout.Override" => "Released to every ring (manual override)",
         "Rollout.RingApproved" => $"Approved: {entry.Details}",
+        "Rollout.Superseded" => $"Rollout stopped: {entry.Details}",
         _ => entry.Action,
     };
 

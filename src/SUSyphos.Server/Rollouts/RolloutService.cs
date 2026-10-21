@@ -201,10 +201,66 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
             }
         }
 
+        changes += await StopSupersededAsync(cancellationToken).ConfigureAwait(false);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await releases.SyncAsync(null, cancellationToken).ConfigureAwait(false);
         return changes;
     }
+
+    /// <summary>
+    /// Stops the rollout of a superseded update once an active rollout of an update that replaces it is released in every
+    /// ring the older one reached (Marc, 2026-10-21). Until then each ring keeps the older update; the release planner
+    /// already withdraws it per server where the newer one arrives. Does not save.
+    /// </summary>
+    private async Task<int> StopSupersededAsync(CancellationToken cancellationToken)
+    {
+        var active = await db.Rollouts.Where(r => r.State == RolloutState.Active).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var ids = active.Select(r => r.UpdateId).Distinct().ToList();
+        var pairs = await db.UpdateSupersedence.AsNoTracking()
+            .Where(s => ids.Contains(s.SupersededUpdateId) && ids.Contains(s.UpdateId))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (pairs.Count == 0)
+        {
+            return 0;
+        }
+
+        var activeKeys = active.Select(r => (r.UpdateId, r.Revision)).ToHashSet();
+        var reached = (await db.RolloutRings.AsNoTracking()
+                .Where(r => r.State == RingRolloutState.Released && ids.Contains(r.UpdateId))
+                .Select(r => new { r.UpdateId, r.Revision, r.RingId })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToLookup(r => (r.UpdateId, r.Revision), r => r.RingId);
+
+        var stopped = 0;
+        foreach (var old in active)
+        {
+            var oldRings = reached[(old.UpdateId, old.Revision)].ToHashSet();
+            var newer = pairs
+                .Where(p => p.SupersededUpdateId == old.UpdateId && activeKeys.Contains((p.UpdateId, p.Revision)) && p.UpdateId != old.UpdateId)
+                .FirstOrDefault(p => oldRings.IsSubsetOf(reached[(p.UpdateId, p.Revision)]));
+            if (oldRings.Count == 0 || newer is null)
+            {
+                continue;
+            }
+
+            old.State = RolloutState.Stopped;
+            var updates = await db.Updates.AsNoTracking()
+                .Where(u => (u.UpdateId == old.UpdateId && u.Revision == old.Revision) || (u.UpdateId == newer.UpdateId && u.Revision == newer.Revision))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            string Name(Guid id, int revision) => updates.FirstOrDefault(u => u.UpdateId == id && u.Revision == revision) is { } u ? Describe(u.KbArticle, u.Title, id, revision) : id.ToString("D");
+            await audit.WriteAsync(RuleActor, "Rollout.Superseded", Name(old.UpdateId, old.Revision), "superseded by " + Name(newer.UpdateId, newer.Revision), cancellationToken).ConfigureAwait(false);
+            LogSuperseded(old.UpdateId, old.Revision, newer.UpdateId, newer.Revision);
+            stopped++;
+        }
+
+        return stopped;
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Rollout of {UpdateId} revision {Revision} stopped: superseded by {NewerId} revision {NewerRevision}, which reached every ring it had reached.")]
+    private partial void LogSuperseded(Guid updateId, int revision, Guid newerId, int newerRevision);
 
     /// <summary>Results of the servers currently in a ring for one update.</summary>
     public async Task<RingStatistics> GetStatisticsAsync(Guid updateId, int revision, int ringId, CancellationToken cancellationToken)

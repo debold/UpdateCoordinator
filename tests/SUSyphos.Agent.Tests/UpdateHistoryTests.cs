@@ -56,3 +56,20 @@ public sealed class UpdateHistoryTests
         Assert.Null((await collector.CollectAsync(TestContext.Current.CancellationToken)).UpdateHistory);
     }
 }
+
+public sealed class SupersededIdsTests
+{
+    [Fact]
+    public void AgentReport_KeepsOnlyValidDistinctForeignIds()
+    {
+        var self = Guid.NewGuid();
+        var other = Guid.NewGuid();
+
+        var ids = WireFormat.Superseded([other.ToString(), "not-a-guid", self.ToString(), other.ToString().ToUpperInvariant(), Guid.Empty.ToString()], self);
+
+        Assert.Equal([other], ids);
+        Assert.Null(WireFormat.Superseded([], self));
+        Assert.Null(WireFormat.Superseded(null, self));
+        Assert.Equal(AvailableUpdate.MaxSupersededUpdates, WireFormat.Superseded([.. Enumerable.Range(0, 600).Select(_ => Guid.NewGuid().ToString())], self)!.Count);
+    }
+}

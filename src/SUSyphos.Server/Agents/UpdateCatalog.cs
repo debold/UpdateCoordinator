@@ -22,6 +22,11 @@ internal sealed class UpdateCatalog(ServerDbContext db)
             .Where(u => ids.Contains(u.UpdateId))
             .ToDictionaryAsync(u => (u.UpdateId, u.Revision), cancellationToken)
             .ConfigureAwait(false);
+        var reported = updates.OfType<AvailableUpdate>().Where(u => u.SupersededUpdateIds is not null).Select(u => u.UpdateId).Distinct().ToList();
+        var superseded = reported.Count == 0
+            ? []
+            : (await db.UpdateSupersedence.AsNoTracking().Where(s => reported.Contains(s.UpdateId)).ToListAsync(cancellationToken).ConfigureAwait(false))
+                .Select(s => (s.UpdateId, s.Revision, s.SupersededUpdateId)).ToHashSet();
 
         foreach (var update in updates.DistinctBy(u => (u.UpdateId, u.Revision)))
         {
@@ -48,6 +53,15 @@ internal sealed class UpdateCatalog(ServerDbContext db)
                 entry.MaxDownloadSizeBytes ??= available.MaxDownloadSizeBytes;
                 entry.RebootBehavior ??= (int?)available.RebootBehavior;
                 entry.MsrcSeverity ??= available.MsrcSeverity;
+
+                // Supersedence of a revision does not change; new pairs are added, none removed.
+                foreach (var replaced in available.SupersededUpdateIds ?? [])
+                {
+                    if (superseded.Add((update.UpdateId, update.Revision, replaced)))
+                    {
+                        db.UpdateSupersedence.Add(new UpdateSupersedenceEntity { UpdateId = update.UpdateId, Revision = update.Revision, SupersededUpdateId = replaced });
+                    }
+                }
             }
         }
     }

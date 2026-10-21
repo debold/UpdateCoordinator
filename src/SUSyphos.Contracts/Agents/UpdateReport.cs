@@ -88,6 +88,13 @@ public sealed record AvailableUpdate : UpdateInfo
     [StringLength(32)]
     [RegularExpression("^[A-Za-z]+$")]
     public string? MsrcSeverity { get; init; }
+
+    /// <summary>Upper bound for superseded update IDs per update.</summary>
+    public const int MaxSupersededUpdates = 500;
+
+    /// <summary>Updates this update replaces, as Windows Update reports them (any revision); null if not reported.</summary>
+    [MaxLength(MaxSupersededUpdates)]
+    public IReadOnlyList<Guid>? SupersededUpdateIds { get; init; }
 }
 
 /// <summary>

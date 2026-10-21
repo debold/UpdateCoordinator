@@ -305,7 +305,7 @@ public sealed class AgentActionTests
 
             Assert.DoesNotContain("value=\"queue:RestartServer\"", await GetHtmlAsync(operatorBrowser, path), StringComparison.Ordinal);
             using var refused = await operatorBrowser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:RestartServer", ["ConfirmRestart"] = "yes" });
-            Assert.Contains("Only administrators can restart a server.", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            Assert.Contains("Only administrators can restart a server or install outside the maintenance window.", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
         using var adminBrowser = new DashboardClient(scenario.Factory);

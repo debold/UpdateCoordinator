@@ -52,7 +52,24 @@ internal static partial class WireFormat
             MaxDownloadSizeBytes = update.MaxDownloadSize is >= 0 and <= 1_000_000_000_000 ? (long)update.MaxDownloadSize : null,
             RebootBehavior = update.RebootBehavior is { } behavior && Enum.IsDefined((RebootBehavior)behavior) ? (RebootBehavior)behavior : null,
             MsrcSeverity = Match(update.MsrcSeverity, LettersRegex(), 32),
+            SupersededUpdateIds = Superseded(update.SupersededUpdateIds, id),
         });
+
+    /// <summary>Valid, distinct update IDs other than the update itself, capped; null if none.</summary>
+    internal static IReadOnlyList<Guid>? Superseded(IReadOnlyList<string>? raw, Guid self)
+    {
+        if (raw is null)
+        {
+            return null;
+        }
+
+        List<Guid> ids = [.. raw
+            .Select(value => Guid.TryParse(value, out var parsed) ? parsed : Guid.Empty)
+            .Where(parsed => parsed != Guid.Empty && parsed != self)
+            .Distinct()
+            .Take(AvailableUpdate.MaxSupersededUpdates)];
+        return ids.Count == 0 ? null : ids;
+    }
 
     /// <summary>History entries with a valid identity and operation, newest first, capped; odd values are cleaned, not dropped.</summary>
     public static List<UpdateHistoryEntry> ToHistory(IEnumerable<WuaHistoryRecord> raw) =>

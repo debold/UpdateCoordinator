@@ -1198,6 +1198,24 @@ namespace SUSyphos.Server.Data.Migrations
                     b.ToTable("Updates", (string)null);
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.UpdateSupersedenceEntity", b =>
+                {
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("SupersededUpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UpdateId", "Revision", "SupersededUpdateId");
+
+                    b.HasIndex("SupersededUpdateId");
+
+                    b.ToTable("UpdateSupersedence", (string)null);
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Notifications.NotificationSentEntity", b =>
                 {
                     b.Property<string>("Key")
@@ -1448,6 +1466,15 @@ namespace SUSyphos.Server.Data.Migrations
                         .IsRequired();
 
                     b.HasOne("SUSyphos.Server.Data.RolloutEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UpdateId", "Revision")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.UpdateSupersedenceEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.UpdateEntity", null)
                         .WithMany()
                         .HasForeignKey("UpdateId", "Revision")
                         .OnDelete(DeleteBehavior.Cascade)

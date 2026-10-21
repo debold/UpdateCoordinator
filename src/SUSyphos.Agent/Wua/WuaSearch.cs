@@ -13,7 +13,8 @@ internal sealed record WuaUpdate(
     string? Classification,
     decimal? MaxDownloadSize = null,
     int? RebootBehavior = null,
-    string? MsrcSeverity = null);
+    string? MsrcSeverity = null,
+    IReadOnlyList<string>? SupersededUpdateIds = null);
 
 /// <summary>
 /// The Windows Update Agent API could not perform a search; <see cref="Exception.HResult"/> carries the WUA error code.
@@ -74,7 +75,8 @@ internal static class WuaSearch
                     ReadClassification(com, update.Categories),
                     (decimal)update.MaxDownloadSize,
                     (int)behavior.RebootBehavior,
-                    (string?)update.MsrcSeverity));
+                    (string?)update.MsrcSeverity,
+                    ReadStrings(com, update.SupersededUpdateIDs)));
             }
 
             return list;

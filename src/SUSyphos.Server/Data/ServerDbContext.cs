@@ -12,6 +12,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<UpdateEntity> Updates => Set<UpdateEntity>();
 
+    public DbSet<UpdateSupersedenceEntity> UpdateSupersedence => Set<UpdateSupersedenceEntity>();
+
     public DbSet<ClientUpdateEntity> ClientUpdates => Set<ClientUpdateEntity>();
 
     public DbSet<ClientAvailableUpdateEntity> ClientAvailableUpdates => Set<ClientAvailableUpdateEntity>();
@@ -252,6 +254,12 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         update.Property(u => u.Classification).HasMaxLength(64);
         update.Property(u => u.MsrcSeverity).HasMaxLength(32);
         update.HasIndex(u => u.KbArticle);
+
+        var supersedence = modelBuilder.Entity<UpdateSupersedenceEntity>();
+        supersedence.ToTable("UpdateSupersedence");
+        supersedence.HasKey(s => new { s.UpdateId, s.Revision, s.SupersededUpdateId });
+        supersedence.HasOne<UpdateEntity>().WithMany().HasForeignKey(s => new { s.UpdateId, s.Revision }).OnDelete(DeleteBehavior.Cascade);
+        supersedence.HasIndex(s => s.SupersededUpdateId);
 
         var clientUpdate = modelBuilder.Entity<ClientUpdateEntity>();
         clientUpdate.ToTable("ClientUpdates");
