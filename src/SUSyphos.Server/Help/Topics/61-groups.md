@@ -27,7 +27,7 @@ The table shows each group with **Description**, number of **Members** (the name
 
 **Create group** or **Save** stores the group; **Cancel** closes the dialog. Members get the changes with their next heartbeat.
 
-## Coordination (leases) {#coordination}
+### Coordination (leases) {#coordination}
 
 With **Only part of the group installs at the same time** ticked, members ask the central server for an installation slot (a lease) before they install or restart:
 

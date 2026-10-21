@@ -26,7 +26,6 @@
         <a class="btn" href="@(ShowArchived ? "/updates" : "/updates?archived=1")">@(ShowArchived ? "Show current updates" : "Show archived updates")</a>
         <div class="spacer"></div>
         <button type="submit" form="bulk" name="Bulk" value="stop" class="danger">Stop rollout</button>
-        <HelpLink To="updates#actions" Label="Actions for selected updates" />
     </ActionBand>
 </AuthorizeView>
 

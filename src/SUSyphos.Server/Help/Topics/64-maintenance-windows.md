@@ -41,7 +41,7 @@ Windows can install updates and restart on its own (Automatic Updates), outside 
 
 Groups can override the default; "leave unchanged" in one group wins. **Save** stores this box (together with the Microsoft Update setting).
 
-## Other Microsoft products {#microsoft-update}
+### Other Microsoft products {#microsoft-update}
 
 - **Windows Update only**: updates for Windows and its components.
 - **Microsoft Update**: the agent also registers the Microsoft Update service (like "Receive updates for other Microsoft products" in Windows) and searches and installs through it, so SQL Server, Office and other Microsoft products are covered, also on servers that otherwise use WSUS. When switched off, the agent removes only a registration it made itself.

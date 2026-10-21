@@ -21,7 +21,6 @@
         </form>
         <div class="spacer"></div>
         <span class="note">Last check: @(_lastCheck is { } check ? $"{Format(check.AtUtc)}, {check.Describe()}" : "not yet")</span>
-        <HelpLink To="agents#check" Label="Check for new versions" />
     </ActionBand>
 </AuthorizeView>
 

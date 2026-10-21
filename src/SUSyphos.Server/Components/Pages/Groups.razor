@@ -13,7 +13,6 @@
 <ActionBand>
     <a class="btn primary" href="@Path?dialog=new">New group</a>
     <a class="btn" href="/administration/rules">Assignment rules</a>
-    <HelpLink To="groups#list" Label="Group list" />
 </ActionBand>
 
 <Box Title="Groups" Help="groups#list" Flush="true">
@@ -115,8 +114,8 @@
                     </label>
                 </div>
                 <div class="form-row">
-                    <fieldset class="gated help-scope">
-                        <legend>Coordination (leases)<HelpLink To="groups#coordination" Label="Coordination (leases)" /></legend>
+                    <fieldset class="gated">
+                        <legend>Coordination (leases)</legend>
                         <label class="check gate"><input type="checkbox" name="Coordinated" value="true" checked="@(group?.Coordinated == true)" /> Only part of the group installs at the same time</label>
                         <div class="form-row gated-body">
                             <label class="field"><span>Share of members</span><input name="Percent" type="number" min="1" max="100" value="@(group?.LeasePercent ?? 25)" /></label>

@@ -52,7 +52,6 @@ else
                 <a class="btn danger" href="@DialogLink("remove")">Remove server…</a>
                 <a class="btn danger" href="@DialogLink("purge")">Delete with history…</a>
             </AuthorizeView>
-            <HelpLink To="server-detail#actions" Label="Actions for this server" />
         </ActionBand>
     </AuthorizeView>
 
@@ -149,7 +148,7 @@ else
                     <header class="box-head"><h2>Assignment<HelpLink To="server-detail#assignment" Label="Assignment" /></h2><span class="hint">Saved configuration of this server; empty values inherit</span></header>
                     <div class="box-body form">
                         <div class="form-row">
-                            <label class="field"><span>Ring<HelpLink To="server-detail#ring" Label="Ring" /></span>
+                            <label class="field"><span>Ring</span>
                                 <select name="Ring">
                                     <option value="" selected="@(_client.ManualRingId is null)">Automatic: assignment rules, else @_fallbackRing (now @RingName(_client.RingId))</option>
                                     @foreach (var ring in _rings)
@@ -158,7 +157,7 @@ else
                                     }
                                 </select>
                             </label>
-                            <label class="field"><span>Reboots<HelpLink To="server-detail#reboots" Label="Reboots" /></span>
+                            <label class="field"><span>Reboots</span>
                                 <select name="Reboot">
                                     <option value="" selected="@(_client.RebootPolicy is null)">Inherit from groups or system (now @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</option>
                                     @foreach (var policy in Enum.GetValues<SUSyphos.Contracts.Agents.RebootPolicy>())
@@ -169,7 +168,7 @@ else
                             </label>
                         </div>
                         <div class="field">
-                            <span class="field-label">Groups<HelpLink To="server-detail#groups" Label="Groups" /></span>
+                            <span class="field-label">Groups</span>
                             <MultiSelect Name="Groups" Placeholder="No group"
                                          Options="@([.. _groups.Take(MultiSelect.MaxOptions).Select(g => (g.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), g.Name))])"
                                          Selected="@([.. _memberships.Where(m => m.Manual).Select(m => m.GroupId.ToString(System.Globalization.CultureInfo.InvariantCulture))])"
@@ -179,7 +178,7 @@ else
                             <span class="help">Groups from assignment rules are added automatically.</span>
                         </div>
                         <div class="field">
-                            <span class="field-label">Maintenance windows<HelpLink To="server-detail#windows" Label="Maintenance windows" /></span>
+                            <span class="field-label">Maintenance windows</span>
                             <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
                         </div>
                     </div>

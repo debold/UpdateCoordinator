@@ -1,5 +1,5 @@
 @* Search, optional grouping and the active filters as removable chips. *@
-<div class="table-tools">
+<div class="table-tools" data-help="tables#tools">
     <form method="get" role="search">
         @foreach (var field in Table.HiddenFieldsExcept("q", "group"))
         {
@@ -19,7 +19,6 @@
             </select>
         }
         <button type="submit">Apply</button>
-        <HelpLink To="tables#tools" Label="Search, grouping and filters" />
     </form>
     @foreach (var (column, value) in Table.ActiveFilters)
     {

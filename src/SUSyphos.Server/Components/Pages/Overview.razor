@@ -18,7 +18,7 @@
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <ActionBand>
-    <span class="pill @(_paused ? "fail" : "ok")">@(_paused ? "Global pause: no new installations" : "Installations allowed within maintenance windows")</span><HelpLink To="overview#pause" Label="Installation status and global pause" />
+    <span class="pill @(_paused ? "fail" : "ok")">@(_paused ? "Global pause: no new installations" : "Installations allowed within maintenance windows")</span>
     @if (_blackout is { } blackout)
     {
         <span class="pill fail">Blackout until @Format(blackout.EndUtc): @blackout.Reason</span>
