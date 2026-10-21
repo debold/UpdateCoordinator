@@ -32,6 +32,8 @@ Actions (administrators):
 - **Release to all rings now**: releases it everywhere at once.
 - **Withdraw**: stops further updates to this version; agents that already updated keep it.
 
+Versions older than the newest released one cannot be released any more (agents never go back to an older version); they keep only **Withdraw** while released. Older versions that no server runs are hidden; **Show older versions** lists them, **Hide older versions** hides them again.
+
 The packages are not code-signed yet, so nothing is released automatically. An agent below the minimum version gets the package shipped with the central server even without a release, because it might not understand the central server any more.
 
 ## Install new agents {#install}

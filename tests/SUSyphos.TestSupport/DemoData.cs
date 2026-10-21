@@ -81,6 +81,13 @@ public static class DemoData
                 }
             }
 
+            // Agent packages: a newer one waiting for release (all buttons), the released one, and superseded ones (hidden).
+            db.AgentPackages.AddRange(
+                new SUSyphos.Server.AgentPackages.AgentPackageEntity { Version = "0.8.0", Source = SUSyphos.Server.AgentPackages.AgentPackageSource.Bundled, FileName = "SUSyphos.Agent-0.8.0.msi", Sha256 = new string('a', 64), Size = 70_000_000, AddedAtUtc = now.AddHours(-2) },
+                new SUSyphos.Server.AgentPackages.AgentPackageEntity { Version = "0.7.1", Source = SUSyphos.Server.AgentPackages.AgentPackageSource.GitHub, FileName = "SUSyphos.Agent-0.7.1.msi", Sha256 = new string('b', 64), Size = 70_000_000, AddedAtUtc = now.AddDays(-1), ReleasedThroughRingOrder = SUSyphos.Server.AgentPackages.AgentPackageEntity.AllRings, ReleasedAtUtc = now.AddDays(-1), ReleasedBy = "marc" },
+                new SUSyphos.Server.AgentPackages.AgentPackageEntity { Version = "0.7.0", Source = SUSyphos.Server.AgentPackages.AgentPackageSource.GitHub, FileName = "SUSyphos.Agent-0.7.0.msi", Sha256 = new string('c', 64), Size = 70_000_000, AddedAtUtc = now.AddDays(-2) },
+                new SUSyphos.Server.AgentPackages.AgentPackageEntity { Version = "0.5.0", Source = SUSyphos.Server.AgentPackages.AgentPackageSource.Bundled, FileName = "SUSyphos.Agent-0.5.0.msi", Sha256 = new string('d', 64), Size = 70_000_000, AddedAtUtc = now.AddDays(-5) });
+
             await db.SaveChangesAsync();
             await scope.ServiceProvider.GetRequiredService<AssignmentService>().RecalculateAsync(null, CancellationToken.None);
         }

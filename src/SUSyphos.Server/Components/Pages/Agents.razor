@@ -35,7 +35,7 @@
                     {
                         <tr><td colspan="6" class="note">No agent package yet. The central server installer ships one; a check finds newer ones.</td></tr>
                     }
-                    @foreach (var package in _packages)
+                    @foreach (var package in _packages.Where(p => ShowOlder || !IsSuperseded(p)))
                     {
                         <tr>
                             <td class="mono">@package.Version</td>
@@ -62,7 +62,7 @@
                             <td class="n">
                                 <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
                                     <span class="row-actions">
-                                        @if (package.ReleasedThroughRingOrder != AgentPackageEntity.AllRings)
+                                        @if (package.ReleasedThroughRingOrder != AgentPackageEntity.AllRings && !IsOlderThanReleased(package))
                                         {
                                             @if (NextRing(package) is { } next)
                                             {
@@ -82,6 +82,10 @@
                 </tbody>
             </table>
         </form>
+        @if (_packages.Count(IsSuperseded) is > 0 and var older)
+        {
+            <div class="box-body"><a href="@(ShowOlder ? "/agents" : "/agents?older=1")">@(ShowOlder ? "Hide older versions" : $"Show older versions ({older})")</a> <span class="note">older than the newest released version and on no server</span></div>
+        }
     </Box>
 
     <form method="get" action="@AgentInstallerEndpoints.Route" class="box">
@@ -198,6 +202,23 @@
     private string? Action { get; set; }
 
     private List<AgentPackageEntity> _packages = [];
+
+    /// <summary>Also lists superseded versions (?older=1).</summary>
+    [SupplyParameterFromQuery(Name = "older")]
+    private string? Older { get; set; }
+
+    private bool ShowOlder => Older == "1";
+
+    /// <summary>Older than the newest released version: agents never go back to it, so it cannot be released any more.</summary>
+    private bool IsOlderThanReleased(AgentPackageEntity package) =>
+        _newestReleased is not null
+        && AgentVersion.TryParse(package.Version, out var version)
+        && AgentVersion.TryParse(_newestReleased.Version, out var released)
+        && version < released;
+
+    /// <summary>Older than the newest released version and on no server: hidden unless asked for.</summary>
+    private bool IsSuperseded(AgentPackageEntity package) =>
+        IsOlderThanReleased(package) && _serversByVersion.GetValueOrDefault(package.Version) == 0;
     private List<RingEntity> _rings = [];
     private Dictionary<string, int> _serversByVersion = [];
     private AgentPackageEntity? _newest;
