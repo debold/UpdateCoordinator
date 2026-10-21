@@ -4,7 +4,18 @@ Install the SUSyphos agent on new servers and keep the agents up to date. New ag
 
 ## Check for new versions {#check}
 
-**Check for new versions now** (administrators) asks GitHub for newer agent releases right away; otherwise the central server checks once a day. Downloaded packages are verified against the checksums published with the release. "Last check" shows when it ran and what it found.
+**Check for new versions now** (administrators) asks GitHub for newer releases right away; otherwise the central server checks once a day. New agent packages are downloaded and verified against the checksums published with the release; a newer central server is only noted (see [Central server](#server)). "Last check" shows when it ran and what it found.
+
+## Central server {#server}
+
+The version this central server runs (**Running**, the full version with commit as tooltip) and the **Newest release** found by the check: "up to date", or the newer version with the time it was found. A newer version also appears on the overview under "Needs attention", next to the version at the bottom of the navigation, and in a notification.
+
+The central server does not install itself. When a newer version is available:
+
+- **Release notes** opens the release on GitHub.
+- **Download SUSyphos.Server-X.Y.Z.msi** downloads the installer. Check it against SHA256SUMS.txt of the release, then run it as administrator on the central server.
+
+The upgrade keeps database, trust anchor, settings, port and certificate. The dashboard is unavailable for about a minute while the service restarts; agents keep working and report again afterwards. Upgrade the central server before releasing agents of the same version.
 
 ## Agent versions {#versions}
 

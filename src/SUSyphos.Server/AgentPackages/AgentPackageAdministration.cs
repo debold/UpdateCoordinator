@@ -8,12 +8,27 @@ using SUSyphos.Server.Data;
 
 namespace SUSyphos.Server.AgentPackages;
 
-/// <summary>Result of a check for new agent versions.</summary>
-internal sealed record AgentPackageCheck(DateTime AtUtc, string? AddedVersion, string? Error)
+/// <summary>Result of a check for new agent and central server versions.</summary>
+internal sealed record AgentPackageCheck(DateTime AtUtc, string? AddedVersion, string? Error, string? ServerVersion = null)
 {
     public string Describe() => Error is not null
         ? $"failed: {Error}"
-        : AddedVersion is null ? "no newer agent version" : $"agent {AddedVersion} downloaded, waiting for release";
+        : (AddedVersion is null ? "no newer agent version" : $"agent {AddedVersion} downloaded, waiting for release")
+            + (ServerVersion is null ? string.Empty : $"; central server {ServerVersion} available");
+}
+
+/// <summary>A central server release newer than the running one: version, release page and MSI on GitHub.</summary>
+internal sealed record ServerUpdate(string Version, string? Page, string? Package, DateTime FoundAtUtc);
+
+/// <summary>The version of this central server; replaced in tests.</summary>
+internal interface IRunningServerVersion
+{
+    string Current { get; }
+}
+
+internal sealed class RunningServerVersion : IRunningServerVersion
+{
+    public string Current => Administration.ServerVersion.Display;
 }
 
 /// <summary>
@@ -24,12 +39,16 @@ internal sealed partial class AgentPackageAdministration(
     ServerDbContext db,
     AgentPackageStore store,
     IAgentReleaseSource releases,
+    IRunningServerVersion running,
     IOptions<AgentPackageOptions> options,
     AuditLog audit,
     TimeProvider timeProvider,
     ILogger<AgentPackageAdministration> logger)
 {
     public const string LastCheckSetting = "AgentPackages.LastCheck";
+
+    /// <summary>Setting with the newest central server release that is newer than the running version; absent if none.</summary>
+    public const string ServerUpdateSetting = "ServerUpdate.Available";
 
     private const int MaxChecksumFileSize = 64 * 1024;
 
@@ -39,14 +58,21 @@ internal sealed partial class AgentPackageAdministration(
         AllRings,
     }
 
-    /// <summary>Looks for a release newer than every known package, downloads it and verifies it against the published checksum.</summary>
+    /// <summary>
+    /// Looks for a release newer than every known agent package, downloads it and verifies it against the published checksum,
+    /// and notes a central server release newer than the running version (installed by an administrator, never automatically).
+    /// </summary>
     public async Task<AgentPackageCheck> CheckAsync(string? actor, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
         AgentPackageCheck result;
         try
         {
-            result = new AgentPackageCheck(now, await DownloadNewestAsync(cancellationToken).ConfigureAwait(false), null);
+            var candidates = (await releases.ListAsync(cancellationToken).ConfigureAwait(false))
+                .Where(r => options.Value.IncludePrereleases || !r.Prerelease && r.Version.Prerelease is null)
+                .ToList();
+            var server = await NoteServerUpdateAsync(candidates, now, cancellationToken).ConfigureAwait(false);
+            result = new AgentPackageCheck(now, await DownloadNewestAsync(candidates, cancellationToken).ConfigureAwait(false), null, server);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or IOException or InvalidDataException or ArgumentException)
         {
@@ -130,14 +156,58 @@ internal sealed partial class AgentPackageAdministration(
     public static AgentPackageEntity? TargetFor(IEnumerable<AgentPackageEntity> packages, int ringOrder) =>
         AgentPackageStore.Newest(packages.Where(p => p.ReleasedThroughRingOrder >= ringOrder));
 
-    private async Task<string?> DownloadNewestAsync(CancellationToken cancellationToken)
+    /// <summary>The newest central server release newer than the running version, or null.</summary>
+    public async Task<ServerUpdate?> GetServerUpdateAsync(CancellationToken cancellationToken)
+    {
+        var value = await db.Settings.AsNoTracking().Where(s => s.Key == ServerUpdateSetting).Select(s => s.Value).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        var update = value is null ? null : System.Text.Json.JsonSerializer.Deserialize<ServerUpdate>(value);
+
+        // Gone once the central server runs that version (or a newer one), even before the next check.
+        return update is not null && AgentVersion.TryParse(update.Version, out var offered) && IsNewerThanRunning(offered) ? update : null;
+    }
+
+    private bool IsNewerThanRunning(AgentVersion version) =>
+        !AgentVersion.TryParse(running.Current, out var current) || version > current;
+
+    /// <summary>Stores the newest central server release newer than the running version, or removes the note.</summary>
+    private async Task<string?> NoteServerUpdateAsync(IReadOnlyList<AgentRelease> candidates, DateTime now, CancellationToken cancellationToken)
+    {
+        var newest = candidates.Where(r => r.ServerPackage is not null).OrderByDescending(r => r.Version).FirstOrDefault();
+        var update = newest is not null && IsNewerThanRunning(newest.Version)
+            ? new ServerUpdate(newest.Version.ToString(), newest.Page?.ToString(), newest.ServerPackage!.ToString(), now)
+            : null;
+        var setting = await db.Settings.SingleOrDefaultAsync(s => s.Key == ServerUpdateSetting, cancellationToken).ConfigureAwait(false);
+        if (update is null)
+        {
+            if (setting is not null)
+            {
+                db.Settings.Remove(setting);
+            }
+        }
+        else
+        {
+            // Keep the time it was found first, so the dashboard shows since when it waits.
+            var previous = setting is null ? null : System.Text.Json.JsonSerializer.Deserialize<ServerUpdate>(setting.Value);
+            var value = System.Text.Json.JsonSerializer.Serialize(previous?.Version == update.Version ? update with { FoundAtUtc = previous.FoundAtUtc } : update);
+            if (setting is null)
+            {
+                db.Settings.Add(new SettingEntity { Key = ServerUpdateSetting, Value = value });
+            }
+            else
+            {
+                setting.Value = value;
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return update?.Version;
+    }
+
+    private async Task<string?> DownloadNewestAsync(IReadOnlyList<AgentRelease> candidates, CancellationToken cancellationToken)
     {
         var known = await store.ListAsync(cancellationToken).ConfigureAwait(false);
         var newestKnown = AgentPackageStore.Newest(known) is { } package && AgentVersion.TryParse(package.Version, out var version) ? version : null;
-        var candidate = (await releases.ListAsync(cancellationToken).ConfigureAwait(false))
-            .Where(r => options.Value.IncludePrereleases || !r.Prerelease && r.Version.Prerelease is null)
-            .OrderByDescending(r => r.Version)
-            .FirstOrDefault();
+        var candidate = candidates.OrderByDescending(r => r.Version).FirstOrDefault();
         if (candidate is null || newestKnown is not null && candidate.Version <= newestKnown)
         {
             return null;

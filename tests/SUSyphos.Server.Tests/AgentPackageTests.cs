@@ -93,6 +93,51 @@ public sealed class AgentReleaseSourceTests
         Assert.Equal(expected, GitHubAgentReleases.IsRepositoryAsset(new Uri(url), "debold/UpdateCoordinator"));
     }
 
+    [Theory]
+    [InlineData("https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.7.3", true)]
+    [InlineData("https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.7.3?x=1", false)]
+    [InlineData("https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.7.3#x", false)]
+    [InlineData("http://github.com/debold/UpdateCoordinator/releases/tag/release/v0.7.3", false)]
+    [InlineData("https://evil.example/debold/UpdateCoordinator/releases/tag/release/v0.7.3", false)]
+    [InlineData("https://github.com/attacker/UpdateCoordinator/releases/tag/release/v0.7.3", false)]
+    public void OnlyReleasePagesOfTheRepository_AreLinked(string url, bool expected)
+    {
+        Assert.Equal(expected, GitHubAgentReleases.IsReleasePage(new Uri(url), "debold/UpdateCoordinator"));
+    }
+
+    [Fact]
+    public void GitHubReleases_CarryServerPackageAndPage_FromTheRepositoryOnly()
+    {
+        const string repository = "debold/UpdateCoordinator";
+        const string json = """
+            [
+              { "tag_name": "release/v0.7.3", "draft": false, "prerelease": false,
+                "html_url": "https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.7.3",
+                "assets": [
+                  { "name": "SUSyphos.Agent-0.7.3.msi", "browser_download_url": "https://github.com/debold/UpdateCoordinator/releases/download/release/v0.7.3/SUSyphos.Agent-0.7.3.msi" },
+                  { "name": "SUSyphos.Server-0.7.3.msi", "browser_download_url": "https://github.com/debold/UpdateCoordinator/releases/download/release/v0.7.3/SUSyphos.Server-0.7.3.msi" },
+                  { "name": "SHA256SUMS.txt", "browser_download_url": "https://github.com/debold/UpdateCoordinator/releases/download/release/v0.7.3/SHA256SUMS.txt" } ] },
+              { "tag_name": "release/v0.7.2", "draft": false, "prerelease": false,
+                "html_url": "https://evil.example/release",
+                "assets": [
+                  { "name": "SUSyphos.Agent-0.7.2.msi", "browser_download_url": "https://github.com/debold/UpdateCoordinator/releases/download/release/v0.7.2/SUSyphos.Agent-0.7.2.msi" },
+                  { "name": "SUSyphos.Server-0.7.2.msi", "browser_download_url": "https://evil.example/SUSyphos.Server-0.7.2.msi" },
+                  { "name": "SHA256SUMS.txt", "browser_download_url": "https://github.com/debold/UpdateCoordinator/releases/download/release/v0.7.2/SHA256SUMS.txt" } ] },
+              { "tag_name": "release/v0.8.0", "draft": true, "prerelease": false, "assets": [] }
+            ]
+            """;
+
+        var releases = GitHubAgentReleases.Parse(System.Text.Json.JsonSerializer.Deserialize<List<GitHubAgentReleases.GitHubRelease>>(json)!, repository);
+
+        Assert.Equal(2, releases.Count);
+        var current = releases.Single(r => r.Version.ToString() == "0.7.3");
+        Assert.Equal("https://github.com/debold/UpdateCoordinator/releases/download/release/v0.7.3/SUSyphos.Server-0.7.3.msi", current.ServerPackage?.ToString());
+        Assert.Equal("https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.7.3", current.Page?.ToString());
+        var older = releases.Single(r => r.Version.ToString() == "0.7.2");
+        Assert.Null(older.ServerPackage);
+        Assert.Null(older.Page);
+    }
+
     [Fact]
     public void Checksum_IsReadForTheExactFileName()
     {
@@ -114,14 +159,20 @@ internal sealed class FakeAgentReleaseSource : IAgentReleaseSource
 
     public int Downloads { get; private set; }
 
-    public void Add(string version, byte[] package, string? checksum = null, bool prerelease = false)
+    public void Add(string version, byte[] package, string? checksum = null, bool prerelease = false, bool withServer = false)
     {
         Assert.True(AgentVersion.TryParse(version, out var parsed));
         var packageUrl = new Uri($"https://github.com/debold/UpdateCoordinator/releases/download/release/v{version}/SUSyphos.Agent-{version}.msi");
         var sumsUrl = new Uri($"https://github.com/debold/UpdateCoordinator/releases/download/release/v{version}/SHA256SUMS.txt");
         Assets[packageUrl] = package;
         Assets[sumsUrl] = System.Text.Encoding.UTF8.GetBytes($"{checksum ?? Convert.ToHexStringLower(SHA256.HashData(package))}  SUSyphos.Agent-{version}.msi\n");
-        Releases.Add(new AgentRelease(parsed, packageUrl, sumsUrl, prerelease));
+        Releases.Add(new AgentRelease(
+            parsed,
+            packageUrl,
+            sumsUrl,
+            prerelease,
+            withServer ? new Uri($"https://github.com/debold/UpdateCoordinator/releases/download/release/v{version}/SUSyphos.Server-{version}.msi") : null,
+            withServer ? new Uri($"https://github.com/debold/UpdateCoordinator/releases/tag/release/v{version}") : null));
     }
 
     public Task<IReadOnlyList<AgentRelease>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AgentRelease>>(Releases);
@@ -133,9 +184,17 @@ internal sealed class FakeAgentReleaseSource : IAgentReleaseSource
     }
 }
 
+/// <summary>The version the test central server pretends to run.</summary>
+internal sealed class FakeRunningServerVersion : IRunningServerVersion
+{
+    public string Current { get; set; } = "1.0.0";
+}
+
 internal sealed class AgentPackageServerFactory : ServerFactory
 {
     public FakeAgentReleaseSource Releases { get; } = new();
+
+    public FakeRunningServerVersion Running { get; } = new();
 
     /// <summary>AgentPackages:MinimumVersion; null keeps the built-in minimum.</summary>
     public string? MinimumVersion { get; init; }
@@ -148,7 +207,11 @@ internal sealed class AgentPackageServerFactory : ServerFactory
             builder.UseSetting("AgentPackages:MinimumVersion", MinimumVersion);
         }
 
-        Microsoft.AspNetCore.TestHost.WebHostBuilderExtensions.ConfigureTestServices(builder, services => services.AddSingleton<IAgentReleaseSource>(Releases));
+        Microsoft.AspNetCore.TestHost.WebHostBuilderExtensions.ConfigureTestServices(builder, services =>
+        {
+            services.AddSingleton<IAgentReleaseSource>(Releases);
+            services.AddSingleton<IRunningServerVersion>(Running);
+        });
     }
 }
 
@@ -174,6 +237,73 @@ public sealed class AgentPackageTests : IAsyncDisposable
         Assert.Null(stored.ReleasedThroughRingOrder);
         Assert.True(File.Exists(Path.Combine(_factory.AgentPackageDirectory, "SUSyphos.Agent-1.3.0.msi")));
         Assert.True(await _factory.WithDbAsync(db => db.AuditEntries.AnyAsync(a => a.Action == "AgentPackage.Checked", TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task Check_NotesANewerCentralServer_ShowsAndNotifiesIt()
+    {
+        _factory.Releases.Add("1.2.0", Package, withServer: true);
+        _factory.Releases.Add("1.1.0", Package, withServer: true);
+
+        var result = await WithAsync<AgentPackageAdministration, AgentPackageCheck>(a => a.CheckAsync(null, CancellationToken.None));
+        var update = await WithAsync<AgentPackageAdministration, ServerUpdate?>(a => a.GetServerUpdateAsync(CancellationToken.None));
+
+        Assert.Equal("1.2.0", result.ServerVersion);
+        Assert.Contains("central server 1.2.0 available", result.Describe(), StringComparison.Ordinal);
+        Assert.NotNull(update);
+        Assert.Equal("https://github.com/debold/UpdateCoordinator/releases/tag/release/v1.2.0", update.Page);
+        Assert.Equal("https://github.com/debold/UpdateCoordinator/releases/download/release/v1.2.0/SUSyphos.Server-1.2.0.msi", update.Package);
+        var events = await WithAsync<Notifications.NotificationEvents, List<Notifications.NotificationEvent>>(e => e.CollectAsync(CancellationToken.None));
+        Assert.Contains(events, e => e.Kind == Notifications.NotificationKind.ServerVersionAvailable && e.Key == "server.available:1.2.0");
+
+        await _factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(_factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        var overview = await (await browser.GetAsync("/")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var agents = await (await browser.GetAsync("/agents")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Central server 1.2.0 is available", overview, StringComparison.Ordinal);
+        Assert.Contains("1.2.0 available</a>", overview, StringComparison.Ordinal);
+        Assert.Contains("href=\"https://github.com/debold/UpdateCoordinator/releases/download/release/v1.2.0/SUSyphos.Server-1.2.0.msi\" target=\"_blank\" rel=\"noopener noreferrer\"", agents, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("1.2.0")]
+    [InlineData("1.3.0")]
+    public async Task Check_NotesNothing_WhenTheCentralServerIsCurrent(string running)
+    {
+        _factory.Running.Current = running;
+        _factory.Releases.Add("1.2.0", Package, withServer: true);
+
+        var result = await WithAsync<AgentPackageAdministration, AgentPackageCheck>(a => a.CheckAsync(null, CancellationToken.None));
+
+        Assert.Null(result.ServerVersion);
+        Assert.Null(await WithAsync<AgentPackageAdministration, ServerUpdate?>(a => a.GetServerUpdateAsync(CancellationToken.None)));
+        Assert.False(await _factory.WithDbAsync(db => db.Settings.AnyAsync(s => s.Key == AgentPackageAdministration.ServerUpdateSetting, TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task ServerUpdate_DisappearsOnceTheCentralServerRunsIt()
+    {
+        _factory.Releases.Add("1.2.0", Package, withServer: true);
+        await WithAsync<AgentPackageAdministration, AgentPackageCheck>(a => a.CheckAsync(null, CancellationToken.None));
+
+        _factory.Running.Current = "1.2.0";
+
+        Assert.Null(await WithAsync<AgentPackageAdministration, ServerUpdate?>(a => a.GetServerUpdateAsync(CancellationToken.None)));
+    }
+
+    [Fact]
+    public async Task ReleaseWithoutServerPackage_IsNoServerUpdate()
+    {
+        _factory.Releases.Add("1.2.0", Package);
+
+        var result = await WithAsync<AgentPackageAdministration, AgentPackageCheck>(a => a.CheckAsync(null, CancellationToken.None));
+
+        Assert.Null(result.ServerVersion);
+        Assert.Equal("1.2.0", result.AddedVersion);
     }
 
     [Fact]

@@ -139,6 +139,7 @@ internal static class DashboardServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddScoped<AgentPackages.AgentPackageStore>();
+        services.AddSingleton<AgentPackages.IRunningServerVersion, AgentPackages.RunningServerVersion>();
         services.AddScoped<AgentPackages.AgentPackageAdministration>();
         services.AddScoped<AgentPackages.AgentUpdateService>();
         // GitHub requires a user agent; packages are tens of megabytes, so the timeout is generous.

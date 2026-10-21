@@ -11,6 +11,7 @@
 @inject BlackoutPeriods Blackouts
 @inject TimeProvider Time
 @inject SUSyphos.Server.Approval.DirectoryCoverage CoverageReader
+@inject SUSyphos.Server.AgentPackages.AgentPackageAdministration ServerUpdates
 
 <PageTitle>Overview</PageTitle>
 
@@ -282,6 +283,11 @@
         if (blocked > 0)
         {
             _attention.Add(new AttentionItem("Clone", "fail", $"{blocked} servers blocked on clone suspicion", "The same credentials were used by two hosts in turn.", "/approvals", "Review"));
+        }
+
+        if (await ServerUpdates.GetServerUpdateAsync(CancellationToken.None) is { } serverUpdate)
+        {
+            _attention.Add(new AttentionItem("Update", "queue", $"Central server {serverUpdate.Version} is available", $"This central server runs {SUSyphos.Server.Administration.ServerVersion.Display}.", "/agents#server", "Show"));
         }
 
         var pending = await Db.Clients.CountAsync(c => c.State == RegistrationState.Pending);

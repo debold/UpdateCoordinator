@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @using SUSyphos.Contracts.Agents
 @inject ServerDbContext Db
+@inject SUSyphos.Server.AgentPackages.AgentPackageAdministration ServerUpdates
 
 <div class="shell">
     <AuthorizeView Policy="@AdminRoles.Policies.Read">
@@ -34,7 +35,7 @@
                     <span class="zone" title="All times in the dashboard are in the time zone of the central server">Times: @DisplayTime.ZoneLabel(DateTime.UtcNow)</span>
                     Signed in as <span class="user">@context.User.Identity?.Name</span>
                     <button type="submit">Sign out</button>
-                    <span class="version" title="@ServerVersion.Full">Version @ServerVersion.Display</span>
+                    <span class="version" title="@ServerVersion.Full">Version @ServerVersion.Display@if (_serverUpdate is { } update) { <a href="/agents#server" class="update">@update.Version available</a> }</span>
                 </form>
             </nav>
         </Authorized>
@@ -50,6 +51,7 @@
     private Task<AuthenticationState>? AuthenticationState { get; set; }
 
     private int _waiting;
+    private SUSyphos.Server.AgentPackages.ServerUpdate? _serverUpdate;
 
     protected override async Task OnInitializedAsync()
     {
@@ -60,6 +62,7 @@
             var transitions = await Db.RolloutRings
                 .Where(r => r.State == RingRolloutState.AwaitingApproval || r.State == RingRolloutState.Alarm)
                 .CountAsync(r => Db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.State == RolloutState.Active));
+            _serverUpdate = await ServerUpdates.GetServerUpdateAsync(CancellationToken.None);
             _waiting = servers + transitions + await Db.Groups.CountAsync(g => g.LeasesHalted) + await Db.Clients.CountAsync(c => c.State == RegistrationState.Blocked);
         }
     }

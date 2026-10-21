@@ -100,6 +100,43 @@
     </form>
 </div>
 
+<Box Title="Central server" Anchor="server" Help="agents#server">
+    <dl class="facts">
+        <dt>Running</dt><dd class="mono" title="@SUSyphos.Server.Administration.ServerVersion.Full">@SUSyphos.Server.Administration.ServerVersion.Display</dd>
+        <dt>Newest release</dt>
+        <dd>
+            @if (_serverUpdate is { } update)
+            {
+                <span class="pill queue">@update.Version available</span>
+                <span class="note">found @Format(update.FoundAtUtc)</span>
+            }
+            else
+            {
+                <span class="pill ok">up to date</span>
+                <span class="note">@(_lastCheck is null ? "not checked yet" : $"as of the last check, {Format(_lastCheck.AtUtc)}")</span>
+            }
+        </dd>
+    </dl>
+    @if (_serverUpdate is { } available)
+    {
+        <p>
+            @if (available.Page is { } releasePage)
+            {
+                <a class="btn" href="@releasePage" target="_blank" rel="noopener noreferrer">Release notes</a>
+            }
+            @if (available.Package is { } serverMsi)
+            {
+                <a class="btn primary" href="@serverMsi" target="_blank" rel="noopener noreferrer">Download SUSyphos.Server-@(available.Version).msi</a>
+            }
+        </p>
+        <p class="note">
+            Check the file against SHA256SUMS.txt of the release, then run it as administrator on the central server. The upgrade keeps
+            database, trust anchor, settings, port and certificate; the dashboard is unavailable for a minute while the service restarts.
+            Agents keep working and report again afterwards.
+        </p>
+    }
+</Box>
+
 @if (_failed.Count > 0)
 {
     <Box Title="Failed agent updates" Help="agents#failed" Hint="The agent tries again after six hours; the msiexec log is on the server" Flush="true">
@@ -164,6 +201,7 @@
     private List<RingEntity> _rings = [];
     private Dictionary<string, int> _serversByVersion = [];
     private AgentPackageEntity? _newest;
+    private ServerUpdate? _serverUpdate;
     private AgentPackageEntity? _newestReleased;
     private AgentPackageCheck? _lastCheck;
     private string _address = string.Empty;
@@ -213,6 +251,7 @@
         _newest = AgentPackageStore.Newest(_packages);
         _newestReleased = AgentPackageStore.Newest(_packages.Where(p => p.ReleasedThroughRingOrder is not null));
         _lastCheck = await Administration.GetLastCheckAsync(CancellationToken.None);
+        _serverUpdate = await Administration.GetServerUpdateAsync(CancellationToken.None);
         _failed = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved && c.AgentUpdateError != null).OrderBy(c => c.HostName).Take(200).ToListAsync();
         var versions = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).Select(c => c.AgentVersion).ToListAsync();
         _serversByVersion = versions

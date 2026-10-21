@@ -22,6 +22,7 @@ internal enum NotificationKind
     AgentVersionAvailable,
     AgentUpdateFailed,
     BackupFailed,
+    ServerVersionAvailable,
 }
 
 /// <summary>
@@ -88,6 +89,13 @@ internal sealed class NotificationEvents(
             .Select(c => new { c.Id, c.HostName, c.AgentUpdateError })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         events.AddRange(failedUpdates.Select(c => new NotificationEvent($"agent.update-failed:{c.Id}", NotificationKind.AgentUpdateFailed, $"Agent update failed on {c.HostName}: {c.AgentUpdateError}", $"servers/{c.Id}")));
+
+        // A newer central server release was found; reported once per version.
+        var serverUpdate = await db.Settings.AsNoTracking().Where(s => s.Key == AgentPackages.AgentPackageAdministration.ServerUpdateSetting).Select(s => s.Value).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        if (serverUpdate is not null && System.Text.Json.JsonSerializer.Deserialize<AgentPackages.ServerUpdate>(serverUpdate) is { } server)
+        {
+            events.Add(new NotificationEvent($"server.available:{server.Version}", NotificationKind.ServerVersionAvailable, $"Central server version {server.Version} is available; install it on the central server.", "agents#server"));
+        }
 
         // The last scheduled backup failed: reported until a later run succeeds.
         var backupRun = await db.Settings.AsNoTracking().Where(s => s.Key == Administration.ScheduledBackup.LastRunKey).Select(s => s.Value).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
