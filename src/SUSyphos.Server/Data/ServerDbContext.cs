@@ -134,7 +134,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         var package = modelBuilder.Entity<SUSyphos.Server.AgentPackages.AgentPackageEntity>();
         package.ToTable("AgentPackages");
         package.HasKey(p => p.Version);
-        package.Property(p => p.Version).HasMaxLength(SUSyphos.Server.AgentPackages.AgentVersion.MaxLength);
+        package.Property(p => p.Version).HasMaxLength(AgentVersion.MaxLength);
         package.Property(p => p.FileName).HasMaxLength(128);
         package.Property(p => p.Sha256).HasMaxLength(64);
         package.Property(p => p.ReleasedBy).HasMaxLength(256);

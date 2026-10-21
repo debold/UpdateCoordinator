@@ -162,12 +162,22 @@ internal sealed partial class AgentSelfUpdater(
         }
 
         var state = stateStore.Load();
+        var running = environment.AgentVersion.Split('+')[0];
+
+        // A failure of a version this agent has reached since (or passed, e.g. after a manual installation) is over.
+        if (state is { Pending: false } && SUSyphos.Contracts.SemanticVersion.TryParse(running, out var current)
+            && SUSyphos.Contracts.SemanticVersion.TryParse(state.Version, out var failed) && current >= failed)
+        {
+            stateStore.Delete();
+            LogFailureResolved(state.Version, running);
+            return;
+        }
+
         if (state is not { Pending: true })
         {
             return;
         }
 
-        var running = environment.AgentVersion.Split('+')[0];
         if (string.Equals(running, state.Version, StringComparison.OrdinalIgnoreCase))
         {
             stateStore.Delete();
@@ -250,6 +260,9 @@ internal sealed partial class AgentSelfUpdater(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Updating the agent to version {Version} failed: {Error}")]
     private partial void LogFailed(string version, string error);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The failed update to agent {Version} is resolved: agent {Running} runs now.")]
+    private partial void LogFailureResolved(string version, string running);
 }
 
 /// <summary>Stores the update state as JSON next to the other agent data; an unreadable file counts as no state.</summary>

@@ -1,18 +1,18 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace SUSyphos.Server.AgentPackages;
+namespace SUSyphos.Contracts;
 
 /// <summary>
-/// Semantic version of an agent ("0.3.0", "0.4.0-rc.1", build metadata after "+" is ignored), ordered by the SemVer rules,
-/// so the central server can tell which agents are older than a released package.
+/// Semantic version of an agent or the central server ("0.3.0", "0.4.0-rc.1", build metadata after "+" is ignored), ordered
+/// by the SemVer rules, so central server and agent can tell which version is older (shared by both).
 /// </summary>
-internal sealed partial record AgentVersion(int Major, int Minor, int Patch, string? Prerelease) : IComparable<AgentVersion>
+public sealed partial record SemanticVersion(int Major, int Minor, int Patch, string? Prerelease) : IComparable<SemanticVersion>
 {
     /// <summary>Upper bound for a version text in file names and the database.</summary>
     public const int MaxLength = 40;
 
-    public static bool TryParse(string? text, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out AgentVersion? version)
+    public static bool TryParse(string? text, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SemanticVersion? version)
     {
         version = null;
         if (string.IsNullOrEmpty(text) || text.Length > 128)
@@ -30,7 +30,7 @@ internal sealed partial record AgentVersion(int Major, int Minor, int Patch, str
         }
 
         var prerelease = match.Groups["pre"].Success ? match.Groups["pre"].Value : null;
-        version = new AgentVersion(major, minor, patch, prerelease);
+        version = new SemanticVersion(major, minor, patch, prerelease);
         return version.ToString().Length <= MaxLength;
     }
 
@@ -38,7 +38,7 @@ internal sealed partial record AgentVersion(int Major, int Minor, int Patch, str
     /// Short form for lists and filters: major.minor.patch without prerelease and build metadata (e.g. "0.5.0"); the full
     /// version stays available as tooltip. Text that is no version is returned as it is.
     /// </summary>
-    public static string Short(string? text) => TryParse(text, out var version)
+    public static string ShortForm(string? text) => TryParse(text, out var version)
         ? string.Create(CultureInfo.InvariantCulture, $"{version.Major}.{version.Minor}.{version.Patch}")
         : text ?? string.Empty;
 
@@ -48,7 +48,7 @@ internal sealed partial record AgentVersion(int Major, int Minor, int Patch, str
         : -1;
 
 
-    public int CompareTo(AgentVersion? other)
+    public int CompareTo(SemanticVersion? other)
     {
         if (other is null)
         {
@@ -89,13 +89,13 @@ internal sealed partial record AgentVersion(int Major, int Minor, int Patch, str
         return left.Length.CompareTo(right.Length);
     }
 
-    public static bool operator <(AgentVersion left, AgentVersion right) => left.CompareTo(right) < 0;
+    public static bool operator <(SemanticVersion left, SemanticVersion right) => left.CompareTo(right) < 0;
 
-    public static bool operator >(AgentVersion left, AgentVersion right) => left.CompareTo(right) > 0;
+    public static bool operator >(SemanticVersion left, SemanticVersion right) => left.CompareTo(right) > 0;
 
-    public static bool operator <=(AgentVersion left, AgentVersion right) => left.CompareTo(right) <= 0;
+    public static bool operator <=(SemanticVersion left, SemanticVersion right) => left.CompareTo(right) <= 0;
 
-    public static bool operator >=(AgentVersion left, AgentVersion right) => left.CompareTo(right) >= 0;
+    public static bool operator >=(SemanticVersion left, SemanticVersion right) => left.CompareTo(right) >= 0;
 
     public override string ToString() => Prerelease is null
         ? string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}.{Patch}")

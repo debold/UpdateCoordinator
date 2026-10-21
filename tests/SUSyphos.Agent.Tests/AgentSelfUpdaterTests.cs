@@ -206,6 +206,27 @@ public sealed class AgentSelfUpdaterTests : IDisposable
         Assert.False(_state.State!.Pending);
     }
 
+    [Theory]
+    [InlineData("0.6.0", "0.6.0")]
+    [InlineData("0.6.0", "0.7.4+abc")]
+    public void OldFailure_IsGone_OnceTheAgentRunsThatVersionOrANewerOne(string failedVersion, string running)
+    {
+        // E.g. the self-update to 0.6.0 failed, then the server was updated by hand.
+        _state.State = new AgentUpdateState(failedVersion, _time.GetUtcNow().UtcDateTime, Pending: false, Error: "msiexec ended with exit code 1619.");
+
+        Assert.Null(Create(running).LastError);
+        Assert.Null(_state.State);
+    }
+
+    [Fact]
+    public void Failure_StaysReported_WhileTheAgentIsOlder()
+    {
+        _state.State = new AgentUpdateState("0.6.0", _time.GetUtcNow().UtcDateTime, Pending: false, Error: "msiexec ended with exit code 1619.");
+
+        Assert.Equal("msiexec ended with exit code 1619.", Create("0.5.0").LastError);
+        Assert.NotNull(_state.State);
+    }
+
     [Fact]
     public void StateStore_IgnoresTamperedFiles()
     {

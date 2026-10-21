@@ -6,6 +6,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- One version type for agent and central server (SUSyphos.Contracts); the central server calls it AgentVersion where it was born. -->
+    <Using Include="SUSyphos.Contracts.SemanticVersion" Alias="AgentVersion" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" />
     <PackageReference Include="MailKit" />
     <PackageReference Include="Markdig" />

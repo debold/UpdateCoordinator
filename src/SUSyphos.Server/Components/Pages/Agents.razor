@@ -58,7 +58,7 @@
                                     }
                                 }
                             </td>
-                            <td class="n">@if (_serversByVersion.GetValueOrDefault(package.Version) is > 0 and var onVersion) { <a href="@Servers.Link("agent", AgentVersion.Short(package.Version))">@onVersion</a> } else { <span>0</span> }</td>
+                            <td class="n">@if (_serversByVersion.GetValueOrDefault(package.Version) is > 0 and var onVersion) { <a href="@Servers.Link("agent", AgentVersion.ShortForm(package.Version))">@onVersion</a> } else { <span>0</span> }</td>
                             <td class="n">
                                 <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
                                     <span class="row-actions">
@@ -146,7 +146,7 @@
                 <tbody>
                     @foreach (var client in _failed)
                     {
-                        <tr><td><a href="/servers/@client.Id">@client.HostName</a></td><td class="mono" title="@client.AgentVersion">@AgentVersion.Short(client.AgentVersion)</td><td>@client.AgentUpdateError</td></tr>
+                        <tr><td><a href="/servers/@client.Id">@client.HostName</a></td><td class="mono" title="@client.AgentVersion">@AgentVersion.ShortForm(client.AgentVersion)</td><td>@client.AgentUpdateError</td></tr>
                     }
                 </tbody>
             </table>
@@ -166,7 +166,7 @@
                 @foreach (var (version, count) in _serversByVersion.OrderByDescending(v => AgentVersion.TryParse(v.Key, out var parsed) ? parsed : null))
                 {
                     <tr>
-                        <td class="mono"><a href="@Servers.Link("agent", AgentVersion.Short(version))" title="Show the servers with agent @AgentVersion.Short(version)">@version</a></td>
+                        <td class="mono"><a href="@Servers.Link("agent", AgentVersion.ShortForm(version))" title="Show the servers with agent @AgentVersion.ShortForm(version)">@version</a></td>
                         <td class="n">@count</td>
                         <td>
                             @if (Updates.IsBelowMinimum(version))

@@ -27,7 +27,7 @@ public sealed class AgentVersionTests
     [InlineData(null, "")]
     public void Short_DropsPrereleaseAndMetadata(string? text, string expected)
     {
-        Assert.Equal(expected, AgentVersion.Short(text));
+        Assert.Equal(expected, AgentVersion.ShortForm(text));
     }
 
     [Fact]
@@ -237,6 +237,8 @@ public sealed class AgentPackageTests : IAsyncDisposable
         Assert.Null(stored.ReleasedThroughRingOrder);
         Assert.True(File.Exists(Path.Combine(_factory.AgentPackageDirectory, "SUSyphos.Agent-1.3.0.msi")));
         Assert.True(await _factory.WithDbAsync(db => db.AuditEntries.AnyAsync(a => a.Action == "AgentPackage.Checked", TestContext.Current.CancellationToken)));
+        var events = await WithAsync<Notifications.NotificationEvents, List<Notifications.NotificationEvent>>(e => e.CollectAsync(CancellationToken.None));
+        Assert.Contains(events, e => e.Kind == Notifications.NotificationKind.AgentVersionAvailable && e.Key == "agent.available:1.3.0");
     }
 
     [Fact]
@@ -354,13 +356,13 @@ public sealed class AgentPackageTests : IAsyncDisposable
         await using var scenario = new ScenarioClients(_factory);
         var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
         await AddPackageAsync("1.3.0");
+        Assert.True((await WithAsync<AgentPackageAdministration, Outcome>(a => a.ReleaseAsync("1.3.0", AgentPackageAdministration.ReleaseScope.NextRing, "admin", CancellationToken.None))).Succeeded);
 
         await HeartbeatAsync(scenario.Http, pilot, error: "msiexec ended with exit code 1603.");
 
         Assert.Equal("msiexec ended with exit code 1603.", await _factory.WithDbAsync(db => db.Clients.Where(c => c.Id == pilot.ClientId).Select(c => c.AgentUpdateError).SingleAsync(TestContext.Current.CancellationToken)));
         var events = await WithAsync<Notifications.NotificationEvents, List<Notifications.NotificationEvent>>(e => e.CollectAsync(CancellationToken.None));
         Assert.Contains(events, e => e.Kind == Notifications.NotificationKind.AgentUpdateFailed && e.Text.Contains("PILOT01", StringComparison.Ordinal));
-        Assert.Contains(events, e => e.Kind == Notifications.NotificationKind.AgentVersionAvailable && e.Key == "agent.available:1.3.0");
 
         using var browser = await LoginAsync(AdminRoles.Operator);
         using (var page = await browser.GetAsync("/agents"))
@@ -370,6 +372,23 @@ public sealed class AgentPackageTests : IAsyncDisposable
 
         // A successful attempt (no error in the heartbeat) clears it.
         await HeartbeatAsync(scenario.Http, pilot);
+        Assert.Null(await _factory.WithDbAsync(db => db.Clients.Where(c => c.Id == pilot.ClientId).Select(c => c.AgentUpdateError).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task OldUpdateFailure_IsDropped_OnceTheAgentRunsTheNewestReleasedVersion()
+    {
+        // An agent that was updated by hand still reports the failure of an earlier self-update (agents up to 0.7.3).
+        await using var scenario = new ScenarioClients(_factory);
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        await AddPackageAsync("1.3.0");
+        Assert.True((await WithAsync<AgentPackageAdministration, Outcome>(a => a.ReleaseAsync("1.3.0", AgentPackageAdministration.ReleaseScope.AllRings, "admin", CancellationToken.None))).Succeeded);
+
+        await HeartbeatAsync(scenario.Http, pilot, "1.3.0", error: "msiexec ended with exit code 1619.");
+        Assert.Null(await _factory.WithDbAsync(db => db.Clients.Where(c => c.Id == pilot.ClientId).Select(c => c.AgentUpdateError).SingleAsync(TestContext.Current.CancellationToken)));
+
+        // Not approved or nothing released: no update, so no failure either.
+        await HeartbeatAsync(scenario.Http, pilot, "2.0.0", error: "msiexec ended with exit code 1619.");
         Assert.Null(await _factory.WithDbAsync(db => db.Clients.Where(c => c.Id == pilot.ClientId).Select(c => c.AgentUpdateError).SingleAsync(TestContext.Current.CancellationToken)));
     }
 

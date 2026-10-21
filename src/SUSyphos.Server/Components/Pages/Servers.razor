@@ -62,7 +62,7 @@
                             <td>@row.Os<div class="note mono">@row.Build</div></td>
                             <td class="nowrap">@row.Ring@if (row.ManualRing) { <div class="note">manual</div> }</td>
                             <td>@string.Join(", ", row.Groups)</td>
-                            <td class="mono nowrap" title="@row.AgentVersion">@SUSyphos.Server.AgentPackages.AgentVersion.Short(row.AgentVersion)</td>
+                            <td class="mono nowrap" title="@row.AgentVersion">@AgentVersion.ShortForm(row.AgentVersion)</td>
                             <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span></td>
                             <td class="n">@row.Pending</td>
                             <td class="nowrap">@DisplayTime.Format(row.LastHeartbeat)</td>
@@ -97,7 +97,7 @@
         new("build", "Build", r => r.Build),
         new("ring", "Ring", r => r.RingOrder, r => [r.Ring]),
         new("group", "Groups", r => r.Groups.FirstOrDefault(), r => r.Groups.Count == 0 ? [string.Empty] : r.Groups),
-        new("agent", "Agent", r => SUSyphos.Server.AgentPackages.AgentVersion.SortKey(r.AgentVersion), r => [SUSyphos.Server.AgentPackages.AgentVersion.Short(r.AgentVersion)]),
+        new("agent", "Agent", r => AgentVersion.SortKey(r.AgentVersion), r => [AgentVersion.ShortForm(r.AgentVersion)]),
         new("status", "Status", r => (int)r.Health, r => [ServerHealth.Label(r.Health)]),
         new("pending", "Pending updates", r => r.Pending, r => [r.Pending > 0 ? PendingYes : PendingNo]),
         new("seen", "Last heartbeat", r => r.LastHeartbeat),

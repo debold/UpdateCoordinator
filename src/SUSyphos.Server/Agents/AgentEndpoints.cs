@@ -295,6 +295,14 @@ internal static class AgentEndpoints
         // The agent clock is not trusted: a planned restart in the past (beyond an hour) or more than 60 days ahead is not shown.
         DateTime? plannedRestart = request.RestartRequested && request.PlannedRestartAt is { } planned && planned.UtcDateTime > now.AddHours(-1) && planned.UtcDateTime < now.AddDays(60) ? planned.UtcDateTime : null;
 
+        // A reported update failure only matters while there is still an update for this agent: once it runs the newest
+        // version released for its ring (updated later, or installed by hand), the old failure is over.
+        var state = httpContext.User.GetRegistrationState()!.Value;
+        var agentUpdate = state == RegistrationState.Approved
+            ? await agentUpdates.GetUpdateAsync(clientId, request.AgentVersion, cancellationToken).ConfigureAwait(false)
+            : null;
+        var agentUpdateError = agentUpdate is null ? null : request.AgentUpdateError;
+
         // Single parameterized UPDATE; no read-modify-write round trip on every heartbeat.
         var updated = await db.Clients
             .Where(c => c.Id == clientId)
@@ -311,7 +319,7 @@ internal static class AgentEndpoints
                         .SetProperty(c => c.PlannedRestartAtUtc, plannedRestart)
                         .SetProperty(c => c.NextSearchAtUtc, nextSearch)
                         .SetProperty(c => c.NextInventoryAtUtc, nextInventory)
-                        .SetProperty(c => c.AgentUpdateError, request.AgentUpdateError)
+                        .SetProperty(c => c.AgentUpdateError, agentUpdateError)
                         .SetProperty(c => c.LastBootAtUtc, c => lastBoot ?? c.LastBootAtUtc);
                     LiveStatus.Apply(setters, activity, now);
                 },
@@ -353,7 +361,6 @@ internal static class AgentEndpoints
         }
 
         // Control information (release list version, global pause) only for approved clients (docs/03, 4.2).
-        var state = httpContext.User.GetRegistrationState()!.Value;
         if (state != RegistrationState.Approved)
         {
             return TypedResults.Ok(new HeartbeatResponse(state));
@@ -365,7 +372,7 @@ internal static class AgentEndpoints
             releasesVersion,
             await globalPause.IsActiveAsync(cancellationToken).ConfigureAwait(false),
             await actions.CountQueuedAsync(clientId, cancellationToken).ConfigureAwait(false),
-            await agentUpdates.GetUpdateAsync(clientId, request.AgentVersion, cancellationToken).ConfigureAwait(false)));
+            agentUpdate));
     }
 
     /// <summary>
@@ -388,7 +395,7 @@ internal static class AgentEndpoints
             return TypedResults.NotFound();
         }
 
-        return TypedResults.PhysicalFile(path, "application/x-msi", AgentPackages.AgentPackageStore.FileNameFor(AgentPackages.AgentVersion.TryParse(target.Version, out var parsed) ? parsed : new AgentPackages.AgentVersion(0, 0, 0, null)), enableRangeProcessing: true);
+        return TypedResults.PhysicalFile(path, "application/x-msi", AgentPackages.AgentPackageStore.FileNameFor(AgentVersion.TryParse(target.Version, out var parsed) ? parsed : new AgentVersion(0, 0, 0, null)), enableRangeProcessing: true);
     }
 }
 
