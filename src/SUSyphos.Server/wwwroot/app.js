@@ -1,6 +1,7 @@
 // Progressive enhancement for the dashboard (docs/06-dashboard.md). Every page works without this file: forms post to the
 // server as before. The script only makes things more convenient: dependent fields become inert while their switch is off,
-// column filters get a search box, and the maintenance window picker redraws its week preview on every change.
+// column filters get a search box, the maintenance window picker redraws its week preview on every change, and the first
+// setup takes the token from the address the installer opened.
 // Served from the central server itself (Content-Security-Policy script-src 'self'); no inline code, no other sources.
 (() => {
     'use strict';
@@ -135,5 +136,25 @@
         search.hidden = false;
     }
 
+    // First setup opened by the installer: the token comes after # in the address, so it is never sent to the server or
+    // written to its logs. It fills the field and is removed from the address (and so from the browser history).
+    const fillFromAddress = () => {
+        const fields = document.querySelectorAll('input[data-token-from-address]');
+        if (fields.length === 0 || !location.hash) {
+            return;
+        }
+
+        const values = new URLSearchParams(location.hash.slice(1));
+        for (const field of fields) {
+            const value = values.get(field.dataset.tokenFromAddress);
+            if (value && /^[A-Za-z0-9_-]{32,128}$/.test(value) && field.value === '') {
+                field.value = value;
+            }
+        }
+
+        history.replaceState(null, '', location.pathname + location.search);
+    };
+
     applyGates();
+    fillFromAddress();
 })();

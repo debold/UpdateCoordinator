@@ -83,13 +83,23 @@ function Get-DisplayIcon([string] $Name) {
 $certificate = New-SelfSignedCertificate -DnsName 'localhost' -CertStoreLocation 'Cert:\LocalMachine\My' -NotAfter (Get-Date).AddDays(7)
 
 # --- Version 1: fresh installation ------------------------------------------------------------------------------
-Check 'server installs' { (Invoke-Msi "/i `"$Version1Directory\SUSyphos.Server.msi`" CERTTHUMBPRINT=$($certificate.Thumbprint) HTTPSPORT=$Port" 'server-install.log') -eq 0 }
+# The token the interactive installer would create and show; given on the command line here, as automated installations can.
+$setupToken = -join ((1..43) | ForEach-Object { 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'[(Get-Random -Maximum 64)] })
+Check 'server installs' { (Invoke-Msi "/i `"$Version1Directory\SUSyphos.Server.msi`" CERTTHUMBPRINT=$($certificate.Thumbprint) HTTPSPORT=$Port SETUPTOKEN=$setupToken" 'server-install.log') -eq 0 }
+Check 'setup token key is readable by SYSTEM and administrators only' {
+    $acl = Get-Acl 'HKLM:\SOFTWARE\SUSyphos\Server\Setup'
+    $acl.AreAccessRulesProtected -and -not ($acl.Access | Where-Object { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -notin 'S-1-5-18', 'S-1-5-32-544' })
+}
+Check 'setup token does not appear in the installer log' { -not (Select-String -Path (Join-Path $LogDirectory 'server-install.log') -Pattern $setupToken -SimpleMatch -Quiet) }
 Check 'server service runs' { Wait-Until { (Get-Service SUSyphos.Server).Status -eq 'Running' } 60 }
 Check 'server settings in registry' { (Get-ItemProperty $serverKey).CertificateThumbprint -eq $certificate.Thumbprint -and (Get-ItemProperty $serverKey).HttpsUrl -eq "https://*:$Port" }
 $serverCodeV1 = Get-ProductCode 'SUSyphos Central Server'
 Check 'server restarts on failure' { (sc.exe qfailure SUSyphos.Server | Out-String) -match 'RESTART' }
 Check 'firewall rule for the port' { (Get-NetFirewallRule -DisplayName 'SUSyphos Central Server (HTTPS)' | Get-NetFirewallPortFilter).LocalPort -eq "$Port" }
 Check 'health endpoint answers' { Wait-Until { (Invoke-WebRequest $healthUrl -SkipCertificateCheck -UseBasicParsing).StatusCode -eq 200 } 90 }
+Check 'central server takes over the token of the installer' {
+    Wait-Until { (Get-Content "$env:ProgramData\SUSyphos\Server\setup-token.txt" -Raw).Trim() -eq $setupToken } 60
+}
 Check 'start menu entry opens the dashboard by the fully qualified name' { (Get-Content $dashboardShortcut -Raw) -match "URL=https://$([regex]::Escape($dashboardHost)):$Port/" }
 Check 'start menu entry shows the SUSyphos icon' {
     $icon = [regex]::Match((Get-Content $dashboardShortcut -Raw), '(?m)^IconFile=(.+)$').Groups[1].Value.Trim()

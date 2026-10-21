@@ -72,6 +72,7 @@ internal static class DashboardServiceCollectionExtensions
         services.AddCascadingAuthenticationState();
         services.AddRazorComponents();
 
+        services.AddSingleton<IInstallerSetupToken, RegistryInstallerSetupToken>();
         services.AddSingleton<SetupService>();
         // Explicit factory: the other constructor (sources from tests) would be satisfied by an empty enumerable.
         services.AddSingleton(_ => new Help.HelpCatalog());

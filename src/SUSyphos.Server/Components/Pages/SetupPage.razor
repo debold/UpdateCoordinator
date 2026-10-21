@@ -18,7 +18,7 @@
             }
             else
             {
-                <p class="note">Enter the one-time setup token. It is stored on the central server in the file named in the service log and can only be read by local administrators.</p>
+                <p class="note">Enter the one-time setup token. Opened from the last page of the installer, it is filled in already. Otherwise it is in <code>@SetupFlow.TokenPath</code> on the central server, which only local administrators can read; the interactive installer also showed it.</p>
                 @if (_errors.Count > 0)
                 {
                     <ul class="error" role="alert">
@@ -30,7 +30,7 @@
                 }
                 <EditForm Model="Input" method="post" OnValidSubmit="CompleteAsync" FormName="setup" class="form">
                     <DataAnnotationsValidator />
-                    <label class="field"><span>Setup token</span><InputText @bind-Value="Input!.Token" autocomplete="off" /></label>
+                    <label class="field"><span>Setup token</span><InputText @bind-Value="Input!.Token" autocomplete="off" data-token-from-address="token" /></label>
                     <label class="field"><span>User name</span><InputText @bind-Value="Input!.UserName" autocomplete="username" /></label>
                     <div class="form-row">
                         <label class="field"><span>Password</span><InputText type="password" @bind-Value="Input!.Password" autocomplete="new-password" /><span class="help">At least 12 characters</span></label>

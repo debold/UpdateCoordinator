@@ -42,9 +42,10 @@ internal enum SetupResult
 /// <summary>
 /// One-time setup of the first administrator. While no account exists, a random token is written to a file
 /// that only local administrators can read; whoever presents it may create the first Admin account.
-/// Afterwards the setup is closed for good.
+/// Afterwards the setup is closed for good. A token the interactive installer created and showed is taken over, so the
+/// installer can open the setup with it.
 /// </summary>
-internal sealed partial class SetupService(IOptions<AdministrationOptions> options, ILogger<SetupService> logger)
+internal sealed partial class SetupService(IOptions<AdministrationOptions> options, IInstallerSetupToken installerToken, ILogger<SetupService> logger)
 {
     private readonly Lock _lock = new();
     private byte[]? _tokenHash;
@@ -60,6 +61,13 @@ internal sealed partial class SetupService(IOptions<AdministrationOptions> optio
         }
     }
 
+    /// <summary>File that holds the token while the setup is open; shown on the sign-in and setup pages.</summary>
+    public string TokenPath => options.Value.SetupTokenPath;
+
+    /// <summary>True for a token as the installer creates it: 32 to 128 URL-safe characters (letters, digits, - and _).</summary>
+    public static bool IsWellFormed(string? token) =>
+        token is { Length: >= 32 and <= 128 } && token.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
+
     /// <summary>Called on startup: opens the setup if no account exists, otherwise removes any leftover token file.</summary>
     public async Task InitializeAsync(UserManager<IdentityUser> users, CancellationToken cancellationToken)
     {
@@ -72,10 +80,14 @@ internal sealed partial class SetupService(IOptions<AdministrationOptions> optio
             }
 
             DeleteTokenFile(path);
+            installerToken.Remove();
             return;
         }
 
-        var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
+        // The installer's token, if it left a usable one; otherwise a new one. Both end up in the token file.
+        var token = installerToken.Read() is { } fromInstaller && IsWellFormed(fromInstaller)
+            ? fromInstaller
+            : Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
         WriteRestricted(path, token);
         lock (_lock)
         {
@@ -126,6 +138,7 @@ internal sealed partial class SetupService(IOptions<AdministrationOptions> optio
         }
 
         DeleteTokenFile(options.Value.SetupTokenPath);
+        installerToken.Remove();
         await audit.WriteAsync(user.UserName!, "Setup.Completed", user.UserName, "First administrator created.", cancellationToken).ConfigureAwait(false);
         LogSetupCompleted(user.UserName!);
         return (SetupResult.Completed, []);

@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    Custom actions of the agent installer. .NET Framework 4.6.2 is part of Windows Server 2016, so the actions run on every
+    Custom actions of the agent and central server installers. .NET Framework 4.6.2 is part of Windows Server 2016, so the actions run on every
     supported server without a prerequisite. The file name format is shared with the central server as linked source.
   -->
   <PropertyGroup>

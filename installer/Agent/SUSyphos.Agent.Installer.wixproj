@@ -22,6 +22,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Agent.CustomActions\SUSyphos.Agent.CustomActions.csproj" />
+    <ProjectReference Include="..\CustomActions\SUSyphos.Installer.CustomActions.csproj" />
   </ItemGroup>
 </Project>

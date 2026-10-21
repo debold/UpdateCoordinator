@@ -94,6 +94,85 @@ public sealed class SetupTests
         Assert.False(scope.ServiceProvider.GetRequiredService<SetupService>().IsAvailable);
     }
 
+    [Fact]
+    public async Task Setup_UsesTheTokenTheInstallerShowed_AndRemovesItAfterwards()
+    {
+        const string installerToken = "Fq3kVt9wQ2mZ7xR1bN5cL8pH4sJ6dG0yAeUiOoTn-_w";
+        await using var factory = new ServerFactory();
+        factory.InstallerToken.Value = installerToken;
+        using var browser = new DashboardClient(factory);
+        using (await browser.GetAsync("/setup"))
+        {
+        }
+
+        Assert.Equal(installerToken, await File.ReadAllTextAsync(factory.SetupTokenPath, TestContext.Current.CancellationToken));
+        using var response = await PostSetupAsync(browser, installerToken, "admin", Password);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Null(factory.InstallerToken.Value);
+        Assert.Equal(1, factory.InstallerToken.Removed);
+        Assert.False(File.Exists(factory.SetupTokenPath));
+    }
+
+    [Theory]
+    [InlineData("short")]
+    [InlineData("contains spaces and is long enough to pass the length check")]
+    [InlineData("<script>alert('a long enough value')</script>xxxxxx")]
+    public async Task Setup_IgnoresAMalformedInstallerToken(string installerToken)
+    {
+        await using var factory = new ServerFactory();
+        factory.InstallerToken.Value = installerToken;
+        using var browser = new DashboardClient(factory);
+        using (await browser.GetAsync("/setup"))
+        {
+        }
+
+        var token = await File.ReadAllTextAsync(factory.SetupTokenPath, TestContext.Current.CancellationToken);
+        Assert.NotEqual(installerToken, token);
+        Assert.True(SetupService.IsWellFormed(token));
+        using var response = await PostSetupAsync(browser, installerToken, "admin", Password);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(await factory.WithDbAsync(db => db.Users.AnyAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Theory]
+    [InlineData("Fq3kVt9wQ2mZ7xR1bN5cL8pH4sJ6dG0yAeUiOoTn-_w", true)]
+    [InlineData("abcdefghijklmnopqrstuvwxyz012345", true)]
+    [InlineData("abcdefghijklmnopqrstuvwxyz01234", false)]
+    [InlineData("abcdefghijklmnopqrstuvwxyz01234=", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void InstallerToken_FormatIsChecked(string? token, bool expected) =>
+        Assert.Equal(expected, SetupService.IsWellFormed(token));
+
+    [Theory]
+    [InlineData("/login")]
+    [InlineData("/setup")]
+    public async Task OpenSetup_ShowsWhereTheTokenFileIs(string path)
+    {
+        await using var factory = new ServerFactory();
+        using var browser = new DashboardClient(factory);
+
+        using var response = await browser.GetAsync(path);
+
+        Assert.Contains($"<code>{System.Net.WebUtility.HtmlEncode(factory.SetupTokenPath)}</code>", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ClosedSetup_DoesNotShowTheTokenPath()
+    {
+        await using var factory = new ServerFactory();
+        factory.InstallerToken.Value = "abcdefghijklmnopqrstuvwxyz012345";
+        using var browser = new DashboardClient(factory);
+        using (await PostSetupAsync(browser, factory.InstallerToken.Value, "admin", Password))
+        {
+        }
+
+        using var response = await browser.GetAsync("/login");
+
+        Assert.DoesNotContain("setup-token.txt", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
     private static Task<HttpResponseMessage> PostSetupAsync(DashboardClient browser, string token, string userName, string password) =>
         browser.PostFormAsync("/setup", new Dictionary<string, string>
         {

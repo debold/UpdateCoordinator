@@ -43,6 +43,28 @@
     <SetProperty Id="HTTPSPORT" Value="[INSTALLEDPORT]" After="AppSearch" Sequence="both" Condition="NOT HTTPSPORT AND INSTALLEDPORT" />
     <SetProperty Id="HTTPSPORT" Action="SetDefaultHttpsPort" Value="8443" After="SetHTTPSPORT" Sequence="both" Condition="NOT HTTPSPORT" />
 
+    <!--
+      One-time token for the first administrator, so nobody has to look for the token file: the interactive first
+      installation creates it (or SETUPTOKEN comes from the command line), shows it on the port page to copy, opens the
+      setup with it from the final page, and hands it to the central server through a registry key that only SYSTEM and
+      administrators can read (protected ACL). The central server deletes the key once the first administrator exists.
+      Hidden: the value never appears in the installer log.
+    -->
+    <Property Id="SETUPTOKEN" Secure="yes" Hidden="yes" />
+    <Property Id="SETUPTOKENCOPY" Hidden="yes" />
+    <Property Id="WixShellExecTarget" Hidden="yes" />
+    <Binary Id="InstallerCustomActions" SourceFile="$(var.SUSyphos.Installer.CustomActions.TargetDir)SUSyphos.Installer.CustomActions.CA.dll" />
+    <CustomAction Id="CreateSetupToken" BinaryRef="InstallerCustomActions" DllEntry="CreateSetupToken" Return="ignore" />
+    <InstallUISequence>
+      <Custom Action="CreateSetupToken" After="AppSearch" Condition="NOT Installed AND NOT INSTALLEDPORT" />
+    </InstallUISequence>
+    <Component Id="SetupToken" Directory="INSTALLFOLDER" Condition="SETUPTOKEN" Guid="6D2A4F81-3B9C-4E57-A0D8-1C7E5B9F2A43">
+      <RegistryKey Root="HKLM" Key="SOFTWARE\SUSyphos\Server\Setup" ForceCreateOnInstall="yes">
+        <PermissionEx Sddl="D:PAI(A;;KA;;;SY)(A;;KA;;;BA)" />
+        <RegistryValue Name="Token" Type="string" Value="[SETUPTOKEN]" KeyPath="yes" />
+      </RegistryKey>
+    </Component>
+
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="ProductFolder" Name="SUSyphos">
         <Directory Id="INSTALLFOLDER" Name="Server">
@@ -59,6 +81,7 @@
       <ComponentRef Id="ServerServiceStart" />
       <ComponentRef Id="DashboardShortcut" />
       <ComponentRef Id="DashboardShortcutIcon" />
+      <ComponentRef Id="SetupToken" />
       <?if $(var.AgentMsi) != "" ?>
       <ComponentRef Id="BundledAgentPackage" />
       <?endif?>
@@ -150,9 +173,12 @@
     -->
     <SetProperty Id="DASHBOARDURL" Value="https://[DASHBOARDHOST]:[HTTPSPORT]/" After="SetDashboardHostDomain" Sequence="execute" />
     <SetProperty Action="SetDashboardUrlUi" Id="DASHBOARDURL" Value="https://[DASHBOARDHOST]:[HTTPSPORT]/" After="ExecuteAction" Sequence="ui" />
-    <SetProperty Id="WixShellExecTarget" Value="[DASHBOARDURL]" After="SetDashboardUrlUi" Sequence="ui" />
-    <SetProperty Id="WIXUI_EXITDIALOGOPTIONALTEXT" After="SetDashboardUrlUi" Sequence="ui"
+    <SetProperty Id="WixShellExecTarget" Value="[DASHBOARDURL]" After="SetDashboardUrlUi" Sequence="ui" Condition="NOT SETUPTOKEN" />
+    <SetProperty Action="SetSetupShellExecTarget" Id="WixShellExecTarget" Value="[DASHBOARDURL]setup#token=[SETUPTOKEN]" After="SetWixShellExecTarget" Sequence="ui" Condition="SETUPTOKEN" />
+    <SetProperty Id="WIXUI_EXITDIALOGOPTIONALTEXT" After="SetDashboardUrlUi" Sequence="ui" Condition="NOT SETUPTOKEN"
                  Value="The dashboard is at [DASHBOARDURL]. On the first visit, create the first administrator with the one-time token from %ProgramData%\SUSyphos\Server\setup-token.txt (readable by administrators only)." />
+    <SetProperty Action="SetSetupExitText" Id="WIXUI_EXITDIALOGOPTIONALTEXT" After="SetWIXUI_EXITDIALOGOPTIONALTEXT" Sequence="ui" Condition="SETUPTOKEN"
+                 Value="The dashboard is at [DASHBOARDURL]. Opening it now starts the setup of the first administrator with the one-time token from the previous page filled in." />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Open the dashboard" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
     <CustomAction Id="OpenDashboard" BinaryRef="Wix4UtilCA_X64" DllEntry="WixShellExec" Impersonate="yes" Return="ignore" />
@@ -184,7 +210,7 @@
       <Dialog Id="HttpsPortDlg" Width="370" Height="270" Title="[ProductName] Setup">
         <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
         <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
-        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}HTTPS port" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="250" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}HTTPS port and first sign-in" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="The port agents and administrators connect to." />
         <Control Id="Intro" Type="Text" X="20" Y="60" Width="330" Height="30" NoPrefix="yes"
                  Text="The central server accepts the agents and the dashboard over HTTPS on this port. Setup opens it in Windows Firewall." />
@@ -192,8 +218,14 @@
         <Control Id="PortEdit" Type="Edit" X="20" Y="108" Width="60" Height="18" Property="HTTPSPORT" Integer="yes" Text="{5}" />
         <Control Id="Invalid" Type="Text" X="20" Y="130" Width="330" Height="20" NoPrefix="yes" Hidden="yes"
                  Text="{\ServerUI_Font_Error}Enter a port from 1 to 65535." ShowCondition="HTTPSPORTVALID = &quot;0&quot;" />
-        <Control Id="LaterHint" Type="Text" X="20" Y="186" Width="330" Height="30" NoPrefix="yes"
+        <Control Id="LaterHint" Type="Text" X="20" Y="150" Width="330" Height="20" NoPrefix="yes"
                  Text="Agents keep the address they were installed with, so choose the port before installing the first agents. Upgrades keep it." />
+        <!-- The token is shown in an edit field so it can be selected and copied; changing it there changes nothing. -->
+        <Control Id="TokenLabel" Type="Text" X="20" Y="176" Width="330" Height="10" NoPrefix="yes" Hidden="yes" ShowCondition="SETUPTOKEN"
+                 Text="One-time token for the first administrator:" />
+        <Control Id="TokenEdit" Type="Edit" X="20" Y="188" Width="330" Height="18" Property="SETUPTOKENCOPY" Hidden="yes" ShowCondition="SETUPTOKEN" Text="{128}" />
+        <Control Id="TokenHint" Type="Text" X="20" Y="209" Width="330" Height="20" NoPrefix="yes" Hidden="yes" ShowCondition="SETUPTOKEN"
+                 Text="Opening the dashboard at the end of the setup fills it in. It is also stored in setup-token.txt under %ProgramData%\SUSyphos\Server." />
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)" />
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">

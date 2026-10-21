@@ -23,6 +23,9 @@ public class ServerFactory : WebApplicationFactory<Program>
     /// <summary>Certificate store of this server instance; the machine store is never used in tests.</summary>
     internal FakeCertificateStore CertificateStore { get; } = new();
 
+    /// <summary>The setup token the installer would hand over through the registry.</summary>
+    public FakeInstallerSetupToken InstallerToken { get; } = new();
+
     /// <summary>Registrations allowed per IP and minute; high by default so tests do not interfere.</summary>
     protected virtual int RegisterPermitLimit => 1_000;
 
@@ -69,6 +72,7 @@ public class ServerFactory : WebApplicationFactory<Program>
         {
             services.AddSingleton<ITlsCertificateProvider>(_certificates);
             services.AddSingleton<IServerCertificateStore>(CertificateStore);
+            services.AddSingleton<SUSyphos.Server.Administration.IInstallerSetupToken>(InstallerToken);
 
             // The real Negotiate handler needs Kestrel connections and a domain; tests use a header-driven stand-in.
             services.PostConfigure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(options =>

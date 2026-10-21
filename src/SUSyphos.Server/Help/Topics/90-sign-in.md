@@ -11,9 +11,9 @@ The session ends after 8 hours without activity, or with **Sign out** at the bot
 
 ## First start {#setup}
 
-As long as no account exists, the sign-in page links to the setup of the first administrator. The central server writes a one-time setup token to a file on the central server (by default `%ProgramData%\SUSyphos\Server\setup-token.txt`, readable only by administrators; the path is also in the service log).
+As long as no account exists, the sign-in page links to the setup of the first administrator, which needs a one-time setup token. The easiest way: the interactive installation of the central server shows the token on its port page (to copy), and "Open the dashboard" on its last page opens the setup with the token filled in. Otherwise the token is in a file on the central server, by default `%ProgramData%\SUSyphos\Server\setup-token.txt`, readable only by administrators; the sign-in and setup pages show the exact path while the setup is open.
 
-- **Setup token**: the content of that file.
+- **Setup token**: filled in when the installer opened the page, else the content of that file.
 - **User name** of the first administrator.
 - **Password** and **Repeat password**: at least 12 characters.
 - **Create administrator** creates the account with the Admin role, deletes the token file and closes the setup for good.

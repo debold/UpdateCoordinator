@@ -14,7 +14,7 @@
             <h1>Sign in<HelpLink To="sign-in#sign-in" Label="Sign in" /></h1>
             @if (Setup.IsAvailable)
             {
-                <p class="notice">No account exists yet. <a href="@DashboardServiceCollectionExtensions.SetupPath">Create the first administrator.</a></p>
+                <p class="notice">No account exists yet. <a href="@DashboardServiceCollectionExtensions.SetupPath">Create the first administrator</a> with the one-time token from <code>@Setup.TokenPath</code> on the central server (readable by administrators only), or open the setup from the last page of the installer.</p>
             }
             @if (_error is not null)
             {

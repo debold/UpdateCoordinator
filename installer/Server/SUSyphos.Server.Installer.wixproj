@@ -25,4 +25,8 @@
     <PackageReference Include="WixToolset.Firewall.wixext" />
     <PackageReference Include="WixToolset.UI.wixext" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CustomActions\SUSyphos.Installer.CustomActions.csproj" />
+  </ItemGroup>
 </Project>

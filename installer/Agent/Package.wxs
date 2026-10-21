@@ -45,7 +45,7 @@
       <RegistrySearch Root="HKLM" Key="SOFTWARE\Policies\SUSyphos\Agent" Name="CentralServerUrl" Type="raw" Bitness="always64" />
     </Property>
 
-    <Binary Id="AgentCustomActions" SourceFile="$(var.SUSyphos.Agent.CustomActions.TargetDir)SUSyphos.Agent.CustomActions.CA.dll" />
+    <Binary Id="AgentCustomActions" SourceFile="$(var.SUSyphos.Installer.CustomActions.TargetDir)SUSyphos.Installer.CustomActions.CA.dll" />
     <CustomAction Id="ReadInstallerFileName" BinaryRef="AgentCustomActions" DllEntry="ReadInstallerFileName" Execute="firstSequence" Return="ignore" />
     <CustomAction Id="ValidateServerUrl" BinaryRef="AgentCustomActions" DllEntry="ValidateServerUrl" Return="ignore" />
     <InstallUISequence>
