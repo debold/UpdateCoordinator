@@ -58,7 +58,7 @@ Implemented (2026-10-18): health (offline, failed, reboot pending, warning, OK),
 
 Three levels: system default (Mon–Fri 19:00–05:00, Sat/Sun all day) → group → individual server. In addition, blackout times as a time filter on top of the ring release.
 
-Implemented pages (Admin role): Administration → Maintenance windows (system default), Groups (create, delete, group windows), Assignment rules (create, delete). Servers and server detail (Reader role) show ring, groups and effective windows; administrators change the manual ring, manual groups and server windows on the server detail page.
+Implemented pages (Admin role): Administration → Maintenance windows (system default), Server groups (create, delete, group windows), Assignment rules (create, delete). Servers and server detail (Reader role) show ring, groups and effective windows; administrators change the manual ring, manual groups and server windows on the server detail page.
 
 ### Release rules
 
