@@ -95,7 +95,10 @@ public sealed class BlackoutPeriodTests
 
         using (var invalid = await admin.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "blackouts", ["BlackoutAction"] = "add", ["BlackoutStartDate"] = "yesterday", ["BlackoutStartTime"] = "25:00", ["BlackoutEndDate"] = Date(end), ["BlackoutEndTime"] = Time(end), ["BlackoutReason"] = "x" }))
         {
-            Assert.Contains("Enter start and end", await invalid.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            var html = await invalid.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains("Enter start and end", html, StringComparison.Ordinal);
+            Assert.Contains($"value=\"{Date(end)}\"", html, StringComparison.Ordinal);
+            Assert.Contains("name=\"BlackoutReason\" maxlength=\"200\" placeholder=\"e.g. year-end freeze\" value=\"x\"", html, StringComparison.Ordinal);
         }
 
         var id = Assert.Single(await scenario.WithServiceAsync<BlackoutPeriods, IReadOnlyList<BlackoutPeriod>>(b => b.ListAsync(CancellationToken.None))).Id;

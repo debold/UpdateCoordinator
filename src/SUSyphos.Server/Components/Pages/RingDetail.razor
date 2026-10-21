@@ -258,7 +258,7 @@ else
 
     private string TransitionText => _transitions.GetValueOrDefault(_ring!.Id) is { } t
         ? string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"next ring after {t.MinimumWait.TotalDays:0}–{t.MaximumWait.TotalDays:0} days with feedback ≥ {t.MinimumFeedbackPercent} % and success ≥ {t.MinimumSuccessPercent} %{(t.ManualGate ? ", manual gate" : string.Empty)}")
+            $"next ring {t.MinimumWait.TotalDays:0}–{t.MaximumWait.TotalDays:0} days after an update's release here, with feedback ≥ {t.MinimumFeedbackPercent} % and success ≥ {t.MinimumSuccessPercent} %{(t.ManualGate ? ", manual gate" : string.Empty)}")
         : "last ring, deployed last";
 
     [SupplyParameterFromQuery(Name = "dialog")]

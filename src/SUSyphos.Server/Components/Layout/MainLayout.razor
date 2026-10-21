@@ -32,7 +32,6 @@
                 <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="account">
                     <AntiforgeryToken />
                     <input type="hidden" name="_handler" value="logout" />
-                    <span class="zone" title="All times in the dashboard are in the time zone of the central server">Times: @DisplayTime.ZoneLabel(DateTime.UtcNow)</span>
                     Signed in as <span class="user">@context.User.Identity?.Name</span>
                     <button type="submit">Sign out</button>
                     <span class="version" title="@ServerVersion.Full">Version @ServerVersion.Display@if (_serverUpdate is { } update) { <a href="/agents#server" class="update">@update.Version available</a> }</span>

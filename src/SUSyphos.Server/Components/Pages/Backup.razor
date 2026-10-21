@@ -107,8 +107,11 @@
         }
 
         var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        var timeValid = TimeSpan.TryParseExact(Time, "hh\\:mm", invariant, out var time);
+        var keepValid = int.TryParse(Keep, System.Globalization.NumberStyles.None, invariant, out var keep);
+        var settings = new ScheduledBackupSettings { Enabled = ScheduleEnabled == "yes", Folder = Folder, TimeOfDay = time, Keep = keep };
         Outcome outcome;
-        if (!TimeSpan.TryParseExact(Time, "hh\\:mm", invariant, out var time) || !int.TryParse(Keep, System.Globalization.NumberStyles.None, invariant, out var keep))
+        if (!timeValid || !keepValid)
         {
             outcome = new Outcome("Enter a time (hh:mm) and a whole number of backups to keep.");
         }
@@ -118,12 +121,17 @@
         }
         else
         {
-            var settings = new ScheduledBackupSettings { Enabled = ScheduleEnabled == "yes", Folder = Folder, TimeOfDay = time, Keep = keep };
             outcome = await Schedule.SaveAsync(settings, string.IsNullOrEmpty(SchedulePassword) ? null : SchedulePassword, await GetActorAsync(), CancellationToken.None);
         }
 
-        ShowResult(outcome.Error, "The scheduled backup was saved.");
+        // Passwords are never written back into the page; everything else stays as entered, so nothing has to be typed again.
+        var passwordTyped = !string.IsNullOrEmpty(SchedulePassword) || !string.IsNullOrEmpty(SchedulePasswordRepeat);
+        ShowResult(outcome.Error is null ? null : outcome.Error + (passwordTyped ? " Enter the password again." : string.Empty), "The scheduled backup was saved.");
         await LoadAsync();
+        if (outcome.Error is not null)
+        {
+            _settings = settings with { TimeOfDay = timeValid ? time : _settings.TimeOfDay, Keep = keepValid ? keep : _settings.Keep };
+        }
     }
 
     private async Task LoadAsync()

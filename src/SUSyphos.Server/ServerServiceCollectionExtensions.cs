@@ -111,6 +111,7 @@ internal static class ServerServiceCollectionExtensions
         await using var scope = services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<TrustBindingService>().EnsureCurrentAsync(cancellationToken).ConfigureAwait(false);
         await scope.ServiceProvider.GetRequiredService<CertificateAdministration>().AuditStartupChangeAsync(cancellationToken).ConfigureAwait(false);
+        await scope.ServiceProvider.GetRequiredService<Assignment.AssignmentAdministration>().RenumberDuplicatePrioritiesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Creates the database directory if needed and applies pending schema migrations.</summary>

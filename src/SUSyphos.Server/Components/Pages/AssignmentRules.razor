@@ -12,7 +12,6 @@
 
 <ActionBand>
     <a class="btn primary" href="@Path?dialog=new">New rule</a>
-    <a class="btn" href="/administration/groups">Groups</a>
 </ActionBand>
 
 <Box Title="Rules" Help="assignment-rules#list" Flush="true" Hint="All conditions of a rule must match; a rule with several roles matches servers with any of them">
@@ -78,7 +77,7 @@
                             }
                         </select>
                     </label>
-                    <label class="field"><span>Priority (lower wins)</span><input name="Priority" type="number" min="0" max="10000" value="@(Priority ?? rule?.Priority.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "100")" /></label>
+                    <label class="field"><span>Priority (lower wins)</span><input name="Priority" type="number" min="0" max="10000" value="@(Priority ?? (rule?.Priority ?? _nextPriority).ToString(System.Globalization.CultureInfo.InvariantCulture))" /></label>
                 </div>
                 <div class="field">
                     <span class="field-label">Roles (any of them)</span>
@@ -142,6 +141,7 @@ else if (_dialog == "delete" && Editing is { } doomed)
 
     private string? _dialog;
     private List<AssignmentRuleEntity> _rules = [];
+    private int _nextPriority = SUSyphos.Server.Administration.RulePriority.First;
     private List<RingEntity> _rings = [];
     private List<GroupEntity> _groups = [];
     private List<string> _knownRoles = [];
@@ -202,6 +202,7 @@ else if (_dialog == "delete" && Editing is { } doomed)
     private async Task LoadAsync()
     {
         _rules = await Db.AssignmentRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync();
+        _nextPriority = SUSyphos.Server.Administration.RulePriority.NextFree([.. _rules.Select(r => r.Priority)]);
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         var inventoryRoles = (await Db.Clients.AsNoTracking().Select(c => c.Roles).ToListAsync()).SelectMany(r => r);

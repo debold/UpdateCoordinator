@@ -7,7 +7,6 @@ Servers join a group by hand on their [details page](help/server-detail#groups) 
 ## Group list {#list}
 
 - **New group**: opens the [group dialog](#dialog).
-- **Assignment rules**: the rules that put servers into groups automatically.
 
 The table shows each group with **Description**, number of **Members** (the name opens the server list filtered to the group), its **Maintenance windows** ("system default" if it has none), **Reboots** ("inherit" if not set) and **Coordination** (share and maximum, "Stopped" when its installations were stopped after failures, or "not coordinated").
 

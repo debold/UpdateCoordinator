@@ -18,7 +18,7 @@ A rollout runs each update separately through the **rings** in their order, for 
 
 When an update moves on to the next ring is decided by the **transition rule** of the ring it is in ([Release rules](help/release-rules#transitions)):
 
-- **Minimum wait**: the update stays at least this long in the ring.
+- **Minimum wait**: the update stays at least this long in the ring, counted from its release there (each update on its own, not from the start of the rollout).
 - **Feedback**: the share of the servers of the ring that reported a result.
 - **Success**: the share of successful installations among those results (offline servers do not lower it).
 - **Maximum wait**: when it is reached and the success rate is good, the update moves on even if feedback is missing.

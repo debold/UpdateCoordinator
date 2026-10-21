@@ -7,9 +7,9 @@ How updates enter the rings (start rules) and when they move on to the next ring
 
 ## Rings and transitions {#transitions}
 
-All rings in order with their number of servers and the transition rule to the next ring: after how many days (minimum–maximum wait), with which feedback and success rate, whether a manual gate is in place, and the spread of installations. The last ring is the final ring: servers without manual or rule-based assignment land there, and it has no transition.
+All rings in order with their number of servers and the transition rule to the next ring: how many days after its release in this ring an update may move on (minimum–maximum wait), with which feedback and success rate, whether a manual gate is in place, and the spread of installations. The last ring is the final ring: servers without manual or rule-based assignment land there, and it has no transition.
 
-The next ring gets an update after the minimum wait when enough servers reported (feedback) and enough of them succeeded (success). At the maximum wait a good success rate is enough, even if feedback is missing. A poor success rate, or no report at all at the maximum wait, raises an alarm that an operator decides. Wait times run from the release in the ring.
+The next ring gets an update after the minimum wait when enough servers reported (feedback) and enough of them succeeded (success). At the maximum wait a good success rate is enough, even if feedback is missing. A poor success rate, or no report at all at the maximum wait, raises an alarm that an operator decides. The days count for each update separately, from its release in the ring it is in (in the first ring: after the delay of its start rule), not from the start of the rollout.
 
 - **Edit**: opens the ring dialog.
 - **Delete**: opens a confirmation; **Delete ring** removes the ring (not the final ring). Only a ring without servers and without assignment rules can be deleted; running rollouts skip it from then on.
@@ -20,7 +20,7 @@ The next ring gets an update after the minimum wait when enough servers reported
 
 - **Name**: name of the ring, at most 32 characters.
 - **Spread installations over (hours)**: 0 to 168. Each server of the ring gets a fixed offset within this time after the release, so not all servers install at once; 0 means no spread. Applies to new releases.
-- **Minimum wait (days)** and **Maximum wait (days)**: 0 to 90, see above.
+- **Minimum wait (days after the release in this ring)** and **Maximum wait (days after the release in this ring)**: 0 to 90, counted per update from its release in this ring.
 - **Feedback rate (%)**: share of the targeted servers of the ring that must have reported a result.
 - **Success rate (%)**: share of successful installations among the results.
 - **Manual gate**: when the rule is met, the update waits until an operator approves the transition under [Approvals](help/approvals#transitions).

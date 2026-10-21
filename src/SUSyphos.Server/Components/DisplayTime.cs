@@ -11,14 +11,6 @@ public static class DisplayTime
     /// <summary>Time zone of the central server.</summary>
     public static TimeZoneInfo Zone => TimeZoneInfo.Local;
 
-    /// <summary>Short label of the zone with its current offset, e.g. "W. Europe Standard Time (UTC+02:00)".</summary>
-    public static string ZoneLabel(DateTime utcNow)
-    {
-        var offset = Zone.GetUtcOffset(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc));
-        var name = Zone.IsDaylightSavingTime(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc)) ? Zone.DaylightName : Zone.StandardName;
-        return string.Create(CultureInfo.InvariantCulture, $"{name} (UTC{(offset < TimeSpan.Zero ? "-" : "+")}{offset:hh\\:mm})");
-    }
-
     public static DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Zone);
 
     /// <summary>Converts a time entered in the zone of the central server to UTC; times skipped by a clock change move forward.</summary>

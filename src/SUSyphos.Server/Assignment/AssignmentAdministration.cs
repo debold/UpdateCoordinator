@@ -142,6 +142,49 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         int ruleId, int priority, AssignmentTarget target, int targetId, string? roles, string? domain, string? hostNamePattern, string actor, CancellationToken cancellationToken) =>
         SaveRuleAsync(ruleId, priority, target, targetId, roles, domain, hostNamePattern, actor, cancellationToken);
 
+    /// <summary>
+    /// Gives rules that share a priority (allowed before 0.7.4) unique numbers once, keeping their order (priority, then age):
+    /// the first keeps its number, the others move to the next free numbers after it. Returns how many were renumbered.
+    /// </summary>
+    public async Task<int> RenumberDuplicatePrioritiesAsync(CancellationToken cancellationToken)
+    {
+        var rules = await db.AssignmentRules.OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var taken = rules.Select(r => r.Priority).ToHashSet();
+        var seen = new HashSet<int>();
+        var changed = 0;
+        foreach (var rule in rules)
+        {
+            if (seen.Add(rule.Priority))
+            {
+                continue;
+            }
+
+            var candidate = rule.Priority + 1;
+            while (taken.Contains(candidate) && candidate < Administration.RulePriority.Maximum)
+            {
+                candidate++;
+            }
+
+            if (taken.Contains(candidate))
+            {
+                continue;
+            }
+
+            taken.Add(candidate);
+            seen.Add(candidate);
+            rule.Priority = candidate;
+            changed++;
+        }
+
+        if (changed > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await audit.WriteAsync(AuditLog.SystemActor, "AssignmentRule.PrioritiesRenumbered", null, $"{changed} rules with a duplicate priority got the next free number.", cancellationToken).ConfigureAwait(false);
+        }
+
+        return changed;
+    }
+
     /// <summary>Roles of a rule: comma-separated, any of them matches.</summary>
     public static IReadOnlyList<string> RuleRoles(string? roles) =>
         (roles ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -157,6 +200,12 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         if (priority is < 0 or > 10_000)
         {
             return new Outcome("The priority must be between 0 and 10000.");
+        }
+
+        var others = await db.AssignmentRules.AsNoTracking().Where(r => r.Id != ruleId).Select(r => r.Priority).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (others.Contains(priority))
+        {
+            return new Outcome(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Another assignment rule already has priority {priority}; choose a free one, e.g. {Administration.RulePriority.NextFree(others)}."));
         }
 
         if (role is null && domain is null && hostNamePattern is null)

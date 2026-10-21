@@ -127,9 +127,18 @@ public sealed class ScheduledBackupTests : IAsyncDisposable
         Assert.Equal(new ScheduledBackupSettings { Enabled = true, Folder = _folder, TimeOfDay = new TimeSpan(3, 30, 0), Keep = 10 }, settings);
 
         form["SchedulePasswordRepeat"] = "something else entirely";
+        form["Folder"] = _folder + "-changed";
+        form["Time"] = "04:00";
+        form["Keep"] = "12";
         using (var mismatch = await admin.PostFormAsync("/administration/backup", form))
         {
-            Assert.Contains("The two passwords differ.", await mismatch.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            // The entered values come back (not the saved ones), the passwords do not.
+            var html = await mismatch.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains("The two passwords differ. Enter the password again.", html, StringComparison.Ordinal);
+            Assert.Contains($"value=\"{_folder}-changed\"", html, StringComparison.Ordinal);
+            Assert.Contains("<option value=\"04:00\" selected", html, StringComparison.Ordinal);
+            Assert.Contains("value=\"12\"", html, StringComparison.Ordinal);
+            Assert.DoesNotContain(Password, html, StringComparison.Ordinal);
         }
     }
 

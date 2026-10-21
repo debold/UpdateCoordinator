@@ -36,7 +36,7 @@
                             }
                             else if (_transitions.GetValueOrDefault(ring.Id) is { } t)
                             {
-                                <span>to @_rings[i + 1].Name after @Days(t.MinimumWait)–@Days(t.MaximumWait) days, feedback ≥ @t.MinimumFeedbackPercent %, success ≥ @t.MinimumSuccessPercent %</span>
+                                <span>to @_rings[i + 1].Name @Days(t.MinimumWait)–@Days(t.MaximumWait) days after its release in @ring.Name, feedback ≥ @t.MinimumFeedbackPercent %, success ≥ @t.MinimumSuccessPercent %</span>
                                 @if (t.ManualGate)
                                 {
                                     <span class="pill queue">manual gate</span>
@@ -230,8 +230,8 @@ else if (_dialog is "ring-new" or "ring" && (_dialog == "ring-new" || EditingRin
                 else if (transition is not null)
                 {
                     <div class="form-row">
-                        <label class="field"><span>Minimum wait (days)</span><input name="MinWait" type="number" min="0" max="@RingTransitionEntity.MaxWaitDays" value="@Days(transition.MinimumWait)" /></label>
-                        <label class="field"><span>Maximum wait (days)</span><input name="MaxWait" type="number" min="0" max="@RingTransitionEntity.MaxWaitDays" value="@Days(transition.MaximumWait)" /></label>
+                        <label class="field"><span>Minimum wait (days after the release in this ring)</span><input name="MinWait" type="number" min="0" max="@RingTransitionEntity.MaxWaitDays" value="@Days(transition.MinimumWait)" /></label>
+                        <label class="field"><span>Maximum wait (days after the release in this ring)</span><input name="MaxWait" type="number" min="0" max="@RingTransitionEntity.MaxWaitDays" value="@Days(transition.MaximumWait)" /></label>
                     </div>
                     <div class="form-row">
                         <label class="field"><span>Feedback rate (%)</span><input name="Feedback" type="number" min="0" max="100" value="@transition.MinimumFeedbackPercent" /></label>

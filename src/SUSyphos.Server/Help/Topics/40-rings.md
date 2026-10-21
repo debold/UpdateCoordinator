@@ -1,6 +1,6 @@
 # Rings {#top}
 
-A ring is a set of servers that get updates at the same stage of a rollout, for example Pilot, Test and Production ([How SUSyphos works](help/concepts#transitions)). The band at the top shows all rings in order with their number of servers and, between them, the wait time of the transition ("2–7 days") and whether a manual gate is in place. Click a ring to open it.
+A ring is a set of servers that get updates at the same stage of a rollout, for example Pilot, Test and Production ([How SUSyphos works](help/concepts#transitions)). The band at the top shows all rings in order with their number of servers and, between them, the wait time of the transition ("2–7 days", counted per update from its release in the ring before) and whether a manual gate is in place. Click a ring to open it.
 
 The line under the title summarises the transition rule of this ring: after how many days, with which feedback and success rate the update moves on to the next ring.
 

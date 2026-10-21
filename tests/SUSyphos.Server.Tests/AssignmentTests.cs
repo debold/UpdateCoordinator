@@ -281,6 +281,56 @@ public sealed class AssignmentAdministrationTests
         Assert.False(outcome.Succeeded);
     }
 
+    [Fact]
+    public async Task DuplicatePriority_IsRefused_OnCreateAndEdit()
+    {
+        await using var factory = new ServerFactory();
+        Assert.True((await RunAsync(factory, admin => admin.CreateRuleAsync(100, AssignmentTarget.Ring, RingEntity.PilotId, "DomainController", null, null, "admin", CancellationToken.None))).Succeeded);
+        Assert.True((await RunAsync(factory, admin => admin.CreateRuleAsync(101, AssignmentTarget.Ring, RingEntity.TestId, null, "example.local", null, "admin", CancellationToken.None))).Succeeded);
+
+        var duplicate = await RunAsync(factory, admin => admin.CreateRuleAsync(100, AssignmentTarget.Ring, RingEntity.TestId, null, null, "SRV*", "admin", CancellationToken.None));
+        var second = await factory.WithDbAsync(db => db.AssignmentRules.Where(r => r.Priority == 101).Select(r => r.Id).SingleAsync(TestContext.Current.CancellationToken));
+        var edited = await RunAsync(factory, admin => admin.UpdateRuleAsync(second, 100, AssignmentTarget.Ring, RingEntity.TestId, null, "example.local", null, "admin", CancellationToken.None));
+        var keepOwn = await RunAsync(factory, admin => admin.UpdateRuleAsync(second, 101, AssignmentTarget.Ring, RingEntity.TestId, null, "example.local", null, "admin", CancellationToken.None));
+
+        Assert.False(duplicate.Succeeded);
+        Assert.Contains("e.g. 102", duplicate.Error, StringComparison.Ordinal);
+        Assert.False(edited.Succeeded);
+        Assert.True(keepOwn.Succeeded);
+    }
+
+    [Fact]
+    public async Task DuplicatePriorities_FromEarlierVersions_AreRenumberedInOrder()
+    {
+        await using var factory = new ServerFactory();
+        await factory.WithDbAsync(async db =>
+        {
+            db.AssignmentRules.AddRange(
+                new AssignmentRuleEntity { Priority = 10, Target = AssignmentTarget.Ring, TargetId = RingEntity.PilotId, Domain = "a.local" },
+                new AssignmentRuleEntity { Priority = 10, Target = AssignmentTarget.Ring, TargetId = RingEntity.TestId, Domain = "b.local" },
+                new AssignmentRuleEntity { Priority = 11, Target = AssignmentTarget.Ring, TargetId = RingEntity.TestId, Domain = "c.local" });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            return 0;
+        });
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<AssignmentAdministration>().RenumberDuplicatePrioritiesAsync(CancellationToken.None));
+        }
+
+        var priorities = await factory.WithDbAsync(db => db.AssignmentRules.OrderBy(r => r.Domain).Select(r => r.Priority).ToListAsync(TestContext.Current.CancellationToken));
+        Assert.Equal([10, 12, 11], priorities);
+    }
+
+    [Fact]
+    public void NextFreePriority_FollowsTheHighestRule_AndStaysBelowACeiling()
+    {
+        Assert.Equal(100, RulePriority.NextFree([]));
+        Assert.Equal(121, RulePriority.NextFree([5, 120]));
+        Assert.Equal(101, RulePriority.NextFree([100, 9000], below: 9000));
+        Assert.Equal(102, RulePriority.NextFree([100, 101, 103], below: 103));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("Mon 99:00-01:00")]

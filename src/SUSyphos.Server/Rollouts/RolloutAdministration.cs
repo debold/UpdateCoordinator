@@ -165,28 +165,8 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
     public static int NextFreePriority(IReadOnlyCollection<(int Id, int Priority)> rules)
     {
         ArgumentNullException.ThrowIfNull(rules);
-        const int First = 100;
-        var used = rules.Select(r => r.Priority).ToHashSet();
-        var catchAll = rules.Where(r => r.Id == StartRuleEntity.CatchAllId).Select(r => (int?)r.Priority).FirstOrDefault() ?? int.MaxValue;
-        var highest = rules.Where(r => r.Id != StartRuleEntity.CatchAllId).Select(r => r.Priority).DefaultIfEmpty(First - 1).Max();
-        for (var candidate = Math.Max(First, highest + 1); candidate < catchAll && candidate <= 10_000; candidate++)
-        {
-            if (!used.Contains(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        // No room above the highest rule: take the first free value from 100 on (or from 0) that still wins over the catch-all rule.
-        for (var candidate = First; candidate <= 10_000; candidate++)
-        {
-            if (!used.Contains(candidate) && candidate < catchAll)
-            {
-                return candidate;
-            }
-        }
-
-        return Enumerable.Range(0, First).FirstOrDefault(p => !used.Contains(p));
+        var catchAll = rules.Where(r => r.Id == StartRuleEntity.CatchAllId).Select(r => (int?)r.Priority).FirstOrDefault();
+        return Administration.RulePriority.NextFree([.. rules.Where(r => r.Id != StartRuleEntity.CatchAllId).Select(r => r.Priority)], catchAll);
     }
 
     /// <summary>Validates and stores a start rule; <c>startRings</c> lists rings released at once besides the first ring.</summary>

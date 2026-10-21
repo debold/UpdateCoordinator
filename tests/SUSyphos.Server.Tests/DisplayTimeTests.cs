@@ -22,13 +22,4 @@ public sealed class DisplayTimeTests
 
         Assert.Equal(utc, DisplayTime.ToUtc(DisplayTime.ToLocal(utc)));
     }
-
-    [Fact]
-    public void ZoneLabel_NamesTheZoneAndItsOffset()
-    {
-        var label = DisplayTime.ZoneLabel(DateTime.UtcNow);
-
-        Assert.Contains("(UTC", label, StringComparison.Ordinal);
-        Assert.Matches(@"\(UTC[+-]\d\d:\d\d\)$", label);
-    }
 }

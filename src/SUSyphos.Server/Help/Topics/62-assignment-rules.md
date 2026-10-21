@@ -10,7 +10,6 @@ Assignments are recalculated when a server registers, after every inventory, aft
 ## Rule list {#list}
 
 - **New rule**: opens the [rule dialog](#dialog).
-- **Groups**: opens the [groups](help/groups).
 
 The table shows each rule with **Priority**, what it **Assigns** (a ring or a group), its **Roles**, **Domain** and **Host name pattern**. All conditions of a rule must match; empty conditions match every server; a rule with several roles matches servers with any of them.
 
