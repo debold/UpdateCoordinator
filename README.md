@@ -65,3 +65,5 @@ Agent and central server are versioned separately from git tags (`agent/v1.2.3`,
 ## License
 
 [MIT](LICENSE)
+
+The dashboard icons are from [Lucide](https://lucide.dev) (ISC license, [assets/icons/lucide/LICENSE](assets/icons/lucide/LICENSE)); `build/New-IconData.ps1` turns the SVG files into the table the dashboard renders inline.

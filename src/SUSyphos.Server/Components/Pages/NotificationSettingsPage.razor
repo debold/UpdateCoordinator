@@ -9,7 +9,7 @@
 
 <PageTitle>Notifications</PageTitle>
 
-<PageHeader Title="Notifications" Subtitle="Every minute the central server sends each new event once, collected in one message: new servers, suspected clones, rollout alarms, waiting gates, stopped groups and certificate events. Passwords and secrets are stored encrypted on this server and are not part of the backup." Help="notifications" Crumbs="@([("Administration", null), ("Notifications", null)])" />
+<PageHeader Title="Notifications" Icon="@PageIcons.Notifications" Subtitle="Every minute the central server sends each new event once, collected in one message: new servers, suspected clones, rollout alarms, waiting gates, stopped groups and certificate events. Passwords and secrets are stored encrypted on this server and are not part of the backup." Help="notifications" Crumbs="@([("Administration", null), ("Notifications", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <form method="post" @formname="notifications" @onsubmit="HandleAsync" class="stack">

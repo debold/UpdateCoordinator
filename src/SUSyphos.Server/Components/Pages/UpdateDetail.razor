@@ -18,7 +18,7 @@
 }
 else
 {
-    <PageHeader Title="@UpdateText.Title(_update, UpdateId)" Subtitle="@($"{_update.Classification ?? "Unclassified"}{(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}")} · revision {Revision} · first reported {Format(_update.FirstSeenAtUtc)}")" Help="update-detail" Crumbs="@([("Updates", "/updates"), (_update.KbArticle is null ? "Update" : $"KB{_update.KbArticle}", null)])">
+    <PageHeader Title="@UpdateText.Title(_update, UpdateId)" Icon="@PageIcons.Updates" Subtitle="@($"{_update.Classification ?? "Unclassified"}{(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}")} · revision {Revision} · first reported {Format(_update.FirstSeenAtUtc)}")" Help="update-detail" Crumbs="@([("Updates", "/updates"), (_update.KbArticle is null ? "Update" : $"KB{_update.KbArticle}", null)])">
         <span class="pill @_stateClass">@_stateLabel</span>
     </PageHeader>
     <StatusMessage Text="@Message" IsError="@MessageIsError" />

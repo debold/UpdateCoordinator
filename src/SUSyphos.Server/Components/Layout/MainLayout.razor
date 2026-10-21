@@ -8,27 +8,27 @@
         <Authorized>
             <nav class="nav" aria-label="Main">
                 <span class="brand"><img src="susyphos-mark-white.svg" alt="" width="28" height="28" />SUSyphos</span>
-                <NavLink href="/" Match="NavLinkMatch.All">Overview</NavLink>
-                <NavLink href="@($"/rings/{RingEntity.PilotId}")" Match="NavLinkMatch.Prefix">Rings</NavLink>
-                <NavLink href="/servers">Servers</NavLink>
-                <NavLink href="/updates">Updates</NavLink>
+                <NavLink href="/" Match="NavLinkMatch.All"><span class="nav-label"><Icon Name="@PageIcons.Overview" />Overview</span></NavLink>
+                <NavLink href="@($"/rings/{RingEntity.PilotId}")" Match="NavLinkMatch.Prefix"><span class="nav-label"><Icon Name="@PageIcons.Rings" />Rings</span></NavLink>
+                <NavLink href="/servers"><span class="nav-label"><Icon Name="@PageIcons.Servers" />Servers</span></NavLink>
+                <NavLink href="/updates"><span class="nav-label"><Icon Name="@PageIcons.Updates" />Updates</span></NavLink>
                 <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
-                    <NavLink href="/approvals">Approvals @if (_waiting > 0) { <span class="pill">@_waiting</span> }</NavLink>
-                    <NavLink href="/agents">Agents</NavLink>
+                    <NavLink href="/approvals"><span class="nav-label"><Icon Name="@PageIcons.Approvals" />Approvals</span> @if (_waiting > 0) { <span class="pill">@_waiting</span> }</NavLink>
+                    <NavLink href="/agents"><span class="nav-label"><Icon Name="@PageIcons.Agents" />Agents</span></NavLink>
                 </AuthorizeView>
                 <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
                     <span class="section">Administration</span>
-                    <NavLink href="/administration/users">Identity</NavLink>
-                    <NavLink href="/administration/groups">Server groups</NavLink>
-                    <NavLink href="/administration/rules">Assignment rules</NavLink>
-                    <NavLink href="/administration/release-rules">Release rules</NavLink>
-                    <NavLink href="/administration/maintenance">Maintenance windows</NavLink>
-                    <NavLink href="/administration/certificate">TLS certificate</NavLink>
-                    <NavLink href="/administration/notifications">Notifications</NavLink>
-                    <NavLink href="/administration/backup">Backup</NavLink>
-                    <NavLink href="/administration/audit">Audit log</NavLink>
+                    <NavLink href="/administration/users"><span class="nav-label"><Icon Name="@PageIcons.Identity" />Identity</span></NavLink>
+                    <NavLink href="/administration/groups"><span class="nav-label"><Icon Name="@PageIcons.ServerGroups" />Server groups</span></NavLink>
+                    <NavLink href="/administration/rules"><span class="nav-label"><Icon Name="@PageIcons.AssignmentRules" />Assignment rules</span></NavLink>
+                    <NavLink href="/administration/release-rules"><span class="nav-label"><Icon Name="@PageIcons.ReleaseRules" />Release rules</span></NavLink>
+                    <NavLink href="/administration/maintenance"><span class="nav-label"><Icon Name="@PageIcons.MaintenanceWindows" />Maintenance windows</span></NavLink>
+                    <NavLink href="/administration/certificate"><span class="nav-label"><Icon Name="@PageIcons.Certificate" />TLS certificate</span></NavLink>
+                    <NavLink href="/administration/notifications"><span class="nav-label"><Icon Name="@PageIcons.Notifications" />Notifications</span></NavLink>
+                    <NavLink href="/administration/backup"><span class="nav-label"><Icon Name="@PageIcons.Backup" />Backup</span></NavLink>
+                    <NavLink href="/administration/audit"><span class="nav-label"><Icon Name="@PageIcons.AuditLog" />Audit log</span></NavLink>
                 </AuthorizeView>
-                <NavLink href="/help" Match="NavLinkMatch.Prefix" class="nav-help">Help</NavLink>
+                <NavLink href="/help" Match="NavLinkMatch.Prefix" class="nav-help"><span class="nav-label"><Icon Name="@PageIcons.Help" />Help</span></NavLink>
                 <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="account">
                     <AntiforgeryToken />
                     <input type="hidden" name="_handler" value="logout" />

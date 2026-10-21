@@ -17,7 +17,7 @@
 }
 <div class="page-head">
     <div>
-        <h1>@Title@if (Help is not null) { <HelpLink To="@Help" Label="@Title" /> }</h1>
+        <h1>@if (Icon is not null) { <Icon Name="@Icon" Size="26" Class="title-icon" /> }@Title@if (Help is not null) { <HelpLink To="@Help" Label="@Title" /> }</h1>
         @if (!string.IsNullOrEmpty(Subtitle))
         {
             <div class="sub">@Subtitle</div>
@@ -32,6 +32,10 @@
 
     [Parameter]
     public string? Subtitle { get; set; }
+
+    /// <summary>Icon before the title, the same as in the navigation (<see cref="PageIcons"/>).</summary>
+    [Parameter]
+    public string? Icon { get; set; }
 
     /// <summary>Help page for this page (<c>page</c> or <c>page#section</c>), shown as "?" after the title.</summary>
     [Parameter]

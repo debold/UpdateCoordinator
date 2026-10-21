@@ -1,0 +1,17 @@
+@* A Lucide icon as inline SVG (assets/icons/lucide, ISC license); decorative, the text next to it names the thing. *@
+@if (IconData.Elements.TryGetValue(Name, out var elements))
+{
+    <svg class="icon @Class" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="@Size" height="@Size" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">@((MarkupString)elements)</svg>
+}
+
+@code {
+    /// <summary>File name of the icon in assets/icons/lucide without .svg, e.g. "server".</summary>
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public int Size { get; set; } = 18;
+
+    [Parameter]
+    public string? Class { get; set; }
+}

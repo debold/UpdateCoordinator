@@ -8,7 +8,7 @@
 
 <PageTitle>TLS certificate</PageTitle>
 
-<PageHeader Title="TLS certificate" Subtitle="Agents pin the trust anchor, not the certificate: after a switch the trust anchor signs a binding for the new certificate and every agent accepts it on its next contact. Renewals in the LocalMachine certificate store are picked up automatically." Help="certificate" Crumbs="@([("Administration", null), ("TLS certificate", null)])" />
+<PageHeader Title="TLS certificate" Icon="@PageIcons.Certificate" Subtitle="Agents pin the trust anchor, not the certificate: after a switch the trust anchor signs a binding for the new certificate and every agent accepts it on its next contact. Renewals in the LocalMachine certificate store are picked up automatically." Help="certificate" Crumbs="@([("Administration", null), ("TLS certificate", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <Box Title="In use" Help="certificate#in-use">

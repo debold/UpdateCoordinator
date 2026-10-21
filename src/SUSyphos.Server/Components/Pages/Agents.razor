@@ -10,7 +10,7 @@
 
 <PageTitle>Agents</PageTitle>
 
-<PageHeader Title="Agents" Subtitle="Install the agent on new servers and keep the agents up to date. New versions come from the GitHub releases of the project and reach the agents only after an administrator released them." Help="agents" Crumbs="@([("Agents", null)])" />
+<PageHeader Title="Agents" Icon="@PageIcons.Agents" Subtitle="Install the agent on new servers and keep the agents up to date. New versions come from the GitHub releases of the project and reach the agents only after an administrator released them." Help="agents" Crumbs="@([("Agents", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">

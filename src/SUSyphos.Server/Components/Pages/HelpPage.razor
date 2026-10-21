@@ -8,7 +8,7 @@
 @if (_topic is null && Topic is null)
 {
     <PageTitle>Help</PageTitle>
-    <PageHeader Title="Help" Subtitle="Every page of the dashboard explained: what each box shows and what each field and button does." />
+    <PageHeader Title="Help" Icon="@PageIcons.Help" Subtitle="Every page of the dashboard explained: what each box shows and what each field and button does." />
     <Box Flush="true">
         <ul class="help-index">
             @foreach (var topic in Catalog.Topics)

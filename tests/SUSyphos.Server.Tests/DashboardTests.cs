@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SUSyphos.Contracts;
 using SUSyphos.Contracts.Agents;
 using SUSyphos.Server.Administration;
+using SUSyphos.Server.Components.Shared;
 using SUSyphos.TestSupport;
 
 namespace SUSyphos.Server.Tests;
@@ -437,6 +438,38 @@ public sealed class DashboardAuthorizationTests
         Assert.Contains("<link rel=\"icon\" href=\"favicon.ico\"", html, StringComparison.Ordinal);
         Assert.Contains("<link rel=\"icon\" href=\"susyphos-icon.svg\" type=\"image/svg+xml\"", html, StringComparison.Ordinal);
         Assert.Contains("<img src=\"susyphos-icon.svg\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Navigation_AndPageTitle_ShowTheSameIcon()
+    {
+        await using var factory = new ServerFactory();
+        await factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var browser = new DashboardClient(factory);
+        using (await browser.LoginAsync("reader", Password))
+        {
+        }
+
+        using var servers = await browser.GetAsync("/servers");
+        var html = await servers.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        var serverIcon = IconData.Elements[PageIcons.Servers];
+        Assert.Contains("<span class=\"nav-label\"><svg class=\"icon \"", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"icon title-icon\"", html, StringComparison.Ordinal);
+        Assert.True(html.Split(serverIcon).Length - 1 >= 2, "The server icon should appear in the navigation and before the title.");
+        Assert.Contains("aria-hidden=\"true\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PageIcons_AllExistInTheIconTable()
+    {
+        var names = typeof(PageIcons).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Select(field => (string)field.GetValue(null)!)
+            .ToList();
+
+        Assert.NotEmpty(names);
+        Assert.All(names, name => Assert.True(IconData.Elements.ContainsKey(name), $"Icon {name} is missing in assets/icons/lucide."));
+        Assert.All(IconData.Elements.Values, svg => Assert.DoesNotContain("<script", svg, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

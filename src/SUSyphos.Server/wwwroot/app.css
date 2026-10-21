@@ -461,3 +461,10 @@ details.week-choice[open] > summary { border-color: var(--accent); }
 .week-pop { position: absolute; z-index: 15; top: calc(100% + 4px); left: 0; width: max-content; max-width: min(22rem, 90vw); display: grid; gap: 0.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); padding: 0.65rem; }
 .week-pop select { width: 100%; }
 .window-row .week-pop label.field { display: grid; gap: 0.25rem; }
+
+/* Icons (Lucide, inline SVG) in the navigation and before page titles. */
+.icon { flex: none; display: inline-block; vertical-align: middle; }
+.nav .nav-label { display: inline-flex; align-items: center; gap: 0.6rem; }
+.nav .nav-label .icon { opacity: 0.85; }
+.nav a.active .nav-label .icon, .nav a:hover .nav-label .icon { opacity: 1; }
+h1 .title-icon { margin-right: 0.5rem; vertical-align: -0.2em; color: var(--accent); }

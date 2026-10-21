@@ -22,7 +22,7 @@
 }
 else
 {
-    <PageHeader Title="@_client.HostName" Subtitle="@Subtitle" Help="server-detail" Crumbs="@([("Servers", "/servers"), (_client.HostName, null)])" />
+    <PageHeader Title="@_client.HostName" Icon="@PageIcons.Servers" Subtitle="@Subtitle" Help="server-detail" Crumbs="@([("Servers", "/servers"), (_client.HostName, null)])" />
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
     @if (RestartQueuedText is { } restartText)

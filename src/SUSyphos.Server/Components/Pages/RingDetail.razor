@@ -42,7 +42,7 @@ else
         }
     </nav>
 
-    <PageHeader Title="@($"Ring {_ring.Order} · {_ring.Name}")" Subtitle="@($"{_servers} servers · {TransitionText}")" Help="rings" />
+    <PageHeader Icon="@PageIcons.Rings" Title="@($"Ring {_ring.Order} · {_ring.Name}")" Subtitle="@($"{_servers} servers · {TransitionText}")" Help="rings" />
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
     <ActionBand>

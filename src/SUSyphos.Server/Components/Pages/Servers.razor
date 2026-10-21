@@ -12,7 +12,7 @@
 
 <PageTitle>Servers</PageTitle>
 
-<PageHeader Title="Servers" Subtitle="@($"{_page.Total} registered servers")" Help="servers" />
+<PageHeader Title="Servers" Icon="@PageIcons.Servers" Subtitle="@($"{_page.Total} registered servers")" Help="servers" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <AuthorizeView Policy="@AdminRoles.Policies.Operate">

@@ -10,7 +10,7 @@
 
 <PageTitle>Updates</PageTitle>
 
-<PageHeader Title="@(ShowArchived ? "Archived updates" : "Updates")" Subtitle="@(ShowArchived ? "Updates no server has needed for a while. They return to the list when a server reports them as missing again." : "Updates reported as missing by approved servers or in a rollout. Each update runs through the rings on its own.")" Help="updates" />
+<PageHeader Icon="@PageIcons.Updates" Title="@(ShowArchived ? "Archived updates" : "Updates")" Subtitle="@(ShowArchived ? "Updates no server has needed for a while. They return to the list when a server reports them as missing again." : "Updates reported as missing by approved servers or in a rollout. Each update runs through the rings on its own.")" Help="updates" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <AuthorizeView Policy="@AdminRoles.Policies.Operate">
