@@ -73,11 +73,12 @@ $dashboardShortcut = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\SUS
 # The Start menu link names the machine by its fully qualified DNS name, as Windows keeps it for TCP/IP.
 $tcpip = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters'
 $dashboardHost = if ($tcpip.Domain) { "$($tcpip.Hostname).$($tcpip.Domain)" } else { $tcpip.Hostname }
+# Programs and Features takes the icon of an MSI product from Windows Installer (ARPPRODUCTICON), not from DisplayIcon.
 function Get-DisplayIcon([string] $Name) {
-    Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' |
-        ForEach-Object { Get-ItemProperty $_.PSPath } |
-        Where-Object { $_.DisplayName -eq $Name } |
-        Select-Object -ExpandProperty DisplayIcon -First 1
+    $code = Get-ProductCode $Name
+    if (-not $code) { return $null }
+    $installer = New-Object -ComObject WindowsInstaller.Installer
+    $installer.GetType().InvokeMember('ProductInfo', 'GetProperty', $null, $installer, @($code, 'ProductIcon'))
 }
 $certificate = New-SelfSignedCertificate -DnsName 'localhost' -CertStoreLocation 'Cert:\LocalMachine\My' -NotAfter (Get-Date).AddDays(7)
 
