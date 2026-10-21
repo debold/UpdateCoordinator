@@ -229,6 +229,44 @@
         groupSearch(input);
     }
 
+    // Buttons that post a form and links that only change the address of the same page (add a maintenance window,
+    // sort, filter, page, open a tab or dialog) load the page again; it comes back at the same scroll position instead
+    // of the top. Kept for one load only, in the tab's session storage.
+    const scrollKey = 'susyphos.scroll';
+    const rememberScroll = () => {
+        try {
+            sessionStorage.setItem(scrollKey, JSON.stringify({ path: location.pathname, y: Math.round(window.scrollY) }));
+        } catch {
+            // Storage blocked: the page simply starts at the top.
+        }
+    };
+    document.addEventListener('submit', (event) => {
+        const action = new URL(event.target.getAttribute('action') || location.href, location.href);
+        if (action.origin === location.origin && action.pathname === location.pathname) {
+            rememberScroll();
+        }
+    }, true);
+    document.addEventListener('click', (event) => {
+        const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+        if (!link || link.target || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+            return;
+        }
+
+        const url = new URL(link.href, location.href);
+        if (url.origin === location.origin && url.pathname === location.pathname && !url.hash) {
+            rememberScroll();
+        }
+    }, true);
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(scrollKey) || 'null');
+        sessionStorage.removeItem(scrollKey);
+        if (saved && saved.path === location.pathname && !location.hash && Number.isFinite(saved.y)) {
+            window.scrollTo(0, saved.y);
+        }
+    } catch {
+        // Nothing to restore.
+    }
+
     applyGates();
     fillFromAddress();
 })();

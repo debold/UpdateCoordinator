@@ -142,6 +142,41 @@ public sealed class InteractionTests(UiFixture ui)
     }
 
     [Fact]
+    public async Task ButtonsAndLinksOnTheSamePage_KeepTheScrollPosition()
+    {
+        await using var context = await ui.NewContextAsync(1280, 600);
+        var page = await context.NewPageAsync();
+
+        // A button that posts the form: "Add window" in the server's maintenance windows (no save).
+        await page.GotoAsync($"/servers/{ui.MainServerId}");
+        var inherit = page.Locator(".window-picker input[name$='inherit']").First;
+        if (await inherit.IsCheckedAsync())
+        {
+            await inherit.UncheckAsync();
+        }
+
+        var add = page.Locator(".window-picker button", new PageLocatorOptions { HasTextString = "Add window" }).First;
+        await add.ScrollIntoViewIfNeededAsync();
+        var before = await page.EvaluateAsync<double>("window.scrollY");
+        Assert.True(before > 200, $"The button should be further down the page ({before}).");
+        await add.ClickAsync();
+        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        var after = await page.EvaluateAsync<double>("window.scrollY");
+        Assert.True(Math.Abs(after - before) < 150, $"The page jumped from {before} to {after}.");
+
+        // A link that only changes the address: an update in the ring's list opens its status per server.
+        await page.GotoAsync("/rings/1");
+        var link = page.Locator(".grid-side table a").Nth(1);
+        await link.ScrollIntoViewIfNeededAsync();
+        await page.EvaluateAsync("window.scrollBy(0, 120)");
+        var ringBefore = await page.EvaluateAsync<double>("window.scrollY");
+        await link.ClickAsync();
+        await page.WaitForURLAsync(url => url.Contains("tab=update", StringComparison.Ordinal));
+        var ringAfter = await page.EvaluateAsync<double>("window.scrollY");
+        Assert.True(ringBefore > 0 && Math.Abs(ringAfter - ringBefore) < 150, $"The ring page jumped from {ringBefore} to {ringAfter}.");
+    }
+
+    [Fact]
     public async Task AdGroupField_SuggestsGroupsWhileTyping()
     {
         await using var context = await ui.NewContextAsync(1280, 900);
