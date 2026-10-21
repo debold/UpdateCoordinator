@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = AdminRoles.Policies.Read)]
 @using SUSyphos.Server.Approval
 @inject DirectoryCoverage Coverage
+@inject NavigationManager Navigation
 
 <PageTitle>AD coverage</PageTitle>
 
@@ -27,50 +28,47 @@
 
 <section class="card flush" aria-labelledby="missing-h">
     <h2 id="missing-h">Supported servers without agent<HelpLink To="coverage#missing" Label="Supported servers without agent" /></h2>
-    <div class="scroll">
-        <table>
-            <thead><tr><th>Account</th><th>DNS name</th><th>Operating system</th><th>Build</th></tr></thead>
-            <tbody>
-                @if (_report.Missing.Count == 0)
-                {
-                    <tr><td colspan="4">Every supported server account has an agent.</td></tr>
-                }
-                @foreach (var computer in _report.Missing.Take(MaxRows))
-                {
-                    <tr><td>@computer.Name</td><td>@computer.DnsHostName</td><td>@computer.OperatingSystem</td><td>@computer.Build</td></tr>
-                }
-            </tbody>
-        </table>
-    </div>
+    <ListTable Table="_missingTable" Page="_missingPage" Columns="Columns" Search="Search account or DNS name" Noun="accounts" Empty="Every supported server account has an agent.">
+        <Row Context="computer">
+            <tr><td>@computer.Name</td><td>@computer.DnsHostName</td><td>@computer.OperatingSystem</td><td>@computer.Build</td></tr>
+        </Row>
+    </ListTable>
 </section>
 
 <section class="card flush" aria-labelledby="unsupported-h">
     <h2 id="unsupported-h">Not supported (older than Windows Server 2016)<HelpLink To="coverage#unsupported" Label="Not supported" /></h2>
-    <div class="scroll">
-        <table>
-            <thead><tr><th>Account</th><th>DNS name</th><th>Operating system</th><th>Build</th></tr></thead>
-            <tbody>
-                @if (_report.Unsupported.Count == 0)
-                {
-                    <tr><td colspan="4">None.</td></tr>
-                }
-                @foreach (var computer in _report.Unsupported.Take(MaxRows))
-                {
-                    <tr><td>@computer.Name</td><td>@computer.DnsHostName</td><td>@computer.OperatingSystem</td><td>@(computer.Build?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown")</td></tr>
-                }
-            </tbody>
-        </table>
-    </div>
+    <ListTable Table="_unsupportedTable" Page="_unsupportedPage" Columns="Columns" Search="Search account or DNS name" Noun="accounts" Empty="None.">
+        <Row Context="computer">
+            <tr><td>@computer.Name</td><td>@computer.DnsHostName</td><td>@computer.OperatingSystem</td><td>@(computer.Build?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown")</td></tr>
+        </Row>
+    </ListTable>
 </section>
 
 @code {
-    private const int MaxRows = 2000;
+    private static readonly IReadOnlyList<TableColumn<DirectoryComputerEntity>> Columns =
+    [
+        new("account", "Account", c => c.Name),
+        new("dns", "DNS name", c => c.DnsHostName),
+        new("os", "Operating system", c => c.OperatingSystem, c => [c.OperatingSystem ?? string.Empty]),
+        new("build", "Build", c => c.Build),
+    ];
 
     private CoverageReport _report = new(null, 0, 0, [], []);
+    private TableQuery _missingTable = default!;
+    private TablePage<DirectoryComputerEntity> _missingPage = default!;
+    private TableQuery _unsupportedTable = default!;
+    private TablePage<DirectoryComputerEntity> _unsupportedPage = default!;
 
     private string CoverageSubtitle => _report.ReadAtUtc is { } read
         ? $"Server accounts read from Active Directory at {DisplayTime.Format(read)}"
         : "Active Directory has not been read yet. The central server must be a domain member, or a domain must be configured under Coverage:Domain.";
 
-    protected override async Task OnInitializedAsync() => _report = await Coverage.GetReportAsync(CancellationToken.None);
+    protected override async Task OnInitializedAsync()
+    {
+        _report = await Coverage.GetReportAsync(CancellationToken.None);
+        _missingTable = TableQuery.From(Navigation, "account", prefix: "miss.");
+        _missingPage = TablePaging.Apply(_report.Missing, _missingTable, Columns, c => $"{c.Name} {c.DnsHostName}");
+        _unsupportedTable = TableQuery.From(Navigation, "account", prefix: "old.");
+        _unsupportedPage = TablePaging.Apply(_report.Unsupported, _unsupportedTable, Columns, c => $"{c.Name} {c.DnsHostName}");
+    }
 }

@@ -3,6 +3,7 @@
 @inherits DashboardPageBase
 @inject UserAdministration Administration
 @inject WindowsSignIn Windows
+@inject NavigationManager Navigation
 
 <PageTitle>Identity</PageTitle>
 
@@ -13,15 +14,15 @@
     <a class="btn primary" href="@Path?dialog=new">New user</a>
 </ActionBand>
 
-<form method="post" @formname="users" @onsubmit="HandleAsync" class="box">
-    <header class="box-head"><h2>Accounts<HelpLink To="users#accounts" Label="Accounts" /></h2></header>
+@* The buttons of the list belong to this form by form="users"; the list itself has forms for search and filters. *@
+<form id="users" method="post" @formname="users" @onsubmit="HandleAsync" class="detached">
     <AntiforgeryToken />
-    <div class="scroll">
-        <table>
-            <thead><tr><th>Account</th><th>Role</th><th>State</th><th class="n">Actions</th></tr></thead>
-            <tbody>
-                @foreach (var user in _users)
-                {
+</form>
+<section class="box">
+    <header class="box-head"><h2>Accounts<HelpLink To="users#accounts" Label="Accounts" /></h2></header>
+    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search account" Noun="accounts" ExtraColumns="1">
+        <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+        <Row Context="user">
                     <tr>
                         <td>@user.UserName @if (user.Windows) { <span class="tag">Windows</span> }</td>
                         <td>@user.Role @if (user.Windows) { <div class="note">from AD groups</div> }</td>
@@ -43,21 +44,19 @@
                                 }
                                 @if (user.LockedOut)
                                 {
-                                    <button type="submit" name="Action" value="unlock:@user.Id">Unlock</button>
+                                    <button type="submit" form="users" name="Action" value="unlock:@user.Id">Unlock</button>
                                 }
                                 else
                                 {
-                                    <button type="submit" name="Action" value="lock:@user.Id">Lock</button>
+                                    <button type="submit" form="users" name="Action" value="lock:@user.Id">Lock</button>
                                 }
                                 <a class="btn danger" href="@Path?dialog=delete&id=@Uri.EscapeDataString(user.Id)">Delete</a>
                             </span>
                         </td>
                     </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-</form>
+        </Row>
+    </ListTable>
+</section>
 
 <form method="post" @formname="windows-sign-in" @onsubmit="WindowsAsync" class="box">
     <AntiforgeryToken />
@@ -217,6 +216,15 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
 
     private string? _dialog;
     private IReadOnlyList<UserSummary> _users = [];
+    private TableQuery _table = default!;
+    private TablePage<UserSummary> _page = default!;
+
+    private static readonly IReadOnlyList<TableColumn<UserSummary>> Columns =
+    [
+        new("account", "Account", u => u.UserName, u => [u.Windows ? "Windows" : "Local"]),
+        new("role", "Role", u => u.Role, u => [u.Role ?? string.Empty]),
+        new("state", "State", u => u.LockedOut, u => [u.LockedOut ? "Locked" : "Active"]),
+    ];
     private IReadOnlyList<WindowsGroupMapping> _mappings = [];
     private bool _windowsEnabled;
 
@@ -229,6 +237,8 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
     private async Task LoadAsync()
     {
         _users = await Administration.ListAsync(CancellationToken.None);
+        _table = TableQuery.From(Navigation, "account", prefix: "acc.");
+        _page = TablePaging.Apply(_users, _table, Columns, u => u.UserName);
         _mappings = await Windows.GetMappingsAsync(CancellationToken.None);
         _windowsEnabled = await Windows.IsEnabledAsync(CancellationToken.None);
     }

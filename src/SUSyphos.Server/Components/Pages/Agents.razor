@@ -7,6 +7,7 @@
 @inject AgentPackageStore Store
 @inject AgentPackageAdministration Administration
 @inject AgentUpdateService Updates
+@inject NavigationManager Navigation
 
 <PageTitle>Agents</PageTitle>
 
@@ -144,17 +145,11 @@
 @if (_failed.Count > 0)
 {
     <Box Title="Failed agent updates" Help="agents#failed" Hint="The agent tries again after six hours; the msiexec log is on the server" Flush="true">
-        <div class="scroll">
-            <table>
-                <thead><tr><th>Server</th><th>Agent</th><th>Error</th></tr></thead>
-                <tbody>
-                    @foreach (var client in _failed)
-                    {
-                        <tr><td><a href="/servers/@client.Id">@client.HostName</a></td><td class="mono" title="@client.AgentVersion">@AgentVersion.ShortForm(client.AgentVersion)</td><td>@client.AgentUpdateError</td></tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+        <ListTable Table="_failedTable" Page="_failedPage" Columns="FailedColumns" Search="Search server or error" Noun="servers">
+            <Row Context="client">
+                <tr><td><a href="/servers/@client.Id">@client.HostName</a></td><td class="mono" title="@client.AgentVersion">@AgentVersion.ShortForm(client.AgentVersion)</td><td>@client.AgentUpdateError</td></tr>
+            </Row>
+        </ListTable>
     </Box>
 }
 
@@ -227,6 +222,15 @@
     private AgentPackageCheck? _lastCheck;
     private string _address = string.Empty;
     private List<ClientEntity> _failed = [];
+    private TableQuery _failedTable = default!;
+    private TablePage<ClientEntity> _failedPage = default!;
+
+    private static readonly IReadOnlyList<TableColumn<ClientEntity>> FailedColumns =
+    [
+        new("name", "Server", c => c.HostName),
+        new("agent", "Agent", c => AgentVersion.SortKey(c.AgentVersion), c => [AgentVersion.ShortForm(c.AgentVersion)]),
+        new("error", "Error", c => c.AgentUpdateError, Sortable: false),
+    ];
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -273,7 +277,9 @@
         _newestReleased = AgentPackageStore.Newest(_packages.Where(p => p.ReleasedThroughRingOrder is not null));
         _lastCheck = await Administration.GetLastCheckAsync(CancellationToken.None);
         _serverUpdate = await Administration.GetServerUpdateAsync(CancellationToken.None);
-        _failed = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved && c.AgentUpdateError != null).OrderBy(c => c.HostName).Take(200).ToListAsync();
+        _failed = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved && c.AgentUpdateError != null).OrderBy(c => c.HostName).Take(1000).ToListAsync();
+        _failedTable = TableQuery.From(Navigation, "name", prefix: "fail.", defaultPageSize: 10);
+        _failedPage = TablePaging.Apply(_failed, _failedTable, FailedColumns, c => $"{c.HostName} {c.AgentUpdateError}");
         var versions = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).Select(c => c.AgentVersion).ToListAsync();
         _serversByVersion = versions
             .GroupBy(v => AgentVersion.TryParse(v, out var parsed) ? parsed.ToString() : v)

@@ -178,7 +178,7 @@ public sealed class InteractionTests(UiFixture ui)
 
         // A link that only changes the address: an update in the ring's list opens its status per server.
         await page.GotoAsync("/rings/1");
-        var link = page.Locator(".grid-side table a").Nth(1);
+        var link = page.Locator(".grid-side table tbody a").Nth(1);
         await link.ScrollIntoViewIfNeededAsync();
         await page.EvaluateAsync("window.scrollBy(0, 120)");
         var ringBefore = await page.EvaluateAsync<double>("window.scrollY");
@@ -186,6 +186,26 @@ public sealed class InteractionTests(UiFixture ui)
         await page.WaitForURLAsync(url => url.Contains("tab=update", StringComparison.Ordinal));
         var ringAfter = await page.EvaluateAsync<double>("window.scrollY");
         Assert.True(ringBefore > 0 && Math.Abs(ringAfter - ringBefore) < 150, $"The ring page jumped from {ringBefore} to {ringAfter}.");
+    }
+
+    [Fact]
+    public async Task PageSize_AppliesOnChange_AndKeepsTheOtherLists()
+    {
+        await using var context = await ui.NewContextAsync(1280, 900);
+        var page = await context.NewPageAsync();
+
+        // The activity list of the main server has more than ten entries; another list keeps its own page meanwhile.
+        await page.GotoAsync($"/servers/{ui.MainServerId}?hist.page=2");
+        var size = page.Locator("#act-page-size");
+        await Assertions.Expect(size).ToHaveValueAsync("10");
+
+        // The script submits the choice at once, so the fallback button is hidden.
+        await Assertions.Expect(page.Locator(".page-size:has(#act-page-size) [data-auto-submit-button]")).ToBeHiddenAsync();
+        await size.SelectOptionAsync("25");
+        await page.WaitForURLAsync(url => url.Contains("act.size=25", StringComparison.Ordinal));
+        Assert.Contains("hist.page=2", page.Url, StringComparison.Ordinal);
+        await Assertions.Expect(page.Locator("#act-page-size")).ToHaveValueAsync("25");
+        await Assertions.Expect(page.Locator(".pager:has(#act-page-size)")).ToContainTextAsync("1–25 of");
     }
 
     [Fact]

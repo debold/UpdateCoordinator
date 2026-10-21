@@ -6,6 +6,7 @@
 @inject ServerDbContext Db
 @inject RolloutAdministration Administration
 @inject RingAdministration Rings
+@inject NavigationManager Navigation
 
 <PageTitle>Release rules</PageTitle>
 
@@ -62,32 +63,23 @@
 </Box>
 
 <Box Title="Start rules" Help="release-rules#start-rules" Flush="true" Hint="The matching rule with the lowest priority number decides how a newly reported update starts; without a matching rule it stays queued">
-    <div class="scroll">
-        <table>
-            <thead><tr><th class="n">Priority</th><th>Classification</th><th>Severity</th><th>Title pattern</th><th>Start</th><th>Starts in</th><th class="n">Actions</th></tr></thead>
-            <tbody>
-                @if (_startRules.Count == 0)
-                {
-                    <tr><td colspan="7" class="note">No start rule: every update waits for a manual start.</td></tr>
-                }
-                @foreach (var rule in _startRules)
-                {
+    <ListTable Table="_ruleTable" Page="_rulePage" Columns="RuleColumns" Search="Search title pattern" Noun="rules" Empty="No start rule: every update waits for a manual start." ExtraColumns="1">
+        <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+        <Row Context="rule">
                     <tr>
                         <td class="n">@rule.Priority</td>
                         <td>@(rule.Classification ?? "any")</td>
                         <td>@(rule.MsrcSeverity ?? "any")</td>
                         <td class="mono">@(rule.TitlePattern ?? "any")</td>
-                        <td>@(rule.Mode == StartMode.Automatic ? (rule.Delay == TimeSpan.Zero ? "Automatically" : $"Automatically after {(int)rule.Delay.TotalHours} hours") : "Manually")</td>
+                        <td>@StartText(rule)</td>
                         <td>@foreach (var name in StartRingNames(rule)) { <span class="tag">@name</span> }</td>
                         <td class="n"><span class="row-actions">
                             <a class="btn" href="@Path?dialog=rule&id=@rule.Id">Edit</a>
                             <a class="btn danger" href="@Path?dialog=rule-delete&id=@rule.Id">Delete</a>
                         </span></td>
                     </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+        </Row>
+    </ListTable>
 </Box>
 
 @if (_dialog is "rule-new" or "rule" && (_dialog == "rule-new" || EditingRule is not null))
@@ -306,6 +298,22 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
     private List<RingEntity> _rings = [];
     private Dictionary<int, RingTransitionEntity> _transitions = [];
     private List<StartRuleEntity> _startRules = [];
+    private TableQuery _ruleTable = default!;
+    private TablePage<StartRuleEntity> _rulePage = default!;
+    private IReadOnlyList<TableColumn<StartRuleEntity>>? _ruleColumns;
+
+    private IReadOnlyList<TableColumn<StartRuleEntity>> RuleColumns => _ruleColumns ??=
+    [
+        new("priority", "Priority", r => r.Priority, Class: "n"),
+        new("classification", "Classification", r => r.Classification, r => [r.Classification ?? "any"]),
+        new("severity", "Severity", r => r.MsrcSeverity, r => [r.MsrcSeverity ?? "any"]),
+        new("pattern", "Title pattern", r => r.TitlePattern),
+        new("start", "Start", r => StartText(r), r => [r.Mode == StartMode.Automatic ? "Automatically" : "Manually"]),
+        new("rings", "Starts in", r => r.StartRingIds, r => [.. StartRingNames(r)], Sortable: false),
+    ];
+
+    private static string StartText(StartRuleEntity rule) =>
+        rule.Mode == StartMode.Automatic ? (rule.Delay == TimeSpan.Zero ? "Automatically" : $"Automatically after {(int)rule.Delay.TotalHours} hours") : "Manually";
     private Dictionary<int, int> _servers = [];
     private List<string> _catalogClassifications = [];
 
@@ -426,6 +434,8 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _transitions = await Db.RingTransitions.AsNoTracking().ToDictionaryAsync(t => t.FromRingId);
         _startRules = await Db.StartRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync();
+        _ruleTable = TableQuery.From(Navigation, "priority");
+        _rulePage = TablePaging.Apply(_startRules, _ruleTable, RuleColumns, r => $"{r.TitlePattern} {r.Classification} {r.MsrcSeverity}");
         _servers = await Db.Clients.Where(c => c.RingId != null && c.State == RegistrationState.Approved).GroupBy(c => c.RingId!.Value).ToDictionaryAsync(g => g.Key, g => g.Count());
         _catalogClassifications = await Db.Updates.AsNoTracking().Where(u => u.Classification != null).Select(u => u.Classification!).Distinct().Take(50).ToListAsync();
         if (DialogName is "rule" or "rule-new")

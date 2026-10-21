@@ -169,6 +169,14 @@ public static class DemoData
             main.ActivityUpdateIds = [available[0].UpdateId];
             main.ActivityStartedAtUtc = now.AddMinutes(-6);
             main.ActivityReportedAtUtc = now;
+
+            // Two weeks of daily searches and inventories, so the activity list has more than one page.
+            for (var day = 14; day >= 1; day--)
+            {
+                db.ClientActivities.Add(new ClientActivityEntity { ClientId = ids[MainServer], AtUtc = now.AddDays(-day), Kind = ClientActivityKind.Search, Detail = "Update search succeeded: 2 updates available." });
+                db.ClientActivities.Add(new ClientActivityEntity { ClientId = ids[MainServer], AtUtc = now.AddDays(-day).AddMinutes(5), Kind = ClientActivityKind.Inventory, Detail = "Inventory received." });
+            }
+
             await db.SaveChangesAsync();
         }
 

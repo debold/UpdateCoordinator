@@ -4,6 +4,7 @@
 @using SUSyphos.Server.Assignment
 @inject ServerDbContext Db
 @inject AssignmentAdministration Administration
+@inject NavigationManager Navigation
 
 <PageTitle>Server groups</PageTitle>
 
@@ -15,17 +16,12 @@
 </ActionBand>
 
 <Box Title="Server groups" Help="groups#list" Hint="A new group is empty: add servers in the server list (select, then Add to group) or on a server's page, or let an assignment rule add them" Flush="true">
-    <div class="scroll">
-        <table>
-            <thead><tr><th>Name</th><th>Description</th><th class="n">Members</th><th>Maintenance windows</th><th>Reboots</th><th>Coordination</th><th class="n">Actions</th></tr></thead>
-            <tbody>
-                @if (_groups.Count == 0)
-                {
-                    <tr><td colspan="7" class="note">No group yet.</td></tr>
-                }
-                @foreach (var group in _groups)
-                {
-                    var windows = MaintenanceWindowFormat.FromJson(group.MaintenanceWindowsJson) ?? [];
+    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search name or description" Noun="groups" Empty="No group yet." ExtraColumns="1">
+        <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+        <Row Context="group">
+                    @{
+                        var windows = MaintenanceWindowFormat.FromJson(group.MaintenanceWindowsJson) ?? [];
+                    }
                     <tr>
                         <td><a href="@Servers.Link("group", group.Name)">@group.Name</a></td>
                         <td>@group.Description</td>
@@ -51,10 +47,8 @@
                             <a class="btn danger" href="@Path?dialog=delete&id=@group.Id">Delete</a>
                         </span></td>
                     </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+        </Row>
+    </ListTable>
 </Box>
 
 @if (_dialog is "new" or "edit" && (_dialog == "new" || Editing is not null))
@@ -188,6 +182,19 @@ else if (_dialog == "delete" && Editing is { } doomed)
     private string? _dialog;
     private List<GroupEntity> _groups = [];
     private Dictionary<int, int> _members = [];
+    private TableQuery _table = default!;
+    private TablePage<GroupEntity> _page = default!;
+    private IReadOnlyList<TableColumn<GroupEntity>>? _columns;
+
+    private IReadOnlyList<TableColumn<GroupEntity>> Columns => _columns ??=
+    [
+        new("name", "Name", g => g.Name),
+        new("description", "Description", g => g.Description, Sortable: false),
+        new("members", "Members", g => _members.GetValueOrDefault(g.Id), g => [_members.GetValueOrDefault(g.Id) > 0 ? "With members" : "Empty"], Class: "n"),
+        new("windows", "Maintenance windows", g => (MaintenanceWindowFormat.FromJson(g.MaintenanceWindowsJson) ?? []).Count > 0 ? "own" : "system default", g => [(MaintenanceWindowFormat.FromJson(g.MaintenanceWindowsJson) ?? []).Count > 0 ? "Own windows" : "System default"], Sortable: false),
+        new("reboots", "Reboots", g => g.RebootPolicy is { } policy ? RebootPolicyText.Label(policy) : "inherit", g => [g.RebootPolicy is { } policy ? RebootPolicyText.Label(policy) : "inherit"]),
+        new("coordination", "Coordination", g => g.Coordinated, g => [!g.Coordinated ? "Not coordinated" : g.LeasesHalted ? "Stopped" : "Coordinated"]),
+    ];
     private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _systemWindows = [];
 
     private GroupEntity? Editing => int.TryParse(DialogId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) ? _groups.FirstOrDefault(g => g.Id == id) : null;
@@ -298,6 +305,8 @@ else if (_dialog == "delete" && Editing is { } doomed)
     {
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         _members = await Db.ClientGroups.AsNoTracking().GroupBy(m => m.GroupId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count);
+        _table = TableQuery.From(Navigation, "name");
+        _page = TablePaging.Apply(_groups, _table, Columns, g => $"{g.Name} {g.Description}");
         _systemWindows = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
     }
 

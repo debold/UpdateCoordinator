@@ -9,6 +9,7 @@
     <table>
         <thead>
             <tr>
+                @Leading
                 @foreach (var column in Columns)
                 {
                     <SortHeader Table="Table" Column="@column.Key" Label="@column.Label" Sortable="column.Sortable" Class="@column.Class" Options="@(Page.Total > 0 ? Page.Options.GetValueOrDefault(column.Key) : null)" />
@@ -60,6 +61,10 @@
 
     [Parameter]
     public string Noun { get; set; } = "entries";
+
+    /// <summary>Header cells before the columns, e.g. one for row checkboxes; counted in <see cref="ExtraColumns"/>.</summary>
+    [Parameter]
+    public RenderFragment? Leading { get; set; }
 
     /// <summary>Header cells after the columns, e.g. an empty one for row buttons.</summary>
     [Parameter]

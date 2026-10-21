@@ -71,6 +71,8 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .nav .account button:hover { background: var(--nav-hover); color: #FFFFFF; }
 main { min-width: 0; padding: 1.4rem max(1.75rem, env(safe-area-inset-right, 0px)) 3rem max(1.75rem, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 1rem; }
 main > * { margin-top: 0; margin-bottom: 0; }
+/* A form whose fields sit in a list further down (form="id"): takes no room and adds no gap. */
+form.detached { display: contents; }
 
 /* Page header. */
 .crumbs { color: var(--muted); font-size: 0.85rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
@@ -194,6 +196,7 @@ details.col-filter[open] > summary { color: var(--accent); background: var(--acc
 .pager .page-size { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; }
 .pager .page-size select { width: auto; min-height: 2rem; padding: 0.15rem 1.6rem 0.15rem 0.5rem; font-size: 0.85rem; }
 .pager .page-size button { min-height: 2rem; padding: 0.15rem 0.6rem; font-size: 0.85rem; }
+.pager .page-size button[hidden] { display: none; }
 .pager .pages a, .pager .pages span { min-width: 2rem; min-height: 2rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 0.5rem; color: var(--text); background: var(--surface); }
 .pager .pages a:hover { background: var(--surface-2); text-decoration: none; }
 .pager .pages .current { background: var(--accent); border-color: var(--accent); color: #FFFFFF; }

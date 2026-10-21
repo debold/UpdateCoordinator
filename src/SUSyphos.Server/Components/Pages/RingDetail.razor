@@ -56,16 +56,8 @@ else
 
     <div class="grid-side wide-only">
         <Box Title="Updates in this ring" Help="rings#updates" Hint="Select an update to see its status per server" Flush="true">
-            <div class="scroll">
-                <table>
-                    <thead><tr><th>Update</th><th>Classification</th><th>State</th><th>Installs from</th><th>Day</th><th class="n">Feedback</th><th class="n">Success</th><th>Servers</th></tr></thead>
-                    <tbody>
-                        @if (_active.Count == 0)
-                        {
-                            <tr><td colspan="8" class="note">No update is released for this ring or waiting before it.</td></tr>
-                        }
-                        @foreach (var update in _active)
-                        {
+            <ListTable Table="_updateTable" Page="_updatePage" Columns="UpdateColumns" Search="Search KB or title" Noun="updates" Empty="No update is released for this ring or waiting before it.">
+                <Row Context="update">
                             <tr class="@(update.Key == _selected?.Key && Tab == "update" ? "selected" : null)">
                                 <td class="wrap"><a href="@UpdateLink(update)">@update.Title</a></td>
                                 <td>@(update.Classification ?? "–")</td>
@@ -76,10 +68,8 @@ else
                                 <td class="n">@Percent(update.Statistics.SuccessPercent)</td>
                                 <td><StackedBar Counts="@update.Counts" /></td>
                             </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+                </Row>
+            </ListTable>
         </Box>
 
         <Box Title="Ring status" Help="rings#status" Hint="servers × updates">
@@ -109,27 +99,17 @@ else
         <ChildContent>
             @if (Tab == "update" && _selected is not null)
             {
-                <div class="scroll">
-                    <table>
-                        <thead><tr><th>Server</th><th>Maintenance windows (server time)</th><th>Earliest installation</th><th>Status</th><th>Result</th></tr></thead>
-                        <tbody>
-                            @if (_serverRows.Count == 0)
-                            {
-                                <tr><td colspan="5" class="note">No server of this ring reported this update as missing.</td></tr>
-                            }
-                            @foreach (var row in _serverRows)
-                            {
-                                <tr>
-                                    <td><a href="/servers/@row.ClientId">@row.HostName</a></td>
-                                    <td>@row.Windows</td>
-                                    <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
-                                    <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@row.Entry.State</span></td>
-                                    <td>@DeploymentText.Result(row.Entry)</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                <ListTable Table="_serverTable" Page="_serverPage" Columns="ServerColumns" Search="Search server" Noun="servers" Empty="No server of this ring reported this update as missing.">
+                    <Row Context="row">
+                        <tr>
+                            <td><a href="/servers/@row.ClientId">@row.HostName</a></td>
+                            <td>@row.Windows</td>
+                            <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
+                            <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@row.Entry.State</span></td>
+                            <td>@DeploymentText.Result(row.Entry)</td>
+                        </tr>
+                    </Row>
+                </ListTable>
             }
             else
             {
@@ -210,7 +190,33 @@ else
 @code {
     private const int MaxServerRows = 500;
 
-    private sealed record ActiveUpdate(string Key, string Title, string ShortTitle, string? Classification, string State, string StateClass, DeploymentCounts Counts, RingStatistics Statistics, string Released, string? Wait);
+    private sealed record ActiveUpdate(string Key, string Title, string ShortTitle, string? Classification, string State, string StateClass, DeploymentCounts Counts, RingStatistics Statistics, string Released, string? Wait, DateTime? ReleasedAtUtc = null);
+
+    private static readonly IReadOnlyList<TableColumn<ActiveUpdate>> UpdateColumns =
+    [
+        new("update", "Update", u => u.Title),
+        new("class", "Classification", u => u.Classification, u => [u.Classification ?? string.Empty]),
+        new("state", "State", u => u.State, u => [u.State.StartsWith("Alarm", StringComparison.Ordinal) ? "Alarm" : u.State]),
+        new("released", "Installs from", u => u.ReleasedAtUtc),
+        new("day", "Day", u => u.Wait, Sortable: false),
+        new("feedback", "Feedback", u => u.Statistics.FeedbackPercent, Class: "n"),
+        new("success", "Success", u => u.Statistics.SuccessPercent, Class: "n"),
+        new("servers", "Servers", u => u.Counts.Pending, Sortable: false),
+    ];
+
+    private static readonly IReadOnlyList<TableColumn<ServerRow>> ServerColumns =
+    [
+        new("name", "Server", r => r.HostName),
+        new("windows", "Maintenance windows (server time)", r => r.Windows, Sortable: false),
+        new("earliest", "Earliest installation", r => r.Entry.EarliestInstallAtUtc),
+        new("status", "Status", r => (int)r.Entry.State, r => [r.Entry.State.ToString()]),
+        new("result", "Result", r => DeploymentText.Result(r.Entry), Sortable: false),
+    ];
+
+    private TableQuery _updateTable = default!;
+    private TablePage<ActiveUpdate> _updatePage = default!;
+    private TableQuery _serverTable = default!;
+    private TablePage<ServerRow> _serverPage = default!;
 
     private sealed record Member(Guid Id, string HostName, string Os, string Build, int BuildNumber, string AssignedBy, ServerHealthState Health, int Pending);
 
@@ -234,9 +240,10 @@ else
     private TableQuery _table = default!;
     private TablePage<Member> _members = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
 
-    private string UpdateLink(ActiveUpdate update) => $"/rings/{RingId}?update={Uri.EscapeDataString(update.Key)}&tab=update";
+    // Both keep the view of the update list (search, filters, page) in the address.
+    private string UpdateLink(ActiveUpdate update) => Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> { ["update"] = update.Key, ["tab"] = "update", ["us.page"] = null });
 
-    private string TabLink(string tab) => _selected is null ? $"/rings/{RingId}?tab={tab}" : $"/rings/{RingId}?update={Uri.EscapeDataString(_selected.Key)}&tab={tab}";
+    private string TabLink(string tab) => Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> { ["update"] = _selected?.Key, ["tab"] = tab });
 
     private sealed record ServerRow(Guid ClientId, string HostName, string Windows, DeploymentEntry Entry);
 
@@ -345,7 +352,8 @@ else
                 counts,
                 statistics,
                 released,
-                WaitText(state, now)));
+                WaitText(state, now),
+                state.ReleasedAtUtc));
         }
 
         // Updates servers of this ring report as missing that are not released here yet: listed too, so the list shows
@@ -382,6 +390,8 @@ else
         _ringCounts = _active.Aggregate(DeploymentCounts.Empty, (sum, a) => sum + a.Counts)
             + DeploymentCounts.Of(entries.Where(e => !activeKeys.Contains(Key(e.UpdateId, e.Revision))));
 
+        _updateTable = TableQuery.From(Navigation, "released", defaultDescending: true, prefix: "up.", defaultPageSize: 10);
+        _updatePage = TablePaging.Apply(_active, _updateTable, UpdateColumns, u => $"{u.ShortTitle} {u.Title}");
         _selected = _active.FirstOrDefault(a => a.Key == UpdateKey) ?? _active.FirstOrDefault();
         await LoadServersAsync(entries);
         await LoadMembersAsync(entries, now);
@@ -389,7 +399,9 @@ else
 
     private async Task LoadServersAsync(IReadOnlyList<DeploymentEntry> entries)
     {
+        _serverTable = TableQuery.From(Navigation, "status", prefix: "us.");
         _serverRows = [];
+        _serverPage = TablePaging.Apply(_serverRows, _serverTable, ServerColumns, r => r.HostName);
         if (_selected is null)
         {
             return;
@@ -405,6 +417,7 @@ else
             .Where(e => clients.ContainsKey(e.ClientId))
             .Select(e => new ServerRow(e.ClientId, clients[e.ClientId].HostName, MaintenanceWindowFormat.Format(MaintenanceWindowFormat.FromJson(clients[e.ClientId].EffectiveWindowsJson) ?? []).Replace("\n", "; ", StringComparison.Ordinal), e))
             .OrderBy(r => r.Entry.State).ThenBy(r => r.HostName)];
+        _serverPage = TablePaging.Apply(_serverRows, _serverTable, ServerColumns, r => r.HostName);
     }
 
     private async Task LoadMembersAsync(IReadOnlyList<DeploymentEntry> entries, DateTime now)

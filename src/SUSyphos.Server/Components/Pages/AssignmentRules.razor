@@ -4,6 +4,7 @@
 @using SUSyphos.Server.Assignment
 @inject ServerDbContext Db
 @inject AssignmentAdministration Administration
+@inject NavigationManager Navigation
 
 <PageTitle>Assignment rules</PageTitle>
 
@@ -15,16 +16,9 @@
 </ActionBand>
 
 <Box Title="Rules" Help="assignment-rules#list" Flush="true" Hint="All conditions of a rule must match; a rule with several roles matches servers with any of them">
-    <div class="scroll">
-        <table>
-            <thead><tr><th class="n">Priority</th><th>Assigns</th><th>Roles</th><th>Domain</th><th>Host name pattern</th><th class="n">Actions</th></tr></thead>
-            <tbody>
-                @if (_rules.Count == 0)
-                {
-                    <tr><td colspan="6" class="note">No rule yet: servers go to the final ring.</td></tr>
-                }
-                @foreach (var rule in _rules)
-                {
+    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search domain or host name pattern" Noun="rules" Empty="No rule yet: servers go to the final ring." ExtraColumns="1">
+        <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+        <Row Context="rule">
                     <tr>
                         <td class="n">@rule.Priority</td>
                         <td>@TargetName(rule)</td>
@@ -36,10 +30,8 @@
                             <a class="btn danger" href="@Path?dialog=delete&id=@rule.Id">Delete</a>
                         </span></td>
                     </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+        </Row>
+    </ListTable>
 </Box>
 
 @if (_dialog is "new" or "edit" && (_dialog == "new" || Editing is not null))
@@ -141,6 +133,18 @@ else if (_dialog == "delete" && Editing is { } doomed)
 
     private string? _dialog;
     private List<AssignmentRuleEntity> _rules = [];
+    private TableQuery _table = default!;
+    private TablePage<AssignmentRuleEntity> _page = default!;
+    private IReadOnlyList<TableColumn<AssignmentRuleEntity>>? _columns;
+
+    private IReadOnlyList<TableColumn<AssignmentRuleEntity>> Columns => _columns ??=
+    [
+        new("priority", "Priority", r => r.Priority, Class: "n"),
+        new("assigns", "Assigns", r => TargetName(r), r => [TargetName(r)]),
+        new("roles", "Roles", r => r.Role, r => AssignmentAdministration.RuleRoles(r.Role).ToArray() is { Length: > 0 } roles ? roles : [string.Empty]),
+        new("domain", "Domain", r => r.Domain, r => [r.Domain ?? string.Empty]),
+        new("pattern", "Host name pattern", r => r.HostNamePattern),
+    ];
 
     /// <summary>Target of a new rule when the dialog is opened for a group (?target=group:7); only matching options are selected.</summary>
     [SupplyParameterFromQuery(Name = "target")]
@@ -209,6 +213,8 @@ else if (_dialog == "delete" && Editing is { } doomed)
         _nextPriority = SUSyphos.Server.Administration.RulePriority.NextFree([.. _rules.Select(r => r.Priority)]);
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        _table = TableQuery.From(Navigation, "priority");
+        _page = TablePaging.Apply(_rules, _table, Columns, r => $"{r.Domain} {r.HostNamePattern} {r.Role}");
         var inventoryRoles = (await Db.Clients.AsNoTracking().Select(c => c.Roles).ToListAsync()).SelectMany(r => r);
         _knownRoles = [.. BuiltInRoles
             .Concat(inventoryRoles)
