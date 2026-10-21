@@ -39,23 +39,27 @@
                     }
                 </select>
             </label>
-            <label>weeks
-                <select name="@WindowPickerForm.WeekModeField(Prefix, number)" aria-label="Weeks of the month of window @(number + 1)">
-                    <option value="every" selected="@(WindowPickerForm.WeekMode(row) == "every")">every week</option>
-                    <option value="only" selected="@(WindowPickerForm.WeekMode(row) == "only")">only in</option>
-                    <option value="except" selected="@(WindowPickerForm.WeekMode(row) == "except")">all except</option>
-                </select>
-            </label>
-            <span class="weeks" role="group" aria-label="Weeks of window @(number + 1)">
-                @foreach (var choice in WindowPickerForm.WeekChoices)
-                {
-                    <label class="day"><input type="checkbox" data-help-term="weeks of the month" name="@WindowPickerForm.WeeksField(Prefix, number)" value="@choice.Value" checked="@((row.Weeks ?? row.ExceptWeeks ?? []).Contains(choice.Week))" /><span>@choice.Label</span></label>
-                }
-            </span>
-            @if (row.Days.Count == 0)
-            {
-                <span class="note">select days</span>
-            }
+            @* One drop-down for the week rule, like the column filters: the closed state says which weeks apply. *@
+            <details class="week-choice" data-help-term="weeks of the month">
+                <summary aria-label="Weeks of the month of window @(number + 1)"><span class="week-summary">@WindowPickerForm.WeekSummary(row)</span></summary>
+                <div class="week-pop">
+                    <label class="field"><span>Weeks of the month</span>
+                        <select name="@WindowPickerForm.WeekModeField(Prefix, number)" aria-label="Weeks of the month of window @(number + 1)">
+                            <option value="every" selected="@(WindowPickerForm.WeekMode(row) == "every")">every week</option>
+                            <option value="only" selected="@(WindowPickerForm.WeekMode(row) == "only")">only in</option>
+                            <option value="except" selected="@(WindowPickerForm.WeekMode(row) == "except")">all except</option>
+                        </select>
+                    </label>
+                    <span class="weeks" role="group" aria-label="Weeks of window @(number + 1)">
+                        @foreach (var choice in WindowPickerForm.WeekChoices)
+                        {
+                            <label class="day"><input type="checkbox" name="@WindowPickerForm.WeeksField(Prefix, number)" value="@choice.Value" checked="@((row.Weeks ?? row.ExceptWeeks ?? []).Contains(choice.Week))" /><span>@choice.Label</span></label>
+                        }
+                    </span>
+                    <span class="note">Counts the weekday in the month: "only in 2nd" on Tuesday is the second Tuesday.</span>
+                </div>
+            </details>
+            <span class="note select-days" hidden="@(row.Days.Count > 0)">select days</span>
             <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="remove:@number" formnovalidate class="danger" aria-label="Remove window @(number + 1)" data-help-term="Remove">Remove</button>
         </div>
     }

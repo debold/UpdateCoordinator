@@ -12,9 +12,11 @@ The default windows for every server that has no windows of its own and is in no
 
 The same editor for maintenance windows is used here, for [server groups](help/groups) and for [single servers](help/server-detail#windows). Each row is one window:
 
-- **weekday** buttons (Mo to Su): the days on which the window starts. Select at least one.
+- **weekday** buttons (Mo to Su): the days on which the window starts. Select at least one; until then the row says "select days".
 - **from** and **to**: start and end in half-hour steps, 24-hour clock. "to 24:00" ends at midnight; an end before the start runs into the next day.
-- **weeks**: "every week", or a monthly rule: "only in" or "all except" the ticked **weeks of the month** (1st, 2nd, 3rd, 4th, last). The week counts the occurrence of the weekday in the month: "only in 2nd" on Tuesday is the second Tuesday of the month (Patch Tuesday); "all except last" on Saturday is every Saturday except the last one of the month. The "last" Saturday can also be the fourth.
+- **weeks of the month**: the drop-down next to the times. Closed, it says which weeks apply ("every week", "only 2nd week", "all except last week"); open, choose "every week", "only in" or "all except" and tick the weeks (1st, 2nd, 3rd, 4th, last). The week counts the occurrence of the weekday in the month: "only in 2nd" on Tuesday is the second Tuesday of the month (Patch Tuesday); "all except last" on Saturday is every Saturday except the last one of the month. The "last" Saturday can also be the fourth.
+
+  ![The week drop-down of a maintenance window, opened](help-images/week-choice.png)
 - **Remove** deletes the row.
 
 **Add window** adds a row (up to 14). **Refresh preview** redraws the preview; it is only shown without the dashboard script, which otherwise redraws it on every change. "Not saved yet" reminds you that rows were added or removed but not stored.

@@ -73,7 +73,25 @@
 
     const format = (value) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
 
+    // Closed state of each row's week drop-down and the "select days" hint, as the server renders them.
+    const updateRows = (picker) => {
+        for (const row of picker.querySelectorAll('.window-row')) {
+            const hint = row.querySelector('.select-days');
+            if (hint) {
+                hint.hidden = row.querySelector('.days input:checked') !== null;
+            }
+
+            const summary = row.querySelector('.week-summary');
+            const mode = row.querySelector('.week-choice select')?.value ?? 'every';
+            const weeks = [...row.querySelectorAll('.weeks input:checked')].map((box) => box.nextElementSibling?.textContent ?? box.value);
+            if (summary) {
+                summary.textContent = mode === 'every' || weeks.length === 0 ? 'every week' : `${mode === 'only' ? 'only' : 'all except'} ${weeks.join(' and ')} week`;
+            }
+        }
+    };
+
     const updatePicker = (picker) => {
+        updateRows(picker);
         const inherit = picker.querySelector(':scope > .gate input');
         const inherited = inherit !== null && inherit.checked;
         const windows = inherited ? inheritedWindows(picker) : readRows(picker);

@@ -137,8 +137,20 @@ public sealed class InteractionTests(UiFixture ui)
         Assert.True(after < before, $"The preview should drop the hours of the first window ({before} -> {after}).");
         Assert.Contains("Not saved yet", await picker.Locator(".window-summary").InnerTextAsync(), StringComparison.Ordinal);
 
-        // Weeks of the month are offered for every window.
+        // Without a weekday the row says so; ticking one hides the hint again.
+        await Assertions.Expect(row.Locator(".select-days")).ToBeVisibleAsync();
+        await row.Locator(".days label").First.ClickAsync();
+        await Assertions.Expect(row.Locator(".select-days")).ToBeHiddenAsync();
+
+        // Weeks of the month are one drop-down; its closed state names the chosen weeks.
         await Assertions.Expect(row.Locator(".weeks input")).ToHaveCountAsync(5);
+        var weeks = row.Locator("details.week-choice");
+        await Assertions.Expect(weeks.Locator(".week-summary")).ToHaveTextAsync("every week");
+        await weeks.Locator("summary").ClickAsync();
+        await weeks.Locator("select").SelectOptionAsync("only");
+        await weeks.Locator(".weeks label", new LocatorLocatorOptions { HasTextString = "2nd" }).ClickAsync();
+        await Assertions.Expect(weeks.Locator(".week-summary")).ToHaveTextAsync("only 2nd week");
+        await Assertions.Expect(picker.Locator(".window-summary")).ToContainTextAsync("(2nd week of the month)");
     }
 
     [Fact]

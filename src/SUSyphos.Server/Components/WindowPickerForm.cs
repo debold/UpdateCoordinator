@@ -40,6 +40,16 @@ internal static class WindowPickerForm
         (WeekOfMonth.Last, "last", "last"),
     ];
 
+    /// <summary>Closed state of the week drop-down, e.g. "every week", "only 2nd and last week", "all except last week".</summary>
+    public static string WeekSummary(WindowDraft draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        static string Names(IEnumerable<WeekOfMonth> weeks) => string.Join(" and ", weeks.Order().Select(w => WeekChoices.First(c => c.Week == w).Label));
+        return draft.Weeks is { Count: > 0 } weeks ? $"only {Names(weeks)} week"
+            : draft.ExceptWeeks is { Count: > 0 } except ? $"all except {Names(except)} week"
+            : "every week";
+    }
+
     /// <summary>Week mode of a row: every week, only the chosen weeks, or all except the chosen ones.</summary>
     public static string WeekMode(WindowDraft draft) =>
         draft.Weeks is { Count: > 0 } ? "only" : draft.ExceptWeeks is { Count: > 0 } ? "except" : "every";

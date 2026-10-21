@@ -23,6 +23,7 @@ public sealed class HelpScreenshotTests(UiFixture ui)
         { "assignment-rule-dialog", "/administration/rules?dialog=new", null, "[role='dialog']" },
         { "release-rules-ring-dialog", "/administration/release-rules", "main a[href*='dialog=ring&']", "[role='dialog']" },
         { "release-rules-start-dialog", "/administration/release-rules?dialog=rule-new", null, "[role='dialog']" },
+        { "week-choice", "/administration/maintenance", "details.week-choice > summary", "details.week-choice[open]" },
     };
 
     /// <summary>Viewport rectangle (left, top, right, bottom) of an element and all its visible descendants.</summary>
