@@ -17,13 +17,61 @@ public sealed class AgentActionTests
     private const string Password = "correct horse battery";
 
     [Fact]
+    public async Task QueuedAction_RedirectsToTheReloadablePage_ThatRefreshesUntilTheAgentAnswers()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        using var browser = await LoginAsync(scenario, AdminRoles.Operator);
+        var path = $"/servers/{client.ClientId}";
+
+        // Nothing waits: no automatic refresh, but a Refresh link.
+        var idle = await ReadAsync(browser, path);
+        Assert.DoesNotContain("http-equiv=\"refresh\"", idle, StringComparison.Ordinal);
+        Assert.Contains(">Refresh</a>", idle, StringComparison.Ordinal);
+
+        // Post/redirect/get: F5 on the result loads the page instead of posting again.
+        using var posted = await browser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:SearchNow" });
+        Assert.Equal(HttpStatusCode.Redirect, posted.StatusCode);
+        var location = posted.Headers.Location!.IsAbsoluteUri ? posted.Headers.Location.PathAndQuery : posted.Headers.Location.ToString();
+        Assert.Contains($"{SUSyphos.Server.Components.DashboardPageBase.DoneParameter}=", location, StringComparison.Ordinal);
+
+        var result = await ReadAsync(browser, location);
+        Assert.Contains("The action was queued", result, StringComparison.Ordinal);
+        Assert.Contains("http-equiv=\"refresh\"", result, StringComparison.Ordinal);
+        Assert.Contains("updates every 10 seconds", result, StringComparison.Ordinal);
+        Assert.Equal(1, await scenario.Factory.WithDbAsync(db => db.AgentActions.CountAsync(TestContext.Current.CancellationToken)));
+
+        // The refresh address drops the message, so it is shown once.
+        var refresh = System.Text.RegularExpressions.Regex.Match(result, "content=\"10; url=(?<url>[^\"]+)\"").Groups["url"].Value;
+        Assert.NotEmpty(refresh);
+        Assert.DoesNotContain("done=", System.Net.WebUtility.HtmlDecode(refresh), StringComparison.Ordinal);
+
+        // A changed or invented message shows nothing.
+        Assert.DoesNotContain("The action was queued", await ReadAsync(browser, location[..^4] + "AAAA"), StringComparison.Ordinal);
+        Assert.DoesNotContain("Your server was deleted", await ReadAsync(browser, $"{path}?done=Your+server+was+deleted"), StringComparison.Ordinal);
+
+        // A refused action (the form is not even rendered for readers) neither redirects nor queues anything.
+        using var reader = await LoginAsync(scenario, AdminRoles.Reader, "reader");
+        using var refused = await reader.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:SearchNow" });
+        Assert.NotEqual(HttpStatusCode.Redirect, refused.StatusCode);
+        Assert.Equal(1, await scenario.Factory.WithDbAsync(db => db.AgentActions.CountAsync(TestContext.Current.CancellationToken)));
+    }
+
+    private static async Task<string> ReadAsync(DashboardClient browser, string path)
+    {
+        using var response = await browser.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task QueuedAction_IsAnnouncedFetchedOnceAndConfirmed()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
         var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
         using var browser = await LoginAsync(scenario, AdminRoles.Operator);
 
-        using (var queued = await browser.PostFormAsync($"/servers/{client.ClientId}", new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:SearchNow" }))
+        using (var queued = await browser.PostFormAndFollowAsync($"/servers/{client.ClientId}", new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:SearchNow" }))
         {
             Assert.Contains("The action was queued", await queued.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
@@ -340,11 +388,11 @@ public sealed class AgentActionTests
         return response.StatusCode;
     }
 
-    private static async Task<DashboardClient> LoginAsync(RolloutScenario scenario, string role)
+    private static async Task<DashboardClient> LoginAsync(RolloutScenario scenario, string role, string userName = "user")
     {
-        await scenario.Factory.CreateUserAsync("user", Password, role);
+        await scenario.Factory.CreateUserAsync(userName, Password, role);
         var browser = new DashboardClient(scenario.Factory);
-        using (await browser.LoginAsync("user", Password))
+        using (await browser.LoginAsync(userName, Password))
         {
         }
 

@@ -34,6 +34,8 @@ public sealed class TableQuery
         }
 
         _path = path;
+        // The message of a finished action is shown once; links and forms of the list do not carry it on.
+        values.Remove(DashboardPageBase.DoneParameter);
         _values = values;
         _prefix = prefix;
         var sort = Get(Key("sort"));

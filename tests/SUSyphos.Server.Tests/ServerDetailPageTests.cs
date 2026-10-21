@@ -86,7 +86,7 @@ public sealed class ServerDetailPageTests
         }
 
         var path = $"/servers/{client.ClientId}";
-        using (var saved = await admin.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "assignment", ["Windows.0.days"] = "3", ["Windows.0.from"] = "22:00", ["Windows.0.to"] = "02:00" }))
+        using (var saved = await admin.PostFormAndFollowAsync(path, new Dictionary<string, string> { ["_handler"] = "assignment", ["Windows.0.days"] = "3", ["Windows.0.from"] = "22:00", ["Windows.0.to"] = "02:00" }))
         {
             Assert.Contains("The assignment was saved.", await saved.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
@@ -149,7 +149,7 @@ public sealed class ServerDetailPageTests
 
         Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
 
-        using (var queued = await admin.PostFormAsync(path + "?dialog=restart", new Dictionary<string, string> { ["_handler"] = "restart", ["When"] = "now" }))
+        using (var queued = await admin.PostFormAndFollowAsync(path + "?dialog=restart", new Dictionary<string, string> { ["_handler"] = "restart", ["When"] = "now" }))
         {
             var html = await queued.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.Contains("Restart queued", html, StringComparison.Ordinal);

@@ -50,6 +50,19 @@ public sealed partial class DashboardClient : IDisposable
         return await _http.PostAsync(new Uri(path, UriKind.Relative), content).ConfigureAwait(false);
     }
 
+    /// <summary>Posts like <see cref="PostFormAsync"/> and, when the page answers with a redirect (post/redirect/get), loads its target.</summary>
+    public async Task<HttpResponseMessage> PostFormAndFollowAsync(string path, IReadOnlyDictionary<string, string> fields)
+    {
+        var response = await PostFormAsync(path, fields).ConfigureAwait(false);
+        if (response.StatusCode is not (HttpStatusCode.Redirect or HttpStatusCode.SeeOther or HttpStatusCode.Found) || response.Headers.Location is not { } location)
+        {
+            return response;
+        }
+
+        response.Dispose();
+        return await _http.GetAsync(location, CancellationToken.None).ConfigureAwait(false);
+    }
+
     public Task<HttpResponseMessage> LoginAsync(string userName, string password, string path = "/login") =>
         PostFormAsync(path, new Dictionary<string, string> { ["Input.UserName"] = userName, ["Input.Password"] = password }, pageToRead: "/login");
 

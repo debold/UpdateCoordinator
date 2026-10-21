@@ -266,6 +266,11 @@
             // Storage blocked: the page simply starts at the top.
         }
     };
+    // The automatic refresh of a page that follows a running task (server detail) keeps the position as well.
+    if (document.querySelector('meta[http-equiv="refresh"]')) {
+        window.addEventListener('pagehide', rememberScroll);
+    }
+
     document.addEventListener('submit', (event) => {
         const action = new URL(event.target.getAttribute('action') || location.href, location.href);
         if (action.origin === location.origin && action.pathname === location.pathname) {

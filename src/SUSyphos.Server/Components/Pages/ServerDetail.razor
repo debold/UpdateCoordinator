@@ -37,8 +37,8 @@ else
         </form>
     }
 
-    <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
-        <ActionBand>
+    <ActionBand>
+        <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
             <form id="actions" method="post" @formname="action" @onsubmit="HandleActionAsync">
                 <AntiforgeryToken />
                 <button type="submit" name="RemoteAction" value="queue:SearchNow" class="primary">Search for updates</button>
@@ -46,14 +46,19 @@ else
                 <button type="submit" name="RemoteAction" value="queue:UploadLogs">Request logs</button>
                 <button type="submit" name="RemoteAction" value="queue:RestartService">Restart agent service</button>
             </form>
-            <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="administer">
-                <a class="btn" href="@DialogLink("restart")">Restart server…</a>
-                <div class="spacer"></div>
-                <a class="btn danger" href="@DialogLink("remove")">Remove server…</a>
-                <a class="btn danger" href="@DialogLink("purge")">Delete with history…</a>
-            </AuthorizeView>
-        </ActionBand>
-    </AuthorizeView>
+        </AuthorizeView>
+        <a class="btn" href="@AddressWithoutMessage" title="Load the page again with the latest state">Refresh</a>
+        @if (IsBusy)
+        {
+            <span class="note">updates every @LiveRefreshSeconds seconds while the agent works or an action waits</span>
+        }
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="administer">
+            <a class="btn" href="@DialogLink("restart")">Restart server…</a>
+            <div class="spacer"></div>
+            <a class="btn danger" href="@DialogLink("remove")">Remove server…</a>
+            <a class="btn danger" href="@DialogLink("purge")">Delete with history…</a>
+        </AuthorizeView>
+    </ActionBand>
 
     <section class="figures" aria-label="Status">
         <a class="tile @(_health == ServerHealthState.Failed ? "attention-tile" : null)" href="/servers/@Id#checks">
@@ -79,10 +84,10 @@ else
         </div>
     </section>
 
-    @if (_livePhase is not null && Dialog is null && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
+    @if (IsBusy && Dialog is null && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
     {
-        @* Reload while the agent works; not after a form post, so unsaved input is never lost. *@
-        <HeadContent><meta http-equiv="refresh" content="@LiveRefreshSeconds" /></HeadContent>
+        @* Reload while the agent works or an action waits for it; not after a form post, so unsaved input is never lost. *@
+        <HeadContent><meta http-equiv="refresh" content="@($"{LiveRefreshSeconds}; url={AddressWithoutMessage}")" /></HeadContent>
     }
     <Box Title="Tasks" Anchor="tasks" Help="server-detail#tasks" Hint="@(_livePhase is null ? "what the agent does next, in order; heartbeats are not listed" : $"running now; the page updates every {LiveRefreshSeconds} seconds while the agent works")" Flush="true">
         @if (_livePhase is { } livePhase)
@@ -410,7 +415,7 @@ else
             : kind is null
                 ? new Outcome("Choose when the server restarts.")
                 : await Actions.QueueAsync(Id, kind.Value, await GetActorAsync(), CancellationToken.None);
-        ShowResult(outcome.Error, kind == SUSyphos.Contracts.Agents.AgentActionKind.RestartServer
+        ShowResultAndReload(outcome.Error, kind == SUSyphos.Contracts.Agents.AgentActionKind.RestartServer
             ? "The restart was queued; the agent restarts the server after its next heartbeat and a five minute warning."
             : "The restart was queued for the next maintenance window; the agent reports the planned time with its next heartbeat.");
         Dialog = null;
@@ -435,7 +440,7 @@ else
             (outcome, success) = (await Actions.QueueAsync(Id, SUSyphos.Contracts.Agents.AgentActionKind.CancelRestart, await GetActorAsync(), CancellationToken.None), "The cancellation was queued; the agent drops the restart with its next heartbeat.");
         }
 
-        ShowResult(outcome.Error, success);
+        ShowResultAndReload(outcome.Error, success);
         await LoadAsync();
     }
 
@@ -554,7 +559,7 @@ else
             outcome = await Administration.SetClientRebootPolicyAsync(Id, reboot, actor, CancellationToken.None);
         }
 
-        ShowResult(outcome.Error, "The assignment was saved.");
+        ShowResultAndReload(outcome.Error, "The assignment was saved.");
         await LoadAsync();
     }
 
@@ -603,7 +608,7 @@ else
             (outcome, success) = (new Outcome("Invalid request."), string.Empty);
         }
 
-        ShowResult(outcome.Error, success);
+        ShowResultAndReload(outcome.Error, success);
         await LoadAsync();
     }
 
@@ -650,7 +655,7 @@ else
             }
         }
 
-        ShowResult(outcome.Error, "The server was deleted; its history is kept.");
+        ShowResultAndReload(outcome.Error, "The server was deleted; its history is kept.");
         Dialog = null;
         await LoadAsync();
     }
@@ -867,6 +872,9 @@ else
 
     /// <summary>Reload interval of the page while the agent reports an activity.</summary>
     private const int LiveRefreshSeconds = 10;
+
+    /// <summary>The agent works, or a remote action waits to be picked up or for its result.</summary>
+    private bool IsBusy => _livePhase is not null || _actions.Any(a => a.State is AgentActionState.Queued or AgentActionState.Delivered);
 
     private const int MaxActivities = 100;
 

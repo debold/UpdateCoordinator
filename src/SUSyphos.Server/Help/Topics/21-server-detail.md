@@ -17,6 +17,10 @@ Operators and administrators can send these actions. The agent picks each one up
 - **Request logs**: the agent uploads its log files compressed; when they arrived, a **Download** link appears in the remote action.
 - **Restart agent service**: the SUSyphos agent service restarts itself; the server keeps running.
 
+Everyone can use:
+
+- **Refresh**: loads the page again with the latest state. While the agent works or an action waits to be picked up or for its result, the page also refreshes itself every 10 seconds (the note next to the button says so) and keeps its scroll position. After an action the page is loaded anew, so F5 never sends the action a second time.
+
 Administrators also have:
 
 - **Restart server…**: opens the [restart dialog](#restart).

@@ -98,7 +98,7 @@ else
                                     }
                                     else
                                     {
-                                        <span class="note" title="Estimate from the wait times of the ring transitions; low feedback, alarms and gates change it">expected @ForecastText(ring.Forecast.Value)</span>
+                                        <div class="note" title="Estimate from the wait times of the ring transitions; low feedback, alarms and gates change it">expected from @Format(ring.Forecast.Value.EarliestUtc)@if (ring.Forecast.Value.LatestUtc != ring.Forecast.Value.EarliestUtc) { <br />@($"at the latest {Format(ring.Forecast.Value.LatestUtc)}") }</div>
                                         @if (ring.Forecast.Value.ManualApproval)
                                         {
                                             <div><span class="pill queue">manual approval</span></div>
@@ -170,9 +170,6 @@ else
 
     private sealed record RingRow(int RingId, int Order, string Name, RingRolloutState? State, string? Reason, DateTime? ReleasedAtUtc, RingStatistics Statistics, DeploymentCounts Counts, RingForecast? Forecast = null);
 
-    /// <summary>"2026-10-22 22:49 to 2026-10-27 22:49", or one time when both are the same.</summary>
-    private static string ForecastText(RingForecast forecast) =>
-        forecast.EarliestUtc == forecast.LatestUtc ? $"from {Format(forecast.EarliestUtc)}" : $"{Format(forecast.EarliestUtc)} to {Format(forecast.LatestUtc)}";
 
     /// <summary>State of the update on one server, as the server table shows it.</summary>
     private enum ServerUpdateStatus

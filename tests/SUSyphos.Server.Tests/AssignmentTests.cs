@@ -442,7 +442,7 @@ public sealed class AssignmentPageTests
         {
         }
 
-        using var response = await browser.PostFormAsync($"/servers/{credentials.ClientId}", new Dictionary<string, string>
+        using var response = await browser.PostFormAndFollowAsync($"/servers/{credentials.ClientId}", new Dictionary<string, string>
         {
             ["Ring"] = RingEntity.PilotId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["Windows"] = "Sat 01:00-02:00",
