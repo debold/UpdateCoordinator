@@ -9,6 +9,8 @@ Operators and administrators see a band above the list. Tick the servers in the 
 - **Search for updates now**: the agents search Windows Update right away instead of waiting for their next scheduled search (every 4 hours by default) and report the result.
 - **Sync inventory**: the agents collect and send their complete inventory again (operating system, roles, installed updates, Windows Update history), for example after a change on the server that the dashboard does not show yet.
 
+Administrators can also put the selected servers into a server group: choose the group next to **Add to group** and press the button. They become members by hand (also if a rule added them before); their other groups stay. See [Server groups](help/groups).
+
 The action is queued and each agent runs it with its next heartbeat (every 10 seconds while the agent is running). Agents that are offline run it when they come back. Servers that are not approved get no actions. At most 500 servers are taken per click. Every action is recorded in the [audit log](help/audit-log) and shown on the server's detail page.
 
 ## Columns {#columns}

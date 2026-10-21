@@ -46,7 +46,7 @@
 {
     var rule = Editing;
     var selectedRoles = Roles ?? (AssignmentAdministration.RuleRoles(rule?.Role).ToArray());
-    var target = Target ?? (rule is null ? null : $"{(rule.Target == AssignmentTarget.Ring ? "ring" : "group")}:{rule.TargetId}");
+    var target = Target ?? (rule is null ? PrefillTarget : $"{(rule.Target == AssignmentTarget.Ring ? "ring" : "group")}:{rule.TargetId}");
     <Dialog Title="@(rule is null ? "New assignment rule" : "Edit assignment rule")" CloseHref="@Path" Help="assignment-rules#dialog">
         <form method="post" @formname="rule-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
@@ -141,6 +141,10 @@ else if (_dialog == "delete" && Editing is { } doomed)
 
     private string? _dialog;
     private List<AssignmentRuleEntity> _rules = [];
+
+    /// <summary>Target of a new rule when the dialog is opened for a group (?target=group:7); only matching options are selected.</summary>
+    [SupplyParameterFromQuery(Name = "target")]
+    private string? PrefillTarget { get; set; }
     private int _nextPriority = SUSyphos.Server.Administration.RulePriority.First;
     private List<RingEntity> _rings = [];
     private List<GroupEntity> _groups = [];

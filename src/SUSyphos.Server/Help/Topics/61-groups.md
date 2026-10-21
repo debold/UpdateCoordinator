@@ -2,7 +2,7 @@
 
 Server groups bundle servers, for example the domain controllers or the nodes of a cluster, and give them their own maintenance windows, reboot policy and settings, and optionally coordinate their installations so that not all members install and restart at the same time. Members without group settings use the system defaults from [Maintenance windows](help/maintenance-windows). Administrators only.
 
-Servers join a group by hand on their [details page](help/server-detail#groups) or through [assignment rules](help/assignment-rules). A server can be in several groups.
+A new group is empty. Servers join it in one of three ways: select them in the [server list](help/servers#actions) and use **Add to group**, tick the group on a server's [details page](help/server-detail#groups), or let an [assignment rule](help/assignment-rules) add every matching server (by role, domain or host name; it also catches servers that register later). A server can be in several groups. In the list, a group without members shows the links **add servers** and **create a rule** (the rule dialog opens with the group already chosen).
 
 ## Group list {#list}
 

@@ -14,7 +14,7 @@
     <a class="btn primary" href="@Path?dialog=new">New group</a>
 </ActionBand>
 
-<Box Title="Server groups" Help="groups#list" Flush="true">
+<Box Title="Server groups" Help="groups#list" Hint="A new group is empty: add servers in the server list (select, then Add to group) or on a server's page, or let an assignment rule add them" Flush="true">
     <div class="scroll">
         <table>
             <thead><tr><th>Name</th><th>Description</th><th class="n">Members</th><th>Maintenance windows</th><th>Reboots</th><th>Coordination</th><th class="n">Actions</th></tr></thead>
@@ -29,7 +29,7 @@
                     <tr>
                         <td><a href="@Servers.Link("group", group.Name)">@group.Name</a></td>
                         <td>@group.Description</td>
-                        <td class="n">@_members.GetValueOrDefault(group.Id)</td>
+                        <td class="n">@if (_members.GetValueOrDefault(group.Id) is > 0 and var members) { <span>@members</span> } else { <span class="note">none yet: <a href="/servers">add servers</a> or <a href="@($"/administration/rules?dialog=new&target=group:{group.Id}")">create a rule</a></span> }</td>
                         <td>@(windows.Count > 0 ? WindowPickerForm.Describe(windows) : "system default")</td>
                         <td>@(group.RebootPolicy is { } policy ? RebootPolicyText.Label(policy) : "inherit")</td>
                         <td>

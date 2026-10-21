@@ -510,6 +510,51 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         return await CompleteAsync(actor, "Client.RebootPolicyChanged", $"{client.HostName} ({clientId:D})", policy?.ToString() ?? "inherited", clientId, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Adds servers to a group by hand (bulk action of the server list); memberships from rules become manual, other groups
+    /// stay. Deleted servers and unknown ids are skipped. Returns how many servers were added.
+    /// </summary>
+    public async Task<(Outcome Outcome, int Added)> AddClientsToGroupAsync(IReadOnlyCollection<Guid> clientIds, int groupId, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(clientIds);
+        var group = await db.Groups.AsNoTracking().SingleOrDefaultAsync(g => g.Id == groupId, cancellationToken).ConfigureAwait(false);
+        if (group is null)
+        {
+            return (new Outcome("The selected group does not exist."), 0);
+        }
+
+        var ids = clientIds.Distinct().Take(500).ToList();
+        var clients = await db.Clients.AsNoTracking().Where(c => ids.Contains(c.Id) && c.State != SUSyphos.Contracts.Agents.RegistrationState.Deleted).Select(c => c.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (clients.Count == 0)
+        {
+            return (new Outcome("Select at least one server in the list first."), 0);
+        }
+
+        var memberships = await db.ClientGroups.Where(m => m.GroupId == groupId && clients.Contains(m.ClientId)).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var added = 0;
+        foreach (var clientId in clients)
+        {
+            if (memberships.FirstOrDefault(m => m.ClientId == clientId) is { } membership)
+            {
+                membership.Manual = true;
+            }
+            else
+            {
+                db.ClientGroups.Add(new ClientGroupEntity { ClientId = clientId, GroupId = groupId, Manual = true });
+                added++;
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Group.ServersAdded", group.Name, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{clients.Count} servers ({added} new)"), cancellationToken).ConfigureAwait(false);
+        foreach (var clientId in clients)
+        {
+            await assignment.RecalculateAsync(clientId, cancellationToken).ConfigureAwait(false);
+        }
+
+        return (Outcome.Ok, added);
+    }
+
     private async Task<Outcome> CompleteAsync(string actor, string action, string? target, string? details, Guid? clientId, CancellationToken cancellationToken)
     {
         await audit.WriteAsync(actor, action, target, details, cancellationToken).ConfigureAwait(false);

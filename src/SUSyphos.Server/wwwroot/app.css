@@ -444,3 +444,4 @@ h1 .help-link { vertical-align: 0.3em; }
 .help-article th, .help-article td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
 .help-article img { display: block; max-width: 100%; height: auto; margin: 0.7rem 0; border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: 0 1px 3px rgb(20 26 34 / 0.12); }
 .nav .account .version .update { display: block; margin-top: 0.15rem; color: var(--queue); }
+.add-to-group { display: inline-flex; gap: 0.35rem; align-items: center; }

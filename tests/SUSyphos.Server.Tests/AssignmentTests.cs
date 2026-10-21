@@ -218,7 +218,7 @@ public sealed class AssignmentServiceTests
         Assert.Equal(expected, Wildcard.Matches(pattern, host));
     }
 
-    private static async Task WithAdministrationAsync(ServerFactory factory, Func<AssignmentAdministration, Task<Outcome>> action)
+    internal static async Task WithAdministrationAsync(ServerFactory factory, Func<AssignmentAdministration, Task<Outcome>> action)
     {
         factory.StartServer();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -229,7 +229,7 @@ public sealed class AssignmentServiceTests
     private static Task<ClientEntity> GetAsync(ServerFactory factory, Guid clientId) =>
         factory.WithDbAsync(db => db.Clients.SingleAsync(c => c.Id == clientId, TestContext.Current.CancellationToken));
 
-    private static Task<List<int>> GroupsAsync(ServerFactory factory, Guid clientId) =>
+    internal static Task<List<int>> GroupsAsync(ServerFactory factory, Guid clientId) =>
         factory.WithDbAsync(db => db.ClientGroups.Where(m => m.ClientId == clientId).Select(m => m.GroupId).ToListAsync(TestContext.Current.CancellationToken));
 }
 
@@ -320,6 +320,37 @@ public sealed class AssignmentAdministrationTests
 
         var priorities = await factory.WithDbAsync(db => db.AssignmentRules.OrderBy(r => r.Domain).Select(r => r.Priority).ToListAsync(TestContext.Current.CancellationToken));
         Assert.Equal([10, 12, 11], priorities);
+    }
+
+    [Fact]
+    public async Task ServersAreAddedToAGroup_InBulk_KeepingTheirOtherGroups()
+    {
+        await using var factory = new ServerFactory();
+        using var client = factory.CreateClient();
+        await AssignmentServiceTests.WithAdministrationAsync(factory, admin => admin.CreateGroupAsync("Web", null, null, "admin", CancellationToken.None));
+        await AssignmentServiceTests.WithAdministrationAsync(factory, admin => admin.CreateGroupAsync("Other", null, null, "admin", CancellationToken.None));
+        var web = await factory.WithDbAsync(db => db.Groups.Where(g => g.Name == "Web").Select(g => g.Id).SingleAsync(TestContext.Current.CancellationToken));
+        var other = await factory.WithDbAsync(db => db.Groups.Where(g => g.Name == "Other").Select(g => g.Id).SingleAsync(TestContext.Current.CancellationToken));
+        var first = await RegisterTests.RegisterAsync(client);
+        var second = await RegisterTests.RegisterAsync(client);
+        await AssignmentServiceTests.WithAdministrationAsync(factory, admin => admin.SetClientAssignmentAsync(first.ClientId, null, [other], null, "admin", CancellationToken.None));
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var administration = scope.ServiceProvider.GetRequiredService<AssignmentAdministration>();
+        var (outcome, added) = await administration.AddClientsToGroupAsync([first.ClientId, second.ClientId, Guid.NewGuid()], web, "admin", CancellationToken.None);
+        var (again, addedAgain) = await administration.AddClientsToGroupAsync([first.ClientId], web, "admin", CancellationToken.None);
+        var (missingGroup, _) = await administration.AddClientsToGroupAsync([first.ClientId], 999, "admin", CancellationToken.None);
+        var (nobody, _) = await administration.AddClientsToGroupAsync([Guid.NewGuid()], web, "admin", CancellationToken.None);
+
+        Assert.True(outcome.Succeeded);
+        Assert.Equal(2, added);
+        Assert.True(again.Succeeded);
+        Assert.Equal(0, addedAgain);
+        Assert.False(missingGroup.Succeeded);
+        Assert.False(nobody.Succeeded);
+        Assert.Equal(new[] { web, other }.Order(), (await AssignmentServiceTests.GroupsAsync(factory, first.ClientId)).Order());
+        Assert.Equal([web], await AssignmentServiceTests.GroupsAsync(factory, second.ClientId));
+        Assert.True(await factory.WithDbAsync(db => db.AuditEntries.AnyAsync(a => a.Action == "Group.ServersAdded", TestContext.Current.CancellationToken)));
     }
 
     [Fact]

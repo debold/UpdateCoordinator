@@ -6,6 +6,7 @@
 @inject ServerDbContext Db
 @inject DeploymentStatus Deployment
 @inject AgentActionService Actions
+@inject SUSyphos.Server.Assignment.AssignmentAdministration Administration
 @inject NavigationManager Navigation
 @inject TimeProvider Time
 
@@ -20,6 +21,21 @@
             <AntiforgeryToken />
             <button type="submit" name="Bulk" value="search" class="primary">Search for updates now</button>
             <button type="submit" name="Bulk" value="resync">Sync inventory</button>
+            <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
+                @if (_groups.Count > 0)
+                {
+                    <span class="add-to-group">
+                        <label class="visually-hidden" for="bulk-group">Group</label>
+                        <select id="bulk-group" name="BulkGroup" data-help-term="Add to group">
+                            @foreach (var group in _groups)
+                            {
+                                <option value="@group.Key">@group.Value</option>
+                            }
+                        </select>
+                        <button type="submit" name="Bulk" value="group">Add to group</button>
+                    </span>
+                }
+            </AuthorizeView>
         </form>
         <div class="spacer"></div>
         <span class="note">Applies to the servers selected in the list</span>
@@ -109,6 +125,11 @@
     [SupplyParameterFromForm(FormName = "servers-bulk")]
     private Guid[]? Selected { get; set; }
 
+    [SupplyParameterFromForm(FormName = "servers-bulk")]
+    private int? BulkGroup { get; set; }
+
+    private IReadOnlyDictionary<int, string> _groups = new Dictionary<int, string>();
+
     private TableQuery _table = default!;
     private TablePage<Row> _page = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
 
@@ -137,6 +158,12 @@
         if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate))
         {
             ShowResult("Only operators and administrators can send actions to servers.", string.Empty);
+            return;
+        }
+
+        if (Bulk == "group")
+        {
+            await AddToGroupAsync();
             return;
         }
 
@@ -169,11 +196,31 @@
         await LoadAsync();
     }
 
+    private async Task AddToGroupAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators can change group memberships.", string.Empty);
+        }
+        else if (BulkGroup is not { } groupId)
+        {
+            ShowResult("Choose a group.", string.Empty);
+        }
+        else
+        {
+            var (outcome, added) = await Administration.AddClientsToGroupAsync(Selected ?? [], groupId, await GetActorAsync(), CancellationToken.None);
+            ShowResult(outcome.Error, $"Added {added} servers to the group; the others were members already.");
+        }
+
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
         _table = TableQuery.From(Navigation, "name");
         var rings = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id);
         var groups = await Db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, g => g.Name);
+        _groups = groups.OrderBy(g => g.Value, StringComparer.CurrentCulture).ToDictionary(g => g.Key, g => g.Value);
         var memberships = (await Db.ClientGroups.AsNoTracking().ToListAsync()).ToLookup(m => m.ClientId, m => m.GroupId);
         var clients = await Db.Clients.AsNoTracking().Where(c => c.State != RegistrationState.Deleted).ToListAsync();
         var entries = await Deployment.GetAsync(null, null, null, CancellationToken.None);
