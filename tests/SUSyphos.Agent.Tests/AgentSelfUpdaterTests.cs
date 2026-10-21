@@ -36,9 +36,39 @@ internal sealed class FakePackageInstaller : IPackageInstaller
 
     public List<string> Installed { get; } = [];
 
+    /// <summary>Contents of the package as msiexec would read it.</summary>
+    public byte[]? Read { get; private set; }
+
+    /// <summary>True when another process could not write to the package while msiexec ran (it cannot be swapped).</summary>
+    public bool WriteBlocked { get; private set; }
+
     public Task<int?> InstallAsync(string packagePath, string logPath, TimeSpan timeout, CancellationToken cancellationToken)
     {
         Installed.Add(packagePath);
+
+        // Like msiexec (STGM_READ | STGM_SHARE_DENY_WRITE): read access, nobody else may write. While the agent holds a
+        // handle with write access this fails, and msiexec ends with 1619.
+        try
+        {
+            using var package = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var copy = new MemoryStream();
+            package.CopyTo(copy);
+            Read = copy.ToArray();
+        }
+        catch (IOException)
+        {
+            return Task.FromResult<int?>(1619);
+        }
+
+        try
+        {
+            using var swap = new FileStream(packagePath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+        }
+        catch (IOException)
+        {
+            WriteBlocked = true;
+        }
+
         return Task.FromResult(ExitCode);
     }
 }
@@ -74,6 +104,8 @@ public sealed class AgentSelfUpdaterTests : IDisposable
         Assert.True(await updater.UpdateIfAnnouncedAsync(Identity, Heartbeat(Announce("0.4.0")), TestContext.Current.CancellationToken));
 
         Assert.Single(_installer.Installed);
+        Assert.Equal(_packages.Package, _installer.Read);
+        Assert.True(_installer.WriteBlocked);
         Assert.False(File.Exists(Path.Combine(_directory, "planted.msi")));
         Assert.True(new DirectoryInfo(_directory).GetAccessControl().AreAccessRulesProtected);
         Assert.Equal(new AgentUpdateState("0.4.0", _time.GetUtcNow().UtcDateTime, Pending: true, Error: null), _state.State);

@@ -110,19 +110,23 @@ internal sealed partial class AgentSelfUpdater(
         LogStarting(update.Version);
         var directory = PrepareDirectory(settings.Directory);
         var packagePath = Path.Combine(directory, "SUSyphos.Agent.msi");
-        string? error;
-        // The handle stays open with read sharing only until msiexec is done, so the verified file cannot be swapped.
-        await using (var file = new FileStream(packagePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read, 81920, useAsync: true))
+        await using (var download = new FileStream(packagePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
         {
-            if (!await packages.DownloadAsync(identity, update.Version, file, update.Size, cancellationToken).ConfigureAwait(false))
+            if (!await packages.DownloadAsync(identity, update.Version, download, update.Size, cancellationToken).ConfigureAwait(false))
             {
                 return false;
             }
+        }
 
+        string? error;
+        // Verified and installed through one read-only handle that denies writing to others until msiexec is done, so the
+        // checked file cannot be swapped. It must not have write access itself: msiexec opens the package denying writers
+        // and fails with 1619 (sharing violation) while any handle can write to it.
+        await using (var file = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true))
+        {
             error = await VerifyAsync(file, update, cancellationToken).ConfigureAwait(false);
             if (error is null)
             {
-                await file.FlushAsync(cancellationToken).ConfigureAwait(false);
                 stateStore.Save(new AgentUpdateState(update.Version, now, Pending: true, Error: null));
                 var exitCode = await installer.InstallAsync(packagePath, Path.Combine(directory, "install.log"), settings.InstallTimeout, cancellationToken).ConfigureAwait(false);
                 error = exitCode switch

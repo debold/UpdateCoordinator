@@ -11,6 +11,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- Self-update: msiexec failed with exit code 1619 (sharing violation, log note 2203 with 0x80030020) because the agent kept the verified package open with write access. The package is now verified and installed through a read-only handle that still keeps others from changing it. Agents up to 0.7.2 have the error and cannot update themselves: install a fixed version on them once by hand (or by software distribution); from then on remote updates work.
 - The heartbeat reports when the next update search and the next inventory are due.
 - Microsoft Update on request of the central server: the agent registers the service and searches, inventories and installs through it, so other Microsoft products are covered; it removes only its own registration again.
 - The update search also finds drivers: everything Windows Update offers is reported and can be released.
