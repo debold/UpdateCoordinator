@@ -26,7 +26,8 @@ public sealed class FakeWindowsAuthentication(IOptionsMonitor<AuthenticationSche
         }
 
         var claims = new List<Claim> { new(ClaimTypes.PrimarySid, sid), new(ClaimTypes.Name, name) };
-        claims.AddRange(groups.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(g => new Claim(ClaimTypes.GroupSid, g)));
+        // A group written as "!S-1-..." is in the token only as "deny only", as Windows reports groups filtered by UAC.
+        claims.AddRange(groups.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(g => g.StartsWith('!') ? new Claim(ClaimTypes.DenyOnlySid, g[1..]) : new Claim(ClaimTypes.GroupSid, g)));
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, "Negotiate")), Scheme.Name)));
     }
 

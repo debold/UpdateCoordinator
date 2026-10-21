@@ -207,6 +207,52 @@ public sealed class WindowsSignInTests
     }
 
     [Fact]
+    public async Task GroupFilteredByUac_IsNamed_InTheMessageAndTheAuditLog()
+    {
+        const string DomainAdmins = "S-1-5-21-1-2-3-512";
+        await using var factory = new WindowsServerFactory();
+        await ConfigureAsync(factory, (DomainAdmins, AdminRoles.Admin));
+        using var browser = new DashboardClient(factory);
+
+        using (var refused = await WindowsGetAsync(browser, WindowsSignIn.Route, Alice, @"LAB\alice", "S-1-5-21-1-2-3-513", "!" + DomainAdmins))
+        {
+            Assert.Equal("/login?windows=filteredgroup", refused.Headers.Location?.OriginalString);
+        }
+
+        var message = await (await browser.GetAsync("/login?windows=filteredgroup")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("filtered by User Account Control", message, StringComparison.Ordinal);
+        var details = await factory.WithDbAsync(db => db.AuditEntries.Where(a => a.Action == "Login.WindowsNoRole").Select(a => a.Details).SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("authentication Negotiate, 1 groups in the token", details, StringComparison.Ordinal);
+        Assert.Contains("mapped but filtered by UAC (deny only): S-1-5-21-1-2-3-512", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MappingAPrivilegedGroup_Warns()
+    {
+        await using var factory = new WindowsServerFactory();
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var admin = new DashboardClient(factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        using var response = await admin.PostFormAsync("/administration/users", new Dictionary<string, string> { ["_handler"] = "windows-sign-in", ["WindowsAction"] = "add", ["WindowsGroup"] = "S-1-5-21-1-2-3-512", ["WindowsRole"] = AdminRoles.Admin });
+
+        Assert.Contains("Map a dedicated group instead.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("S-1-5-21-1-2-3-512", true)]
+    [InlineData("S-1-5-21-1-2-3-518", true)]
+    [InlineData("S-1-5-21-1-2-3-519", true)]
+    [InlineData("S-1-5-32-544", true)]
+    [InlineData("S-1-5-21-1-2-3-513", false)]
+    [InlineData("S-1-5-21-1-2-3-1512", false)]
+    [InlineData("S-1-5-32-545", false)]
+    public void PrivilegedGroups_AreKnownAsFilteredByUac(string sid, bool expected) =>
+        Assert.Equal(expected, WindowsSignIn.IsFilteredByUac(sid));
+
+    [Fact]
     public async Task ConfigurationSwitch_TurnsWindowsSignInOff()
     {
         await using var factory = new WindowsServerFactory { WindowsSwitchInConfiguration = false };

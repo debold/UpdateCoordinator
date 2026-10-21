@@ -60,7 +60,8 @@
         _windowsEnabled = await Windows.IsEnabledAsync(CancellationToken.None);
         _error ??= WindowsFailure switch
         {
-            "norole" => "Your Windows account is in none of the AD groups that may use the dashboard. Ask an administrator.",
+            "norole" => "Your Windows account is in none of the AD groups that may use the dashboard. Ask an administrator; the audit log names the account that signed in.",
+            "filteredgroup" => "Your Windows account is in a mapped group (such as Domain Admins) only as a group filtered by User Account Control (\"deny only\"), which gives no role. Ask an administrator to map a dedicated group instead.",
             "locked" => "Your account is locked in the dashboard. Ask an administrator.",
             "disabled" => "Sign-in with Windows is switched off.",
             "invalid" => "Windows did not identify your account. Sign in with a local account or ask an administrator.",

@@ -246,8 +246,15 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
             _ => (new Outcome("Invalid request."), string.Empty),
         };
 
-        ShowResult(outcome.Error, success);
         await LoadAsync();
+        if (outcome.Error is null && WindowsAction == "add"
+            && _mappings.FirstOrDefault(m => string.Equals(m.Name, WindowsGroup?.Trim(), StringComparison.OrdinalIgnoreCase) || string.Equals(m.Sid, WindowsGroup?.Trim(), StringComparison.OrdinalIgnoreCase)) is { } added
+            && WindowsSignIn.IsFilteredByUac(added.Sid))
+        {
+            success += $" Note: Windows filters {added.Name} by User Account Control (\"deny only\") in a logon without elevation, so its members usually get no role. Map a dedicated group instead.";
+        }
+
+        ShowResult(outcome.Error, success);
     }
 
     /// <summary>Lock and unlock from the list.</summary>

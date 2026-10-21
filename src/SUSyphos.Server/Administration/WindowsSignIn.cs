@@ -58,6 +58,9 @@ internal enum WindowsSignInFailure
     NoRole,
     Locked,
     Invalid,
+
+    /// <summary>A mapped group is in the logon token only as "deny only" (filtered by User Account Control).</summary>
+    FilteredGroup,
 }
 
 /// <summary>
@@ -139,8 +142,14 @@ internal sealed partial class WindowsSignIn(
             .FirstOrDefault();
         if (role is null)
         {
-            await audit.WriteAsync(name, "Login.WindowsNoRole", null, null, cancellationToken).ConfigureAwait(false);
-            return WindowsSignInFailure.NoRole;
+            // Groups Windows filters for this logon (User Account Control) arrive as deny-only SIDs and give no rights.
+            var denyOnly = windowsUser.FindAll(ClaimTypes.DenyOnlySid).Select(c => c.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var filtered = (await GetMappingsAsync(cancellationToken).ConfigureAwait(false)).Where(m => denyOnly.Contains(m.Sid)).Select(m => m.Name).ToList();
+            var details = string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"authentication {windowsUser.Identity?.AuthenticationType ?? "unknown"}, {memberships.Count - 1} groups in the token{(filtered.Count > 0 ? $"; mapped but filtered by UAC (deny only): {string.Join(", ", filtered)}" : "; none of them is mapped")}");
+            await audit.WriteAsync(name, "Login.WindowsNoRole", null, details, cancellationToken).ConfigureAwait(false);
+            return filtered.Count > 0 ? WindowsSignInFailure.FilteredGroup : WindowsSignInFailure.NoRole;
         }
 
         var account = await users.FindByLoginAsync(LoginProvider, sid).ConfigureAwait(false);
@@ -269,6 +278,19 @@ internal sealed partial class WindowsSignIn(
         }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Privileged groups that User Account Control filters to "deny only" in a logon without elevation (Domain Admins,
+    /// Schema Admins, Enterprise Admins, Group Policy Creator Owners, Administrators and the built-in operator groups):
+    /// mapped, they usually give nobody a role. A dedicated group is the reliable choice.
+    /// </summary>
+    public static bool IsFilteredByUac(string sid)
+    {
+        ArgumentNullException.ThrowIfNull(sid);
+        string[] builtIn = ["S-1-5-32-544", "S-1-5-32-548", "S-1-5-32-549", "S-1-5-32-550", "S-1-5-32-551"];
+        return builtIn.Contains(sid, StringComparer.OrdinalIgnoreCase)
+            || (sid.StartsWith("S-1-5-21-", StringComparison.OrdinalIgnoreCase) && (sid.EndsWith("-512", StringComparison.Ordinal) || sid.EndsWith("-518", StringComparison.Ordinal) || sid.EndsWith("-519", StringComparison.Ordinal) || sid.EndsWith("-520", StringComparison.Ordinal)));
     }
 
     [GeneratedRegex(@"^S-1-[0-9]+(-[0-9]+){1,14}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 1000)]
