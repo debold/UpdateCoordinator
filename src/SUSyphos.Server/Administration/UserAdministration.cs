@@ -4,11 +4,17 @@ using Microsoft.EntityFrameworkCore;
 namespace SUSyphos.Server.Administration;
 
 /// <summary>A dashboard account as the user list shows it.</summary>
-internal sealed record UserSummary(string Id, string UserName, string? Role, bool LockedOut, DateTimeOffset? LockoutEnd);
+/// <param name="Id">Identity user id.</param>
+/// <param name="UserName">Local name, or the Windows name (domain and user) for Windows accounts.</param>
+/// <param name="Role">The one role of the account.</param>
+/// <param name="LockedOut">Locked by an administrator or after failed attempts.</param>
+/// <param name="LockoutEnd">End of the lock.</param>
+/// <param name="Windows">The account signs in with Windows; its role comes from its AD groups.</param>
+internal sealed record UserSummary(string Id, string UserName, string? Role, bool LockedOut, DateTimeOffset? LockoutEnd, bool Windows = false);
 
 /// <summary>
 /// Account management in the dashboard (docs/06-dashboard.md, users and roles): create, change role, lock, unlock,
-/// reset the password and delete. Every account has exactly one role. The last active administrator can neither be
+/// reset the password and delete. Every account has exactly one role. The last active local administrator can neither be
 /// demoted, locked nor deleted, so the dashboard can never lock itself out. Every change is audited.
 /// </summary>
 internal sealed class UserAdministration(UserManager<IdentityUser> users, AuditLog audit, TimeProvider timeProvider)
@@ -21,7 +27,7 @@ internal sealed class UserAdministration(UserManager<IdentityUser> users, AuditL
         foreach (var account in accounts)
         {
             var roles = await users.GetRolesAsync(account).ConfigureAwait(false);
-            result.Add(new UserSummary(account.Id, account.UserName ?? string.Empty, roles.FirstOrDefault(), account.LockoutEnd > now, account.LockoutEnd));
+            result.Add(new UserSummary(account.Id, account.UserName ?? string.Empty, roles.FirstOrDefault(), account.LockoutEnd > now, account.LockoutEnd, await WindowsSignIn.IsWindowsAccountAsync(users, account).ConfigureAwait(false)));
         }
 
         return result;
@@ -32,6 +38,11 @@ internal sealed class UserAdministration(UserManager<IdentityUser> users, AuditL
         if (!IsRole(role))
         {
             return new Outcome("The role is invalid.");
+        }
+
+        if (userName?.Contains('\\', StringComparison.Ordinal) == true)
+        {
+            return new Outcome("A backslash is reserved for accounts that sign in with Windows (DOMAIN\\name).");
         }
 
         var account = new IdentityUser(userName?.Trim() ?? string.Empty);
@@ -57,6 +68,11 @@ internal sealed class UserAdministration(UserManager<IdentityUser> users, AuditL
         if (account is null)
         {
             return new Outcome("The account no longer exists.");
+        }
+
+        if (await WindowsSignIn.IsWindowsAccountAsync(users, account).ConfigureAwait(false))
+        {
+            return new Outcome("The role of an account that signs in with Windows comes from its AD groups; change the group mapping instead.");
         }
 
         var current = await users.GetRolesAsync(account).ConfigureAwait(false);
@@ -117,6 +133,11 @@ internal sealed class UserAdministration(UserManager<IdentityUser> users, AuditL
             return new Outcome("The account no longer exists.");
         }
 
+        if (await WindowsSignIn.IsWindowsAccountAsync(users, account).ConfigureAwait(false))
+        {
+            return new Outcome("Accounts that sign in with Windows have no password here.");
+        }
+
         var token = await users.GeneratePasswordResetTokenAsync(account).ConfigureAwait(false);
         var reset = await users.ResetPasswordAsync(account, token, password ?? string.Empty).ConfigureAwait(false);
         if (!reset.Succeeded)
@@ -159,9 +180,18 @@ internal sealed class UserAdministration(UserManager<IdentityUser> users, AuditL
             return false;
         }
 
+        // Only local administrators count: if AD or the group mapping fails, a local account must still get in.
         var now = timeProvider.GetUtcNow();
         var administrators = await users.GetUsersInRoleAsync(AdminRoles.Admin).ConfigureAwait(false);
-        return !administrators.Any(a => a.Id != account.Id && !(a.LockoutEnd > now));
+        foreach (var other in administrators.Where(a => a.Id != account.Id && !(a.LockoutEnd > now)))
+        {
+            if (!await WindowsSignIn.IsWindowsAccountAsync(users, other).ConfigureAwait(false))
+            {
+                return false;
+            }
+        }
+
+        return !await WindowsSignIn.IsWindowsAccountAsync(users, account).ConfigureAwait(false);
     }
 
     private static bool IsRole(string? role) => role is not null && AdminRoles.All.Contains(role, StringComparer.Ordinal);

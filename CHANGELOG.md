@@ -48,6 +48,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Sign-in with Windows (Active Directory) next to the local accounts: "Sign in with Windows" on the sign-in page (Kerberos/NTLM, no password through the central server), AD groups mapped to roles under Administration → Users (stored by SID, highest role wins), role from the groups at every sign-in, last local administrator always kept, emergency switch `Authentication:Windows:Enabled`. The HTTPS endpoint now uses HTTP/1.1, which Windows sign-in needs.
 - Layout fixes found by the new browser tests: the server list shows the domain under the server name and the build under the operating system (fits from 1280 pixels on), the update list has no separate KB column, the ring page puts the update table above the ring status on narrower screens and shows the plain install time, approvals show the domain under the server, checkbox columns are narrow, column filters of the last columns open to the left, and the update links of the live status include the revision (they led to a missing page).
 - Server detail: a "Tasks" box lists the running step and what comes next, sorted by time with coloured tags: remote actions, next update search and inventory (reported by the agent), installations in the next maintenance window with their updates, and restarts. It replaces the separate live status and preview boxes.
 - Microsoft Update as system default and group setting ("Windows Update only" in one group wins), delivered with the release list.

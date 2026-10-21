@@ -57,6 +57,7 @@ Guidelines (always apply):
 - Operating limits of the central server (Marc, 2026-10-20): none for now; evaluated over time in operation.
 - Trust anchor in the backup (Marc, 2026-10-20): the encryption with the backup password is sufficient.
 - Script in the dashboard (Marc, 2026-10-20): one own script file served by the central server (`script-src 'self'`, no inline code, no external sources) as progressive enhancement; every page must keep working without it.
+- AD sign-in (Marc, 2026-10-21): Windows-integrated sign-in (Negotiate) next to local accounts; AD group to role mapping in the dashboard (Users page), stored by SID; config switch `Authentication:Windows:Enabled` as emergency off.
 - Times (Marc, 2026-10-20): the dashboard shows and takes all times in the time zone of the central server, 24-hour format; agents, protocol and database stay in UTC.
 - Dashboard: Blazor with static server rendering by default (interactive only where it adds real value, e.g. live status), ASP.NET Core Identity with local accounts, first administrator via one-time browser setup with a local token, permissions as sketched in `docs/06-dashboard.md`.
 

@@ -72,7 +72,7 @@ Management of the approval rules for new agents (rule-based approval, e.g. domai
 
 ### Users and roles
 
-Local user accounts with Reader/Operator/Admin. AD/LDAP integration is a later extension.
+Local user accounts with Reader/Operator/Admin, and sign-in with Windows (Kerberos/NTLM, decided by Marc on 2026-10-21): AD groups are mapped to roles in the dashboard (stored by SID, the highest role wins), the account is linked to the user's SID and gets its role at every sign-in; the last local administrator always remains. Details: `docs/admin/README.md`, section 18.
 
 ### Audit and SIEM
 

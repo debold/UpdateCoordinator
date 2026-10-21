@@ -69,6 +69,10 @@ public class ServerFactory : WebApplicationFactory<Program>
         {
             services.AddSingleton<ITlsCertificateProvider>(_certificates);
             services.AddSingleton<IServerCertificateStore>(CertificateStore);
+
+            // The real Negotiate handler needs Kestrel connections and a domain; tests use a header-driven stand-in.
+            services.PostConfigure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(options =>
+                options.SchemeMap[Microsoft.AspNetCore.Authentication.Negotiate.NegotiateDefaults.AuthenticationScheme].HandlerType = typeof(FakeWindowsAuthentication));
         });
     }
 

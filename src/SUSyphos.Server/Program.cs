@@ -43,6 +43,7 @@ app.MapAgentEndpoints();
 app.MapTrustEndpoints();
 app.MapAgentLogEndpoints();
 app.MapBackupEndpoints();
+app.MapWindowsSignIn();
 app.MapAgentInstallerEndpoints();
 app.MapStaticAssets();
 app.MapRazorComponents<App>();

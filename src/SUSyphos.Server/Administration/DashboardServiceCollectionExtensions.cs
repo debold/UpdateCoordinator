@@ -37,7 +37,8 @@ internal static class DashboardServiceCollectionExtensions
                 options.Lockout.MaxFailedAccessAttempts = 5;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
                 options.User.RequireUniqueEmail = false;
-                options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@";
+                // The backslash is only for accounts that sign in with Windows (DOMAIN\name); local accounts refuse it.
+                options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@\\";
             })
             .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<ServerDbContext>()
@@ -45,6 +46,12 @@ internal static class DashboardServiceCollectionExtensions
             .AddDefaultTokenProviders();
 
         services.AddAuthentication().AddIdentityCookies();
+
+        // Windows sign-in (Kerberos/NTLM) only authenticates the route /login/windows, which then issues the dashboard cookie.
+        services.AddAuthentication().AddNegotiate();
+        services.AddOptions<WindowsSignInOptions>().Bind(configuration.GetSection(WindowsSignInOptions.SectionName));
+        services.AddSingleton<IAccountResolver, WindowsAccountResolver>();
+        services.AddScoped<WindowsSignIn>();
 
         // Role changes, locks and password resets renew the security stamp; sessions notice it within a minute.
         services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(1));

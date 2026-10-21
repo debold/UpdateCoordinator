@@ -2,10 +2,11 @@
 @attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
 @inherits DashboardPageBase
 @inject UserAdministration Administration
+@inject WindowsSignIn Windows
 
 <PageTitle>Users</PageTitle>
 
-<PageHeader Title="Users" Subtitle="Local accounts of the dashboard. Reader sees everything; Operator decides approvals, gates, rollouts and remote actions; Admin changes settings, rules and accounts." Crumbs="@([("Administration", null), ("Users", null)])" />
+<PageHeader Title="Users" Subtitle="Local accounts and accounts that sign in with Windows. Reader sees everything; Operator decides approvals, gates, rollouts and remote actions; Admin changes settings, rules and accounts." Crumbs="@([("Administration", null), ("Users", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <ActionBand>
@@ -21,8 +22,8 @@
                 @foreach (var user in _users)
                 {
                     <tr>
-                        <td>@user.UserName</td>
-                        <td>@user.Role</td>
+                        <td>@user.UserName @if (user.Windows) { <span class="tag">Windows</span> }</td>
+                        <td>@user.Role @if (user.Windows) { <div class="note">from AD groups</div> }</td>
                         <td>
                             @if (user.LockedOut)
                             {
@@ -35,7 +36,10 @@
                         </td>
                         <td class="n">
                             <span class="row-actions">
-                                <a class="btn" href="@Path?dialog=edit&id=@Uri.EscapeDataString(user.Id)">Edit</a>
+                                @if (!user.Windows)
+                                {
+                                    <a class="btn" href="@Path?dialog=edit&id=@Uri.EscapeDataString(user.Id)">Edit</a>
+                                }
                                 @if (user.LockedOut)
                                 {
                                     <button type="submit" name="Action" value="unlock:@user.Id">Unlock</button>
@@ -52,6 +56,69 @@
             </tbody>
         </table>
     </div>
+</form>
+
+<form method="post" @formname="windows-sign-in" @onsubmit="WindowsAsync" class="box">
+    <AntiforgeryToken />
+    <header class="box-head">
+        <h2>Active Directory sign-in</h2>
+        <span class="pill @(_windowsEnabled ? "ok" : "neutral")">@(_windowsEnabled ? "on" : "off")</span>
+    </header>
+    <div class="box-body form">
+        @if (!Windows.AllowedByConfiguration)
+        {
+            <p class="error">Switched off in the configuration file (Authentication:Windows:Enabled = false); nobody can sign in with Windows until it is removed.</p>
+        }
+        <p class="note">
+            Users sign in with their Windows account through "Sign in with Windows" on the sign-in page; on a domain computer the browser does it
+            without a password. Their role comes from the AD groups mapped below, the highest one wins; users in no mapped group cannot sign in.
+            Local accounts keep working, and the last local administrator cannot be removed.
+        </p>
+        <div class="scroll">
+            <table>
+                <thead><tr><th>AD group</th><th>SID</th><th>Role</th><th class="n"></th></tr></thead>
+                <tbody>
+                    @if (_mappings.Count == 0)
+                    {
+                        <tr><td colspan="4" class="note">No group mapped yet.</td></tr>
+                    }
+                    @foreach (var mapping in _mappings)
+                    {
+                        <tr>
+                            <td>@mapping.Name</td>
+                            <td class="mono note">@mapping.Sid</td>
+                            <td>@mapping.Role</td>
+                            <td class="n"><button type="submit" name="WindowsAction" value="remove:@mapping.Sid" class="danger">Remove</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="form-row">
+            <label class="field"><span>AD group</span><input name="WindowsGroup" maxlength="256" placeholder="LAB\SUSyphos-Admins or S-1-5-21-…" /><span class="help">Name as DOMAIN\Group or its SID</span></label>
+            <label class="field"><span>Role</span>
+                <select name="WindowsRole">
+                    @foreach (var role in AdminRoles.All)
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+            </label>
+        </div>
+    </div>
+    <footer class="box-foot">
+        <span class="actions">
+            <button type="submit" name="WindowsAction" value="add">Map group</button>
+            @if (_windowsEnabled)
+            {
+                <button type="submit" name="WindowsAction" value="disable">Switch off</button>
+            }
+            else
+            {
+                <button type="submit" name="WindowsAction" value="enable" class="primary">Switch on</button>
+            }
+        </span>
+    </footer>
 </form>
 
 @if (_dialog is "new" or "edit")
@@ -138,13 +205,48 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
     [SupplyParameterFromQuery(Name = "id")]
     private string? DialogId { get; set; }
 
+    [SupplyParameterFromForm(FormName = "windows-sign-in")]
+    private string? WindowsAction { get; set; }
+
+    [SupplyParameterFromForm(FormName = "windows-sign-in")]
+    private string? WindowsGroup { get; set; }
+
+    [SupplyParameterFromForm(FormName = "windows-sign-in")]
+    private string? WindowsRole { get; set; }
+
     private string? _dialog;
     private IReadOnlyList<UserSummary> _users = [];
+    private IReadOnlyList<WindowsGroupMapping> _mappings = [];
+    private bool _windowsEnabled;
 
     protected override async Task OnInitializedAsync()
     {
         _dialog = DialogName;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         _users = await Administration.ListAsync(CancellationToken.None);
+        _mappings = await Windows.GetMappingsAsync(CancellationToken.None);
+        _windowsEnabled = await Windows.IsEnabledAsync(CancellationToken.None);
+    }
+
+    /// <summary>Switch Windows sign-in on or off and map or unmap AD groups.</summary>
+    private async Task WindowsAsync()
+    {
+        var actor = await GetActorAsync();
+        var (outcome, success) = WindowsAction?.Split(':', 2) switch
+        {
+            ["add"] => (await Windows.AddMappingAsync(WindowsGroup, WindowsRole, actor, CancellationToken.None), "The group was mapped; its members get the role at their next sign-in."),
+            ["remove", var sid] => (await Windows.RemoveMappingAsync(sid, actor, CancellationToken.None), "The group mapping was removed."),
+            ["enable"] => (await Windows.SetEnabledAsync(true, actor, CancellationToken.None), "Windows sign-in is on."),
+            ["disable"] => (await Windows.SetEnabledAsync(false, actor, CancellationToken.None), "Windows sign-in is off; accounts that signed in with Windows stay in the list."),
+            _ => (new Outcome("Invalid request."), string.Empty),
+        };
+
+        ShowResult(outcome.Error, success);
+        await LoadAsync();
     }
 
     /// <summary>Lock and unlock from the list.</summary>
@@ -159,7 +261,7 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
         };
 
         ShowResult(outcome.Error, success);
-        _users = await Administration.ListAsync(CancellationToken.None);
+        await LoadAsync();
     }
 
     /// <summary>Create, edit and delete from the dialog; the dialog stays open on an error, so nothing typed is lost.</summary>
@@ -192,6 +294,6 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
 
         ShowResult(outcome.Error, success);
         _dialog = outcome.Succeeded ? null : DialogName;
-        _users = await Administration.ListAsync(CancellationToken.None);
+        await LoadAsync();
     }
 }
