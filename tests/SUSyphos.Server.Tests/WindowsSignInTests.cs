@@ -241,6 +241,52 @@ public sealed class WindowsSignInTests
         Assert.Contains("Map a dedicated group instead.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GroupSearch_FindsGroupsForAdministratorsOnly()
+    {
+        await using var factory = new WindowsServerFactory();
+        factory.AddDirectoryGroup(@"LAB\SUSyphos-Admins", "S-1-5-21-1-2-3-1100");
+        factory.AddDirectoryGroup(@"LAB\SUSyphos-Operators", "S-1-5-21-1-2-3-1101");
+        factory.AddDirectoryGroup(@"LAB\Web servers", "S-1-5-21-1-2-3-1200");
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        await factory.CreateUserAsync("operator", Password, AdminRoles.Operator);
+
+        using var admin = new DashboardClient(factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        static async Task<string> SearchAsync(DashboardClient client, string term)
+        {
+            using var response = await client.GetAsync($"{WindowsSignInEndpoints.GroupSearchRoute}?q={Uri.EscapeDataString(term)}");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        }
+
+        var found = await SearchAsync(admin, "susy");
+        Assert.Contains(@"LAB\\SUSyphos-Admins", found, StringComparison.Ordinal);
+        Assert.Contains("S-1-5-21-1-2-3-1101", found, StringComparison.Ordinal);
+        Assert.DoesNotContain("Web servers", found, StringComparison.Ordinal);
+        Assert.Contains("Web servers", await SearchAsync(admin, @"LAB\web"), StringComparison.Ordinal);
+        Assert.Equal("[]", await SearchAsync(admin, "s"));
+        Assert.Equal("[]", await SearchAsync(admin, new string('x', 65)));
+        Assert.Equal("[]", await SearchAsync(admin, "su\u0001sy"));
+
+        using var operatorClient = new DashboardClient(factory);
+        using (await operatorClient.LoginAsync("operator", Password))
+        {
+        }
+
+        using var refused = await operatorClient.GetAsync($"{WindowsSignInEndpoints.GroupSearchRoute}?q=susy");
+        Assert.NotEqual(HttpStatusCode.OK, refused.StatusCode);
+        using var anonymous = await new DashboardClient(factory).GetAsync($"{WindowsSignInEndpoints.GroupSearchRoute}?q=susy");
+        Assert.NotEqual(HttpStatusCode.OK, anonymous.StatusCode);
+    }
+
+    [Fact]
+    public void GroupSearch_EscapesTheTermForLdap() =>
+        Assert.Equal(@"a\2a\28b\29\5c", SUSyphos.Server.Approval.LdapDirectoryLookup.EscapeFilterValue(@"a*(b)\"));
+
     [Theory]
     [InlineData("S-1-5-21-1-2-3-512", true)]
     [InlineData("S-1-5-21-1-2-3-518", true)]

@@ -96,7 +96,7 @@
             </table>
         </div>
         <div class="form-row">
-            <label class="field"><span>AD group</span><input name="WindowsGroup" maxlength="256" placeholder="LAB\SUSyphos-Admins or S-1-5-21-…" /><span class="help">Name as DOMAIN\Group or its SID</span></label>
+            <label class="field"><span>AD group</span><input name="WindowsGroup" maxlength="256" placeholder="LAB\SUSyphos-Admins or S-1-5-21-…" autocomplete="off" data-ad-group-search="@WindowsSignInEndpoints.GroupSearchRoute" /><span class="help">Name as DOMAIN\Group or its SID</span></label>
             <label class="field"><span>Role</span>
                 <select name="WindowsRole">
                     @foreach (var role in AdminRoles.All)

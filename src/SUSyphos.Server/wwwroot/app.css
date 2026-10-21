@@ -445,3 +445,9 @@ h1 .help-link { vertical-align: 0.3em; }
 .help-article img { display: block; max-width: 100%; height: auto; margin: 0.7rem 0; border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: 0 1px 3px rgb(20 26 34 / 0.12); }
 .nav .account .version .update { display: block; margin-top: 0.15rem; color: var(--queue); }
 .add-to-group { display: inline-flex; gap: 0.35rem; align-items: center; }
+
+/* AD group search under the mapping field (app.js). */
+label.field:has(.suggest) { position: relative; }
+.suggest { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; margin: 0.15rem 0 0; padding: 0.25rem; list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow); max-height: 16rem; overflow-y: auto; }
+.suggest button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 0.4rem 0.55rem; border-radius: var(--r-sm); font: inherit; min-height: 0; }
+.suggest button:hover, .suggest button:focus-visible { background: var(--accent-soft); color: var(--accent); }

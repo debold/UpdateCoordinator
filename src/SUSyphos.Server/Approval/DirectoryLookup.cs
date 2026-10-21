@@ -25,7 +25,13 @@ internal interface IDirectoryLookup
 
     /// <summary>Enabled computer accounts with a Windows Server operating system; throws if the directory cannot be reached.</summary>
     Task<IReadOnlyList<DirectoryComputer>> ListServersAsync(string domain, CancellationToken cancellationToken);
+
+    /// <summary>Groups whose name contains <paramref name="term"/> (at most <paramref name="max"/>); throws if the directory cannot be reached.</summary>
+    Task<IReadOnlyList<DirectoryGroup>> FindGroupsAsync(string domain, string term, int max, CancellationToken cancellationToken);
 }
+
+/// <summary>A group from Active Directory, named as DOMAIN\Group where Windows can translate its SID.</summary>
+internal sealed record DirectoryGroup(string Name, string Sid);
 
 /// <summary>A server computer account from Active Directory.</summary>
 /// <param name="Name">Account name without the trailing dollar sign.</param>
@@ -61,6 +67,43 @@ internal sealed class LdapDirectoryLookup : IDirectoryLookup
 
     public Task<IReadOnlyList<DirectoryComputer>> ListServersAsync(string domain, CancellationToken cancellationToken) =>
         Task.Run<IReadOnlyList<DirectoryComputer>>(() => ListServers(domain, cancellationToken), cancellationToken);
+
+    public Task<IReadOnlyList<DirectoryGroup>> FindGroupsAsync(string domain, string term, int max, CancellationToken cancellationToken) =>
+        Task.Run<IReadOnlyList<DirectoryGroup>>(() => FindGroups(domain, term, max), cancellationToken);
+
+    private static List<DirectoryGroup> FindGroups(string domain, string term, int max)
+    {
+        var (connection, baseDn) = Connect(domain);
+        using (connection)
+        {
+            var value = EscapeFilterValue(term);
+            var filter = $"(&(objectCategory=group)(|(cn=*{value}*)(sAMAccountName=*{value}*)))";
+            var response = (SearchResponse)connection.SendRequest(new SearchRequest(baseDn, filter, SearchScope.Subtree, "sAMAccountName", "objectSid") { SizeLimit = max });
+            var groups = new List<DirectoryGroup>();
+            foreach (SearchResultEntry entry in response.Entries)
+            {
+                if (entry.Attributes["objectSid"] is not { Count: > 0 } sidValues || sidValues[0] is not byte[] bytes || Text(entry, "sAMAccountName") is not { } account)
+                {
+                    continue;
+                }
+
+                var sid = new System.Security.Principal.SecurityIdentifier(bytes, 0);
+                string name;
+                try
+                {
+                    name = sid.Translate(typeof(System.Security.Principal.NTAccount)).Value;
+                }
+                catch (System.Security.Principal.IdentityNotMappedException)
+                {
+                    name = account;
+                }
+
+                groups.Add(new DirectoryGroup(name, sid.Value));
+            }
+
+            return [.. groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)];
+        }
+    }
 
     /// <summary>Signed and sealed connection with the service account, and the default naming context of the domain.</summary>
     private static (LdapConnection Connection, string BaseDn) Connect(string domain)

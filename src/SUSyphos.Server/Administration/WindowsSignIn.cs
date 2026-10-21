@@ -298,12 +298,46 @@ internal sealed partial class WindowsSignIn(
 }
 
 /// <summary>The Windows sign-in route: challenges the browser with Negotiate, then signs in through <see cref="WindowsSignIn"/>.</summary>
-internal static class WindowsSignInEndpoints
+internal static partial class WindowsSignInEndpoints
 {
+    /// <summary>Search of AD groups while typing in the mapping field (administrators only; used by app.js).</summary>
+    public const string GroupSearchRoute = "/administration/ad-groups";
+
     public static IEndpointRouteBuilder MapWindowsSignIn(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(WindowsSignIn.Route, SignInAsync).AllowAnonymous().WithName("WindowsSignIn");
+        endpoints.MapGet(GroupSearchRoute, SearchGroupsAsync).RequireAuthorization(AdminRoles.Policies.Administer).WithName("AdGroupSearch");
         return endpoints;
+    }
+
+    /// <summary>
+    /// Up to 20 AD groups whose name contains <paramref name="q"/> (2 to 64 characters, escaped for LDAP). An unreachable
+    /// directory gives an empty list: the field still takes a typed name.
+    /// </summary>
+    internal static async Task<IResult> SearchGroupsAsync(string? q, Approval.IDirectoryLookup directory, Approval.DirectoryCoverage coverage, ILoggerFactory loggers, CancellationToken cancellationToken)
+    {
+        var term = q?.Trim();
+        if (term is not { Length: >= 2 and <= 64 } || term.Any(char.IsControl) || coverage.Domain is not { } domain)
+        {
+            return TypedResults.Ok(Array.Empty<Approval.DirectoryGroup>());
+        }
+
+        // "DOMAIN\Group" typed in full: search for the group part.
+        var slash = term.LastIndexOf('\\');
+        if (slash >= 0 && slash < term.Length - 2)
+        {
+            term = term[(slash + 1)..];
+        }
+
+        try
+        {
+            return TypedResults.Ok(await directory.FindGroupsAsync(domain, term, 20, cancellationToken).ConfigureAwait(false));
+        }
+        catch (Exception exception) when (exception is System.DirectoryServices.Protocols.LdapException or System.DirectoryServices.Protocols.DirectoryOperationException or InvalidOperationException)
+        {
+            LogGroupSearchFailed(loggers.CreateLogger(typeof(WindowsSignInEndpoints)), exception);
+            return TypedResults.Ok(Array.Empty<Approval.DirectoryGroup>());
+        }
     }
 
     internal static async Task<IResult> SignInAsync(HttpContext httpContext, WindowsSignIn windows, string? returnUrl, CancellationToken cancellationToken)
@@ -324,4 +358,7 @@ internal static class WindowsSignInEndpoints
             ? TypedResults.Redirect($"{DashboardServiceCollectionExtensions.LoginPath}?windows={reason.ToString().ToLowerInvariant()}")
             : TypedResults.LocalRedirect(LocalReturnUrl.Sanitize(returnUrl));
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Searching AD groups failed; the field still takes a typed group name.")]
+    private static partial void LogGroupSearchFailed(ILogger logger, Exception exception);
 }

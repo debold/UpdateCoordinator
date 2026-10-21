@@ -142,6 +142,29 @@ public sealed class InteractionTests(UiFixture ui)
     }
 
     [Fact]
+    public async Task AdGroupField_SuggestsGroupsWhileTyping()
+    {
+        await using var context = await ui.NewContextAsync(1280, 900);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync("/administration/users");
+
+        var field = page.Locator("input[name='WindowsGroup']");
+        await field.PressSequentiallyAsync("susy");
+        var suggestions = page.Locator(".suggest button");
+        await Assertions.Expect(suggestions).ToHaveCountAsync(2);
+        await suggestions.Filter(new LocatorFilterOptions { HasTextString = "Operators" }).ClickAsync();
+
+        await Assertions.Expect(field).ToHaveValueAsync(@"LAB\SUSyphos-Operators");
+        await Assertions.Expect(page.Locator(".suggest")).ToBeHiddenAsync();
+
+        // Too short: no list.
+        await field.FillAsync(string.Empty);
+        await field.PressSequentiallyAsync("s");
+        await page.WaitForTimeoutAsync(400);
+        await Assertions.Expect(page.Locator(".suggest")).ToBeHiddenAsync();
+    }
+
+    [Fact]
     public async Task ServerPage_ShowsRunningAndPlannedTasks()
     {
         await using var context = await ui.NewContextAsync();

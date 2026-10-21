@@ -1,7 +1,7 @@
 // Progressive enhancement for the dashboard (docs/06-dashboard.md). Every page works without this file: forms post to the
 // server as before. The script only makes things more convenient: dependent fields become inert while their switch is off,
-// column filters get a search box, the maintenance window picker redraws its week preview on every change, and the first
-// setup takes the token from the address the installer opened.
+// column filters get a search box, the maintenance window picker redraws its week preview on every change, the first
+// setup takes the token from the address the installer opened, and the AD group field searches the directory while typing.
 // Served from the central server itself (Content-Security-Policy script-src 'self'); no inline code, no other sources.
 (() => {
     'use strict';
@@ -154,6 +154,80 @@
 
         history.replaceState(null, '', location.pathname + location.search);
     };
+
+    // AD group field: while typing, a list of matching groups from Active Directory; choosing one fills the field. The
+    // field keeps working as plain text input when the directory cannot be reached.
+    const groupSearch = (input) => {
+        const list = document.createElement('ul');
+        list.className = 'suggest';
+        list.hidden = true;
+        input.setAttribute('aria-autocomplete', 'list');
+        input.insertAdjacentElement('afterend', list);
+        let timer = 0;
+        let request = 0;
+        const close = () => { list.hidden = true; list.replaceChildren(); };
+        input.addEventListener('input', () => {
+            clearTimeout(timer);
+            const term = input.value.trim();
+            if (term.length < 2) {
+                close();
+                return;
+            }
+
+            timer = setTimeout(async () => {
+                const current = ++request;
+                try {
+                    const response = await fetch(`${input.dataset.adGroupSearch}?q=${encodeURIComponent(term)}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+                    const groups = response.ok ? await response.json() : [];
+                    if (current !== request) {
+                        return;
+                    }
+
+                    list.replaceChildren(...groups.map((group) => {
+                        const item = document.createElement('li');
+                        const choice = document.createElement('button');
+                        choice.type = 'button';
+                        choice.textContent = group.name;
+                        choice.title = group.sid;
+                        choice.addEventListener('click', () => { input.value = group.name; close(); input.focus(); });
+                        item.append(choice);
+                        return item;
+                    }));
+                    list.hidden = groups.length === 0;
+                } catch {
+                    close();
+                }
+            }, 250);
+        });
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                close();
+            } else if (event.key === 'ArrowDown' && !list.hidden) {
+                event.preventDefault();
+                list.querySelector('button')?.focus();
+            }
+        });
+        list.addEventListener('keydown', (event) => {
+            const items = [...list.querySelectorAll('button')];
+            const index = items.indexOf(document.activeElement);
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                items[Math.max(0, Math.min(items.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))]?.focus();
+            } else if (event.key === 'Escape') {
+                close();
+                input.focus();
+            }
+        });
+        document.addEventListener('click', (event) => {
+            if (!list.contains(event.target) && event.target !== input) {
+                close();
+            }
+        });
+    };
+
+    for (const input of document.querySelectorAll('input[data-ad-group-search]')) {
+        groupSearch(input);
+    }
 
     applyGates();
     fillFromAddress();

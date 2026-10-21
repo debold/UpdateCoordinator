@@ -151,6 +151,11 @@ internal sealed class FakeDirectory : IDirectoryLookup
 
     public Task<IReadOnlyList<DirectoryComputer>> ListServersAsync(string domain, CancellationToken cancellationToken) =>
         Failure is null ? Task.FromResult<IReadOnlyList<DirectoryComputer>>(Servers) : Task.FromException<IReadOnlyList<DirectoryComputer>>(Failure);
+
+    public List<DirectoryGroup> Groups { get; } = [];
+
+    public Task<IReadOnlyList<DirectoryGroup>> FindGroupsAsync(string domain, string term, int max, CancellationToken cancellationToken) =>
+        Failure is null ? Task.FromResult<IReadOnlyList<DirectoryGroup>>([.. Groups.Where(g => g.Name.Contains(term, StringComparison.OrdinalIgnoreCase)).Take(max)]) : Task.FromException<IReadOnlyList<DirectoryGroup>>(Failure);
 }
 
 internal sealed class FakeDns : IDnsLookup

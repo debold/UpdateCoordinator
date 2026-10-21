@@ -40,7 +40,7 @@ Lets users sign in with their Windows account ("Sign in with Windows" on the sig
 
 Their role comes from the AD groups mapped here; if a user is in several mapped groups, the highest role wins. Users in no mapped group cannot sign in. Mappings are stored by the group's SID, so renaming the group in AD does not break them.
 
-- **AD group**: the group as DOMAIN\Group (for example LAB\SUSyphos-Admins) or its SID.
+- **AD group**: the group as DOMAIN\Group (for example LAB\SUSyphos-Admins) or its SID. While you type (two characters or more) a list shows the matching groups from Active Directory; choose one to fill the field. Without a connection to the directory the field still takes a typed name.
 - **Role**: the role members of this group get.
 - **Map group** adds the mapping; **Remove** deletes one.
 - **Switch on** / **Switch off** turns Windows sign-in on or off. Local accounts keep working either way.

@@ -26,6 +26,12 @@ public class ServerFactory : WebApplicationFactory<Program>
     /// <summary>The setup token the installer would hand over through the registry.</summary>
     public FakeInstallerSetupToken InstallerToken { get; } = new();
 
+    /// <summary>Active Directory as the tests see it: groups for the search while typing, no computer accounts.</summary>
+    internal TestDirectory TestDirectory { get; } = new();
+
+    /// <summary>Adds a group the AD group search finds.</summary>
+    public void AddDirectoryGroup(string name, string sid) => TestDirectory.Groups.Add(new SUSyphos.Server.Approval.DirectoryGroup(name, sid));
+
     /// <summary>Registrations allowed per IP and minute; high by default so tests do not interfere.</summary>
     protected virtual int RegisterPermitLimit => 1_000;
 
@@ -56,6 +62,7 @@ public class ServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("Rollout:EvaluationInterval", "01:00:00");
         // Never read a real Active Directory from tests; coverage tests use a fake directory.
         builder.UseSetting("Coverage:Enabled", "false");
+        builder.UseSetting("Coverage:Domain", "lab.local");
         // Tests run the certificate check explicitly.
         builder.UseSetting("Certificate:CheckInterval", "1.00:00:00");
         // Tests run the notification check explicitly; secrets stay in the temporary folder.
@@ -73,6 +80,7 @@ public class ServerFactory : WebApplicationFactory<Program>
             services.AddSingleton<ITlsCertificateProvider>(_certificates);
             services.AddSingleton<IServerCertificateStore>(CertificateStore);
             services.AddSingleton<SUSyphos.Server.Administration.IInstallerSetupToken>(InstallerToken);
+            services.AddSingleton<SUSyphos.Server.Approval.IDirectoryLookup>(TestDirectory);
 
             // The real Negotiate handler needs Kestrel connections and a domain; tests use a header-driven stand-in.
             services.PostConfigure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(options =>
