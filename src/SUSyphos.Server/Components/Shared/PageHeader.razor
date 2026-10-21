@@ -17,7 +17,7 @@
 }
 <div class="page-head">
     <div>
-        <h1>@Title</h1>
+        <h1>@Title@if (Help is not null) { <HelpLink To="@Help" Label="@Title" /> }</h1>
         @if (!string.IsNullOrEmpty(Subtitle))
         {
             <div class="sub">@Subtitle</div>
@@ -32,6 +32,10 @@
 
     [Parameter]
     public string? Subtitle { get; set; }
+
+    /// <summary>Help page for this page (<c>page</c> or <c>page#section</c>), shown as "?" after the title.</summary>
+    [Parameter]
+    public string? Help { get; set; }
 
     /// <summary>Breadcrumb trail; the last entry (without link) is the current page.</summary>
     [Parameter]

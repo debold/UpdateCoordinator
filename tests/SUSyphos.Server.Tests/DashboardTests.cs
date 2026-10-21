@@ -132,7 +132,7 @@ public sealed class LoginTests
 
         Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
         Assert.Equal(HttpStatusCode.OK, overview.StatusCode);
-        Assert.Contains("<h1>Overview</h1>", await overview.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains("<h1>Overview<a class=\"help-link\" href=\"help/overview\"", await overview.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         Assert.True(await factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Actor == "reader" && e.Action == "Login.Succeeded", TestContext.Current.CancellationToken)));
     }
 

@@ -422,3 +422,24 @@ th.select, td.select { width: 1%; }
 .note.break { white-space: normal; overflow-wrap: anywhere; max-width: 14rem; }
 /* Filters of the last columns open to the left, so they stay inside the window. */
 th:nth-last-child(-n+3) .filter-pop { left: auto; right: 0.5rem; }
+
+/* Help: "?" links next to titles and fields, and the help pages. */
+.help-link { display: inline-flex; align-items: center; justify-content: center; width: 1.05rem; height: 1.05rem; margin-left: 0.4rem; border: 1px solid var(--border); border-radius: 50%; color: var(--muted); background: var(--surface); font-size: 0.68rem; font-weight: 700; line-height: 1; vertical-align: 0.15em; text-decoration: none; flex: none; }
+.help-link:hover, .help-link:focus-visible { color: #FFFFFF; background: var(--accent); border-color: var(--accent); text-decoration: none; }
+h1 .help-link { vertical-align: 0.3em; }
+.nav .nav-help { margin-top: 0.75rem; }
+.help-index { list-style: none; margin: 0; padding: 0; }
+.help-index li { display: grid; gap: 0.15rem; padding: 0.75rem 1.1rem; border-top: 1px solid var(--line); }
+.help-index li:first-child { border-top: 0; }
+.help-index a { font-weight: 600; }
+.help-article .box-body { max-width: 52rem; line-height: 1.55; }
+.help-article h1 { margin-bottom: 0.6rem; }
+.help-article h2 { margin: 1.8rem 0 0.4rem; font-size: 1.15rem; }
+.help-article h3 { margin: 1.3rem 0 0.3rem; font-size: 1rem; }
+.help-article h2[id], .help-article h3[id] { scroll-margin-top: 1rem; }
+.help-article :target { background: var(--accent-soft); border-radius: var(--r-sm); padding: 0.15rem 0.4rem; margin-left: -0.4rem; }
+.help-article p, .help-article ul, .help-article ol { margin: 0.4rem 0; }
+.help-article li + li { margin-top: 0.2rem; }
+.help-article table { border-collapse: collapse; margin: 0.6rem 0; width: 100%; }
+.help-article th, .help-article td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+.help-article img { display: block; max-width: 100%; height: auto; margin: 0.7rem 0; border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: 0 1px 3px rgb(20 26 34 / 0.12); }

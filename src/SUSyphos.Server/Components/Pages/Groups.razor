@@ -7,15 +7,16 @@
 
 <PageTitle>Groups</PageTitle>
 
-<PageHeader Title="Groups" Subtitle="Groups bundle servers, e.g. domain controllers or a cluster, with their own maintenance windows, reboot policy and coordination. Without settings, members use the system default." Crumbs="@([("Administration", null), ("Groups", null)])" />
+<PageHeader Title="Groups" Subtitle="Groups bundle servers, e.g. domain controllers or a cluster, with their own maintenance windows, reboot policy and coordination. Without settings, members use the system default." Help="groups" Crumbs="@([("Administration", null), ("Groups", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <ActionBand>
     <a class="btn primary" href="@Path?dialog=new">New group</a>
     <a class="btn" href="/administration/rules">Assignment rules</a>
+    <HelpLink To="groups#list" Label="Group list" />
 </ActionBand>
 
-<Box Flush="true">
+<Box Title="Groups" Help="groups#list" Flush="true">
     <div class="scroll">
         <table>
             <thead><tr><th>Name</th><th>Description</th><th class="n">Members</th><th>Maintenance windows</th><th>Reboots</th><th>Coordination</th><th class="n">Actions</th></tr></thead>
@@ -61,7 +62,7 @@
 @if (_dialog is "new" or "edit" && (_dialog == "new" || Editing is not null))
 {
     var group = Editing;
-    <Dialog Title="@(group is null ? "New group" : $"Edit group {group.Name}")" CloseHref="@Path" Wide="true">
+    <Dialog Title="@(group is null ? "New group" : $"Edit group {group.Name}")" CloseHref="@Path" Wide="true" Help="groups#dialog">
         <form method="post" @formname="group-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="@(group is null ? "create" : "edit")" />
@@ -114,8 +115,8 @@
                     </label>
                 </div>
                 <div class="form-row">
-                    <fieldset class="gated">
-                        <legend>Coordination (leases)</legend>
+                    <fieldset class="gated help-scope">
+                        <legend>Coordination (leases)<HelpLink To="groups#coordination" Label="Coordination (leases)" /></legend>
                         <label class="check gate"><input type="checkbox" name="Coordinated" value="true" checked="@(group?.Coordinated == true)" /> Only part of the group installs at the same time</label>
                         <div class="form-row gated-body">
                             <label class="field"><span>Share of members</span><input name="Percent" type="number" min="1" max="100" value="@(group?.LeasePercent ?? 25)" /></label>
@@ -130,7 +131,7 @@
 }
 else if (_dialog == "delete" && Editing is { } doomed)
 {
-    <Dialog Title="@($"Delete group {doomed.Name}?")" CloseHref="@Path">
+    <Dialog Title="@($"Delete group {doomed.Name}?")" CloseHref="@Path" Help="groups#list">
         <form method="post" @formname="group-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="delete" />

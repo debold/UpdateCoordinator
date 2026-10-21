@@ -10,7 +10,7 @@
 
 <PageTitle>Updates</PageTitle>
 
-<PageHeader Title="@(ShowArchived ? "Archived updates" : "Updates")" Subtitle="@(ShowArchived ? "Updates no server has needed for a while. They return to the list when a server reports them as missing again." : "Updates reported as missing by approved servers or in a rollout. Each update runs through the rings on its own.")" />
+<PageHeader Title="@(ShowArchived ? "Archived updates" : "Updates")" Subtitle="@(ShowArchived ? "Updates no server has needed for a while. They return to the list when a server reports them as missing again." : "Updates reported as missing by approved servers or in a rollout. Each update runs through the rings on its own.")" Help="updates" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <AuthorizeView Policy="@AdminRoles.Policies.Operate">
@@ -26,6 +26,7 @@
         <a class="btn" href="@(ShowArchived ? "/updates" : "/updates?archived=1")">@(ShowArchived ? "Show current updates" : "Show archived updates")</a>
         <div class="spacer"></div>
         <button type="submit" form="bulk" name="Bulk" value="stop" class="danger">Stop rollout</button>
+        <HelpLink To="updates#actions" Label="Actions for selected updates" />
     </ActionBand>
 </AuthorizeView>
 
@@ -54,7 +55,7 @@
                 @foreach (var row in _page.Rows)
                 {
                     <tr>
-                        <td><input type="checkbox" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /></td>
+                        <td><input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /></td>
 
                         <td class="wrap"><a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a>@if (row.Kb.Length > 0 && !row.Title.Contains($"KB{row.Kb}", StringComparison.OrdinalIgnoreCase)) { <span class="note mono"> KB@(row.Kb)</span> }</td>
                         <td>@row.Classification</td>

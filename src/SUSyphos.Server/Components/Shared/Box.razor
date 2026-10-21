@@ -5,7 +5,7 @@
         <header class="box-head">
             @if (Title is not null)
             {
-                <h2 id="@_id">@Title</h2>
+                <h2 id="@_id">@Title@if (Help is not null) { <HelpLink To="@Help" Label="@Title" /> }</h2>
             }
             @Header
             @if (Hint is not null)
@@ -40,6 +40,10 @@
     /// <summary>Optional element id so tiles and links can jump to this box.</summary>
     [Parameter]
     public string? Anchor { get; set; }
+
+    /// <summary>Help section for this box (<c>page#section</c>), shown as "?" after the title.</summary>
+    [Parameter]
+    public string? Help { get; set; }
 
     /// <summary>Extra header content, e.g. tabs or a link.</summary>
     [Parameter]

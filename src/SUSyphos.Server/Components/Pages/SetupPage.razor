@@ -11,7 +11,7 @@
     <section class="auth-card box">
         <header class="box-head"><span class="auth-brand"><img src="susyphos-icon.svg" alt="" width="28" height="28" />SUSyphos</span><span class="hint">First start</span></header>
         <div class="box-body form">
-            <h1>Create the first administrator</h1>
+            <h1>Create the first administrator<HelpLink To="sign-in#setup" Label="First start" /></h1>
             @if (!SetupFlow.IsAvailable)
             {
                 <p>The setup has already been completed. <a href="@DashboardServiceCollectionExtensions.LoginPath">Sign in</a></p>

@@ -228,6 +228,8 @@ Details in `docs/03-communication-protocol.md`, section 3.2.
 
 The dashboard runs on the same HTTPS endpoint as the agent API (default `https://<central server>:8443/`). It loads no external resources; its only script is its own file `app.js`, and every page works without it. The navigation shows the SUSyphos logo and, at the bottom, the version of the central server (the full version with the commit as tooltip). Browsers show the SUSyphos icon (`/favicon.ico`, `/susyphos-icon.svg`).
 
+**Help:** every page explains itself: the "?" next to a page title, box, dialog or field opens the matching section of the built-in help in a new tab; "Help" in the navigation (or `/help`) lists all help pages. The help is served by the central server itself, needs no internet access and is also reachable before sign-in.
+
 **First start:** as long as no account exists, the central server writes a one-time setup token to `Administration:SetupTokenPath` (default `%ProgramData%\SUSyphos\Server\setup-token.txt`). The file is readable only by SYSTEM, local administrators and the service account; its path is also written to the service log. Open `/setup`, enter the token and create the first administrator. The token file is deleted and the setup is closed for good; a restart with existing accounts never reopens it.
 
 **Accounts and roles:** local accounts with the hierarchical roles `Reader` (read), `Operator` (operational actions) and `Admin` (administration). Passwords need at least 12 characters (passphrases welcome, no composition rules). After 5 failed sign-ins an account is locked for 15 minutes. The session cookie is HTTPS-only, `SameSite=Strict` and expires after 8 hours without activity. Every form is protected against cross-site request forgery.

@@ -372,7 +372,7 @@ public sealed class DashboardViewTests
         var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var members = await (await browser.GetAsync($"/rings/{RingEntity.PilotId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        Assert.Contains("Pilot</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("Pilot<a class=\"help-link\" href=\"help/rings\"", html, StringComparison.Ordinal);
         Assert.Contains("KB5040000", html, StringComparison.Ordinal);
         Assert.Contains("Status of KB5040000 per server", html, StringComparison.Ordinal);
         Assert.Contains("PILOT01", html, StringComparison.Ordinal);

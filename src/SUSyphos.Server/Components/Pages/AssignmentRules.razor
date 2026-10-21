@@ -7,15 +7,16 @@
 
 <PageTitle>Assignment rules</PageTitle>
 
-<PageHeader Title="Assignment rules" Subtitle="Ring: a manual assignment on the server wins, else the matching ring rule with the lowest priority number, else the final ring. Groups: every matching group rule applies, in addition to manual memberships." Crumbs="@([("Administration", null), ("Assignment rules", null)])" />
+<PageHeader Title="Assignment rules" Subtitle="Ring: a manual assignment on the server wins, else the matching ring rule with the lowest priority number, else the final ring. Groups: every matching group rule applies, in addition to manual memberships." Help="assignment-rules" Crumbs="@([("Administration", null), ("Assignment rules", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <ActionBand>
     <a class="btn primary" href="@Path?dialog=new">New rule</a>
     <a class="btn" href="/administration/groups">Groups</a>
+    <HelpLink To="assignment-rules#list" Label="Rule list" />
 </ActionBand>
 
-<Box Flush="true" Hint="All conditions of a rule must match; a rule with several roles matches servers with any of them">
+<Box Title="Rules" Help="assignment-rules#list" Flush="true" Hint="All conditions of a rule must match; a rule with several roles matches servers with any of them">
     <div class="scroll">
         <table>
             <thead><tr><th class="n">Priority</th><th>Assigns</th><th>Roles</th><th>Domain</th><th>Host name pattern</th><th class="n">Actions</th></tr></thead>
@@ -48,7 +49,7 @@
     var rule = Editing;
     var selectedRoles = Roles ?? (AssignmentAdministration.RuleRoles(rule?.Role).ToArray());
     var target = Target ?? (rule is null ? null : $"{(rule.Target == AssignmentTarget.Ring ? "ring" : "group")}:{rule.TargetId}");
-    <Dialog Title="@(rule is null ? "New assignment rule" : "Edit assignment rule")" CloseHref="@Path">
+    <Dialog Title="@(rule is null ? "New assignment rule" : "Edit assignment rule")" CloseHref="@Path" Help="assignment-rules#dialog">
         <form method="post" @formname="rule-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="@(rule is null ? "create" : "edit")" />
@@ -96,7 +97,7 @@
 }
 else if (_dialog == "delete" && Editing is { } doomed)
 {
-    <Dialog Title="Delete assignment rule?" CloseHref="@Path">
+    <Dialog Title="Delete assignment rule?" CloseHref="@Path" Help="assignment-rules#list">
         <form method="post" @formname="rule-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="delete" />

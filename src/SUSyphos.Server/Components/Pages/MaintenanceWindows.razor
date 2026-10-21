@@ -10,13 +10,13 @@
 
 <PageTitle>Maintenance windows</PageTitle>
 
-<PageHeader Title="Maintenance windows and reboots" Subtitle="System defaults for every server without own or group settings" Crumbs="@([("Administration", null), ("Maintenance windows", null)])" />
+<PageHeader Title="Maintenance windows and reboots" Subtitle="System defaults for every server without own or group settings" Help="maintenance-windows" Crumbs="@([("Administration", null), ("Maintenance windows", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <div class="grid-side">
     <form method="post" @formname="maintenance" @onsubmit="SaveAsync" class="box">
         <AntiforgeryToken />
-        <header class="box-head"><h2>Maintenance windows</h2><span class="hint">Local server time; a window that ends before it starts runs past midnight</span></header>
+        <header class="box-head"><h2>Maintenance windows<HelpLink To="maintenance-windows#windows" Label="Maintenance windows" /></h2><span class="hint">Local server time; a window that ends before it starts runs past midnight</span></header>
         <div class="box-body">
             <WindowPicker Prefix="Windows" Windows="@_current" Draft="@_windowDraft" />
         </div>
@@ -29,7 +29,7 @@
     <div class="stack">
     <form method="post" @formname="reboot" @onsubmit="SaveRebootAsync" class="box">
         <AntiforgeryToken />
-        <header class="box-head"><h2>Reboots</h2></header>
+        <header class="box-head"><h2>Reboots<HelpLink To="maintenance-windows#reboots" Label="Reboots" /></h2></header>
         <div class="box-body form">
             <label class="field"><span>System default</span>
                 <select name="Reboot">
@@ -50,7 +50,7 @@
 
     <form method="post" @formname="automatic-updates" @onsubmit="SaveAutomaticUpdatesAsync" class="box">
         <AntiforgeryToken />
-        <header class="box-head"><h2>Windows Automatic Updates and update source</h2></header>
+        <header class="box-head"><h2>Windows Automatic Updates and update source<HelpLink To="maintenance-windows#automatic-updates" Label="Windows Automatic Updates and update source" /></h2></header>
         <div class="box-body form">
             <label class="field"><span>System default</span>
                 <select name="AutomaticUpdates">
@@ -63,7 +63,7 @@
                 install) on servers where no group policy controls it, and restores the setting when it is switched off. Group policy always wins.
                 Groups can override this default ("leave unchanged" in one group wins).
             </p>
-            <label class="field"><span>Other Microsoft products</span>
+            <label class="field"><span>Other Microsoft products<HelpLink To="maintenance-windows#microsoft-update" Label="Other Microsoft products" /></span>
                 <select name="MicrosoftUpdate">
                     <option value="windows" selected="@(!_useMicrosoftUpdate)">Windows Update only</option>
                     <option value="microsoft" selected="@_useMicrosoftUpdate">Microsoft Update: also SQL Server, Office and other Microsoft products</option>
@@ -82,7 +82,7 @@
 
 <form method="post" @formname="blackouts" @onsubmit="ChangeBlackoutAsync" class="box">
     <AntiforgeryToken />
-    <header class="box-head"><h2>Blackout periods</h2><span class="hint">No installation starts anywhere during these times, like a planned global pause; search and reporting continue</span></header>
+    <header class="box-head"><h2>Blackout periods<HelpLink To="maintenance-windows#blackouts" Label="Blackout periods" /></h2><span class="hint">No installation starts anywhere during these times, like a planned global pause; search and reporting continue</span></header>
     <div class="scroll">
         <table>
             <thead><tr><th>Start</th><th>End</th><th>Reason</th><th>State</th><th class="n">Actions</th></tr></thead>

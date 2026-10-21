@@ -27,6 +27,7 @@
                     <NavLink href="/administration/backup">Backup</NavLink>
                     <NavLink href="/administration/audit">Audit log</NavLink>
                 </AuthorizeView>
+                <NavLink href="/help" Match="NavLinkMatch.Prefix" class="nav-help">Help</NavLink>
                 <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="account">
                     <AntiforgeryToken />
                     <input type="hidden" name="_handler" value="logout" />

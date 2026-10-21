@@ -18,7 +18,7 @@
 }
 else
 {
-    <PageHeader Title="@UpdateText.Title(_update, UpdateId)" Subtitle="@($"{_update.Classification ?? "Unclassified"}{(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}")} · revision {Revision} · first reported {Format(_update.FirstSeenAtUtc)}")" Crumbs="@([("Updates", "/updates"), (_update.KbArticle is null ? "Update" : $"KB{_update.KbArticle}", null)])">
+    <PageHeader Title="@UpdateText.Title(_update, UpdateId)" Subtitle="@($"{_update.Classification ?? "Unclassified"}{(_update.MsrcSeverity is null ? null : $" · {_update.MsrcSeverity}")} · revision {Revision} · first reported {Format(_update.FirstSeenAtUtc)}")" Help="update-detail" Crumbs="@([("Updates", "/updates"), (_update.KbArticle is null ? "Update" : $"KB{_update.KbArticle}", null)])">
         <span class="pill @_stateClass">@_stateLabel</span>
     </PageHeader>
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
@@ -30,7 +30,7 @@ else
                 <AntiforgeryToken />
                 @foreach (var ring in _ringRows.Where(r => r.State is RingRolloutState.AwaitingApproval or RingRolloutState.Alarm))
                 {
-                    <button type="submit" class="primary" name="Action" value="approve:@ring.RingId">@(ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve") for @ring.Name</button>
+                    <button type="submit" class="primary" name="Action" value="approve:@ring.RingId" data-help-term="@(ring.State == RingRolloutState.Alarm ? "Release anyway for" : "Approve for")">@(ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve") for @ring.Name</button>
                 }
                 @if (_rollout is null || _rollout.State == RolloutState.Stopped)
                 {
@@ -50,9 +50,10 @@ else
             <div class="spacer"></div>
             <button type="submit" form="update-actions" name="Action" value="stop" class="danger">Stop rollout</button>
         }
+        <HelpLink To="update-detail#actions" Label="Actions for this update" />
     </ActionBand>
 
-    <Box Title="Start rule" Hint="Which start rule decides how this update enters the rings">
+    <Box Title="Start rule" Help="update-detail#start-rule" Hint="Which start rule decides how this update enters the rings">
         @if (_rollout is { } started)
         {
             <p>
@@ -82,7 +83,7 @@ else
     </Box>
 
     <div class="grid-side">
-        <Box Title="Progress by ring" Flush="true">            <div class="scroll">
+        <Box Title="Progress by ring" Help="update-detail#progress" Flush="true">            <div class="scroll">
                 <table>
                     <thead><tr><th>Ring</th><th>State</th><th>Released</th><th class="n">Feedback</th><th class="n">Success</th><th>Status (servers)</th></tr></thead>
                     <tbody>
@@ -102,7 +103,7 @@ else
             </div>
         </Box>
 
-        <Box Title="All servers" Hint="servers that reported this update">
+        <Box Title="All servers" Help="update-detail#all-servers" Hint="servers that reported this update">
             <div class="ring-status">
                 <Donut Counts="@_total" />
                 <Legend Counts="@_total" Vertical="true" />
@@ -110,7 +111,7 @@ else
         </Box>
     </div>
 
-    <Box Title="Servers" Flush="true">
+    <Box Title="Servers" Help="update-detail#servers" Flush="true">
         <TableTools Table="_table" Placeholder="Search server" Labels="ServerLabels" />
         <div class="scroll">
             <table>
@@ -144,7 +145,7 @@ else
         <Pager Table="_table" Page="PageInfo.Of(_serverPage)" Noun="servers" />
     </Box>
 
-    <Box Title="Timeline" Flush="true">
+    <Box Title="Timeline" Help="update-detail#timeline" Flush="true">
         <div class="scroll">
             <table>
                 <thead><tr><th>Time</th><th>Event</th><th>By</th></tr></thead>

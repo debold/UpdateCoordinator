@@ -5,7 +5,7 @@
 
 <PageTitle>AD coverage</PageTitle>
 
-<PageHeader Title="AD coverage" Subtitle="@CoverageSubtitle" Crumbs="@([("Overview", "/"), ("AD coverage", null)])" />
+<PageHeader Title="AD coverage" Subtitle="@CoverageSubtitle" Help="coverage" Crumbs="@([("Overview", "/"), ("AD coverage", null)])" />
 
 <section class="figures" aria-label="Coverage">
     <div class="tile">
@@ -26,7 +26,7 @@
 </section>
 
 <section class="card flush" aria-labelledby="missing-h">
-    <h2 id="missing-h">Supported servers without agent</h2>
+    <h2 id="missing-h">Supported servers without agent<HelpLink To="coverage#missing" Label="Supported servers without agent" /></h2>
     <div class="scroll">
         <table>
             <thead><tr><th>Account</th><th>DNS name</th><th>Operating system</th><th>Build</th></tr></thead>
@@ -45,7 +45,7 @@
 </section>
 
 <section class="card flush" aria-labelledby="unsupported-h">
-    <h2 id="unsupported-h">Not supported (older than Windows Server 2016)</h2>
+    <h2 id="unsupported-h">Not supported (older than Windows Server 2016)<HelpLink To="coverage#unsupported" Label="Not supported" /></h2>
     <div class="scroll">
         <table>
             <thead><tr><th>Account</th><th>DNS name</th><th>Operating system</th><th>Build</th></tr></thead>

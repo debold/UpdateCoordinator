@@ -9,15 +9,16 @@
 
 <PageTitle>Release rules</PageTitle>
 
-<PageHeader Title="Release rules" Subtitle="How updates enter the rings (start rules) and when they move on to the next ring (transitions)" Crumbs="@([("Administration", null), ("Release rules", null)])" />
+<PageHeader Title="Release rules" Subtitle="How updates enter the rings (start rules) and when they move on to the next ring (transitions)" Help="release-rules" Crumbs="@([("Administration", null), ("Release rules", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <ActionBand>
     <a class="btn primary" href="@Path?dialog=rule-new">New start rule</a>
     <a class="btn" href="@Path?dialog=ring-new">New ring</a>
+    <HelpLink To="release-rules" Label="Release rules" />
 </ActionBand>
 
-<Box Title="Rings and transitions" Flush="true" Hint="The next ring gets an update after the minimum wait when enough servers reported and enough succeeded; at the maximum wait a good success rate is enough; a poor success rate raises an alarm">
+<Box Title="Rings and transitions" Help="release-rules#transitions" Flush="true" Hint="The next ring gets an update after the minimum wait when enough servers reported and enough succeeded; at the maximum wait a good success rate is enough; a poor success rate raises an alarm">
     <div class="scroll">
         <table>
             <thead><tr><th>Ring</th><th class="n">Servers</th><th>Transition to the next ring</th><th class="n">Actions</th></tr></thead>
@@ -61,7 +62,7 @@
     </div>
 </Box>
 
-<Box Title="Start rules" Flush="true" Hint="The matching rule with the lowest priority number decides how a newly reported update starts; without a matching rule it stays queued">
+<Box Title="Start rules" Help="release-rules#start-rules" Flush="true" Hint="The matching rule with the lowest priority number decides how a newly reported update starts; without a matching rule it stays queued">
     <div class="scroll">
         <table>
             <thead><tr><th class="n">Priority</th><th>Classification</th><th>Severity</th><th>Title pattern</th><th>Start</th><th>Starts in</th><th class="n">Actions</th></tr></thead>
@@ -96,7 +97,7 @@
     var classification = Classification ?? rule?.Classification ?? (_dialog == "rule-new" ? PrefillClassification : null);
     var severity = Severity ?? rule?.MsrcSeverity ?? (_dialog == "rule-new" ? PrefillSeverity : null);
     var selected = StartRingsSelected?.ToList() ?? (rule is null ? [] : [.. StartRings.Parse(rule.StartRingIds)]);
-    <Dialog Title="@(rule is null ? "New start rule" : "Edit start rule")" CloseHref="@Path" Wide="true">
+    <Dialog Title="@(rule is null ? "New start rule" : "Edit start rule")" CloseHref="@Path" Wide="true" Help="release-rules#start-rule-dialog">
         <form method="post" @formname="release-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="@(rule is null ? "rule-create" : "rule-edit")" />
@@ -149,11 +150,11 @@
                         var ring = _rings[i];
                         @if (i == 0)
                         {
-                            <label class="check"><input type="checkbox" checked disabled /> @ring.Name (always)</label>
+                            <label class="check"><input type="checkbox" data-help-term="Starts in" checked disabled /> @ring.Name (always)</label>
                         }
                         else
                         {
-                            <label class="check"><input type="checkbox" name="StartRingsSelected" value="@ring.Id" checked="@selected.Contains(ring.Id)" /> @ring.Name</label>
+                            <label class="check"><input type="checkbox" data-help-term="Starts in" name="StartRingsSelected" value="@ring.Id" checked="@selected.Contains(ring.Id)" /> @ring.Name</label>
                         }
                     }
                     <p class="help">Further rings get the update at once, e.g. definition updates in every ring. Rings not selected follow their transition rules.</p>
@@ -204,7 +205,7 @@ else if (_dialog is "ring-new" or "ring" && (_dialog == "ring-new" || EditingRin
     var ring = _dialog == "ring" ? EditingRing : null;
     var transition = ring is null ? null : _transitions.GetValueOrDefault(ring.Id);
     var final = ring is not null && ring.Id == _rings[^1].Id;
-    <Dialog Title="@(ring is null ? "New ring" : $"Edit ring {ring.Name}")" CloseHref="@Path">
+    <Dialog Title="@(ring is null ? "New ring" : $"Edit ring {ring.Name}")" CloseHref="@Path" Help="release-rules#ring-dialog">
         <form method="post" @formname="release-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="@(ring is null ? "ring-create" : "ring-edit")" />
@@ -237,7 +238,7 @@ else if (_dialog is "ring-new" or "ring" && (_dialog == "ring-new" || EditingRin
                         <label class="field"><span>Feedback rate (%)</span><input name="Feedback" type="number" min="0" max="100" value="@transition.MinimumFeedbackPercent" /></label>
                         <label class="field"><span>Success rate (%)</span><input name="Success" type="number" min="0" max="100" value="@transition.MinimumSuccessPercent" /></label>
                     </div>
-                    <label class="check"><input type="checkbox" name="Gate" value="true" checked="@transition.ManualGate" /> Manual gate: an operator approves the transition under Approvals</label>
+                    <label class="check"><input type="checkbox" data-help-term="Manual gate" name="Gate" value="true" checked="@transition.ManualGate" /> Manual gate: an operator approves the transition under Approvals</label>
                 }
             </div>
             <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(ring is null ? "Create ring" : "Save")</button></div>
@@ -246,7 +247,7 @@ else if (_dialog is "ring-new" or "ring" && (_dialog == "ring-new" || EditingRin
 }
 else if (_dialog == "ring-delete" && EditingRing is { } doomedRing)
 {
-    <Dialog Title="@($"Delete ring {doomedRing.Name}?")" CloseHref="@Path">
+    <Dialog Title="@($"Delete ring {doomedRing.Name}?")" CloseHref="@Path" Help="release-rules#transitions">
         <form method="post" @formname="release-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="ring-delete" />
@@ -258,7 +259,7 @@ else if (_dialog == "ring-delete" && EditingRing is { } doomedRing)
 }
 else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
 {
-    <Dialog Title="Delete start rule?" CloseHref="@Path">
+    <Dialog Title="Delete start rule?" CloseHref="@Path" Help="release-rules#start-rules">
         <form method="post" @formname="release-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="rule-delete" />

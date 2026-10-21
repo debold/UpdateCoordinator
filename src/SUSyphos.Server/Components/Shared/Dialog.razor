@@ -2,7 +2,7 @@
 <div class="overlay">
     <div class="dialog @(Wide ? "wide" : null)" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
         <header class="dialog-head">
-            <h2 id="dialog-title">@Title</h2>
+            <h2 id="dialog-title">@Title@if (Help is not null) { <HelpLink To="@Help" Label="@Title" /> }</h2>
             <a class="close" href="@CloseHref" aria-label="Close">×</a>
         </header>
         @ChildContent
@@ -18,6 +18,10 @@
 
     [Parameter]
     public bool Wide { get; set; }
+
+    /// <summary>Help section for this dialog (<c>page#section</c>), shown as "?" after the title.</summary>
+    [Parameter]
+    public string? Help { get; set; }
 
     /// <summary>Usually a form with a <c>dialog-body</c> and a <c>dialog-foot</c>.</summary>
     [Parameter]

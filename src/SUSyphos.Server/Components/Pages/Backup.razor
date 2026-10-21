@@ -5,7 +5,7 @@
 
 <PageTitle>Backup</PageTitle>
 
-<PageHeader Title="Backup" Subtitle="Database and trust anchor in one archive, encrypted with your password" Crumbs="@([("Administration", null), ("Backup", null)])" />
+<PageHeader Title="Backup" Subtitle="Database and trust anchor in one archive, encrypted with your password" Help="backup" Crumbs="@([("Administration", null), ("Backup", null)])" />
 
 @if (Error is { Length: > 0 and <= 300 })
 {
@@ -16,7 +16,7 @@
 <div class="grid-2">
     <form method="post" action="@BackupEndpoints.Route" class="box">
         <AntiforgeryToken />
-        <header class="box-head"><h2>Download a backup</h2><span class="hint">Database and trust anchor, encrypted</span></header>
+        <header class="box-head"><h2>Download a backup<HelpLink To="backup#download" Label="Download a backup" /></h2><span class="hint">Database and trust anchor, encrypted</span></header>
         <div class="box-body form">
             <p class="note">
                 The archive contains a consistent copy of the database (servers, history, rules, accounts, audit log) and the trust anchor,
@@ -34,7 +34,7 @@
     <form method="post" @formname="backup-schedule" @onsubmit="SaveScheduleAsync" class="box">
         <AntiforgeryToken />
         <header class="box-head">
-            <h2>Scheduled backup</h2>
+            <h2>Scheduled backup<HelpLink To="backup#scheduled" Label="Scheduled backup" /></h2>
             <span class="pill @(_settings.Enabled ? "ok" : "neutral")">@(_settings.Enabled ? "on" : "off")</span>
         </header>
         <div class="box-body form gated">
@@ -62,7 +62,7 @@
     </form>
 </div>
 
-<Box Title="Restore" Hint="On the command line of the central server">
+<Box Title="Restore" Help="backup#restore" Hint="On the command line of the central server">
     <p>Install the central server, stop its service, then run as administrator in the installation folder:</p>
     <pre>SUSyphos.Server.exe restore &lt;backup.zip&gt;</pre>
     <p>

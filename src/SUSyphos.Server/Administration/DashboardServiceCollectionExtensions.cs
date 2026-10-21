@@ -73,6 +73,8 @@ internal static class DashboardServiceCollectionExtensions
         services.AddRazorComponents();
 
         services.AddSingleton<SetupService>();
+        // Explicit factory: the other constructor (sources from tests) would be satisfied by an empty enumerable.
+        services.AddSingleton(_ => new Help.HelpCatalog());
         services.AddScoped<AuditLog>();
         services.AddScoped<UserAdministration>();
         services.AddScoped<BackupService>();

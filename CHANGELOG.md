@@ -48,6 +48,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Integrated help: every page, box, dialog, field, button and switch of the dashboard is explained under `/help` (also before sign-in, no internet needed). A "?" next to titles and fields opens the matching section in a new tab; "Help" in the navigation lists all pages, with an introduction to rings, rollouts and windows and a page on working with lists. Dialogs and drop-downs are shown with screenshots of sample data, taken by the browser tests (`build/Update-HelpScreenshots.ps1`). A browser test fails the build when a visible control has no matching help section.
+- The task list on the server detail showed a garbled character instead of a dash for installations whose server time zone is not known yet.
 - Logo: the SUSyphos mark in white in the navigation, as icon on a dark tile on the sign-in and setup pages, as favicon (`/favicon.ico` with 16, 32 and 48 pixels, `/susyphos-icon.svg`), on the Start menu link and in Programs and Features of both packages. Masters in `assets/logo`, icons rendered by `build/New-Icons.ps1`.
 - The navigation shows the version of the central server (full version with commit as tooltip).
 - Setup asks for the HTTPS port on the first installation (default 8443, checked for 1 to 65535); an upgrade keeps the installed port without asking. The Start menu link opens the dashboard by the fully qualified name of the machine instead of the computer name.

@@ -16,7 +16,7 @@
 <HeadContent><meta http-equiv="refresh" content="30" /></HeadContent>
 <PageTitle>Approvals</PageTitle>
 
-<PageHeader Title="Approvals" Subtitle="Decisions that wait for an operator: new servers, ring transitions, stopped groups and clone suspicions" />
+<PageHeader Title="Approvals" Subtitle="Decisions that wait for an operator: new servers, ring transitions, stopped groups and clone suspicions" Help="approvals" />
 
 @if (_message is not null)
 {
@@ -28,13 +28,14 @@
     <div class="spacer"></div>
     <span class="note">Approve only servers you expect</span>
     <button type="submit" form="decision" name="Action" value="reject-selected" class="danger">Reject selected servers</button>
+    <HelpLink To="approvals#actions" Label="Actions for selected servers" />
 </ActionBand>
 
 @* One form that is always rendered, so a decision posted after the list changed still reaches the handler. *@
 <form id="decision" method="post" @formname="decision" @onsubmit="DecideAsync" class="box">
     <AntiforgeryToken />
     <header class="box-head">
-        <h2>New servers @if (_pending.Count > 0) { <span class="pill pend">@_pending.Count</span> }</h2>
+        <h2>New servers<HelpLink To="approvals#pending" Label="New servers" /> @if (_pending.Count > 0) { <span class="pill pend">@_pending.Count</span> }</h2>
         <span class="hint">Registered without any secret; rejected servers send nothing until they are deleted</span>
     </header>
     @if (_pending.Count == 0)
@@ -52,7 +53,7 @@
                     @foreach (var client in _pending)
                     {
                         <tr>
-                            <td><input type="checkbox" name="Selected" value="@client.Id" aria-label="Select @client.HostName" /></td>
+                            <td><input type="checkbox" data-help-term="Select" name="Selected" value="@client.Id" aria-label="Select @client.HostName" /></td>
                             <td class="nowrap">@client.HostName@if (client.DomainName is { Length: > 0 } domain) { <div class="note">@domain</div> }</td>
                             <td class="mono">@client.RegisteredFromAddress</td>
                             <td class="nowrap">@OperatingSystems.Name(client.OsProductName, client.OsVersion) <span class="note mono">@OperatingSystems.Build(client.OsVersion)</span></td>
@@ -74,7 +75,7 @@
 <form method="post" @formname="transition" @onsubmit="DecideTransitionAsync" class="box">
     <AntiforgeryToken />
     <header class="box-head">
-        <h2>Ring transitions @if (_gates.Count > 0) { <span class="pill queue">@_gates.Count</span> }</h2>
+        <h2>Ring transitions<HelpLink To="approvals#transitions" Label="Ring transitions" /> @if (_gates.Count > 0) { <span class="pill queue">@_gates.Count</span> }</h2>
         <span class="hint">Approving releases the update for the ring; stopping withdraws it from servers that have not installed it</span>
     </header>
     @if (_gates.Count == 0)
@@ -113,7 +114,7 @@
     <form method="post" @formname="halted" @onsubmit="ResumeGroupAsync" class="box">
         <AntiforgeryToken />
         <header class="box-head">
-            <h2>Stopped coordinated groups @if (_halted.Count > 0) { <span class="pill fail">@_halted.Count</span> }</h2>
+            <h2>Stopped coordinated groups<HelpLink To="approvals#groups" Label="Stopped coordinated groups" /> @if (_halted.Count > 0) { <span class="pill fail">@_halted.Count</span> }</h2>
             <span class="hint">Check the servers of the group, then resume it</span>
         </header>
         @if (_halted.Count == 0)
@@ -141,7 +142,7 @@
     <form method="post" @formname="blocked" @onsubmit="UnblockAsync" class="box">
         <AntiforgeryToken />
         <header class="box-head">
-            <h2>Clone suspicions @if (_blocked.Count > 0) { <span class="pill fail">@_blocked.Count</span> }</h2>
+            <h2>Clone suspicions<HelpLink To="approvals#blocked" Label="Clone suspicions" /> @if (_blocked.Count > 0) { <span class="pill fail">@_blocked.Count</span> }</h2>
             <span class="hint">Credentials used by two hosts in turn; unblock if only one host uses them, else delete the server</span>
         </header>
         @if (_blocked.Count == 0)
@@ -170,7 +171,7 @@
 
 <form method="post" @formname="approval-domains" @onsubmit="ChangeDomainAsync" class="box">
     <AntiforgeryToken />
-    <header class="box-head"><h2>Automatic approval</h2><span class="hint">New servers of these domains are approved once their computer account is found enabled in Active Directory and they registered from an address DNS lists for them</span></header>
+    <header class="box-head"><h2>Automatic approval<HelpLink To="approvals#domains" Label="Automatic approval" /></h2><span class="hint">New servers of these domains are approved once their computer account is found enabled in Active Directory and they registered from an address DNS lists for them</span></header>
     <div class="box-body form">
         <div>
             @if (_domains.Count == 0)

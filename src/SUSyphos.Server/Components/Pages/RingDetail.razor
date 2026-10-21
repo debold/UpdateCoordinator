@@ -42,7 +42,7 @@ else
         }
     </nav>
 
-    <PageHeader Title="@($"Ring {_ring.Order} · {_ring.Name}")" Subtitle="@($"{_servers} servers · {TransitionText}")" />
+    <PageHeader Title="@($"Ring {_ring.Order} · {_ring.Name}")" Subtitle="@($"{_servers} servers · {TransitionText}")" Help="rings" />
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
     <ActionBand>
@@ -52,10 +52,11 @@ else
             <a class="btn" href="/administration/release-rules">Edit ring rules</a>
             <a class="btn" href="/administration/rules">Edit assignment rules</a>
         </AuthorizeView>
+        <HelpLink To="rings#actions" Label="Ring actions" />
     </ActionBand>
 
     <div class="grid-side wide-only">
-        <Box Title="Updates in this ring" Hint="Select an update to see its status per server" Flush="true">
+        <Box Title="Updates in this ring" Help="rings#updates" Hint="Select an update to see its status per server" Flush="true">
             <div class="scroll">
                 <table>
                     <thead><tr><th>Update</th><th>Classification</th><th>State</th><th>Installs from</th><th>Day</th><th class="n">Feedback</th><th class="n">Success</th><th>Servers</th></tr></thead>
@@ -82,7 +83,7 @@ else
             </div>
         </Box>
 
-        <Box Title="Ring status" Hint="servers × updates">
+        <Box Title="Ring status" Help="rings#status" Hint="servers × updates">
             <div class="ring-status">
                 <Donut Counts="@_ringCounts" />
                 <Legend Counts="@_ringCounts" Vertical="true" />
@@ -100,6 +101,7 @@ else
                     <a class="@(Tab == "update" ? "current" : null)" href="@TabLink("update")">Status of @_selected.ShortTitle per server</a>
                 }
             </nav>
+            <HelpLink To="rings#servers" Label="Servers in this ring" />
             @if (Tab == "update" && _selected is not null)
             {
                 <a href="/updates/@(_selected.Key.Replace(":", "/", StringComparison.Ordinal))">Update details ›</a>
@@ -172,7 +174,7 @@ else
 
 @if (_ring is not null && Dialog == "add")
 {
-    <Dialog Title="@($"Add servers to {_ring.Name}")" CloseHref="@($"/rings/{_ring.Id}")" Wide="true">
+    <Dialog Title="@($"Add servers to {_ring.Name}")" CloseHref="@($"/rings/{_ring.Id}")" Wide="true" Help="rings#add-servers">
         <form method="post" @formname="ring-add" @onsubmit="AddServersAsync">
             <AntiforgeryToken />
             <div class="dialog-body">
@@ -190,7 +192,7 @@ else
                                 @foreach (var candidate in _candidates)
                                 {
                                     <tr>
-                                        <td><input type="checkbox" name="Move" value="@candidate.Id" aria-label="Move @candidate.HostName" /></td>
+                                        <td><input type="checkbox" data-help-term="Move" name="Move" value="@candidate.Id" aria-label="Move @candidate.HostName" /></td>
                                         <td>@candidate.HostName</td>
                                         <td><span class="tag">@candidate.RingName</span></td>
                                         <td class="note">@(candidate.Manual ? "manual" : "assignment rule or fallback")</td>
@@ -201,7 +203,7 @@ else
                     </div>
                 }
             </div>
-            <div class="dialog-foot"><a class="btn" href="/rings/@_ring.Id">Cancel</a><button type="submit" class="primary" disabled="@(_candidates.Count == 0)">Move to @_ring.Name</button></div>
+            <div class="dialog-foot"><a class="btn" href="/rings/@_ring.Id">Cancel</a><button type="submit" class="primary" disabled="@(_candidates.Count == 0)" data-help-term="Move to">Move to @_ring.Name</button></div>
         </form>
     </Dialog>
 }

@@ -2,10 +2,10 @@
 @* Maintenance window picker: one row per window (weekday toggles, from, to) with remove, an add button, a week preview and
    a plain-language summary. No free text, so a window cannot be mistyped. app.js redraws the preview on every change; the buttons post the enclosing form without
    saving (WindowPickerForm.ReadEdit); the page shows the rows again with the change and an updated preview. *@
-<div class="window-picker gated inverse" data-inherited="@InheritedJson">
+<div class="window-picker gated inverse" data-inherited="@InheritedJson" data-help="maintenance-windows#editor">
     @if (AllowInherit)
     {
-        <label class="check gate"><input type="checkbox" name="@WindowPickerForm.InheritField(Prefix)" value="yes" checked="@_inherited" /> @InheritLabel</label>
+        <label class="check gate"><input type="checkbox" data-help-term="Inherit" name="@WindowPickerForm.InheritField(Prefix)" value="yes" checked="@_inherited" /> @InheritLabel</label>
     }
     <div class="gated-body">
     @if (_rows.Count == 0)
@@ -20,7 +20,7 @@
             <div class="days" role="group" aria-label="Weekdays of window @(number + 1)">
                 @foreach (var day in WindowPickerForm.WeekOrder)
                 {
-                    <label class="day"><input type="checkbox" name="@WindowPickerForm.DaysField(Prefix, number)" value="@((int)day)" checked="@row.Days.Contains(day)" /><span>@WindowPickerForm.ShortName(day)</span></label>
+                    <label class="day"><input type="checkbox" data-help-term="weekday" name="@WindowPickerForm.DaysField(Prefix, number)" value="@((int)day)" checked="@row.Days.Contains(day)" /><span>@WindowPickerForm.ShortName(day)</span></label>
                 }
             </div>
             <label>from
@@ -49,14 +49,14 @@
             <span class="weeks" role="group" aria-label="Weeks of window @(number + 1)">
                 @foreach (var choice in WindowPickerForm.WeekChoices)
                 {
-                    <label class="day"><input type="checkbox" name="@WindowPickerForm.WeeksField(Prefix, number)" value="@choice.Value" checked="@((row.Weeks ?? row.ExceptWeeks ?? []).Contains(choice.Week))" /><span>@choice.Label</span></label>
+                    <label class="day"><input type="checkbox" data-help-term="weeks of the month" name="@WindowPickerForm.WeeksField(Prefix, number)" value="@choice.Value" checked="@((row.Weeks ?? row.ExceptWeeks ?? []).Contains(choice.Week))" /><span>@choice.Label</span></label>
                 }
             </span>
             @if (row.Days.Count == 0)
             {
                 <span class="note">select days</span>
             }
-            <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="remove:@number" formnovalidate class="danger" aria-label="Remove window @(number + 1)">Remove</button>
+            <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="remove:@number" formnovalidate class="danger" aria-label="Remove window @(number + 1)" data-help-term="Remove">Remove</button>
         </div>
     }
     <div class="actions">

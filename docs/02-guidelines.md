@@ -36,6 +36,7 @@
 - Tests are implemented **together with the feature**, not afterwards.
 - Every feature has **positive and negative** test cases.
 - Dashboard changes are also checked in a real browser (`tests/SUSyphos.UiTests`: layout rules in several window sizes, dialogs, filters, script features); a page that breaks the layout rules fails the build like any other test.
+- Every dashboard change updates the integrated help (`src/SUSyphos.Server/Help/Topics`): new fields, buttons and switches get a help link and a help section that names them, changed dialogs get new screenshots (`build/Update-HelpScreenshots.ps1`). `HelpCoverageTests` fails the build otherwise.
 
 ## 7. Documentation
 

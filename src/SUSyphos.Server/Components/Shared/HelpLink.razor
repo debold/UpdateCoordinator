@@ -1,0 +1,14 @@
+@* Small "?" that opens the matching help section in a new tab, so a half-filled form stays as it is. *@
+<a class="help-link" href="@Href" target="_blank" rel="noopener" title="@($"Help: {Label}")" aria-label="@($"Help: {Label}")">?</a>
+
+@code {
+    /// <summary>Help page and section, e.g. <c>servers#filter</c>; the section is a heading id on that page.</summary>
+    [Parameter, EditorRequired]
+    public string To { get; set; } = string.Empty;
+
+    /// <summary>What the help explains, for the tooltip and screen readers.</summary>
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    private string Href => "help/" + To;
+}

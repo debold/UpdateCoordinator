@@ -14,11 +14,11 @@
 
 <PageTitle>Overview</PageTitle>
 
-<PageHeader Title="Overview" Subtitle="@($"As of {Format(_now)}")" />
+<PageHeader Title="Overview" Subtitle="@($"As of {Format(_now)}")" Help="overview" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <ActionBand>
-    <span class="pill @(_paused ? "fail" : "ok")">@(_paused ? "Global pause: no new installations" : "Installations allowed within maintenance windows")</span>
+    <span class="pill @(_paused ? "fail" : "ok")">@(_paused ? "Global pause: no new installations" : "Installations allowed within maintenance windows")</span><HelpLink To="overview#pause" Label="Installation status and global pause" />
     @if (_blackout is { } blackout)
     {
         <span class="pill fail">Blackout until @Format(blackout.EndUtc): @blackout.Reason</span>
@@ -77,7 +77,7 @@
 </section>
 
 <div class="grid-side">
-    <Box Title="Deployment by ring" Flush="true">
+    <Box Title="Deployment by ring" Help="overview#rings" Flush="true">
         <div class="scroll">
             <table>
                 <thead><tr><th>Ring</th><th class="n">Servers</th><th class="n">Active updates</th><th>Status (server × update)</th><th>State</th></tr></thead>
@@ -98,7 +98,7 @@
         <div class="box-body"><Legend /></div>
     </Box>
 
-    <Box Title="Needs attention" Flush="true">
+    <Box Title="Needs attention" Help="overview#attention" Flush="true">
         <div class="attention">
             @if (_attention.Count == 0)
             {
@@ -122,7 +122,7 @@
     </Box>
 </div>
 
-<Box Title="Next installations" Hint="Released updates not installed yet, by earliest installation; each server installs within its maintenance window" Flush="true">
+<Box Title="Next installations" Help="overview#next" Hint="Released updates not installed yet, by earliest installation; each server installs within its maintenance window" Flush="true">
     <div class="scroll">
         <table>
             <thead><tr><th>Update</th><th>Earliest installation</th><th class="n">Servers</th><th>Rings</th></tr></thead>
@@ -145,7 +145,7 @@
     </div>
 </Box>
 
-<Box Title="Patch compliance, last 90 days" Hint="Share of approved servers with every released update installed">
+<Box Title="Patch compliance, last 90 days" Help="overview#trend" Hint="Share of approved servers with every released update installed">
     <TrendChart Points="@_trend" />
 </Box>
 

@@ -6,7 +6,7 @@
 
 <PageTitle>Audit log</PageTitle>
 
-<PageHeader Title="Audit log" Subtitle="Every change in the administration and every decision, protected by a hash chain" Crumbs="@([("Administration", null), ("Audit log", null)])" />
+<PageHeader Title="Audit log" Subtitle="Every change in the administration and every decision, protected by a hash chain" Help="audit-log" Crumbs="@([("Administration", null), ("Audit log", null)])" />
 
 @if (_broken is null)
 {
@@ -17,7 +17,7 @@ else
     <p class="error" role="alert">Integrity check failed at entry @_broken. The audit log was modified outside the application.</p>
 }
 
-<Box Flush="true">
+<Box Title="Entries" Help="audit-log#entries" Flush="true">
     <TableTools Table="_table" Placeholder="Search target or details" Labels="Labels" />
     <div class="scroll">
         <table>

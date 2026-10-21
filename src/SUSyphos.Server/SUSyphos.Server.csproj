@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" />
     <PackageReference Include="MailKit" />
+    <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
@@ -20,6 +21,11 @@
   <ItemGroup>
     <ProjectReference Include="..\SUSyphos.Common\SUSyphos.Common.csproj" />
     <ProjectReference Include="..\SUSyphos.Contracts\SUSyphos.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Help pages of the dashboard (Markdown), compiled into the assembly and rendered by HelpCatalog. -->
+    <EmbeddedResource Include="Help\Topics\*.md" LogicalName="Help.%(Filename).md" />
   </ItemGroup>
 
   <ItemGroup>

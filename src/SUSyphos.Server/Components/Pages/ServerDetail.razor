@@ -22,15 +22,15 @@
 }
 else
 {
-    <PageHeader Title="@_client.HostName" Subtitle="@Subtitle" Crumbs="@([("Servers", "/servers"), (_client.HostName, null)])" />
+    <PageHeader Title="@_client.HostName" Subtitle="@Subtitle" Help="server-detail" Crumbs="@([("Servers", "/servers"), (_client.HostName, null)])" />
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
     @if (RestartQueuedText is { } restartText)
     {
-        <form method="post" @formname="cancel-restart" @onsubmit="CancelRestartAsync" class="restart-banner" role="status">
+        <form method="post" @formname="cancel-restart" @onsubmit="CancelRestartAsync" class="restart-banner help-scope" role="status">
             <AntiforgeryToken />
             <span class="pill fail">Restart queued</span>
-            <span>@restartText</span>
+            <span>@restartText</span><HelpLink To="server-detail#restart-queued" Label="Queued restart" />
             <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="cancelRestart">
                 <button type="submit" class="danger">Cancel restart</button>
             </AuthorizeView>
@@ -52,6 +52,7 @@ else
                 <a class="btn danger" href="@DialogLink("remove")">Remove server…</a>
                 <a class="btn danger" href="@DialogLink("purge")">Delete with history…</a>
             </AuthorizeView>
+            <HelpLink To="server-detail#actions" Label="Actions for this server" />
         </ActionBand>
     </AuthorizeView>
 
@@ -84,7 +85,7 @@ else
         @* Reload while the agent works; not after a form post, so unsaved input is never lost. *@
         <HeadContent><meta http-equiv="refresh" content="@LiveRefreshSeconds" /></HeadContent>
     }
-    <Box Title="Tasks" Anchor="tasks" Hint="@(_livePhase is null ? "what the agent does next, in order; heartbeats are not listed" : $"running now; the page updates every {LiveRefreshSeconds} seconds while the agent works")" Flush="true">
+    <Box Title="Tasks" Anchor="tasks" Help="server-detail#tasks" Hint="@(_livePhase is null ? "what the agent does next, in order; heartbeats are not listed" : $"running now; the page updates every {LiveRefreshSeconds} seconds while the agent works")" Flush="true">
         @if (_livePhase is { } livePhase)
         {
             <div class="box-body">
@@ -145,10 +146,10 @@ else
             <Authorized>
                 <form method="post" @formname="assignment" @onsubmit="SaveAsync" class="box">
                     <AntiforgeryToken />
-                    <header class="box-head"><h2>Assignment</h2><span class="hint">Saved configuration of this server; empty values inherit</span></header>
+                    <header class="box-head"><h2>Assignment<HelpLink To="server-detail#assignment" Label="Assignment" /></h2><span class="hint">Saved configuration of this server; empty values inherit</span></header>
                     <div class="box-body form">
                         <div class="form-row">
-                            <label class="field"><span>Ring</span>
+                            <label class="field"><span>Ring<HelpLink To="server-detail#ring" Label="Ring" /></span>
                                 <select name="Ring">
                                     <option value="" selected="@(_client.ManualRingId is null)">Automatic: assignment rules, else @_fallbackRing (now @RingName(_client.RingId))</option>
                                     @foreach (var ring in _rings)
@@ -157,7 +158,7 @@ else
                                     }
                                 </select>
                             </label>
-                            <label class="field"><span>Reboots</span>
+                            <label class="field"><span>Reboots<HelpLink To="server-detail#reboots" Label="Reboots" /></span>
                                 <select name="Reboot">
                                     <option value="" selected="@(_client.RebootPolicy is null)">Inherit from groups or system (now @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</option>
                                     @foreach (var policy in Enum.GetValues<SUSyphos.Contracts.Agents.RebootPolicy>())
@@ -168,7 +169,7 @@ else
                             </label>
                         </div>
                         <div class="field">
-                            <span class="field-label">Groups</span>
+                            <span class="field-label">Groups<HelpLink To="server-detail#groups" Label="Groups" /></span>
                             <MultiSelect Name="Groups" Placeholder="No group"
                                          Options="@([.. _groups.Take(MultiSelect.MaxOptions).Select(g => (g.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), g.Name))])"
                                          Selected="@([.. _memberships.Where(m => m.Manual).Select(m => m.GroupId.ToString(System.Globalization.CultureInfo.InvariantCulture))])"
@@ -178,7 +179,7 @@ else
                             <span class="help">Groups from assignment rules are added automatically.</span>
                         </div>
                         <div class="field">
-                            <span class="field-label">Maintenance windows</span>
+                            <span class="field-label">Maintenance windows<HelpLink To="server-detail#windows" Label="Maintenance windows" /></span>
                             <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
                         </div>
                     </div>
@@ -189,7 +190,7 @@ else
                 </form>
             </Authorized>
             <NotAuthorized>
-                <Box Title="Assignment">
+                <Box Title="Assignment" Help="server-detail#assignment">
                     <dl class="facts">
                         <dt>Ring</dt><dd>@RingName(_client.RingId) @(_client.ManualRingId is null ? "(automatic)" : "(manual)")</dd>
                         <dt>Groups</dt><dd>@(_memberships.Count > 0 ? string.Join(", ", _memberships.Select(m => GroupName(m.GroupId))) : "–")</dd>
@@ -200,7 +201,7 @@ else
             </NotAuthorized>
         </AuthorizeView>
 
-        <Box Title="System">
+        <Box Title="System" Help="server-detail#system">
             <dl class="facts">
                 <dt>Operating system</dt><dd>@OperatingSystems.Name(_client.OsProductName, _client.OsVersion)@(_client.OsEditionId is { Length: > 0 } edition ? $" ({edition})" : string.Empty)</dd>
                 <dt>Build</dt><dd class="mono">@OperatingSystems.Build(_client.OsVersion)</dd>
@@ -219,7 +220,7 @@ else
         </Box>
     </div>
 
-    <Box Title="Missing updates" Anchor="missing" Flush="true">
+    <Box Title="Missing updates" Anchor="missing" Help="server-detail#missing" Flush="true">
         <div class="scroll">
             <table>
                 <thead><tr><th>Update</th><th>Status</th><th>Earliest installation</th><th>Result</th></tr></thead>
@@ -242,7 +243,7 @@ else
         </div>
     </Box>
 
-    <Box Title="Pre-flight checks" Anchor="checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)}" : null)" Flush="true">
+    <Box Title="Pre-flight checks" Anchor="checks" Help="server-detail#checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)}" : null)" Flush="true">
         @if (_client.HealthChecks.Count == 0)
         {
             <div class="empty-state">No update run reported yet.</div>
@@ -271,7 +272,7 @@ else
         }
     </Box>
 
-    <Box Title="Update history" Anchor="history" Flush="true">
+    <Box Title="Update history" Anchor="history" Help="server-detail#history" Flush="true">
         <div class="scroll">
             <table>
                 <thead><tr><th>Finished</th><th>Update</th><th>Source</th><th>Result</th><th>Reboot</th></tr></thead>
@@ -295,7 +296,7 @@ else
         </div>
     </Box>
 
-    <Box Title="Windows Update history" Anchor="windows-history" Hint="@($"last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days as recorded by Windows, including installations outside SUSyphos; updated with the inventory")" Flush="true">
+    <Box Title="Windows Update history" Anchor="windows-history" Help="server-detail#windows-history" Hint="@($"last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days as recorded by Windows, including installations outside SUSyphos; updated with the inventory")" Flush="true">
         <div class="scroll">
             <table>
                 <thead><tr><th>Date</th><th>Update</th><th>Operation</th><th>Result</th><th>Started by</th></tr></thead>
@@ -319,7 +320,7 @@ else
         </div>
     </Box>
 
-    <Box Title="Recent activity" Anchor="activity" Hint="@($"what the agent did and reported, newest first; kept for {ClientActivityLog.Retention.TotalDays:0} days, heartbeats are not listed")" Flush="true">
+    <Box Title="Recent activity" Anchor="activity" Help="server-detail#activity" Hint="@($"what the agent did and reported, newest first; kept for {ClientActivityLog.Retention.TotalDays:0} days, heartbeats are not listed")" Flush="true">
         <div class="scroll">
             <table>
                 <thead><tr><th>Time</th><th>Activity</th><th>Detail</th></tr></thead>
@@ -341,7 +342,7 @@ else
         </div>
     </Box>
 
-    <Box Title="Remote actions" Hint="The agent picks actions up with its next heartbeat; the central server never connects to the agent." Flush="true">
+    <Box Title="Remote actions" Help="server-detail#remote-actions" Hint="The agent picks actions up with its next heartbeat; the central server never connects to the agent." Flush="true">
         <div class="scroll">
             <table>
                 <thead><tr><th>Requested</th><th>Action</th><th>By</th><th>State</th><th>Detail</th><th></th></tr></thead>
@@ -379,7 +380,7 @@ else
 
     @if (Dialog == "restart")
     {
-        <Dialog Title="@($"Restart {_client.HostName}?")" CloseHref="@($"/servers/{Id}")">
+        <Dialog Title="@($"Restart {_client.HostName}?")" CloseHref="@($"/servers/{Id}")" Help="server-detail#restart">
             <form method="post" @formname="restart" @onsubmit="RestartAsync">
                 <AntiforgeryToken />
                 <div class="dialog-body">
@@ -393,7 +394,7 @@ else
     }
     else if (Dialog is "remove" or "purge")
     {
-        <Dialog Title="@(Dialog == "purge" ? $"Delete {_client.HostName} with its history?" : $"Remove {_client.HostName}?")" CloseHref="@($"/servers/{Id}")">
+        <Dialog Title="@(Dialog == "purge" ? $"Delete {_client.HostName} with its history?" : $"Remove {_client.HostName}?")" CloseHref="@($"/servers/{Id}")" Help="server-detail#remove">
             <form method="post" @formname="remove" @onsubmit="RemoveAsync">
                 <AntiforgeryToken />
                 <input type="hidden" name="ConfirmRemove" value="yes" />
@@ -828,7 +829,7 @@ else
         }
         else
         {
-            tasks.Add(new(DateTime.MaxValue, "â€“", "Installation", "neutral", _client.TimeZoneId is null
+            tasks.Add(new(DateTime.MaxValue, "–", "Installation", "neutral", _client.TimeZoneId is null
                 ? "The server has not reported its time zone yet, so the next window cannot be calculated."
                 : "No maintenance window, so nothing is installed.", []));
         }

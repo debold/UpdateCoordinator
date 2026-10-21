@@ -6,14 +6,16 @@
 
 <PageTitle>Users</PageTitle>
 
-<PageHeader Title="Users" Subtitle="Local accounts and accounts that sign in with Windows. Reader sees everything; Operator decides approvals, gates, rollouts and remote actions; Admin changes settings, rules and accounts." Crumbs="@([("Administration", null), ("Users", null)])" />
+<PageHeader Title="Users" Subtitle="Local accounts and accounts that sign in with Windows. Reader sees everything; Operator decides approvals, gates, rollouts and remote actions; Admin changes settings, rules and accounts." Help="users" Crumbs="@([("Administration", null), ("Users", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <ActionBand>
     <a class="btn primary" href="@Path?dialog=new">New user</a>
+    <HelpLink To="users#accounts" Label="Accounts" />
 </ActionBand>
 
 <form method="post" @formname="users" @onsubmit="HandleAsync" class="box">
+    <header class="box-head"><h2>Accounts<HelpLink To="users#accounts" Label="Accounts" /></h2></header>
     <AntiforgeryToken />
     <div class="scroll">
         <table>
@@ -61,7 +63,7 @@
 <form method="post" @formname="windows-sign-in" @onsubmit="WindowsAsync" class="box">
     <AntiforgeryToken />
     <header class="box-head">
-        <h2>Active Directory sign-in</h2>
+        <h2>Active Directory sign-in<HelpLink To="users#windows" Label="Active Directory sign-in" /></h2>
         <span class="pill @(_windowsEnabled ? "ok" : "neutral")">@(_windowsEnabled ? "on" : "off")</span>
     </header>
     <div class="box-body form">
@@ -126,7 +128,7 @@
     var editing = _dialog == "edit" ? _users.FirstOrDefault(u => u.Id == DialogId) : null;
     @if (_dialog == "new" || editing is not null)
     {
-        <Dialog Title="@(editing is null ? "New user" : $"Edit {editing.UserName}")" CloseHref="@Path">
+        <Dialog Title="@(editing is null ? "New user" : $"Edit {editing.UserName}")" CloseHref="@Path" Help="users#new-user">
             <form method="post" @formname="user-dialog" @onsubmit="SaveAsync">
                 <AntiforgeryToken />
                 <input type="hidden" name="Mode" value="@(editing is null ? "create" : "edit")" />
@@ -166,7 +168,7 @@
 }
 else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is { } doomed)
 {
-    <Dialog Title="@($"Delete {doomed.UserName}?")" CloseHref="@Path">
+    <Dialog Title="@($"Delete {doomed.UserName}?")" CloseHref="@Path" Help="users#accounts">
         <form method="post" @formname="user-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="delete" />

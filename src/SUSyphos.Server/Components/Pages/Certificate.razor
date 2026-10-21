@@ -8,10 +8,10 @@
 
 <PageTitle>TLS certificate</PageTitle>
 
-<PageHeader Title="TLS certificate" Subtitle="Agents pin the trust anchor, not the certificate: after a switch the trust anchor signs a binding for the new certificate and every agent accepts it on its next contact. Renewals in the LocalMachine certificate store are picked up automatically." Crumbs="@([("Administration", null), ("TLS certificate", null)])" />
+<PageHeader Title="TLS certificate" Subtitle="Agents pin the trust anchor, not the certificate: after a switch the trust anchor signs a binding for the new certificate and every agent accepts it on its next contact. Renewals in the LocalMachine certificate store are picked up automatically." Help="certificate" Crumbs="@([("Administration", null), ("TLS certificate", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-<Box Title="In use">
+<Box Title="In use" Help="certificate#in-use">
     <Header><span class="pill @(_daysLeft < 30 ? "queue" : "ok")">@_daysLeft days left</span></Header>
     <ChildContent>
         <dl class="facts">
@@ -24,7 +24,7 @@
     </ChildContent>
 </Box>
 
-<Box Title="Available certificates" Hint="LocalMachine\My with private key, currently valid and allowed for server authentication" Flush="true">
+<Box Title="Available certificates" Help="certificate#available" Hint="LocalMachine\My with private key, currently valid and allowed for server authentication" Flush="true">
     <div class="scroll">
         <table>
             <thead><tr><th>Subject</th><th>DNS names</th><th>Issuer</th><th>Valid until</th><th>Thumbprint</th><th class="num">Actions</th></tr></thead>
@@ -60,7 +60,7 @@
 
 @if (DialogName == "use" && !_switched && _candidates.FirstOrDefault(c => string.Equals(c.Thumbprint, DialogThumbprint, StringComparison.OrdinalIgnoreCase)) is { } selected)
 {
-    <Dialog Title="Switch the TLS certificate?" CloseHref="/administration/certificate">
+    <Dialog Title="Switch the TLS certificate?" CloseHref="/administration/certificate" Help="certificate#switch">
         <form method="post" @formname="certificate" @onsubmit="UseAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Thumbprint" value="@selected.Thumbprint" />

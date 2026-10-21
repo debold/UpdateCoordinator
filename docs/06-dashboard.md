@@ -88,6 +88,12 @@ Visibility of agent versions, state of the internal agent rollout, minimum versi
 
 Implemented (2026-10-20): page Agents (role Operator; Admin for checking and releasing) with the agent versions the central server holds (source, release state per ring as tags, servers per version), release actions, "Check for new versions now", the installer download with address and anchor fingerprint in the file name, the agent versions reported by the servers and failed self-updates. The server detail shows the agent update state.
 
+### Integrated help
+
+Requested by Marc (2026-10-21): every switch, input and relevant display is explained in a help built into the dashboard, reachable with one click from where it is used; dialogs and controls not visible on the page (modal dialogs, filter drop-downs) are shown with screenshots of sample data.
+
+Implemented (2026-10-21): help pages under `/help` (index) and `/help/<page>`, written in Markdown (`src/SUSyphos.Server/Help/Topics`, compiled into the assembly, raw HTML disabled, file name prefix sets the order) and rendered with Markdig. Headings carry explicit ids (`## Column filter {#filter}`). A small "?" (`HelpLink`) after page titles, box and dialog titles, field labels and action bands opens the matching section in a new tab, so a half-filled form stays. Shared components bring their own links (`TableTools`, column filters, the maintenance window editor). The help is open without sign-in (it contains no data of the installation). Screenshots under `wwwroot/help-images` are taken by the browser tests from the demo lab (`build/Update-HelpScreenshots.ps1`). The browser test `HelpCoverageTests` fails the build when a page or one of its dialogs has a visible field, button or switch whose nearest help link is missing, points to a missing section, or whose section does not mention the control by its label.
+
 ## 6. Permissions (sketch)
 
 | Area | Reader | Operator | Admin |
