@@ -33,6 +33,9 @@ internal interface IInstallationRunner
 
     /// <summary>When the held restart is planned; null without request or without windows.</summary>
     DateTimeOffset? PlannedRestartAt { get; }
+
+    /// <summary>Installs every released update the server misses with the next cycle (remote action); a needed restart follows at once or in the next window.</summary>
+    void RequestInstallNow(bool restartNow);
 }
 
 internal sealed partial class InstallationRunner : IInstallationRunner
@@ -93,7 +96,14 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         CompleteLeaseAfterReboot();
         CompleteRequestedRestart();
 
-        var batch = PlanBatch();
+        // "Install now" waits only for a pause; otherwise it runs with this cycle, done or not, and is cleared.
+        var installNow = _state.InstallNow;
+        if (installNow is not null && _releases.InstallationsPaused)
+        {
+            installNow = null;
+        }
+
+        var batch = installNow is null ? PlanBatch() : PlanInstallNow();
         if (batch.Count > 0)
         {
             // Never install on a server that fails its health check.
@@ -113,6 +123,12 @@ internal sealed partial class InstallationRunner : IInstallationRunner
                 if (lease.Value)
                 {
                     var succeeded = await InstallAsync(batch, cancellationToken).ConfigureAwait(false);
+                    if (installNow is not null)
+                    {
+                        FinishInstallNow(installNow);
+                        installNow = null;
+                    }
+
                     if (_state.Lease is { } hold)
                     {
                         Save(_state with { Lease = hold with { InstallationSucceeded = hold.InstallationSucceeded && succeeded, AwaitingReboot = _environment.RebootPending } });
@@ -124,6 +140,12 @@ internal sealed partial class InstallationRunner : IInstallationRunner
                     }
                 }
             }
+        }
+
+        // Nothing to install or the server failed its health check: the request is answered with what is there.
+        if (installNow is not null && (batch.Count == 0 || _state.InstallNow is not null))
+        {
+            FinishInstallNow(installNow);
         }
 
         return await RebootIfAllowedAsync(identity, cancellationToken).ConfigureAwait(false) is not null
@@ -322,6 +344,51 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         RebootDecision.WaitingForLease => Contracts.Agents.RebootWait.WaitingForLease,
         _ => null,
     };
+
+    public void RequestInstallNow(bool restartNow)
+    {
+        Save(_state with { InstallNow = new InstallNowRequest(_timeProvider.GetUtcNow(), restartNow) });
+        _updates.RequestRun();
+    }
+
+    private IReadOnlyList<Release> PlanInstallNow()
+    {
+        var missing = _updates.LastMissingUpdates;
+        return !_options.Value.Enabled || missing is null
+            ? []
+            : InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, new Dictionary<(Guid, int), DateTimeOffset>(), _timeProvider.GetUtcNow(), _options.Value, everything: true);
+    }
+
+    /// <summary>Clears the request and, if Windows wants a restart, restarts now (5-minute warning) or holds it for the next window; never against the local veto.</summary>
+    private void FinishInstallNow(InstallNowRequest request)
+    {
+        Save(_state with { InstallNow = null });
+        if (!_environment.RebootPending)
+        {
+            return;
+        }
+
+        if (!_options.Value.AllowReboot)
+        {
+            LogInstallNowNoReboot();
+            return;
+        }
+
+        if (request.RestartNow)
+        {
+            if (_restart.Schedule(RebootPlanner.WarningPeriod))
+            {
+                Save(_state with { LastRebootRequestAt = _timeProvider.GetUtcNow() });
+            }
+        }
+        else
+        {
+            RequestRestart();
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Installed on request, but reboots are forbidden on this server (AllowReboot); the restart is left to an administrator.")]
+    private partial void LogInstallNowNoReboot();
 
     internal IReadOnlyList<Release> PlanBatch()
     {

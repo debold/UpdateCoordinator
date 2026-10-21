@@ -168,6 +168,56 @@ public sealed class ServerDetailPageTests
     }
 
     [Fact]
+    public async Task InstallNow_ListsTheReleasedUpdates_AndOnlyAdministratorsQueueIt()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(client, update);
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        await scenario.Factory.CreateUserAsync("operator", Password, AdminRoles.Operator);
+        var path = $"/servers/{client.ClientId}";
+
+        // Operators neither see the dialog link nor can they queue the action through the generic action form.
+        using (var operatorBrowser = new DashboardClient(scenario.Factory))
+        {
+            using (await operatorBrowser.LoginAsync("operator", Password))
+            {
+            }
+
+            Assert.DoesNotContain("Install updates now", await (await operatorBrowser.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            using (await operatorBrowser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:InstallNow" }))
+            {
+            }
+        }
+
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
+
+        using var admin = new DashboardClient(scenario.Factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        var dialog = await (await admin.GetAsync(path + "?dialog=install")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("role=\"dialog\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("installs this update", dialog, StringComparison.Ordinal);
+        Assert.Contains("KB5040000", dialog, StringComparison.Ordinal);
+
+        // An unknown choice queues nothing; a valid one queues the action and reloads the page.
+        using (await admin.PostFormAsync(path + "?dialog=install", new Dictionary<string, string> { ["_handler"] = "install", ["InstallRestart"] = "sometime" }))
+        {
+        }
+
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
+        using (var queued = await admin.PostFormAndFollowAsync(path + "?dialog=install", new Dictionary<string, string> { ["_handler"] = "install", ["InstallRestart"] = "window" }))
+        {
+            Assert.Contains("The installation was queued", await queued.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.Equal(AgentActionKind.InstallNowRestartInWindow, await scenario.Factory.WithDbAsync(db => db.AgentActions.Select(a => a.Kind).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
     public async Task RestartInWindow_ShowsThePlannedTime_AndCancelGoesToTheAgent()
     {
         await using var scenario = await RolloutScenario.CreateAsync();

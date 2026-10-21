@@ -23,6 +23,7 @@ Everyone can use:
 
 Administrators also have:
 
+- **Install updates now…**: opens the [install dialog](#install-now).
 - **Restart server…**: opens the [restart dialog](#restart).
 - **Remove server…** and **Delete with history…**: open the [remove dialog](#remove).
 
@@ -111,6 +112,16 @@ What the agent did and reported, newest first, kept for 90 days: registration, a
 ## Remote actions {#remote-actions}
 
 All actions requested for this server: when, which, by whom, the state (Queued: waits for the next heartbeat; Delivered: the agent has it; Succeeded; Failed; Rejected: the agent refused it, for example a restart vetoed locally; Cancelled; Expired: not picked up or not confirmed in time) and details. Log uploads offer a **Download** link. A queued action can be withdrawn with **Cancel** until the agent picks it up.
+
+## Install updates now {#install-now}
+
+For a server that should not wait for its next maintenance window, for example after a security incident. The dialog lists the updates that are **released for the ring of the server** and still missing; updates that are not released yet are not installed. The agent installs them after its next heartbeat, also outside the maintenance window and before their planned time. A global pause holds the installation until it ends, and in a coordinated group the agent waits for a free slot.
+
+- **Install and restart right after**: if Windows needs a restart afterwards, the server restarts at once after a five minute warning to signed-in users.
+- **Install, restart in the next window**: a needed restart waits for the next maintenance window that stays open for at least 30 minutes, like "Restart in the next maintenance window".
+- **Cancel** closes the dialog without queuing anything.
+
+The local veto (registry value AllowReboot) still prevents the restart; the updates are installed anyway and the server shows "reboot pending". The action and its result appear under [Remote actions](#remote-actions).
 
 ## Restart dialog {#restart}
 

@@ -264,6 +264,11 @@ internal sealed class FakeInstallationRunner : IInstallationRunner
         return "The requested restart was cancelled.";
     }
 
+    /// <summary>The last "install now" request: true for the restart right after, false for the window.</summary>
+    public bool? InstallNowRestartNow { get; private set; }
+
+    public void RequestInstallNow(bool restartNow) => InstallNowRestartNow = restartNow;
+
     public Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
         Runs++;

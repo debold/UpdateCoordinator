@@ -13,10 +13,14 @@ internal sealed record InstallationState(
     List<InstallAttempt> Attempts,
     DateTimeOffset? LastRebootRequestAt = null,
     LeaseHold? Lease = null,
-    DateTimeOffset? RestartRequestedAt = null)
+    DateTimeOffset? RestartRequestedAt = null,
+    InstallNowRequest? InstallNow = null)
 {
     public static InstallationState Empty => new([], []);
 }
+
+/// <summary>An administrator asked to install the released updates now (remote action), with the restart right after or in the next window.</summary>
+internal sealed record InstallNowRequest(DateTimeOffset RequestedAt, bool RestartNow);
 
 internal sealed record InstallAttempt(Guid UpdateId, int Revision, DateTimeOffset AttemptedAt);
 

@@ -30,6 +30,12 @@ public enum AgentActionKind
 
     /// <summary>Cancel a restart requested for the maintenance window, or one already announced to signed-in users.</summary>
     CancelRestart = 6,
+
+    /// <summary>Install every released update the server still misses now, outside the window and before its time, then restart at once if needed (5-minute warning; local veto applies).</summary>
+    InstallNow = 7,
+
+    /// <summary>Like <see cref="InstallNow"/>, but a needed restart waits for the next maintenance window that stays open long enough.</summary>
+    InstallNowRestartInWindow = 8,
 }
 
 /// <summary>One queued action.</summary>

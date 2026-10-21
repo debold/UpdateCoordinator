@@ -152,6 +152,8 @@ Updates installed outside our own maintenance are detected and reported with the
 
 ## 6. Remote actions
 
+**Install now (2026-10-21):** the remote actions `InstallNow` and `InstallNowRestartInWindow` store the request (`installations.dat`) and start a search; with the next installation cycle the agent installs every release of its list that the last search found missing, regardless of window, earliest time and retry delay. A global pause keeps the request waiting, the health check and leases apply as usual. Afterwards a pending reboot is done at once with the 5-minute warning (`InstallNow`) or held like `RestartServerInWindow`; the local veto prevents only the restart. The request is cleared after one cycle, also when nothing was to install.
+
 **Restart in the maintenance window (2026-10-20):** the agent stores the request (`installations.dat`), treats it like a pending reboot allowed by policy and restarts with the usual rules (open window for at least 30 more minutes, warning, local veto, global pause, lease in coordinated groups). It reports the planned time (start of the next window long enough) and why it waits; the request ends when the server has started after it, or with `CancelRestart`.
 
 The agent fetches actions from the queue, executes them in the given order and reports status with progress: restart service, immediate update search with report, restart server, check-in with agent update search, full resync, later log retrieval.

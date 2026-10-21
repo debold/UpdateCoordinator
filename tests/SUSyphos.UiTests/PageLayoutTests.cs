@@ -18,6 +18,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/servers?group=os",
         "/servers/{main}",
         "/servers/{main}?dialog=restart",
+        "/servers/{main}?dialog=install",
         "/servers/{main}?dialog=remove",
         "/updates",
         "/updates/{update}",

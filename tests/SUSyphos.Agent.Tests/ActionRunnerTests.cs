@@ -108,6 +108,24 @@ public sealed class ActionRunnerTests
         Assert.False(_runner.RestartRequested);
     }
 
+    [Theory]
+    [InlineData(AgentActionKind.InstallNow, true, true, "right after")]
+    [InlineData(AgentActionKind.InstallNowRestartInWindow, true, false, "next maintenance window")]
+    [InlineData(AgentActionKind.InstallNow, false, true, "forbidden")]
+    public async Task InstallNow_IsHandedToTheInstallation(AgentActionKind kind, bool allowReboot, bool restartNow, string detail)
+    {
+        _installation = new InstallationOptions { AllowReboot = allowReboot };
+        var request = Action(kind);
+        _client.ActionList = new AgentActionList([request]);
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Equal(restartNow, _runner.InstallNowRestartNow);
+        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[request.Id].Status);
+        Assert.Contains(detail, _client.ActionResults[request.Id].Detail, StringComparison.Ordinal);
+        Assert.Empty(_systemRestart.Requests);
+    }
+
     [Fact]
     public async Task RestartServerRefusedByWindows_IsReportedAsFailed()
     {

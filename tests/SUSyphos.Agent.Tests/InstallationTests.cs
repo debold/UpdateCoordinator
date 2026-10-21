@@ -252,6 +252,76 @@ public sealed class InstallationRunnerTests
     }
 
     [Fact]
+    public async Task InstallNow_InstallsOutsideTheWindowAndBeforeItsTime_ThenRestartsAtOnce()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero)); // Wednesday noon, no window
+        var later = _release with { EarliestInstallAt = _time.GetUtcNow().AddDays(3) };
+        _releases.Current = new ReleaseList(1, [later]);
+        _environment.RebootPending = true;
+        var runner = Create();
+
+        runner.RequestInstallNow(restartNow: true);
+        Assert.True(await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken));
+
+        Assert.Equal([later], Assert.Single(_installer.Batches));
+        Assert.Equal([SUSyphos.Agent.Installation.RebootPlanner.WarningPeriod], _restart.Requests);
+        Assert.Null(_store.State.InstallNow);
+
+        // Once done, the next cycle is a normal one again: nothing outside the window.
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Single(_installer.Batches);
+    }
+
+    [Fact]
+    public async Task InstallNow_WithRestartInTheWindow_HoldsTheRestart()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
+        _environment.RebootPending = true;
+        var runner = Create();
+
+        runner.RequestInstallNow(restartNow: false);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_installer.Batches);
+        Assert.Empty(_restart.Requests);
+        Assert.True(runner.RestartRequested);
+    }
+
+    [Fact]
+    public async Task InstallNow_WaitsWhilePaused_AndNeverRestartsAgainstTheLocalVeto()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
+        _environment.RebootPending = true;
+        _releases.InstallationsPaused = true;
+        var runner = Create(new InstallationOptions { AllowReboot = false });
+
+        runner.RequestInstallNow(restartNow: true);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Empty(_installer.Batches);
+        Assert.NotNull(_store.State.InstallNow);
+
+        _releases.InstallationsPaused = false;
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Single(_installer.Batches);
+        Assert.Empty(_restart.Requests);
+        Assert.False(runner.RestartRequested);
+        Assert.Null(_store.State.InstallNow);
+    }
+
+    [Fact]
+    public async Task InstallNow_WithNothingReleased_IsAnsweredAndCleared()
+    {
+        _releases.Current = new ReleaseList(1, []);
+        var runner = Create();
+
+        runner.RequestInstallNow(restartNow: true);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Empty(_installer.Batches);
+        Assert.Null(_store.State.InstallNow);
+    }
+
+    [Fact]
     public async Task OutsideWindow_NothingIsInstalled()
     {
         _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero)); // next Wednesday noon

@@ -118,6 +118,13 @@ internal sealed partial class ActionRunner(
                 return (Succeeded(installationRunner.RequestRestart() is { } planned
                     ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Restart planned for the next maintenance window, {planned.UtcDateTime:yyyy-MM-dd HH:mm} UTC (if the window still applies then).")
                     : "Restart requested; no maintenance window is configured, so it waits until one applies."), false, true);
+            case AgentActionKind.InstallNow or AgentActionKind.InstallNowRestartInWindow:
+                var restartNow = action.Kind == AgentActionKind.InstallNow;
+                installationRunner.RequestInstallNow(restartNow);
+                var restartText = !installation.Value.AllowReboot
+                    ? "Reboots are forbidden on this server (AllowReboot), so a needed restart is left to an administrator."
+                    : restartNow ? "A needed restart follows right after, with a five minute warning." : "A needed restart waits for the next maintenance window.";
+                return (Succeeded($"The released updates install with this cycle, also outside the maintenance window. {restartText}"), false, true);
             case AgentActionKind.CancelRestart:
                 return (Succeeded(installationRunner.CancelRestart()), false, true);
             case AgentActionKind.UploadLogs:

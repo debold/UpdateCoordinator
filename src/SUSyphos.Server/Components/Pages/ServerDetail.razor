@@ -53,6 +53,7 @@ else
             <span class="note">updates every @LiveRefreshSeconds seconds while the agent works or an action waits</span>
         }
         <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="administer">
+            <a class="btn" href="@DialogLink("install")">Install updates now…</a>
             <a class="btn" href="@DialogLink("restart")">Restart server…</a>
             <div class="spacer"></div>
             <a class="btn danger" href="@DialogLink("remove")">Remove server…</a>
@@ -333,7 +334,39 @@ else
         </ListTable>
     </Box>
 
-    @if (Dialog == "restart")
+    @if (Dialog == "install")
+    {
+        var released = ReleasedPending;
+        <Dialog Title="@($"Install the released updates on {_client.HostName} now?")" CloseHref="@($"/servers/{Id}")" Help="server-detail#install-now">
+            <form method="post" @formname="install" @onsubmit="InstallNowAsync">
+                <AntiforgeryToken />
+                <div class="dialog-body">
+                    @if (released.Count == 0)
+                    {
+                        <p>No update is released for this server and still missing; there is nothing to install.</p>
+                    }
+                    else
+                    {
+                        <p>The agent installs @(released.Count == 1 ? "this update" : $"these {released.Count} updates") with its next heartbeat, also outside the maintenance window and before their planned time:</p>
+                        <ul class="plain">
+                            @foreach (var (entry, title) in released.Take(10))
+                            {
+                                <li>@title</li>
+                            }
+                        </ul>
+                        @if (released.Count > 10)
+                        {
+                            <p class="help">and @(released.Count - 10) more.</p>
+                        }
+                    }
+                    <p>Only updates released for the ring of the server are installed. If Windows then needs a restart, the server restarts <b>right after</b> (five minute warning) or in the <b>next maintenance window</b> (next window: @NextWindowText).</p>
+                    <p class="note">A global pause holds the installation until it ends; in a coordinated group the agent waits for a free slot. A local veto (registry value AllowReboot) prevents the restart.</p>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="/servers/@Id">Cancel</a><button type="submit" name="InstallRestart" value="window" disabled="@(released.Count == 0)">Install, restart in the next window</button><button type="submit" name="InstallRestart" value="now" class="danger" disabled="@(released.Count == 0)">Install and restart right after</button></div>
+            </form>
+        </Dialog>
+    }
+    else if (Dialog == "restart")
     {
         <Dialog Title="@($"Restart {_client.HostName}?")" CloseHref="@($"/servers/{Id}")" Help="server-detail#restart">
             <form method="post" @formname="restart" @onsubmit="RestartAsync">
@@ -401,6 +434,33 @@ else
 
     [SupplyParameterFromForm(FormName = "restart")]
     private string? When { get; set; }
+
+    [SupplyParameterFromForm(FormName = "install")]
+    private string? InstallRestart { get; set; }
+
+    /// <summary>Released for this server and not installed yet: what "Install updates now" installs.</summary>
+    private List<(DeploymentEntry Entry, string Title)> ReleasedPending =>
+        [.. _open.Where(o => o.Entry.EarliestInstallAtUtc is not null && o.Entry.State is DeploymentState.Pending or DeploymentState.Failed)];
+
+    private async Task InstallNowAsync()
+    {
+        var kind = InstallRestart switch
+        {
+            "now" => SUSyphos.Contracts.Agents.AgentActionKind.InstallNow,
+            "window" => SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow,
+            _ => (SUSyphos.Contracts.Agents.AgentActionKind?)null,
+        };
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer)
+            ? new Outcome("Only administrators can install updates outside the maintenance window.")
+            : kind is null
+                ? new Outcome("Choose when the server restarts.")
+                : await Actions.QueueAsync(Id, kind.Value, await GetActorAsync(), CancellationToken.None);
+        ShowResultAndReload(outcome.Error, kind == SUSyphos.Contracts.Agents.AgentActionKind.InstallNow
+            ? "The installation was queued; the agent installs the released updates after its next heartbeat and restarts right after if needed."
+            : "The installation was queued; the agent installs the released updates after its next heartbeat, and a needed restart waits for the next maintenance window.");
+        Dialog = null;
+        await LoadAsync();
+    }
 
     private async Task RestartAsync()
     {
@@ -493,6 +553,8 @@ else
         SUSyphos.Contracts.Agents.AgentActionKind.UploadLogs => "Request logs",
         SUSyphos.Contracts.Agents.AgentActionKind.RestartServerInWindow => "Restart server in maintenance window",
         SUSyphos.Contracts.Agents.AgentActionKind.CancelRestart => "Cancel restart",
+        SUSyphos.Contracts.Agents.AgentActionKind.InstallNow => "Install now, restart right after",
+        SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow => "Install now, restart in maintenance window",
         _ => kind.ToString(),
     };
 
@@ -586,9 +648,10 @@ else
             && Enum.IsDefined(kind)
             && !int.TryParse(kindText, out _))
         {
-            if (kind == SUSyphos.Contracts.Agents.AgentActionKind.RestartServer && !await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+            if (kind is SUSyphos.Contracts.Agents.AgentActionKind.RestartServer or SUSyphos.Contracts.Agents.AgentActionKind.InstallNow or SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow
+                && !await IsAuthorizedAsync(AdminRoles.Policies.Administer))
             {
-                (outcome, success) = (new Outcome("Only administrators can restart a server."), string.Empty);
+                (outcome, success) = (new Outcome("Only administrators can restart a server or install outside the maintenance window."), string.Empty);
             }
             else if (kind == SUSyphos.Contracts.Agents.AgentActionKind.RestartServer && ConfirmRestart != "yes")
             {

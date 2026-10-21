@@ -21,6 +21,7 @@ internal static class InstallationPlanner
     /// <param name="now">Current time.</param>
     /// <param name="options">Tolerance and retry delay.</param>
     /// <param name="inWindow">A maintenance window is open; outside one only releases allowed outside the windows (updates that never restart) count.</param>
+    /// <param name="everything">Install every released update that is missing, regardless of window, earliest time and retry delay (remote action "install now"). The pause still applies.</param>
     public static IReadOnlyList<Release> PlanBatch(
         ReleaseList releases,
         bool paused,
@@ -28,11 +29,17 @@ internal static class InstallationPlanner
         IReadOnlyDictionary<(Guid UpdateId, int Revision), DateTimeOffset> lastAttempts,
         DateTimeOffset now,
         InstallationOptions options,
-        bool inWindow = true)
+        bool inWindow = true,
+        bool everything = false)
     {
         if (paused)
         {
             return [];
+        }
+
+        if (everything)
+        {
+            return [.. releases.Releases.Where(r => missing.Contains((r.UpdateId, r.Revision))).OrderBy(r => r.EarliestInstallAt)];
         }
 
         var candidates = releases.Releases
