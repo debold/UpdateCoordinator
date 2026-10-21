@@ -348,8 +348,36 @@ else
                 WaitText(state, now)));
         }
 
-        // Every server of the ring for every active update, plus what waits before the ring (queued), so the donut
-        // accounts for all released updates including servers that do not need them.
+        // Updates servers of this ring report as missing that are not released here yet: listed too, so the list shows
+        // everything the ring status counts (queued: no rollout or not started; waiting: the rollout has not reached the ring).
+        var listed = _active.Select(a => a.Key).ToHashSet();
+        var waiting = entries.Where(e => !listed.Contains(Key(e.UpdateId, e.Revision))).GroupBy(e => (e.UpdateId, e.Revision)).Take(100).ToList();
+        if (waiting.Count > 0)
+        {
+            var waitingIds = waiting.Select(w => w.Key.UpdateId).Distinct().ToList();
+            var waitingUpdates = await Db.Updates.AsNoTracking().Where(u => waitingIds.Contains(u.UpdateId)).ToListAsync();
+            var running = (await Db.Rollouts.AsNoTracking().Where(o => waitingIds.Contains(o.UpdateId) && o.State == RolloutState.Active).Select(o => new { o.UpdateId, o.Revision }).ToListAsync())
+                .Select(o => (o.UpdateId, o.Revision)).ToHashSet();
+            foreach (var group in waiting.OrderBy(w => waitingUpdates.FirstOrDefault(u => u.UpdateId == w.Key.UpdateId && u.Revision == w.Key.Revision)?.Title, StringComparer.CurrentCulture))
+            {
+                var update = waitingUpdates.FirstOrDefault(u => u.UpdateId == group.Key.UpdateId && u.Revision == group.Key.Revision);
+                var statistics = await Rollouts.GetStatisticsAsync(group.Key.UpdateId, group.Key.Revision, RingId, CancellationToken.None);
+                _active.Add(new ActiveUpdate(
+                    Key(group.Key.UpdateId, group.Key.Revision),
+                    UpdateText.Title(update, group.Key.UpdateId),
+                    update?.KbArticle is { } kb ? $"KB{kb}" : Shorten(update?.Title ?? group.Key.UpdateId.ToString("D")),
+                    update?.Classification,
+                    running.Contains(group.Key) ? "Waiting for the ring before" : "Queued: no rollout yet",
+                    "queue",
+                    DeploymentCounts.Of(group),
+                    statistics,
+                    "not released yet",
+                    null));
+            }
+        }
+
+        // Every server of the ring for every listed update, plus anything else reported (none after the list above), so the
+        // donut accounts for all updates including servers that do not need them.
         var activeKeys = _active.Select(a => a.Key).ToHashSet();
         _ringCounts = _active.Aggregate(DeploymentCounts.Empty, (sum, a) => sum + a.Counts)
             + DeploymentCounts.Of(entries.Where(e => !activeKeys.Contains(Key(e.UpdateId, e.Revision))));

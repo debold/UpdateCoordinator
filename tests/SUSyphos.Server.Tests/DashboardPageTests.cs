@@ -384,6 +384,24 @@ public sealed class DashboardViewTests
         Assert.DoesNotContain("0x80070005", members, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RingPage_ListsUpdatesNotReleasedThereYet_LikeTheRingStatusCountsThem()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var production = await scenario.AddClientAsync("PROD01", RingEntity.ProductionId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(pilot, update);
+        await scenario.ReportAsync(production, update);
+        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
+
+        var html = await (await browser.GetAsync($"/rings/{RingEntity.ProductionId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("KB5040000", html, StringComparison.Ordinal);
+        Assert.Contains("Waiting for the ring before", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("No update is released for this ring or waiting before it.", html, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("/rings/99")]
     [InlineData("/rings/1?update=not-an-update")]
