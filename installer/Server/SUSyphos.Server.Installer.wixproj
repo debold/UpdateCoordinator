@@ -9,7 +9,9 @@
     <!-- ICE61 flags AllowSameVersionUpgrades, which is intended: rebuilt packages of the same version replace each other. -->
     <!-- ICE60 flags versioned native libraries (e.g. SQLite) that carry no language; they are not language specific. -->
     <!-- ICE38/ICE43/ICE57 treat the Start menu as a user profile; this per-machine package installs to the all-users Start menu with an HKLM key path. -->
-    <SuppressIces>ICE61;ICE60;ICE38;ICE43;ICE57</SuppressIces>
+    <!-- ICE46 sporadically reports public properties such as HTTPSPORT as "differing from a defined property by case only"
+         on CI (spelled the same everywhere; seen on the agent package first, see there). -->
+    <SuppressIces>ICE61;ICE60;ICE38;ICE43;ICE57;ICE46</SuppressIces>
     <PublishDir Condition="'$(PublishDir)' == ''">..\..\artifacts\publish\server</PublishDir>
     <ProductVersion Condition="'$(ProductVersion)' == ''">0.0.0</ProductVersion>
     <!-- The agent MSI shipped for download and as the first agent package; empty for a server package without it. -->
