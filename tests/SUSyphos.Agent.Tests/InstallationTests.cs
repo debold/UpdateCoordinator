@@ -170,6 +170,29 @@ public sealed class BatchPlanningTests
         Assert.Empty(Plan([_due], missing: missingOtherRevision));
     }
 
+    [Fact]
+    public void OutsideTheWindow_OnlyReleasesAllowedOutsideWindowsAreInstalled()
+    {
+        var definition = new Release(Guid.NewGuid(), 1, Now.AddHours(-1), OutsideWindows: true);
+        var cumulative = new Release(Guid.NewGuid(), 1, Now.AddHours(-1));
+        var releases = new ReleaseList(1, [definition, cumulative]);
+        var missing = new HashSet<(Guid, int)> { (definition.UpdateId, 1), (cumulative.UpdateId, 1) };
+
+        Assert.Equal([definition], InstallationPlanner.PlanBatch(releases, false, missing, new Dictionary<(Guid, int), DateTimeOffset>(), Now, Options, inWindow: false));
+        Assert.Equal(2, InstallationPlanner.PlanBatch(releases, false, missing, new Dictionary<(Guid, int), DateTimeOffset>(), Now, Options, inWindow: true).Count);
+    }
+
+    [Fact]
+    public void OutsideTheWindow_PauseAndDueTimeStillApply()
+    {
+        var notDue = new Release(Guid.NewGuid(), 1, Now.AddDays(1), OutsideWindows: true);
+        var missing = new HashSet<(Guid, int)> { (notDue.UpdateId, 1) };
+
+        Assert.Empty(InstallationPlanner.PlanBatch(new ReleaseList(1, [notDue]), false, missing, new Dictionary<(Guid, int), DateTimeOffset>(), Now, Options, inWindow: false));
+        var due = notDue with { EarliestInstallAt = Now };
+        Assert.Empty(InstallationPlanner.PlanBatch(new ReleaseList(1, [due]), true, missing, new Dictionary<(Guid, int), DateTimeOffset>(), Now, Options, inWindow: false));
+    }
+
     private static IReadOnlyList<Release> Plan(params Release[] releases) => Plan(releases, paused: false);
 
     private static IReadOnlyList<Release> Plan(

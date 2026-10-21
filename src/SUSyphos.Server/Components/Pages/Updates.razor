@@ -40,6 +40,7 @@
                     <SortHeader Table="_table" Column="title" Label="Title" />
                     <SortHeader Table="_table" Column="classification" Label="Classification" Options="@Options("classification")" />
                     <SortHeader Table="_table" Column="severity" Label="Severity" Options="@Options("severity")" />
+                    <SortHeader Table="_table" Column="restart" Label="Restart" Options="@Options("restart")" />
                     <SortHeader Table="_table" Column="seen" Label="First reported" />
                     <SortHeader Table="_table" Column="rollout" Label="Rollout" Options="@Options("rollout")" />
                     <SortHeader Table="_table" Column="missing" Label="Missing" Class="n" />
@@ -49,7 +50,7 @@
             <tbody>
                 @if (_page.Rows.Count == 0)
                 {
-                    <tr><td colspan="8" class="note">No update matches the search and filters.</td></tr>
+                    <tr><td colspan="9" class="note">No update matches the search and filters.</td></tr>
                 }
                 @foreach (var row in _page.Rows)
                 {
@@ -59,6 +60,7 @@
                         <td class="wrap"><a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a>@if (row.Kb.Length > 0 && !row.Title.Contains($"KB{row.Kb}", StringComparison.OrdinalIgnoreCase)) { <span class="note mono"> KB@(row.Kb)</span> }</td>
                         <td>@row.Classification</td>
                         <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
+                        <td class="nowrap">@row.Restart</td>
                         <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
                         <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }</td>
                         <td class="n">@row.Missing</td>
@@ -75,10 +77,10 @@
 @code {
     private const int MaxRows = 5000;
 
-    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts);
+    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts, string Restart);
 
-    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["classification"] = "Classification", ["severity"] = "Severity", ["rollout"] = "Rollout" };
-    private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("classification", "Classification"), ("severity", "Severity"), ("rollout", "Rollout")];
+    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["classification"] = "Classification", ["severity"] = "Severity", ["rollout"] = "Rollout", ["restart"] = "Restart" };
+    private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("classification", "Classification"), ("severity", "Severity"), ("restart", "Restart"), ("rollout", "Rollout")];
 
     private static readonly IReadOnlyList<TableColumn<Row>> Columns =
     [
@@ -87,6 +89,7 @@
         new("title", "Title", r => r.Title),
         new("classification", "Classification", r => r.Classification, r => [r.Classification]),
         new("severity", "Severity", r => SeverityRank(r.Severity), r => [r.Severity]),
+        new("restart", "Restart", r => r.Restart, r => [r.Restart]),
         new("rollout", "Rollout", r => r.Rollout, r => [r.Rollout]),
         new("missing", "Servers missing it", r => r.Missing),
         new("installed", "Installed", r => r.Counts.Total == 0 ? 0 : (double)r.Counts.Successful / r.Counts.Total),
@@ -199,7 +202,8 @@
                     cls,
                     detail,
                     missing.GetValueOrDefault(key),
-                    DeploymentCounts.Of(counts[key]));
+                    DeploymentCounts.Of(counts[key]),
+                    UpdateText.Restart(u.RebootBehavior));
             })];
 
         _page = TablePaging.Apply(rows, _table, Columns, r => $"KB{r.Kb} {r.Title}");

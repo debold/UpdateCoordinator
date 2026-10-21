@@ -20,13 +20,15 @@ internal static class InstallationPlanner
     /// <param name="lastAttempts">When each update was last attempted.</param>
     /// <param name="now">Current time.</param>
     /// <param name="options">Tolerance and retry delay.</param>
+    /// <param name="inWindow">A maintenance window is open; outside one only releases allowed outside the windows (updates that never restart) count.</param>
     public static IReadOnlyList<Release> PlanBatch(
         ReleaseList releases,
         bool paused,
         IReadOnlySet<(Guid UpdateId, int Revision)> missing,
         IReadOnlyDictionary<(Guid UpdateId, int Revision), DateTimeOffset> lastAttempts,
         DateTimeOffset now,
-        InstallationOptions options)
+        InstallationOptions options,
+        bool inWindow = true)
     {
         if (paused)
         {
@@ -34,6 +36,7 @@ internal static class InstallationPlanner
         }
 
         var candidates = releases.Releases
+            .Where(r => inWindow || r.OutsideWindows)
             .Where(r => missing.Contains((r.UpdateId, r.Revision)))
             .Where(r => !lastAttempts.TryGetValue((r.UpdateId, r.Revision), out var attempted) || now - attempted >= options.RetryDelay)
             .ToList();

@@ -12,6 +12,9 @@ internal sealed class RolloutOptions
     /// <summary>How often rollouts are evaluated and releases synchronized.</summary>
     [Range(typeof(TimeSpan), "00:00:10", "01:00:00")]
     public TimeSpan EvaluationInterval { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>Creates the default start rule for definition updates once at startup (see <see cref="RolloutAdministration.EnsureDefinitionRuleAsync"/>); false for installations that bring their own rules.</summary>
+    public bool CreateDefinitionRule { get; set; } = true;
 }
 
 /// <summary>

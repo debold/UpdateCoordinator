@@ -52,7 +52,8 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
         var rings = await db.Rings.AsNoTracking().OrderBy(r => r.Order).Select(r => new { r.Id, r.Name }).ToListAsync(cancellationToken).ConfigureAwait(false);
         var startRings = StartRings.Parse(rule.StartRingIds);
         var names = rings.Where((r, index) => index == 0 || startRings.Contains(r.Id)).Select(r => r.Name);
-        return string.Create(CultureInfo.InvariantCulture, $"priority {rule.Priority}, delay {rule.Delay.TotalHours:0} h, starts in {string.Join(", ", names)}");
+        var outside = rule.OutsideWindows ? ", outside maintenance windows" : string.Empty;
+        return string.Create(CultureInfo.InvariantCulture, $"priority {rule.Priority}, delay {rule.Delay.TotalHours:0} h, starts in {string.Join(", ", names)}{outside}");
     }
 
     /// <summary>The start rule for an update: the matching rule with the lowest priority number, or null.</summary>
@@ -62,7 +63,8 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
         .FirstOrDefault(r =>
             (r.Classification is null || string.Equals(r.Classification, update.Classification, StringComparison.OrdinalIgnoreCase))
             && (r.MsrcSeverity is null || string.Equals(r.MsrcSeverity, update.MsrcSeverity, StringComparison.OrdinalIgnoreCase))
-            && (r.TitlePattern is null || Wildcard.Matches(r.TitlePattern, update.Title)));
+            && (r.TitlePattern is null || Wildcard.Matches(r.TitlePattern, update.Title))
+            && (r.RebootBehavior is null || r.RebootBehavior == update.RebootBehavior));
 
     /// <summary>Starts rollouts for newly reported updates according to the start rules.</summary>
     public async Task AutoStartAsync(IReadOnlyCollection<(Guid UpdateId, int Revision)> updates, CancellationToken cancellationToken)
@@ -116,6 +118,7 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
 
             var rollout = await CreateAsync(update.UpdateId, update.Revision, RuleActor, rule.Delay, StartRings.Parse(rule.StartRingIds), cancellationToken).ConfigureAwait(false);
             rollout.StartRuleId = rule.Id;
+            rollout.OutsideWindows = rule.OutsideWindows;
             rollout.StartRuleSummary = await DescribeRuleAsync(rule, cancellationToken).ConfigureAwait(false);
             try
             {

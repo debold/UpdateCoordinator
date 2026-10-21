@@ -123,6 +123,9 @@ internal sealed class SettingEntity
 
     public const string SystemMicrosoftUpdate = "MicrosoftUpdate.SystemDefault";
 
+    /// <summary>Set once the default start rule for definition updates was created, so a deleted rule stays deleted.</summary>
+    public const string DefinitionRuleCreated = "StartRules.DefinitionRuleCreated";
+
     public required string Key { get; set; }
 
     public required string Value { get; set; }

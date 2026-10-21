@@ -73,16 +73,25 @@ internal sealed partial class UpdateReportService(
     public async Task<ReleaseList> GetReleasesAsync(Guid clientId, CancellationToken cancellationToken)
     {
         var client = await db.Clients.Where(c => c.Id == clientId).Select(c => new { c.ReleasesVersion, c.EffectiveWindowsJson, c.EffectiveRebootPolicy, c.RequiresLease, c.EffectiveManageAutomaticUpdates, c.EffectiveUseMicrosoftUpdate }).SingleAsync(cancellationToken).ConfigureAwait(false);
+        // Outside the windows only if the rollout allows it and Windows reports the update as never restarting.
+        var neverReboots = (int)RebootBehavior.NeverReboots;
         var rows = await db.Releases
             .Where(r => r.ClientId == clientId)
             .OrderBy(r => r.EarliestInstallAtUtc)
-            .Select(r => new { r.UpdateId, r.Revision, r.EarliestInstallAtUtc })
+            .Select(r => new
+            {
+                r.UpdateId,
+                r.Revision,
+                r.EarliestInstallAtUtc,
+                OutsideWindows = db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.OutsideWindows)
+                    && db.Updates.Any(u => u.UpdateId == r.UpdateId && u.Revision == r.Revision && u.RebootBehavior == neverReboots),
+            })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return new ReleaseList(
             client.ReleasesVersion,
-            [.. rows.Select(r => new Release(r.UpdateId, r.Revision, new DateTimeOffset(DateTime.SpecifyKind(r.EarliestInstallAtUtc, DateTimeKind.Utc))))],
+            [.. rows.Select(r => new Release(r.UpdateId, r.Revision, new DateTimeOffset(DateTime.SpecifyKind(r.EarliestInstallAtUtc, DateTimeKind.Utc)), r.OutsideWindows))],
             MaintenanceWindowFormat.FromJson(client.EffectiveWindowsJson),
             client.EffectiveRebootPolicy,
             client.RequiresLease,

@@ -24,6 +24,7 @@ All actions are recorded in the update's timeline and the [audit log](help/audit
 | **Title** | Title from Windows Update; the KB number follows when it is not part of the title. |
 | **Classification** | Security Updates, Critical Updates, Updates, Update Rollups, Definition Updates, Drivers and so on. |
 | **Severity** | Microsoft's severity (Critical, Important, Moderate, Low) where Microsoft gives one. |
+| **Restart** | Restart behaviour as Windows Update reports it: *No restart*, *May restart*, *Restart required*, or *Unknown* (reported before agents sent it). Start rules can use it as a condition. |
 | **First reported** | When a server reported it as missing for the first time. |
 | **Rollout** | *Queued* (no rollout yet), *Started* (waiting for the first ring), *Rolling out* (released up to the ring named below), *Released to all rings*, *Waiting at gate* (a manual gate waits for approval), *Alarm* (stopped before a ring, with the reason) or *Stopped*. |
 | **Missing** | Number of servers that still report it as missing. |

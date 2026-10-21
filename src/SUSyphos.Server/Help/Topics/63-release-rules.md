@@ -29,7 +29,7 @@ A new ring is added before the final ring and starts with a transition of 2–7 
 
 ## Start rules {#start-rules}
 
-When an approved server reports an update for the first time, the matching start rule with the lowest priority number decides how its rollout starts. Without a matching rule the update stays queued until an operator starts it. The table shows **Priority**, the conditions (**Classification**, **Severity**, **Title pattern**; "any" means no condition), **Start** (automatically, with delay, or manually) and **Starts in** (the rings the update is released to at once).
+When an approved server reports an update for the first time, the matching start rule with the lowest priority number decides how its rollout starts. Without a matching rule the update stays queued until an operator starts it. The table shows **Priority**, the conditions (**Classification**, **Severity**, **Title pattern**, **Restart**; "any" means no condition), **Start** (automatically, with delay, or manually, and "outside maintenance windows" where allowed) and **Starts in** (the rings the update is released to at once).
 
 Rules are applied when a server reports an update, when a rule is saved and every minute to all waiting updates. A rule decides only once per update; changing it later does not change running rollouts.
 
@@ -41,8 +41,10 @@ Rules are applied when a server reports an update, when a rule is saved and ever
 
 - **Classification**: only updates of this classification, or "Any classification".
 - **Severity**: only updates with this Microsoft severity, or "Any severity".
+- **Restart**: only updates with this restart behaviour as Windows Update reports it: "No restart" (e.g. definition updates), "Restart required", "May restart", or "Any restart behaviour". Updates whose behaviour is not known yet match only "Any".
 - **Priority (lower wins)**: 0 to 10000; new rules get the next free number, and two rules cannot share one.
 - **Title pattern (\* and ? allowed)**: the whole title must match; use `*` for the varying parts, for example `*Cumulative Update*`.
+- **Install outside the maintenance windows**: servers install the updates of this rule as soon as they are released, also outside their windows. Allowed only with the restart condition "No restart", and delivered only while Windows reports the update as never restarting; anything that restarts waits for a window. A global pause still stops them. A new installation brings one such rule for definition updates (no restart, all rings at once, outside the windows); change or delete it like any other rule.
 - **Start**: "Automatically" starts the rollout at once; "Manually" keeps the update queued until an operator starts it.
 - **Delay before the first installation (hours)**: 0 to 720; servers of the first ring may install only after the delay. The transition wait starts after it.
 - **Starts in**: the first ring always gets the update; tick further rings to release it there at once too, for example definition updates in every ring. Rings not ticked follow their transition rules.

@@ -998,6 +998,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<int>("Revision")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("OutsideWindows")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("Override")
                         .HasColumnType("INTEGER");
 
@@ -1093,7 +1096,13 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("OutsideWindows")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Priority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RebootBehavior")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("StartRingIds")
@@ -1114,6 +1123,7 @@ namespace SUSyphos.Server.Data.Migrations
                             Id = 1,
                             Delay = new TimeSpan(0, 0, 0, 0, 0),
                             Mode = 0,
+                            OutsideWindows = false,
                             Priority = 1000
                         });
                 });

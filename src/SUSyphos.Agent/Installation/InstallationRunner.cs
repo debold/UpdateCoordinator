@@ -327,15 +327,14 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     {
         var options = _options.Value;
         var missing = _updates.LastMissingUpdates;
-        if (!options.Enabled
-            || missing is null
-            || !InstallationPlanner.IsInWindow(EffectiveWindows, _timeProvider.GetLocalNow().DateTime))
+        if (!options.Enabled || missing is null)
         {
             return [];
         }
 
         var attempts = _state.Attempts.ToDictionary(a => (a.UpdateId, a.Revision), a => a.AttemptedAt);
-        return InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options);
+        var inWindow = InstallationPlanner.IsInWindow(EffectiveWindows, _timeProvider.GetLocalNow().DateTime);
+        return InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options, inWindow);
     }
 
     /// <summary>Installs a batch, buffers the report and returns true if every update succeeded and the server is healthy afterwards.</summary>

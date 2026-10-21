@@ -105,4 +105,8 @@ public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, 
 /// <summary>
 /// A released update and the earliest time it may be installed.
 /// </summary>
-public sealed record Release(Guid UpdateId, int Revision, DateTimeOffset EarliestInstallAt);
+/// <param name="UpdateId">The update.</param>
+/// <param name="Revision">Its revision.</param>
+/// <param name="EarliestInstallAt">Earliest installation time.</param>
+/// <param name="OutsideWindows">The update never restarts and may be installed outside the maintenance windows (start rule).</param>
+public sealed record Release(Guid UpdateId, int Revision, DateTimeOffset EarliestInstallAt, bool OutsideWindows = false);

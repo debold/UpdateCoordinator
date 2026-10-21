@@ -34,6 +34,12 @@ internal sealed class RolloutEntity
 
     /// <summary>Description of the start rule at the time it started the rollout (priority, conditions, rings), so later changes to the rule do not rewrite history.</summary>
     public string? StartRuleSummary { get; set; }
+
+    /// <summary>
+    /// Servers may install the update outside their maintenance windows (start rule for updates that never restart).
+    /// Delivered only while Windows reports the update as never restarting.
+    /// </summary>
+    public bool OutsideWindows { get; set; }
 }
 
 internal enum RingRolloutState
@@ -143,6 +149,12 @@ internal sealed class StartRuleEntity
     /// between still follow their transition rules, e.g. definition updates can start in every ring at once.
     /// </summary>
     public string? StartRingIds { get; set; }
+
+    /// <summary>Condition on the restart behaviour Windows Update reports for the update (<see cref="SUSyphos.Contracts.Agents.RebootBehavior"/>); null matches any.</summary>
+    public int? RebootBehavior { get; set; }
+
+    /// <summary>Updates started by this rule may install outside the maintenance windows; only with the condition "never restarts".</summary>
+    public bool OutsideWindows { get; set; }
 }
 
 /// <summary>Patch compliance of one day: approved servers and those with every released update installed.</summary>

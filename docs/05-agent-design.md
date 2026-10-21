@@ -92,6 +92,7 @@ Windows can install updates by itself, independent of the agent. Then updates ar
 
 - The central server sends releases as a package of **update ID + earliest installation time**.
 - The agent forms **batches** locally and respects blackout and maintenance windows.
+- **Outside the windows (Marc, 2026-10-21):** a release marked `outsideWindows` (start rule with the restart condition "no restart" and "install outside the maintenance windows", e.g. definition updates) may be installed at any time once due; the global pause, the health check and leases in coordinated groups still apply, and reboots still wait for a window. The central server marks a release only while Windows reports the update as never restarting.
 - **Bundling:** several updates due in the same window are installed in one shared download/install/reboot cycle.
 - **Pull-forward tolerance (configurable):** updates whose earliest time lies shortly after the start of the current batch are pulled into the batch (if the window allows) to avoid additional reboots. A batch that is already due is not delayed artificially.
 - **Global pause:** the agent starts no new installations but continues health check, search and reporting.

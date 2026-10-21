@@ -112,6 +112,10 @@ internal static class ServerServiceCollectionExtensions
         await scope.ServiceProvider.GetRequiredService<TrustBindingService>().EnsureCurrentAsync(cancellationToken).ConfigureAwait(false);
         await scope.ServiceProvider.GetRequiredService<CertificateAdministration>().AuditStartupChangeAsync(cancellationToken).ConfigureAwait(false);
         await scope.ServiceProvider.GetRequiredService<Assignment.AssignmentAdministration>().RenumberDuplicatePrioritiesAsync(cancellationToken).ConfigureAwait(false);
+        if (scope.ServiceProvider.GetRequiredService<IOptions<Rollouts.RolloutOptions>>().Value.CreateDefinitionRule)
+        {
+            await scope.ServiceProvider.GetRequiredService<Rollouts.RolloutAdministration>().EnsureDefinitionRuleAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Creates the database directory if needed and applies pending schema migrations.</summary>

@@ -170,7 +170,6 @@ else
 
     private sealed record RingRow(int RingId, int Order, string Name, RingRolloutState? State, string? Reason, DateTime? ReleasedAtUtc, RingStatistics Statistics, DeploymentCounts Counts, RingForecast? Forecast = null);
 
-
     /// <summary>State of the update on one server, as the server table shows it.</summary>
     private enum ServerUpdateStatus
     {

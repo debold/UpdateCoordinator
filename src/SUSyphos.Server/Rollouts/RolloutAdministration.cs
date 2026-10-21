@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 
 using Microsoft.EntityFrameworkCore;
 
+using SUSyphos.Contracts.Agents;
 using SUSyphos.Server.Administration;
 using SUSyphos.Server.Data;
 
@@ -27,7 +28,11 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         string action;
         if (rollout is null)
         {
-            await rollouts.CreateAsync(updateId, revision, actor, TimeSpan.Zero, null, cancellationToken).ConfigureAwait(false);
+            var created = await rollouts.CreateAsync(updateId, revision, actor, TimeSpan.Zero, null, cancellationToken).ConfigureAwait(false);
+
+            // A manual start keeps the permission of the rule that would decide for the update (e.g. definition updates at any time).
+            var rules = await db.StartRules.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
+            created.OutsideWindows = RolloutService.FindStartRule(rules, update)?.OutsideWindows == true;
             action = "Rollout.Started";
         }
         else if (rollout.State == RolloutState.Stopped)
@@ -154,12 +159,53 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
     /// <summary>Creates a start rule; conditions are optional, a rule without conditions matches every update.</summary>
     public Task<Outcome> CreateStartRuleAsync(
         int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, string actor, CancellationToken cancellationToken,
-        IReadOnlyCollection<int>? startRings = null) =>
-        SaveStartRuleAsync(null, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings ?? [], actor, cancellationToken);
+        IReadOnlyCollection<int>? startRings = null, RebootBehavior? rebootBehavior = null, bool outsideWindows = false) =>
+        SaveStartRuleAsync(null, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings ?? [], rebootBehavior, outsideWindows, actor, cancellationToken);
 
     public Task<Outcome> UpdateStartRuleAsync(
-        int ruleId, int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, IReadOnlyCollection<int> startRings, string actor, CancellationToken cancellationToken) =>
-        SaveStartRuleAsync(ruleId, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings, actor, cancellationToken);
+        int ruleId, int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, IReadOnlyCollection<int> startRings, string actor, CancellationToken cancellationToken,
+        RebootBehavior? rebootBehavior = null, bool outsideWindows = false) =>
+        SaveStartRuleAsync(ruleId, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings, rebootBehavior, outsideWindows, actor, cancellationToken);
+
+    /// <summary>Classification Windows Update reports for antivirus definitions (Defender and others).</summary>
+    public const string DefinitionUpdates = "Definition Updates";
+
+    /// <summary>
+    /// Creates the default start rule for definition updates once (Marc, 2026-10-21): they never restart, so they start in
+    /// every ring at once and install outside the maintenance windows. Administrators may change or delete it; it is not
+    /// created again. Skipped when a rule for definition updates already exists.
+    /// </summary>
+    public async Task<bool> EnsureDefinitionRuleAsync(CancellationToken cancellationToken)
+    {
+        if (await db.Settings.AnyAsync(s => s.Key == SettingEntity.DefinitionRuleCreated, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        db.Settings.Add(new SettingEntity { Key = SettingEntity.DefinitionRuleCreated, Value = "true" });
+        var rules = await db.StartRules.AsNoTracking().Select(r => new { r.Id, r.Priority, r.Classification }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (rules.Any(r => string.Equals(r.Classification, DefinitionUpdates, StringComparison.OrdinalIgnoreCase)))
+        {
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
+        var rings = await db.Rings.AsNoTracking().OrderBy(r => r.Order).Select(r => r.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var rule = new StartRuleEntity
+        {
+            Priority = NextFreePriority([.. rules.Select(r => (r.Id, r.Priority))]),
+            Classification = DefinitionUpdates,
+            RebootBehavior = (int)RebootBehavior.NeverReboots,
+            Mode = StartMode.Automatic,
+            Delay = TimeSpan.Zero,
+            StartRingIds = StartRings.Format(rings.Skip(1)),
+            OutsideWindows = true,
+        };
+        db.StartRules.Add(rule);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync("system", "StartRule.Created", rule.Mode.ToString(), string.Create(CultureInfo.InvariantCulture, $"default rule for definition updates: priority {rule.Priority}, never restarts, all rings, outside windows"), cancellationToken).ConfigureAwait(false);
+        return true;
+    }
 
     /// <summary>Priority suggested for a new start rule: the first free one after the highest rule (from 100 on), below the catch-all rule where possible.</summary>
     public static int NextFreePriority(IReadOnlyCollection<(int Id, int Priority)> rules)
@@ -171,8 +217,20 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
 
     /// <summary>Validates and stores a start rule; <c>startRings</c> lists rings released at once besides the first ring.</summary>
     private async Task<Outcome> SaveStartRuleAsync(
-        int? ruleId, int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, IReadOnlyCollection<int> startRings, string actor, CancellationToken cancellationToken)
+        int? ruleId, int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, IReadOnlyCollection<int> startRings,
+        RebootBehavior? rebootBehavior, bool outsideWindows, string actor, CancellationToken cancellationToken)
     {
+        if (rebootBehavior is { } behavior && !Enum.IsDefined(behavior))
+        {
+            return new Outcome("The restart condition is invalid.");
+        }
+
+        // Only updates that never restart may skip the maintenance window; a restart always waits for one.
+        if (outsideWindows && rebootBehavior != RebootBehavior.NeverReboots)
+        {
+            return new Outcome("Installing outside the maintenance windows needs the restart condition \"never restarts\".");
+        }
+
         classification = Normalize(classification);
         msrcSeverity = Normalize(msrcSeverity);
         titlePattern = Normalize(titlePattern);
@@ -243,11 +301,13 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         rule.TitlePattern = titlePattern;
         rule.Mode = mode;
         rule.Delay = TimeSpan.FromHours(delayHours);
+        rule.RebootBehavior = (int?)rebootBehavior;
+        rule.OutsideWindows = outsideWindows;
 
         // The first ring always starts; storing it would only repeat the default.
         rule.StartRingIds = StartRings.Format(startRings.Where(r => r != rings[0]));
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        var details = string.Create(CultureInfo.InvariantCulture, $"priority {priority}, classification {classification ?? "-"}, severity {msrcSeverity ?? "-"}, title {titlePattern ?? "-"}, {mode}, delay {delayHours} hours, also starts in rings {rule.StartRingIds ?? "-"}");
+        var details = string.Create(CultureInfo.InvariantCulture, $"priority {priority}, classification {classification ?? "-"}, severity {msrcSeverity ?? "-"}, title {titlePattern ?? "-"}, {mode}, delay {delayHours} hours, also starts in rings {rule.StartRingIds ?? "-"}, restart {rebootBehavior?.ToString() ?? "-"}, outside windows {(outsideWindows ? "yes" : "no")}");
         await audit.WriteAsync(actor, ruleId is null ? "StartRule.Created" : "StartRule.Changed", mode.ToString(), details, cancellationToken).ConfigureAwait(false);
 
         // A new or changed rule also applies to updates that were reported before it existed.
