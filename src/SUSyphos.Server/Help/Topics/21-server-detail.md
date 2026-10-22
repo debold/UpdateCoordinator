@@ -96,7 +96,7 @@ When the server may install updates. "Inherit from groups or the system default"
 What the agent reported about the server:
 
 - **Operating system**, **Build**, **Domain**, **Roles** (detected roles such as domain controller, SQL Server, Hyper-V).
-- **Update source**: Windows Update, or WSUS with its address (a warning: the server should not depend on WSUS).
+- **Update source**: what the agent reports: Microsoft Update (Windows and other Microsoft products, when the agent registered the Microsoft Update service), Windows Update, or WSUS with its address (a warning: the server should not depend on WSUS). A tag "set: …" next to it means the setting differs from what the agent reported last; it applies with the next heartbeat and shows after the next inventory.
 - **Agent update**: installed agent version (opens all servers with this version), a failed agent update with its error, or "below minimum" when the agent is older than the minimum version.
 - **Automatic updates**: whether Windows could install or restart on its own, outside rings and windows (problem), or not (OK), with the current setting.
 - **Restart**: whether a restart is pending and why the agent waits.

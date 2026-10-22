@@ -140,6 +140,9 @@ public sealed record UpdateSourceInfo
 
     /// <summary>How Windows itself installs updates; null from agents before version 0.3.</summary>
     public AutomaticUpdatesInfo? AutomaticUpdates { get; init; }
+
+    /// <summary>True if the Microsoft Update service is registered (other Microsoft products); null if unknown or from older agents.</summary>
+    public bool? MicrosoftUpdateRegistered { get; init; }
 }
 
 /// <summary>

@@ -163,6 +163,24 @@ public sealed class InventoryCollectorTests
         Assert.Equal(InventoryRequest.MaxInstalledUpdates, WireFormat.ToInstalledUpdates(raw).Count);
     }
 
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(false, false, false)]
+    [InlineData(true, true, null)]
+    public async Task Inventory_ReportsWhetherMicrosoftUpdateIsRegistered(bool registered, bool fail, bool? expected)
+    {
+        var registry = new FakeUpdateServiceRegistry { Fail = fail };
+        if (registered)
+        {
+            registry.Registered.Add(SUSyphos.Agent.Updates.UpdateServiceSelection.MicrosoftUpdateServiceId);
+        }
+
+        var collector = new InventoryCollector(_probe, _updates, new RoleDetector(_probe, Options.Create(new InventoryOptions())), new FakeEnvironment(), registry);
+        var inventory = await collector.CollectAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, inventory.UpdateSource.MicrosoftUpdateRegistered);
+    }
+
     private Task<InventoryRequest> CollectAsync()
     {
         var environment = new FakeEnvironment();

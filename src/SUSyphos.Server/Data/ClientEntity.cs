@@ -140,6 +140,9 @@ internal sealed class ClientEntity
     /// <summary>Effective reboot policy delivered to the agent.</summary>
     public SUSyphos.Contracts.Agents.RebootPolicy EffectiveRebootPolicy { get; set; }
 
+    /// <summary>Whether the agent reports the Microsoft Update service as registered; null if not reported (older agents).</summary>
+    public bool? MicrosoftUpdateRegistered { get; set; }
+
     /// <summary>Central agent settings of this server alone as JSON (setting key to value); null sets none.</summary>
     public string? AgentSettingsJson { get; set; }
 

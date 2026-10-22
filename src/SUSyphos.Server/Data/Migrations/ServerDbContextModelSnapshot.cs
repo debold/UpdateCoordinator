@@ -561,6 +561,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<int?>("ManualRingId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool?>("MicrosoftUpdateRegistered")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("NextInventoryAtUtc")
                         .HasColumnType("TEXT");
 

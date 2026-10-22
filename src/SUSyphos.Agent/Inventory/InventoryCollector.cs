@@ -13,7 +13,8 @@ internal sealed partial class InventoryCollector(
     ISystemProbe probe,
     IInstalledUpdateSource updates,
     RoleDetector roles,
-    IAgentEnvironment environment)
+    IAgentEnvironment environment,
+    Updates.IUpdateServiceRegistry? services = null)
 {
     private const string CurrentVersionPath = AgentEnvironment.CurrentVersionPath;
     private const string WindowsUpdatePolicyPath = AutomaticUpdatesReader.PolicyPath;
@@ -29,7 +30,7 @@ internal sealed partial class InventoryCollector(
             TimeZoneId = TimeZoneInfo.Local.Id,
             OperatingSystem = ReadOperatingSystem(),
             Roles = roles.Detect(),
-            UpdateSource = ReadUpdateSource(probe),
+            UpdateSource = ReadUpdateSource(probe) with { MicrosoftUpdateRegistered = IsMicrosoftUpdateRegistered() },
             InstalledUpdates = installed is null ? null : WireFormat.ToInstalledUpdates(installed),
             UpdateHistory = history,
         };
@@ -42,6 +43,24 @@ internal sealed partial class InventoryCollector(
         DisplayVersion = WireFormat.Match(probe.GetRegistryValue(CurrentVersionPath, "DisplayVersion"), VersionLabelRegex(), 16),
         Version = environment.OsVersion,
     };
+
+    /// <summary>Whether the Microsoft Update service is registered, so the dashboard shows the real update source; null if it cannot be read.</summary>
+    private bool? IsMicrosoftUpdateRegistered()
+    {
+        if (services is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return services.IsRegistered(Updates.UpdateServiceSelection.MicrosoftUpdateServiceId);
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidCastException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>WSUS and Automatic Updates configuration; shared with the pre-flight check.</summary>
     internal static UpdateSourceInfo ReadUpdateSource(ISystemProbe probe)

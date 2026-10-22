@@ -445,6 +445,31 @@ public sealed class AssignmentPageTests
     }
 
     [Fact]
+    public async Task SystemBox_ShowsTheReportedUpdateSource_AndADifferentSetting()
+    {
+        await using var factory = new ServerFactory();
+        await factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var browser = new DashboardClient(factory);
+        var credentials = await RegisterTests.RegisterAsync(browser.Http);
+        await factory.WithDbAsync(db => db.Clients.Where(c => c.Id == credentials.ClientId)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.State, SUSyphos.Contracts.Agents.RegistrationState.Approved), TestContext.Current.CancellationToken));
+        var inventory = InventoryTests.ValidInventory();
+        using (await InventoryTests.SendAsync(browser.Http, credentials, inventory with { UpdateSource = inventory.UpdateSource with { MicrosoftUpdateRegistered = true } }))
+        {
+        }
+
+        using (await browser.LoginAsync("reader", Password))
+        {
+        }
+
+        // Registered by the agent, but the setting (system default: Windows Update only) says otherwise.
+        var html = await (await browser.GetAsync($"/servers/{credentials.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Microsoft Update (Windows and other Microsoft products)", html, StringComparison.Ordinal);
+        Assert.Contains("set: Windows Update only", html, StringComparison.Ordinal);
+        Assert.True(await factory.WithDbAsync(db => db.Clients.Where(c => c.Id == credentials.ClientId).Select(c => c.MicrosoftUpdateRegistered == true).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
     public async Task Reader_SeesServersButCannotChangeAssignment()
     {
         await using var factory = new ServerFactory();
