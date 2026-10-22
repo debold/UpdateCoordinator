@@ -76,6 +76,10 @@ internal static class AgentHostBuilder
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddSingleton<IUpdateInstaller, WuaUpdateInstaller>();
+        services.AddSingleton<IWuaUninstall, WuaUninstall>();
+        services.AddSingleton<IProcessRunner, ProcessRunner>();
+        services.AddSingleton<IDismUninstall, DismUninstall>();
+        services.AddSingleton<IUpdateUninstaller, UpdateUninstaller>();
         services.AddSingleton<IInstallationStateStore>(provider => new ProtectedInstallationStateStore(
             ProtectedInstallationStateStore.DefaultPath,
             provider.GetRequiredService<ILogger<ProtectedInstallationStateStore>>()));

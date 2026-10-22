@@ -29,7 +29,56 @@ internal sealed partial class AgentActionService(
     /// <summary>A fetched action without result expires after this time (agent restarted or crashed).</summary>
     public static readonly TimeSpan DeliveredLifetime = TimeSpan.FromHours(1);
 
-    public async Task<Outcome> QueueAsync(Guid clientId, AgentActionKind kind, string actor, CancellationToken cancellationToken)
+    public Task<Outcome> QueueAsync(Guid clientId, AgentActionKind kind, string actor, CancellationToken cancellationToken) =>
+        kind is AgentActionKind.Uninstall or AgentActionKind.UninstallRestartInWindow
+            ? Task.FromResult(new Outcome("Choose the update to uninstall."))
+            : QueueCoreAsync(clientId, kind, actor, null, cancellationToken);
+
+    /// <summary>
+    /// Queues the uninstallation of an update the server has installed (per its inventory), with the restart right after
+    /// or in the next maintenance window. The KB number goes along so the agent can use DISM where Windows Update cannot.
+    /// </summary>
+    public async Task<Outcome> QueueUninstallAsync(Guid clientId, Guid updateId, bool restartNow, string actor, CancellationToken cancellationToken)
+    {
+        var installed = await db.ClientUpdates.AsNoTracking()
+            .Where(u => u.ClientId == clientId && u.UpdateId == updateId)
+            .OrderByDescending(u => u.Revision)
+            .Select(u => new { u.UpdateId, u.Revision })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (installed is null)
+        {
+            return new Outcome("The server does not report this update as installed.");
+        }
+
+        var update = await db.Updates.AsNoTracking().Where(u => u.UpdateId == updateId && u.Revision == installed.Revision).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        var kind = restartNow ? AgentActionKind.Uninstall : AgentActionKind.UninstallRestartInWindow;
+        return await QueueCoreAsync(clientId, kind, actor, (updateId, installed.Revision, update?.KbArticle), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Queues the uninstallation on every approved server that reports the update as installed; returns how many got it.</summary>
+    public async Task<int> QueueUninstallEverywhereAsync(Guid updateId, bool restartNow, string actor, CancellationToken cancellationToken)
+    {
+        var approved = db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
+        var clients = await db.ClientUpdates.AsNoTracking()
+            .Where(u => u.UpdateId == updateId && approved.Contains(u.ClientId))
+            .Select(u => u.ClientId)
+            .Distinct()
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var queued = 0;
+        foreach (var clientId in clients)
+        {
+            if ((await QueueUninstallAsync(clientId, updateId, restartNow, actor, cancellationToken).ConfigureAwait(false)).Succeeded)
+            {
+                queued++;
+            }
+        }
+
+        return queued;
+    }
+
+    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken)
     {
         if (!Enum.IsDefined(kind))
         {
@@ -61,9 +110,13 @@ internal sealed partial class AgentActionService(
             State = AgentActionState.Queued,
             RequestedAtUtc = timeProvider.GetUtcNow().UtcDateTime,
             RequestedBy = actor,
+            UpdateId = update?.UpdateId,
+            Revision = update?.Revision,
+            KbArticle = update?.KbArticle,
         });
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        await audit.WriteAsync(actor, "Action.Queued", $"{client.HostName} ({clientId:D})", kind.ToString(), cancellationToken).ConfigureAwait(false);
+        var details = update is { } named ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{kind} {named.UpdateId:D} revision {named.Revision}{(named.KbArticle is null ? null : $" (KB{named.KbArticle})")}") : kind.ToString();
+        await audit.WriteAsync(actor, "Action.Queued", $"{client.HostName} ({clientId:D})", details, cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
     }
 
@@ -103,7 +156,7 @@ internal sealed partial class AgentActionService(
         }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return new AgentActionList([.. actions.Select(a => new AgentAction(a.Id, a.Kind, new DateTimeOffset(DateTime.SpecifyKind(a.RequestedAtUtc, DateTimeKind.Utc))))]);
+        return new AgentActionList([.. actions.Select(a => new AgentAction(a.Id, a.Kind, new DateTimeOffset(DateTime.SpecifyKind(a.RequestedAtUtc, DateTimeKind.Utc)), a.UpdateId, a.Revision, a.KbArticle))]);
     }
 
     /// <summary>Records the result; false if the action is unknown, belongs to another client or was not delivered.</summary>

@@ -2,7 +2,7 @@
 
 One update with its rollout through the rings and its state on every server. The line under the title shows classification, severity, revision, restart behaviour and when it was first reported; the tag next to the title shows the rollout state as in the [update list](help/updates#columns).
 
-When a newer update replaces this one (Windows Update supersedence), a note names it. Each ring then gets the newer update as soon as it is released there: servers that get the newer one no longer get this one, the others keep it. Once the newer update has reached every ring this one reached, this rollout stops by itself ("Rollout stopped: superseded by â€¦" in the timeline).
+When a newer update replaces this one (Windows Update supersedence), a note names it. Each ring then gets the newer update as soon as it is released there: servers that get the newer one no longer get this one, the others keep it. Once the newer update has reached every ring this one reached, this rollout stops by itself ("Rollout stopped: superseded by …" in the timeline).
 
 ## Actions for this update {#actions}
 
@@ -13,6 +13,23 @@ Operators and administrators:
 - **Start rollout** / **Resume rollout**: starts a queued update or resumes a stopped rollout.
 - **Release to all rings**: releases the update to every ring at once, skipping wait times, rates and gates.
 - **Stop rollout**: withdraws all releases that are not installed yet; can be resumed later.
+- **Block**: stops the rollout like "Stop rollout" and locks the update: neither a start rule nor an operator starts it again until someone chooses **Unblock** (which leaves the rollout stopped; resume it when the update should be installed again). For an update known to be faulty.
+
+Administrators also have:
+
+- **Block and uninstall…**: opens the [uninstall dialog](#uninstall).
+
+A red note says when the update is **blocked** (by whom and since when) or **probably withdrawn by Microsoft**: servers that had it released report that Windows Update no longer knows it, did not install it, and no newer update or revision replaces it. Depending on the setting under [Release rules](help/release-rules#withdrawn) the rollout was stopped or only a notification sent. The note goes away when a server gets the update offered again; a stopped rollout stays stopped.
+
+## Block and uninstall {#uninstall}
+
+Blocks the update and lets every server that reports it as installed uninstall it with its next heartbeat, also outside the maintenance window. The agent uninstalls through Windows Update; where Windows Update cannot remove an update (for example combined servicing stack and cumulative packages) it uses DISM with the KB number. Some packages, such as servicing stack updates, cannot be removed at all; the remote action on that server then reports why.
+
+- **Uninstall and restart right after**: if Windows needs a restart, the server restarts at once after a five minute warning.
+- **Uninstall, restart in the next window**: a needed restart waits for the next maintenance window that stays open long enough.
+- **Cancel** closes the dialog without changing anything.
+
+The local veto (registry value AllowReboot) prevents the restart. Each server shows the action and its result under its remote actions.
 
 Administrators also have **Create release rule from this update…**, which opens a new start rule pre-filled with the classification, severity and title of this update ([Release rules](help/release-rules#start-rules)).
 

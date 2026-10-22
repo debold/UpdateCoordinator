@@ -24,6 +24,7 @@ Everyone can use:
 Administrators also have:
 
 - **Install updates now…**: opens the [install dialog](#install-now).
+- **Uninstall update…**: opens the [uninstall dialog](#uninstall).
 - **Restart server…**: opens the [restart dialog](#restart).
 - **Remove server…** and **Delete with history…**: open the [remove dialog](#remove).
 
@@ -122,6 +123,16 @@ For a server that should not wait for its next maintenance window, for example a
 - **Cancel** closes the dialog without queuing anything.
 
 The local veto (registry value AllowReboot) still prevents the restart; the updates are installed anyway and the server shows "reboot pending". The action and its result appear under [Remote actions](#remote-actions).
+
+## Uninstall an update {#uninstall}
+
+Removes one update from this server, for example a faulty one. **Update** lists the updates the inventory of the server reports as installed. The agent uninstalls it with its next heartbeat, also outside the maintenance window: through Windows Update, or with DISM by the KB number where Windows Update cannot. Some packages cannot be removed at all; the remote action then reports why. To keep the update away from all servers, block it on its update page ("Block and uninstall…" also uninstalls it everywhere).
+
+- **Uninstall and restart right after**: if Windows needs a restart, the server restarts at once after a five minute warning.
+- **Uninstall, restart in the next window**: a needed restart waits for the next maintenance window that stays open long enough.
+- **Cancel** closes the dialog without queuing anything.
+
+The local veto (registry value AllowReboot) prevents the restart.
 
 ## Restart dialog {#restart}
 

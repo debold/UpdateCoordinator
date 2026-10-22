@@ -345,3 +345,16 @@ internal sealed class FakeProcessResources : IProcessResources
         PriorityLowered = true;
     }
 }
+
+internal sealed class FakeUninstaller : SUSyphos.Agent.Installation.IUpdateUninstaller
+{
+    public SUSyphos.Agent.Installation.UninstallResult Result { get; set; } = new(SUSyphos.Agent.Installation.UninstallStatus.Succeeded, false, "Uninstalled through Windows Update.");
+
+    public List<(Guid UpdateId, string? Kb)> Calls { get; } = [];
+
+    public Task<SUSyphos.Agent.Installation.UninstallResult> UninstallAsync(Guid updateId, string? kbArticle, CancellationToken cancellationToken)
+    {
+        Calls.Add((updateId, kbArticle));
+        return Task.FromResult(Result);
+    }
+}

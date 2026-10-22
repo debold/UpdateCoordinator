@@ -11,6 +11,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- Looks up the released updates a search did not find and reports those Windows Update no longer knows at all (`notOffered`), so the central server can spot updates Microsoft withdrew.
+- New remote actions "uninstall, restart right after" and "uninstall, restart in the next maintenance window": removes the named update through Windows Update, or with DISM by its KB number where Windows Update cannot (e.g. combined servicing stack and cumulative packages); the local veto prevents only the restart.
 - Self-update: msiexec failed with exit code 1619 (sharing violation, log note 2203 with 0x80030020) because the agent kept the verified package open with write access. The package is now verified and installed through a read-only handle that still keeps others from changing it. Agents up to 0.7.2 have the error and cannot update themselves: install a fixed version on them once by hand (or by software distribution); from then on remote updates work.
 - New remote actions "install now, restart right after" and "install now, restart in the next maintenance window": install every released update the server misses at once, outside the window and before its time (pause and leases apply, the local veto prevents only the restart).
 - Reports with every available update the updates it supersedes (Windows Update `SupersededUpdateIDs`).
@@ -53,6 +55,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Updates withdrawn by Microsoft: when servers report that Windows Update no longer knows a released update, no server still gets it offered and no newer revision or superseding update explains it, the update is marked "Withdrawn by Microsoft", its rollout stops at once and a notification is sent; Release rules → "Updates withdrawn by Microsoft" can switch to notifications only.
+- **Block** on the update page (Operator): stops the rollout and keeps start rules and operators from starting the update again until it is unblocked. **Block and uninstall…** (Admin) also lets every server that has the update uninstall it, and **Uninstall update…** on the server page removes one update from one server, each with the restart right after or in the next maintenance window.
+- The help showed a garbled character instead of "…" in two places (update list and update page).
 - Icons (Lucide, ISC license) before every entry of the navigation and, larger, before the page title: inline SVG from `assets/icons/lucide`, no extra requests or scripts. Navigation renamed: Users is now **Identity** (local accounts and AD groups), Groups is now **Server groups**; the time zone line is gone from the navigation (all times stay in the time zone of the central server).
 - Superseded updates: a server that gets or has installed a newer update no longer gets the one it replaces, so each ring switches as soon as the newer update is released there; once the newer update reached every ring the older one reached, the older rollout stops by itself (`Rollout.Superseded` in the audit log and the update timeline). The update list and the update page mark superseded updates.
 - Start rules can test the restart behaviour Windows Update reports (no restart, may restart, restart required), and a rule with "no restart" can let its updates **install outside the maintenance windows** (delivered to the agent as `outsideWindows` only while the update is reported as never restarting). A new installation creates one such rule for definition updates once (all rings at once); `Rollout:CreateDefinitionRule = false` skips it. The update list shows the restart behaviour as a column with filter and grouping.

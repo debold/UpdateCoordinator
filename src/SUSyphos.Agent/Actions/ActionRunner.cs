@@ -49,6 +49,7 @@ internal sealed partial class ActionRunner(
     IServiceRestarter restarter,
     ISystemRestart systemRestart,
     IInstallationRunner installationRunner,
+    IUpdateUninstaller uninstaller,
     ILogCollector logs,
     IOptions<InstallationOptions> installation,
     ILogger<ActionRunner> logger) : IActionRunner
@@ -125,6 +126,8 @@ internal sealed partial class ActionRunner(
                     ? "Reboots are forbidden on this server (AllowReboot), so a needed restart is left to an administrator."
                     : restartNow ? "A needed restart follows right after, with a five minute warning." : "A needed restart waits for the next maintenance window.";
                 return (Succeeded($"The released updates install with this cycle, also outside the maintenance window. {restartText}"), false, true);
+            case AgentActionKind.Uninstall or AgentActionKind.UninstallRestartInWindow:
+                return (await UninstallAsync(action, cancellationToken).ConfigureAwait(false), false, true);
             case AgentActionKind.CancelRestart:
                 return (Succeeded(installationRunner.CancelRestart()), false, true);
             case AgentActionKind.UploadLogs:
@@ -158,6 +161,45 @@ internal sealed partial class ActionRunner(
                 // A newer central server may know actions this agent does not.
                 return (new AgentActionResult { Status = AgentActionStatus.Rejected, Detail = "This agent version does not know the action." }, false, true);
         }
+    }
+
+    /// <summary>Removes the named update, then restarts at once or in the next window if Windows needs it; never against the local veto.</summary>
+    private async Task<AgentActionResult> UninstallAsync(AgentAction action, CancellationToken cancellationToken)
+    {
+        if (action.UpdateId is not { } updateId)
+        {
+            return new AgentActionResult { Status = AgentActionStatus.Rejected, Detail = "The action names no update." };
+        }
+
+        var result = await uninstaller.UninstallAsync(updateId, action.KbArticle, cancellationToken).ConfigureAwait(false);
+
+        // The next inventory and search tell the central server what is installed now.
+        inventory.Reset();
+        updates.RequestRun();
+        if (result.Status != UninstallStatus.Succeeded)
+        {
+            return new AgentActionResult { Status = result.Status == UninstallStatus.Failed ? AgentActionStatus.Failed : AgentActionStatus.Rejected, Detail = result.Detail };
+        }
+
+        if (!result.RebootRequired)
+        {
+            return Succeeded(result.Detail);
+        }
+
+        if (!installation.Value.AllowReboot)
+        {
+            return Succeeded($"{result.Detail} Reboots are forbidden on this server (AllowReboot); the restart is left to an administrator.");
+        }
+
+        if (action.Kind == AgentActionKind.Uninstall)
+        {
+            return systemRestart.Schedule(Installation.RebootPlanner.WarningPeriod)
+                ? Succeeded($"{result.Detail} The server restarts in 5 minutes.")
+                : new AgentActionResult { Status = AgentActionStatus.Failed, Detail = $"{result.Detail} Windows did not accept the restart request." };
+        }
+
+        installationRunner.RequestRestart();
+        return Succeeded($"{result.Detail} The restart waits for the next maintenance window.");
     }
 
     private static AgentActionResult Succeeded(string detail) => new() { Status = AgentActionStatus.Succeeded, Detail = detail };

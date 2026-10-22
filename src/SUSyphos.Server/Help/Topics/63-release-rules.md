@@ -35,6 +35,15 @@ Rules are applied when a server reports an update, when a rule is saved and ever
 
 - **Edit** opens the start rule dialog; **Delete** opens a confirmation, and **Delete start rule** removes the rule (updates it would start are handled by the next matching rule, or stay queued).
 
+## Updates withdrawn by Microsoft {#withdrawn}
+
+Microsoft sometimes withdraws a faulty update. Windows Update then stops offering it; agents look up the released updates their search did not find and report those Windows Update no longer knows at all. An update counts as **probably withdrawn** when servers report this, no approved server still gets it offered, and neither a newer revision nor a newer update that replaces it explains it. Agents never install an update Windows Update no longer offers.
+
+- **When an update looks withdrawn**: "Stop its rollout and notify" (default) stops the rollout at once and sends a notification; "Only notify" just sends the notification. A stopped rollout can be resumed on the update page.
+- **Save** stores the choice.
+
+Updates that are only no longer applicable to a server or hidden on it locally can look the same; that is why one server that still gets the update offered is enough to rule it out, and the update page names the case so you can check Microsoft's release notes. Block the update there to keep it from coming back.
+
 ## Start rule dialog {#start-rule-dialog}
 
 ![The dialog to create a start rule, with matching updates](help-images/release-rules-start-dialog.png)

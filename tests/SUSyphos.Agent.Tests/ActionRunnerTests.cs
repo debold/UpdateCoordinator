@@ -26,7 +26,9 @@ public sealed class ActionRunnerTests
     private readonly FakeInstallationRunner _runner = new();
     private InstallationOptions _installation = new();
 
-    private ActionRunner Create() => new(_client, _updates, _inventory, _restarter, _systemRestart, _runner, _logs, Microsoft.Extensions.Options.Options.Create(_installation), NullLogger<ActionRunner>.Instance);
+    private readonly FakeUninstaller _uninstaller = new();
+
+    private ActionRunner Create() => new(_client, _updates, _inventory, _restarter, _systemRestart, _runner, _uninstaller, _logs, Microsoft.Extensions.Options.Options.Create(_installation), NullLogger<ActionRunner>.Instance);
 
     private static AgentAction Action(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow);
 
@@ -123,6 +125,44 @@ public sealed class ActionRunnerTests
         Assert.Equal(restartNow, _runner.InstallNowRestartNow);
         Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[request.Id].Status);
         Assert.Contains(detail, _client.ActionResults[request.Id].Detail, StringComparison.Ordinal);
+        Assert.Empty(_systemRestart.Requests);
+    }
+
+    [Theory]
+    [InlineData(AgentActionKind.Uninstall, true, 1, false)]
+    [InlineData(AgentActionKind.UninstallRestartInWindow, true, 0, true)]
+    [InlineData(AgentActionKind.Uninstall, false, 0, false)]
+    public async Task Uninstall_RemovesTheUpdate_AndRestartsAsAsked(AgentActionKind kind, bool allowReboot, int restarts, bool heldForWindow)
+    {
+        _installation = new InstallationOptions { AllowReboot = allowReboot };
+        _uninstaller.Result = new SUSyphos.Agent.Installation.UninstallResult(SUSyphos.Agent.Installation.UninstallStatus.Succeeded, true, "Uninstalled with DISM.");
+        var updateId = Guid.NewGuid();
+        var request = new AgentAction(Guid.NewGuid(), kind, DateTimeOffset.UtcNow, updateId, 1, "5040434");
+        _client.ActionList = new AgentActionList([request]);
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Equal([(updateId, (string?)"5040434")], _uninstaller.Calls);
+        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[request.Id].Status);
+        Assert.Equal(restarts, _systemRestart.Requests.Count);
+        Assert.Equal(heldForWindow, _runner.RestartRequested);
+        Assert.Equal(1, _inventory.Resets);
+        Assert.Equal(1, _updates.RunRequests);
+    }
+
+    [Fact]
+    public async Task Uninstall_ThatFails_OrNamesNoUpdate_IsReportedSo()
+    {
+        _uninstaller.Result = new SUSyphos.Agent.Installation.UninstallResult(SUSyphos.Agent.Installation.UninstallStatus.Failed, false, "DISM could not remove it.");
+        var failing = new AgentAction(Guid.NewGuid(), AgentActionKind.Uninstall, DateTimeOffset.UtcNow, Guid.NewGuid(), 1, "5040434");
+        var nameless = Action(AgentActionKind.Uninstall);
+        _client.ActionList = new AgentActionList([failing, nameless]);
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Equal(AgentActionStatus.Failed, _client.ActionResults[failing.Id].Status);
+        Assert.Equal(AgentActionStatus.Rejected, _client.ActionResults[nameless.Id].Status);
+        Assert.Single(_uninstaller.Calls);
         Assert.Empty(_systemRestart.Requests);
     }
 

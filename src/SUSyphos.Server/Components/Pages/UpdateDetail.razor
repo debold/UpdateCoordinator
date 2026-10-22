@@ -8,6 +8,7 @@
 @inject RolloutAdministration Administration
 @inject NavigationManager Navigation
 @inject TimeProvider Time
+@inject SUSyphos.Server.Agents.AgentActionService Actions
 
 <PageTitle>@(_update is null ? "Update" : UpdateText.Title(_update, UpdateId))</PageTitle>
 
@@ -73,7 +74,25 @@ else
                 <button type="submit" form="update-actions" name="Action" value="block" class="danger">Block</button>
             }
         }
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer">
+            <a class="btn danger" href="@($"/updates/{UpdateId}/{Revision}?dialog=uninstall")">Block and uninstall…</a>
+        </AuthorizeView>
     </ActionBand>
+
+    @if (Dialog == "uninstall")
+    {
+        <Dialog Title="@($"Block and uninstall {(_update.KbArticle is null ? "this update" : $"KB{_update.KbArticle}")}?")" CloseHref="@($"/updates/{UpdateId}/{Revision}")" Help="update-detail#uninstall">
+            <form method="post" @formname="uninstall" @onsubmit="UninstallAsync">
+                <AntiforgeryToken />
+                <div class="dialog-body">
+                    <p>The update is <b>blocked</b> (its rollout stops and it does not start again), and the @_installedOn servers that report it as installed <b>uninstall</b> it with their next heartbeat, also outside the maintenance window.</p>
+                    <p>The agent uninstalls through Windows Update; for updates Windows Update cannot remove (e.g. combined servicing stack and cumulative packages) it uses DISM with the KB number. Some packages cannot be removed at all; the remote action on each server then reports why.</p>
+                    <p>If Windows needs a restart afterwards, the server restarts <b>right after</b> (five minute warning) or in its <b>next maintenance window</b>. The local veto (AllowReboot) prevents the restart.</p>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="/updates/@UpdateId/@Revision">Cancel</a><button type="submit" name="UninstallRestart" value="window">Uninstall, restart in the next window</button><button type="submit" name="UninstallRestart" value="now" class="danger">Uninstall and restart right after</button></div>
+            </form>
+        </Dialog>
+    }
 
     <Box Title="Start rule" Help="update-detail#start-rule" Hint="Which start rule decides how this update enters the rings">
         @if (_rollout is { } started)
@@ -267,6 +286,33 @@ else
     [SupplyParameterFromForm(FormName = "update")]
     private string? Action { get; set; }
 
+    [SupplyParameterFromQuery(Name = "dialog")]
+    private string? Dialog { get; set; }
+
+    [SupplyParameterFromForm(FormName = "uninstall")]
+    private string? UninstallRestart { get; set; }
+
+    private int _installedOn;
+
+    /// <summary>Blocks the update and queues its uninstallation on every server that has it (administrators only).</summary>
+    private async Task UninstallAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer) || UninstallRestart is not ("now" or "window"))
+        {
+            ShowResult(UninstallRestart is "now" or "window" ? "Only administrators can uninstall updates." : "Choose when the servers restart.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var actor = await GetActorAsync();
+        var blocked = await Db.Updates.AnyAsync(u => u.UpdateId == UpdateId && u.Revision == Revision && u.BlockedAtUtc != null);
+        var outcome = blocked ? Outcome.Ok : await Administration.BlockAsync(UpdateId, Revision, actor, CancellationToken.None);
+        var queued = outcome.Succeeded ? await Actions.QueueUninstallEverywhereAsync(UpdateId, UninstallRestart == "now", actor, CancellationToken.None) : 0;
+        ShowResultAndReload(outcome.Error, $"The update is blocked; {queued} servers uninstall it with their next heartbeat (see the remote actions on each server).");
+        Dialog = null;
+        await LoadAsync();
+    }
+
     private bool _canOperate;
     private UpdateEntity? _update;
     private RolloutEntity? _rollout;
@@ -323,6 +369,8 @@ else
 
         _rollout = await Db.Rollouts.AsNoTracking().SingleOrDefaultAsync(r => r.UpdateId == UpdateId && r.Revision == Revision);
         _supersededBy = (await Supersedence.NewerAsync(Db, [UpdateId])).GetValueOrDefault(UpdateId);
+        var approvedClients = Db.Clients.Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).Select(c => c.Id);
+        _installedOn = await Db.ClientUpdates.Where(u => u.UpdateId == UpdateId && approvedClients.Contains(u.ClientId)).Select(u => u.ClientId).Distinct().CountAsync();
         (_stateLabel, _stateClass) = _rollout switch
         {
             _ when _update.BlockedAtUtc is not null => ("Blocked", "fail"),
