@@ -43,11 +43,12 @@ internal sealed partial class AgentWorker(
     {
         LogStarted(environment.AgentVersion);
         resources.ApplyPriority();
-        var settings = options.Value;
         var consecutiveFailures = 0;
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            // Read each cycle: central settings can change the intervals at run time.
+            var settings = options.Value;
             TimeSpan delay;
             try
             {

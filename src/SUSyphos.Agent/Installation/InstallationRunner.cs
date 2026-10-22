@@ -195,7 +195,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     public string CancelRestart()
     {
         var held = _state.RestartRequestedAt is not null;
-        var announced = _state.LastRebootRequestAt is { } last && _timeProvider.GetUtcNow() - last < RebootPlanner.WarningPeriod;
+        var announced = _state.LastRebootRequestAt is { } last && _timeProvider.GetUtcNow() - last < _options.Value.RestartWarning;
         Save(_state with { RestartRequestedAt = null });
         var aborted = announced && _restart.Abort();
         return (held, aborted) switch
@@ -217,7 +217,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
             if (RebootWait == Contracts.Agents.RebootWait.Restarting && _state.LastRebootRequestAt is { } requested)
             {
-                return requested + RebootPlanner.WarningPeriod;
+                return requested + _options.Value.RestartWarning;
             }
 
             var localNow = _timeProvider.GetLocalNow();
@@ -322,9 +322,9 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         }
 
         Save(_state with { LastRebootRequestAt = now, Lease = _state.Lease is { } hold ? hold with { AwaitingReboot = true } : null });
-        if (_restart.Schedule(RebootPlanner.WarningPeriod))
+        if (_restart.Schedule(_options.Value.RestartWarning))
         {
-            LogRebootScheduled(RebootPlanner.WarningPeriod);
+            LogRebootScheduled(_options.Value.RestartWarning);
         }
 
         return decision;
@@ -376,7 +376,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
         if (request.RestartNow)
         {
-            if (_restart.Schedule(RebootPlanner.WarningPeriod))
+            if (_restart.Schedule(_options.Value.RestartWarning))
             {
                 Save(_state with { LastRebootRequestAt = _timeProvider.GetUtcNow() });
             }

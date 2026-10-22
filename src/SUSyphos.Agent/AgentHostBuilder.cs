@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Microsoft.Win32;
@@ -25,6 +26,15 @@ internal static class AgentHostBuilder
     public static HostApplicationBuilder Create(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
+
+        // Central agent settings: above the agent's own files, below the registry (installer and policy keys).
+        var settingsFile = new ProtectedJsonFile<Dictionary<string, string>>(
+            new ProtectedFile(CentralSettings.DefaultPath, "SUSyphos.Agent.CentralSettings.v1", Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        var centralSettings = new CentralSettingsSource(CentralSettings.LoadSaved(settingsFile));
+        ((IConfigurationBuilder)builder.Configuration).Add(centralSettings);
+        builder.Services.AddSingleton(centralSettings.Provider);
+        builder.Services.AddSingleton(settingsFile);
         builder.Configuration.AddAgentRegistry(Registry.LocalMachine);
         builder.Services.AddWindowsService(options => options.ServiceName = ServiceName);
         var logDirectory = builder.Configuration[$"{FileLoggingOptions.SectionName}:Directory"] is { Length: > 0 } configured ? configured : Path.Combine(DataPaths.Agent, "Logs");
@@ -43,6 +53,12 @@ internal static class AgentHostBuilder
 
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<Status.ActivityTracker>();
+        services.TryAddSingleton(_ => new CentralSettingsProvider(null));
+        services.AddSingleton(provider => new CentralSettings(
+            provider.GetRequiredService<CentralSettingsProvider>(),
+            provider.GetService<ProtectedJsonFile<Dictionary<string, string>>>(),
+            provider.GetService<IServiceRestarter>(),
+            provider.GetRequiredService<ILogger<CentralSettings>>()));
         services.AddSingleton<ISystemProbe, WindowsSystemProbe>();
         services.AddSingleton<IAgentEnvironment, AgentEnvironment>();
 
@@ -129,6 +145,13 @@ internal static class AgentHostBuilder
                 http.Timeout = TimeSpan.FromMinutes(30);
             })
             .ConfigurePrimaryHttpMessageHandler(provider => provider.GetRequiredService<ServerTrust>().CreateValidatingHandler());
+
+        // Options that central settings change are read live (IOptions.Value returns the current value).
+        services.AddSingleton<IOptions<CentralServerOptions>>(provider => new LiveOptions<CentralServerOptions>(provider.GetRequiredService<IOptionsMonitor<CentralServerOptions>>()));
+        services.AddSingleton<IOptions<InventoryOptions>>(provider => new LiveOptions<InventoryOptions>(provider.GetRequiredService<IOptionsMonitor<InventoryOptions>>()));
+        services.AddSingleton<IOptions<UpdateOptions>>(provider => new LiveOptions<UpdateOptions>(provider.GetRequiredService<IOptionsMonitor<UpdateOptions>>()));
+        services.AddSingleton<IOptions<InstallationOptions>>(provider => new LiveOptions<InstallationOptions>(provider.GetRequiredService<IOptionsMonitor<InstallationOptions>>()));
+        services.AddSingleton<IOptions<ResourceOptions>>(provider => new LiveOptions<ResourceOptions>(provider.GetRequiredService<IOptionsMonitor<ResourceOptions>>()));
 
         services.AddHostedService<AgentWorker>();
         services.AddHostedService<Status.ActivityPulse>();

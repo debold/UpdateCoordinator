@@ -122,7 +122,8 @@ public sealed record AvailableUpdate : UpdateInfo
 /// <param name="RequiresLease">The server is in a coordinated group: it installs and reboots only with a lease.</param>
 /// <param name="ManageAutomaticUpdates">Keep Windows from installing updates on its own: the agent sets "Configure Automatic Updates" to option 3 unless group policy controls it (docs/05-agent-design.md, section 3).</param>
 /// <param name="UseMicrosoftUpdate">Search and install through Microsoft Update, so updates for other Microsoft products are included; the agent registers the service if needed (docs/05-agent-design.md, section 3).</param>
-public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, IReadOnlyList<MaintenanceWindow>? MaintenanceWindows = null, RebootPolicy? RebootPolicy = null, bool RequiresLease = false, bool ManageAutomaticUpdates = false, bool UseMicrosoftUpdate = false);
+/// <param name="AgentSettings">Effective central agent settings by key (<see cref="Agents.AgentSettings"/>); settings not listed keep the agent's own value.</param>
+public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, IReadOnlyList<MaintenanceWindow>? MaintenanceWindows = null, RebootPolicy? RebootPolicy = null, bool RequiresLease = false, bool ManageAutomaticUpdates = false, bool UseMicrosoftUpdate = false, IReadOnlyDictionary<string, string>? AgentSettings = null);
 
 /// <summary>
 /// A released update and the earliest time it may be installed.

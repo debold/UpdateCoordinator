@@ -27,4 +27,7 @@ internal sealed class UpdateOptions
     public int MinFreeDiskSpaceMegabytes { get; set; } = 4_096;
 
     public UpdateSourceSelection Source { get; set; } = UpdateSourceSelection.System;
+
+    /// <summary>False leaves drivers out of the search (only software updates); central setting "include-drivers".</summary>
+    public bool IncludeDrivers { get; set; } = true;
 }

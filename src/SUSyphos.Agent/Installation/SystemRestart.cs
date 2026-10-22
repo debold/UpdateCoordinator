@@ -15,14 +15,14 @@ internal interface ISystemRestart
 /// <summary>
 /// Restarts through the Windows shutdown tool: it handles the shutdown privilege and the warning to signed-in users,
 /// and records the restart as planned (reason p:2:17, operating system hotfix) in the system event log.
-/// The arguments are constants and a number, never input from outside.
+/// The arguments are constants, a number and the message from the central settings (checked: no control characters or quotes), passed as separate arguments.
 /// </summary>
-internal sealed partial class ShutdownToolRestart(ILogger<ShutdownToolRestart> logger) : ISystemRestart
+internal sealed partial class ShutdownToolRestart(Microsoft.Extensions.Options.IOptions<InstallationOptions> options, ILogger<ShutdownToolRestart> logger) : ISystemRestart
 {
     private const string Message = "SUSyphos restarts this server to complete Windows updates inside the maintenance window.";
 
     public bool Schedule(TimeSpan warning) =>
-        Run(["/r", "/t", ((int)warning.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture), "/d", "p:2:17", "/c", Message]);
+        Run(["/r", "/t", ((int)warning.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture), "/d", "p:2:17", "/c", options.Value.RestartMessage is { Length: > 0 } custom ? custom : Message]);
 
     public bool Abort() => Run(["/a"]);
 

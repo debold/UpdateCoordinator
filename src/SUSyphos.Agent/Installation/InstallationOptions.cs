@@ -31,6 +31,14 @@ internal sealed class InstallationOptions : IValidatableObject
     /// <summary>Local veto: false forbids reboots on this server whatever the central server allows (registry value AllowReboot).</summary>
     public bool AllowReboot { get; set; } = true;
 
+    /// <summary>Warning to signed-in users before the agent restarts the server; central setting "restart-warning".</summary>
+    [Range(typeof(TimeSpan), "00:01:00", "00:30:00")]
+    public TimeSpan RestartWarning { get; set; } = RebootPlanner.WarningPeriod;
+
+    /// <summary>Message shown to signed-in users with the restart warning; null for the built-in text. Central setting "restart-message".</summary>
+    [StringLength(200)]
+    public string? RestartMessage { get; set; }
+
     /// <summary>False disables installations completely (search and reporting continue).</summary>
     public bool Enabled { get; set; } = true;
 

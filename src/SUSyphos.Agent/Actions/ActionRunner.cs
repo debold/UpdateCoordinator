@@ -107,7 +107,7 @@ internal sealed partial class ActionRunner(
                     return (new AgentActionResult { Status = AgentActionStatus.Rejected, Detail = "Reboots are forbidden on this server (AllowReboot)." }, false, true);
                 }
 
-                return systemRestart.Schedule(Installation.RebootPlanner.WarningPeriod)
+                return systemRestart.Schedule(installation.Value.RestartWarning)
                     ? (Succeeded("The server restarts in 5 minutes."), false, true)
                     : (new AgentActionResult { Status = AgentActionStatus.Failed, Detail = "Windows did not accept the restart request." }, false, true);
             case AgentActionKind.RestartServerInWindow:
@@ -193,7 +193,7 @@ internal sealed partial class ActionRunner(
 
         if (action.Kind == AgentActionKind.Uninstall)
         {
-            return systemRestart.Schedule(Installation.RebootPlanner.WarningPeriod)
+            return systemRestart.Schedule(installation.Value.RestartWarning)
                 ? Succeeded($"{result.Detail} The server restarts in 5 minutes.")
                 : new AgentActionResult { Status = AgentActionStatus.Failed, Detail = $"{result.Detail} Windows did not accept the restart request." };
         }

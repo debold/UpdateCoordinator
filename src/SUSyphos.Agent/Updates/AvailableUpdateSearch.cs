@@ -23,10 +23,13 @@ internal sealed class WuaAvailableUpdateSearch(IOptions<UpdateOptions> options, 
     /// <summary>Every update type Windows Update offers, software and drivers alike (no Type criterion).</summary>
     internal const string AvailableCriteria = "IsInstalled=0 and IsHidden=0";
 
+    /// <summary>The search criteria; without drivers only software updates are searched.</summary>
+    internal static string Criteria(bool includeDrivers) => includeDrivers ? AvailableCriteria : AvailableCriteria + " and Type='Software'";
+
     public Task<IReadOnlyList<WuaUpdate>> SearchAsync(CancellationToken cancellationToken) =>
         // Online search against the configured source; synchronous COM, so it runs off the caller's thread.
         Task.Run<IReadOnlyList<WuaUpdate>>(
-            () => WuaSearch.Search(AvailableCriteria, online: true, serverSelection: (int)options.Value.Source, selection.ServiceId),
+            () => WuaSearch.Search(Criteria(options.Value.IncludeDrivers), online: true, serverSelection: (int)options.Value.Source, selection.ServiceId),
             cancellationToken);
 
     public Task<IReadOnlyList<(Guid UpdateId, int Revision)>> FindUnknownAsync(IReadOnlyCollection<(Guid UpdateId, int Revision)> updates, CancellationToken cancellationToken)

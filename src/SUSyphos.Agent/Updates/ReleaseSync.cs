@@ -19,7 +19,7 @@ internal interface IReleaseSync
     Task<bool> SyncAsync(AgentIdentity identity, HeartbeatResponse heartbeat, CancellationToken cancellationToken);
 }
 
-internal sealed partial class ReleaseSync(ICentralServerClient client, ILogger<ReleaseSync> logger) : IReleaseSync
+internal sealed partial class ReleaseSync(ICentralServerClient client, ILogger<ReleaseSync> logger, Configuration.CentralSettings? settings = null) : IReleaseSync
 {
     private static readonly ReleaseList Empty = new(0, []);
 
@@ -51,6 +51,7 @@ internal sealed partial class ReleaseSync(ICentralServerClient client, ILogger<R
         }
 
         Current = releases;
+        settings?.Apply(releases.AgentSettings);
         LogSynced(releases.Version, releases.Releases.Count);
         return true;
     }
