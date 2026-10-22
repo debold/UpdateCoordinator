@@ -33,7 +33,7 @@ else
     }
     @if (_supersededBy is not null)
     {
-        <p class="notice">Superseded by @_supersededBy: Windows Update offers the newer update instead. Each ring gets the newer one as soon as it is released there, and this rollout stops once the newer one reached every ring this one reached.</p>
+        <p class="notice">Superseded by <a href="/updates/@_supersededBy.UpdateId/@_supersededBy.Revision">@_supersededBy.Name</a>: Windows Update offers the newer update instead. Each ring gets the newer one as soon as it is released there, and this rollout stops once the newer one reached every ring this one reached.</p>
     }
 
     <ActionBand>
@@ -316,7 +316,7 @@ else
     private bool _canOperate;
     private UpdateEntity? _update;
     private RolloutEntity? _rollout;
-    private string? _supersededBy;
+    private NewerUpdate? _supersededBy;
     private string _stateLabel = string.Empty;
     private string _stateClass = "neutral";
     private DeploymentCounts _total = DeploymentCounts.Empty;

@@ -56,17 +56,20 @@ else
 
     <div class="grid-side wide-only">
         <Box Title="Updates in this ring" Help="rings#updates" Hint="Select an update to see its status per server" Flush="true">
+            <div class="list-head-tools" data-help="rings#updates">
+                <a class="btn ghost" href="@Navigation.GetUriWithQueryParameter("superseded", ShowSuperseded ? null : "1")">@(ShowSuperseded ? "Hide superseded and stopped" : $"Show superseded and stopped ({_hiddenUpdates})")</a>
+            </div>
             <ListTable Table="_updateTable" Page="_updatePage" Columns="UpdateColumns" Search="Search KB or title" Noun="updates" Empty="No update is released for this ring or waiting before it.">
                 <Row Context="update">
                             <tr class="@(update.Key == _selected?.Key && Tab == "update" ? "selected" : null)">
-                                <td class="wrap"><a href="@UpdateLink(update)">@update.Title</a></td>
+                                <td class="wrap"><a href="/updates/@(update.Key.Replace(":", "/", StringComparison.Ordinal))">@update.Title</a></td>
                                 <td>@(update.Classification ?? "–")</td>
                                 <td><span class="pill @update.StateClass">@update.State</span></td>
                                 <td class="nowrap">@update.Released</td>
                                 <td class="nowrap">@(update.Wait ?? "–")</td>
                                 <td class="n">@if (update.Statistics.Targeted == 0) { <span class="note">no server needs it</span> } else { @Percent(update.Statistics.FeedbackPercent) <span class="note">(@update.Statistics.Reported/@update.Statistics.Targeted)</span> }</td>
                                 <td class="n">@Percent(update.Statistics.SuccessPercent)</td>
-                                <td><StackedBar Counts="@update.Counts" /></td>
+                                <td><a class="bar-link" href="@UpdateLink(update)" title="Show the status of this update per server"><StackedBar Counts="@update.Counts" /><span class="note">per server ›</span></a></td>
                             </tr>
                 </Row>
             </ListTable>
@@ -81,7 +84,7 @@ else
         </Box>
     </div>
 
-    <Box Flush="true">
+    <Box Flush="true" Anchor="per-server">
         <Header>
             <nav class="tabs" aria-label="Ring details">
                 <a class="@(Tab != "update" ? "current" : null)" href="@TabLink("servers")">Servers in this ring (@_servers)</a>
@@ -213,6 +216,22 @@ else
         new("result", "Result", r => DeploymentText.Result(r.Entry), Sortable: false),
     ];
 
+    private const string SupersededState = "Superseded";
+    private const string StoppedState = "Stopped";
+
+    [SupplyParameterFromQuery(Name = "superseded")]
+    private string? Superseded { get; set; }
+
+    private bool ShowSuperseded => Superseded == "1";
+
+    private int _hiddenUpdates;
+
+    private static string WaitingState(RolloutState? rollout, bool superseded) =>
+        superseded ? SupersededState
+        : rollout == RolloutState.Stopped ? StoppedState
+        : rollout == RolloutState.Active ? "Waiting for the ring before"
+        : "Queued: no rollout yet";
+
     private TableQuery _updateTable = default!;
     private TablePage<ActiveUpdate> _updatePage = default!;
     private TableQuery _serverTable = default!;
@@ -241,7 +260,7 @@ else
     private TablePage<Member> _members = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
 
     // Both keep the view of the update list (search, filters, page) in the address.
-    private string UpdateLink(ActiveUpdate update) => Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> { ["update"] = update.Key, ["tab"] = "update", ["us.page"] = null });
+    private string UpdateLink(ActiveUpdate update) => Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> { ["update"] = update.Key, ["tab"] = "update", ["us.page"] = null }) + "#per-server";
 
     private string TabLink(string tab) => Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> { ["update"] = _selected?.Key, ["tab"] = tab });
 
@@ -364,8 +383,9 @@ else
         {
             var waitingIds = waiting.Select(w => w.Key.UpdateId).Distinct().ToList();
             var waitingUpdates = await Db.Updates.AsNoTracking().Where(u => waitingIds.Contains(u.UpdateId)).ToListAsync();
-            var running = (await Db.Rollouts.AsNoTracking().Where(o => waitingIds.Contains(o.UpdateId) && o.State == RolloutState.Active).Select(o => new { o.UpdateId, o.Revision }).ToListAsync())
-                .Select(o => (o.UpdateId, o.Revision)).ToHashSet();
+            var waitingRollouts = (await Db.Rollouts.AsNoTracking().Where(o => waitingIds.Contains(o.UpdateId)).Select(o => new { o.UpdateId, o.Revision, o.State }).ToListAsync())
+                .ToDictionary(o => (o.UpdateId, o.Revision), o => o.State);
+            var supersededBy = await Supersedence.NewerAsync(Db, waitingIds);
             foreach (var group in waiting.OrderBy(w => waitingUpdates.FirstOrDefault(u => u.UpdateId == w.Key.UpdateId && u.Revision == w.Key.Revision)?.Title, StringComparer.CurrentCulture))
             {
                 var update = waitingUpdates.FirstOrDefault(u => u.UpdateId == group.Key.UpdateId && u.Revision == group.Key.Revision);
@@ -375,8 +395,8 @@ else
                     UpdateText.Title(update, group.Key.UpdateId),
                     update?.KbArticle is { } kb ? $"KB{kb}" : Shorten(update?.Title ?? group.Key.UpdateId.ToString("D")),
                     update?.Classification,
-                    running.Contains(group.Key) ? "Waiting for the ring before" : "Queued: no rollout yet",
-                    "queue",
+                    WaitingState(waitingRollouts.TryGetValue(group.Key, out var rolloutState) ? rolloutState : null, supersededBy.ContainsKey(group.Key.UpdateId)),
+                    supersededBy.ContainsKey(group.Key.UpdateId) || rolloutState == RolloutState.Stopped ? "neutral" : "queue",
                     DeploymentCounts.Of(group),
                     statistics,
                     "not released yet",
@@ -391,7 +411,10 @@ else
             + DeploymentCounts.Of(entries.Where(e => !activeKeys.Contains(Key(e.UpdateId, e.Revision))));
 
         _updateTable = TableQuery.From(Navigation, "released", defaultDescending: true, prefix: "up.", defaultPageSize: 10);
-        _updatePage = TablePaging.Apply(_active, _updateTable, UpdateColumns, u => $"{u.ShortTitle} {u.Title}");
+        // Superseded and stopped updates (often installed long ago) are out of the way unless asked for.
+        _hiddenUpdates = _active.Count(u => u.State is SupersededState or StoppedState);
+        var shown = ShowSuperseded ? _active : [.. _active.Where(u => u.State is not (SupersededState or StoppedState))];
+        _updatePage = TablePaging.Apply(shown, _updateTable, UpdateColumns, u => $"{u.ShortTitle} {u.Title}");
         _selected = _active.FirstOrDefault(a => a.Key == UpdateKey) ?? _active.FirstOrDefault();
         await LoadServersAsync(entries);
         await LoadMembersAsync(entries, now);

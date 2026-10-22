@@ -77,6 +77,7 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
         var ids = updates.Select(u => u.UpdateId).Distinct().ToList();
         var candidates = await db.Updates.AsNoTracking()
             .Where(u => ids.Contains(u.UpdateId) && u.BlockedAtUtc == null)
+            .Where(u => !db.UpdateSupersedence.Any(s => s.SupersededUpdateId == u.UpdateId && s.UpdateId != u.UpdateId))
             .Where(u => !db.Rollouts.Any(r => r.UpdateId == u.UpdateId && r.Revision == u.Revision))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -92,6 +93,9 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
         var approved = db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
         var candidates = await db.Updates.AsNoTracking()
             .Where(u => u.ArchivedAtUtc == null && u.BlockedAtUtc == null)
+
+            // An update a known newer one replaces is not started: Windows Update offers the newer one instead.
+            .Where(u => !db.UpdateSupersedence.Any(s => s.SupersededUpdateId == u.UpdateId && s.UpdateId != u.UpdateId))
             .Where(u => !db.Rollouts.Any(r => r.UpdateId == u.UpdateId && r.Revision == u.Revision))
             .Where(u => db.ClientAvailableUpdates.Any(a => a.UpdateId == u.UpdateId && a.Revision == u.Revision && approved.Contains(a.ClientId)))
             .ToListAsync(cancellationToken)

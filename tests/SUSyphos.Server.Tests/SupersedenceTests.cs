@@ -20,6 +20,9 @@ public sealed class SupersedenceTests
         var old = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid(), Title = "Old cumulative update", KbArticle = "5040001" };
         var newer = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid(), Title = "New cumulative update", KbArticle = "5040002", SupersededUpdateIds = [old.UpdateId] };
 
+        // The older update started before the newer one was known.
+        await scenario.ReportAsync(pilot, old);
+        await scenario.ReportAsync(test, old);
         await scenario.ReportAsync(pilot, old, newer);
         await scenario.ReportAsync(test, old, newer);
 
@@ -37,7 +40,52 @@ public sealed class SupersedenceTests
         Assert.Equal(RolloutState.Stopped, await RolloutStateAsync(scenario, old.UpdateId));
         Assert.Equal([newer.UpdateId], (await scenario.ReleasesAsync(test)).Releases.Select(r => r.UpdateId));
         Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "Rollout.Superseded" && e.Details!.Contains("KB5040002"), TestContext.Current.CancellationToken)));
-        Assert.Equal("KB5040002", (await scenario.Factory.WithDbAsync(db => Supersedence.NewerAsync(db, [old.UpdateId])))[old.UpdateId]);
+        Assert.Equal("KB5040002", (await scenario.Factory.WithDbAsync(db => Supersedence.NewerAsync(db, [old.UpdateId])))[old.UpdateId].Name);
+    }
+
+    [Theory]
+    [InlineData("2267602", "Security Intelligence Update for Microsoft Defender Antivirus - KB2267602 (Version 1.461.144.0) - Current Channel (Broad)", "KB2267602 (Version 1.461.144.0)")]
+    [InlineData("5066835", "2026-10 Cumulative Update for Windows Server 2022 (KB5066835)", "KB5066835")]
+    [InlineData(null, "Some driver (Version 1.2.3)", "Some driver (Version 1.2.3)")]
+    public void ShortName_TellsUpdatesOfOneKbApart(string? kb, string title, string expected) =>
+        Assert.Equal(expected, Supersedence.ShortName(kb, title));
+
+    [Fact]
+    public async Task UpdateList_HidesSupersededUpdates_UntilAskedFor()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await scenario.ManualStartOnlyAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var old = RolloutScenario.Update("Definition Updates") with { UpdateId = Guid.NewGuid(), Title = "Defender - KB2267602 (Version 1.461.115.0)", KbArticle = "2267602" };
+        var newer = RolloutScenario.Update("Definition Updates") with { UpdateId = Guid.NewGuid(), Title = "Defender - KB2267602 (Version 1.461.144.0)", KbArticle = "2267602", SupersededUpdateIds = [old.UpdateId] };
+        await scenario.ReportAsync(pilot, old, newer);
+        await scenario.Factory.CreateUserAsync("reader", "correct horse battery", SUSyphos.Server.Administration.AdminRoles.Reader);
+        using var browser = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("reader", "correct horse battery"))
+        {
+        }
+
+        var list = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("1.461.115.0", list, StringComparison.Ordinal);
+        Assert.Contains("Show superseded (1)", list, StringComparison.Ordinal);
+
+        var all = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates?superseded=1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("1.461.115.0", all, StringComparison.Ordinal);
+        Assert.Contains($"superseded by <a href=\"/updates/{newer.UpdateId}/1\">KB2267602 (Version 1.461.144.0)</a>", all, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StartRules_DoNotStartAnUpdateANewerOneReplaces()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var old = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid(), Title = "Old" };
+        var newer = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid(), Title = "New", SupersededUpdateIds = [old.UpdateId] };
+
+        await scenario.ReportAsync(pilot, old, newer);
+
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.Rollouts.AnyAsync(r => r.UpdateId == newer.UpdateId, TestContext.Current.CancellationToken)));
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.Rollouts.AnyAsync(r => r.UpdateId == old.UpdateId, TestContext.Current.CancellationToken)));
     }
 
     [Fact]
@@ -49,8 +97,10 @@ public sealed class SupersedenceTests
         var old = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid(), Title = "Old" };
         var newer = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid(), Title = "New", SupersededUpdateIds = [old.UpdateId] };
 
-        await scenario.ReportAsync(pilot, old, newer);
+        // The older update started before the newer one was known.
+        await scenario.ReportAsync(pilot, old);
         await scenario.ReportAsync(other, old);
+        await scenario.ReportAsync(pilot, old, newer);
 
         Assert.Equal([old.UpdateId], (await scenario.ReleasesAsync(other)).Releases.Select(r => r.UpdateId));
         Assert.Equal([newer.UpdateId], (await scenario.ReleasesAsync(pilot)).Releases.Select(r => r.UpdateId));

@@ -176,16 +176,21 @@ public sealed class InteractionTests(UiFixture ui)
         var after = await page.EvaluateAsync<double>("window.scrollY");
         Assert.True(Math.Abs(after - before) < 150, $"The page jumped from {before} to {after}.");
 
-        // A link that only changes the address: an update in the ring's list opens its status per server.
+        // A sort link only changes the address: the ring page keeps its position.
         await page.GotoAsync("/rings/1");
-        var link = page.Locator(".grid-side table tbody a").Nth(1);
-        await link.ScrollIntoViewIfNeededAsync();
+        var sort = page.Locator(".grid-side table thead a.sort").First;
+        await sort.ScrollIntoViewIfNeededAsync();
         await page.EvaluateAsync("window.scrollBy(0, 120)");
         var ringBefore = await page.EvaluateAsync<double>("window.scrollY");
-        await link.ClickAsync();
-        await page.WaitForURLAsync(url => url.Contains("tab=update", StringComparison.Ordinal));
+        await sort.ClickAsync();
+        await page.WaitForURLAsync(url => url.Contains("up.sort=", StringComparison.Ordinal));
         var ringAfter = await page.EvaluateAsync<double>("window.scrollY");
         Assert.True(ringBefore > 0 && Math.Abs(ringAfter - ringBefore) < 150, $"The ring page jumped from {ringBefore} to {ringAfter}.");
+
+        // "per server" opens the status per server and scrolls to it.
+        await page.Locator(".grid-side table tbody a.bar-link").First.ClickAsync();
+        await page.WaitForURLAsync(url => url.Contains("tab=update", StringComparison.Ordinal));
+        await Assertions.Expect(page.Locator("#per-server")).ToBeInViewportAsync();
     }
 
     [Fact]

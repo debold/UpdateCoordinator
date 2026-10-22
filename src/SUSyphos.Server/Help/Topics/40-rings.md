@@ -13,12 +13,14 @@ The line under the title summarises the transition rule of this ring: after how 
 
 ## Updates in this ring {#updates}
 
-Updates released to this ring, and updates its servers report as missing that are not released here yet. Click a title to see its state per server in the tab below.
+Updates released to this ring, and updates its servers report as missing that are not released here yet. A title opens the update page; **per server** in the last column shows the state of that update on each server of the ring in the tab below and scrolls there.
 
-- **State**: *Rolling out* (servers still have to install it), *Released* (done in this ring), *Waiting for manual release*, *Alarm* with the reason, *Waiting for the ring before* (the rollout has not reached this ring yet) or *Queued: no rollout yet* (servers here report it as missing, but no rollout runs). The list holds every update the ring status counts.
+- **Show superseded and stopped** / **Hide superseded and stopped**: updates a newer known update replaces and updates whose rollout was stopped are hidden by default (often they were installed long ago); the button shows how many.
+
+- **State**: *Rolling out* (servers still have to install it), *Released* (done in this ring), *Waiting for manual release*, *Alarm* with the reason, *Waiting for the ring before* (the rollout has not reached this ring yet) or *Queued: no rollout yet* (servers here report it as missing, but no rollout runs), *Superseded* (a newer update replaces it) or *Stopped* (its rollout was stopped). The list holds every update the ring status counts.
 - **Installs from**: when the ring's servers may install it at the earliest.
 - **Day**: how long the update has been in the ring, compared with the minimum and maximum wait.
-- **Feedback** and **Success**: the rates the transition rule looks at (reported / targeted servers).
+- **Feedback** and **Success**: the rates the transition rule looks at (reported / targeted servers); "no server needs it" when no server of the ring needs the update.
 - **Servers**: the servers of the ring by state.
 
 ## Ring status {#status}

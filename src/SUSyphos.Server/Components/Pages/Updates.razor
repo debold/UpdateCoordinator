@@ -30,7 +30,15 @@
 </AuthorizeView>
 
 <Box Flush="true">
-    <TableTools Table="_table" Placeholder="Search KB or title" Labels="Labels" GroupOptions="GroupOptions" />
+    <TableTools Table="_table" Placeholder="Search KB or title" Labels="Labels" GroupOptions="GroupOptions">
+        @if (!ShowArchived)
+        {
+            <span class="view-toggles" data-help="updates#toggles">
+                <a class="btn ghost" href="@Navigation.GetUriWithQueryParameter("superseded", ShowSuperseded ? null : "1")">@(ShowSuperseded ? "Hide superseded" : $"Show superseded ({_hiddenSuperseded})")</a>
+                <a class="btn ghost" href="@Navigation.GetUriWithQueryParameter("completed", ShowCompleted ? null : "1")">@(ShowCompleted ? "Hide completed" : $"Show completed ({_hiddenCompleted})")</a>
+            </span>
+        }
+    </TableTools>
     <div class="scroll">
         <table>
             <thead>
@@ -43,7 +51,6 @@
                     <SortHeader Table="_table" Column="restart" Label="Restart" Options="@Options("restart")" />
                     <SortHeader Table="_table" Column="seen" Label="First reported" />
                     <SortHeader Table="_table" Column="rollout" Label="Rollout" Options="@Options("rollout")" />
-                    <SortHeader Table="_table" Column="missing" Label="Missing" Class="n" />
                     <SortHeader Table="_table" Column="installed" Label="Status" />
                 </tr>
             </thead>
@@ -62,9 +69,8 @@
                         <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
                         <td class="nowrap">@row.Restart</td>
                         <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
-                        <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }</td>
-                        <td class="n">@row.Missing</td>
-                        <td class="nowrap"><span class="donut-cell"><Donut Counts="@row.Counts" Small="true" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
+                        <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }@if (row.Newer is { } newer) { <div class="note">superseded by <a href="/updates/@newer.UpdateId/@newer.Revision">@newer.Name</a></div> }</td>
+                        <td class="nowrap"><span class="donut-cell" title="@($"{row.Missing} servers still miss it; {row.Counts.Successful} of {row.Counts.Total} installed, {row.Counts.Failed} failed")"><Donut Counts="@row.Counts" Small="true" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
                     </tr>
                 }
             </tbody>
@@ -77,7 +83,7 @@
 @code {
     private const int MaxRows = 5000;
 
-    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts, string Restart);
+    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts, string Restart, NewerUpdate? Newer = null, bool Completed = false);
 
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["classification"] = "Classification", ["severity"] = "Severity", ["rollout"] = "Rollout", ["restart"] = "Restart" };
     private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("classification", "Classification"), ("severity", "Severity"), ("restart", "Restart"), ("rollout", "Rollout")];
@@ -91,7 +97,6 @@
         new("severity", "Severity", r => SeverityRank(r.Severity), r => [r.Severity]),
         new("restart", "Restart", r => r.Restart, r => [r.Restart]),
         new("rollout", "Rollout", r => r.Rollout, r => [r.Rollout]),
-        new("missing", "Servers missing it", r => r.Missing),
         new("installed", "Installed", r => r.Counts.Total == 0 ? 0 : (double)r.Counts.Successful / r.Counts.Total),
     ];
 
@@ -100,6 +105,21 @@
     private string? Archived { get; set; }
 
     private bool ShowArchived => Archived == "1";
+
+    /// <summary>Superseded updates (replaced by a newer known update, no running rollout) are hidden unless "1".</summary>
+    [SupplyParameterFromQuery(Name = "superseded")]
+    private string? Superseded { get; set; }
+
+    /// <summary>Completed updates (released to every ring, nothing pending or failed) are hidden unless "1".</summary>
+    [SupplyParameterFromQuery(Name = "completed")]
+    private string? Completed { get; set; }
+
+    private bool ShowSuperseded => Superseded == "1";
+
+    private bool ShowCompleted => Completed == "1";
+
+    private int _hiddenSuperseded;
+    private int _hiddenCompleted;
 
     [SupplyParameterFromForm(FormName = "updates-bulk")]
     private string? Bulk { get; set; }
@@ -191,6 +211,14 @@
             {
                 var key = (u.UpdateId, u.Revision);
                 var (rollout, cls, detail) = Describe(rollouts.GetValueOrDefault(key), ringStates[key].ToList(), rings);
+                var deployment = DeploymentCounts.Of(counts[key]);
+                NewerUpdate? newerUpdate = null;
+                var completed = cls == "ok" && rollouts.GetValueOrDefault(key) is { State: RolloutState.Active } && deployment.Pending == 0 && deployment.Failed == 0 && deployment.Queued == 0;
+                if (completed)
+                {
+                    (rollout, detail) = ("Completed", "released to every ring, nothing pending");
+                }
+
                 if (u.BlockedAtUtc is not null)
                 {
                     (rollout, cls) = ("Blocked", "fail");
@@ -202,12 +230,11 @@
                 else if (supersededBy.TryGetValue(u.UpdateId, out var newer))
                 {
                     // Replaced by a newer update: marked; without a running rollout it is not offered any more.
+                    newerUpdate = newer;
                     if (rollouts.GetValueOrDefault(key) is not { State: RolloutState.Active })
                     {
-                        (rollout, cls) = ("Superseded", "neutral");
+                        (rollout, cls, detail) = ("Superseded", "neutral", null);
                     }
-
-                    detail = detail is null ? $"by {newer}" : $"{detail}; superseded by {newer}";
                 }
 
                 return new Row(
@@ -223,9 +250,19 @@
                     cls,
                     detail,
                     missing.GetValueOrDefault(key),
-                    DeploymentCounts.Of(counts[key]),
-                    UpdateText.Restart(u.RebootBehavior));
+                    deployment,
+                    UpdateText.Restart(u.RebootBehavior),
+                    newerUpdate,
+                    completed);
             })];
+
+        // Superseded and completed updates are out of the way unless asked for; the toggles say how many.
+        if (!ShowArchived)
+        {
+            _hiddenSuperseded = rows.Count(r => r.Rollout == "Superseded");
+            _hiddenCompleted = rows.Count(r => r.Completed);
+            rows = [.. rows.Where(r => (ShowSuperseded || r.Rollout != "Superseded") && (ShowCompleted || !r.Completed))];
+        }
 
         _page = TablePaging.Apply(rows, _table, Columns, r => $"KB{r.Kb} {r.Title}");
     }
