@@ -24,7 +24,7 @@
     </ChildContent>
 </Box>
 
-<Box Title="Available certificates" Help="certificate#available" Hint="LocalMachine\My with private key, currently valid and allowed for server authentication" Flush="true">
+<Box Title="Certificates" Help="certificate#available" Hint="LocalMachine\My: usable certificates first, the others with the reason they cannot be used" Flush="true">
     <div class="scroll">
         <table>
             <thead><tr><th>Subject</th><th>DNS names</th><th>Issuer</th><th>Valid until</th><th>Thumbprint</th><th class="num">Actions</th></tr></thead>
@@ -35,7 +35,7 @@
                 }
                 @foreach (var candidate in _candidates)
                 {
-                    <tr>
+                    <tr class="@(candidate.Unusable is null ? null : "unusable")">
                         <td>@candidate.Subject</td>
                         <td>@foreach (var name in candidate.DnsNames) { <span class="tag">@name</span> }</td>
                         <td>@candidate.Issuer</td>
@@ -45,6 +45,10 @@
                             @if (IsInUse(candidate))
                             {
                                 <span class="pill ok">In use</span>
+                            }
+                            else if (candidate.Unusable is { } reason)
+                            {
+                                <span class="pill neutral">Not usable</span><div class="note">@reason</div>
                             }
                             else
                             {
@@ -58,7 +62,7 @@
     </div>
 </Box>
 
-@if (DialogName == "use" && !_switched && _candidates.FirstOrDefault(c => string.Equals(c.Thumbprint, DialogThumbprint, StringComparison.OrdinalIgnoreCase)) is { } selected)
+@if (DialogName == "use" && !_switched && _candidates.FirstOrDefault(c => c.Unusable is null && string.Equals(c.Thumbprint, DialogThumbprint, StringComparison.OrdinalIgnoreCase)) is { } selected)
 {
     <Dialog Title="Switch the TLS certificate?" CloseHref="/administration/certificate" Help="certificate#switch">
         <form method="post" @formname="certificate" @onsubmit="UseAsync">
@@ -107,7 +111,7 @@
     private async Task LoadAsync()
     {
         _current = Administration.Current;
-        _candidates = Administration.ListCandidates();
+        _candidates = Administration.ListAll();
         _daysLeft = (int)Math.Floor((_current.NotAfter.ToUniversalTime() - Time.GetUtcNow().UtcDateTime).TotalDays);
         _serial = (await Bindings.GetCurrentAsync(CancellationToken.None))?.Serial;
     }

@@ -8,9 +8,9 @@ Agents do not pin the certificate but the **trust anchor** of the central server
 
 The certificate currently presented: **Subject**, **Issuer**, **Thumbprint**, **Valid until** and the **Binding serial** (increases with every signed binding; agents accept only increasing serials). The tag shows the days left; it turns amber below 30 days.
 
-## Available certificates {#available}
+## Certificates {#available}
 
-Certificates in the LocalMachine\My store of the central server that have a private key, are currently valid and are allowed for server authentication, with their DNS names. Browsers accept a certificate only for the names it contains, so choose one with the name you use to open the dashboard. **In use** marks the current one; **Use…** opens the [switch dialog](#switch).
+All certificates in the LocalMachine\My store of the central server, with their DNS names. Usable ones come first: they have a private key, are currently valid and are allowed for server authentication. The others are shown dimmed with **Not usable** and the reason: no private key, expired or not valid yet, not allowed for server authentication (enhanced key usage), a private key the central server service cannot read (permissions), or a key type it does not support. Browsers accept a certificate only for the names it contains, so choose one with the name you use to open the dashboard. **In use** marks the current one; **Use…** opens the [switch dialog](#switch).
 
 To use a certificate from your CA, import it with its private key into LocalMachine\My on the central server; it then appears here.
 

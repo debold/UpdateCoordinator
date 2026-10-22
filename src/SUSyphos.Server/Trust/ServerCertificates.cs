@@ -51,6 +51,37 @@ internal static class ServerCertificates
         return usage is null || usage.EnhancedKeyUsages.Cast<Oid>().Any(o => o.Value == ServerAuthenticationOid);
     }
 
+    /// <summary>Why a certificate cannot serve as TLS certificate of the central server, or null if it can.</summary>
+    public static string? UnusableReason(X509Certificate2 certificate, DateTime nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(certificate);
+        return !certificate.HasPrivateKey ? "No private key"
+            : certificate.NotBefore.ToUniversalTime() > nowUtc ? "Not valid yet"
+            : certificate.NotAfter.ToUniversalTime() <= nowUtc ? "Expired"
+            : !AllowsServerAuthentication(certificate) ? "Not allowed for server authentication (enhanced key usage)"
+            : null;
+    }
+
+    /// <summary>Whether the service can use the private key: unreadable keys (permissions) and unsupported key types are named.</summary>
+    public static string? KeyProblem(X509Certificate2 certificate)
+    {
+        ArgumentNullException.ThrowIfNull(certificate);
+        try
+        {
+            using var rsa = certificate.GetRSAPrivateKey();
+            using var ecdsa = rsa is null ? certificate.GetECDsaPrivateKey() : null;
+            return rsa is null && ecdsa is null ? "Key type not supported (RSA or ECDSA needed)" : null;
+        }
+        catch (CryptographicException)
+        {
+            return "Private key not readable by the central server service";
+        }
+    }
+
+    /// <summary>Usable certificates first, each part with the latest expiry first.</summary>
+    public static IReadOnlyList<CertificateCandidate> Order(IEnumerable<CertificateCandidate> certificates) =>
+        [.. certificates.OrderBy(c => c.Unusable is not null).ThenByDescending(c => c.NotAfterUtc)];
+
     public static CertificateCandidate Describe(X509Certificate2 certificate) => new(
         certificate.Thumbprint,
         certificate.Subject,

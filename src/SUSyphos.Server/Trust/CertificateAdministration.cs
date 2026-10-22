@@ -9,14 +9,20 @@ using SUSyphos.Server.Administration;
 
 namespace SUSyphos.Server.Trust;
 
-/// <summary>A certificate the central server could present: from LocalMachine\My, with private key, valid now.</summary>
-internal sealed record CertificateCandidate(string Thumbprint, string Subject, string Issuer, DateTime NotBeforeUtc, DateTime NotAfterUtc, IReadOnlyList<string> DnsNames, bool SelfGenerated = false);
+/// <summary>
+/// A certificate from LocalMachine\My. <c>Unusable</c> says why the central server cannot present it (e.g. expired); null
+/// for a certificate with private key, valid now and allowed for server authentication.
+/// </summary>
+internal sealed record CertificateCandidate(string Thumbprint, string Subject, string Issuer, DateTime NotBeforeUtc, DateTime NotAfterUtc, IReadOnlyList<string> DnsNames, bool SelfGenerated = false, string? Unusable = null);
 
 /// <summary>The machine certificate store and the setting that selects the TLS certificate. Separate so tests never touch the machine.</summary>
 internal interface IServerCertificateStore
 {
     /// <summary>Server certificates with private key that are valid now, newest expiry first.</summary>
     IReadOnlyList<CertificateCandidate> ListCandidates();
+
+    /// <summary>Every certificate of the store: the usable ones first, then the others with the reason they cannot be used.</summary>
+    IReadOnlyList<CertificateCandidate> ListAll();
 
     /// <summary>
     /// The certificate with private key and this thumbprint, or null; also when expired or archived after a renewal, so a
@@ -40,13 +46,13 @@ internal sealed class WindowsServerCertificateStore : IServerCertificateStore
     {
         using var store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
         store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         var candidates = new List<CertificateCandidate>();
         foreach (var certificate in store.Certificates)
         {
             using (certificate)
             {
-                if (certificate.HasPrivateKey && certificate.NotBefore <= now && certificate.NotAfter > now && ServerCertificates.AllowsServerAuthentication(certificate))
+                if (ServerCertificates.UnusableReason(certificate, now) is null)
                 {
                     candidates.Add(ServerCertificates.Describe(certificate));
                 }
@@ -54,6 +60,23 @@ internal sealed class WindowsServerCertificateStore : IServerCertificateStore
         }
 
         return [.. candidates.OrderByDescending(c => c.NotAfterUtc)];
+    }
+
+    public IReadOnlyList<CertificateCandidate> ListAll()
+    {
+        using var store = new X509Store(StoreName.My, StoreLocation.LocalMachine);
+        store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
+        var now = DateTime.UtcNow;
+        var all = new List<CertificateCandidate>();
+        foreach (var certificate in store.Certificates)
+        {
+            using (certificate)
+            {
+                all.Add(ServerCertificates.Describe(certificate) with { Unusable = ServerCertificates.UnusableReason(certificate, now) ?? ServerCertificates.KeyProblem(certificate) });
+            }
+        }
+
+        return ServerCertificates.Order(all);
     }
 
     public X509Certificate2? Load(string thumbprint)
@@ -131,6 +154,8 @@ internal sealed partial class CertificateAdministration(
     AuditLog audit)
 {
     public IReadOnlyList<CertificateCandidate> ListCandidates() => store.ListCandidates();
+
+    public IReadOnlyList<CertificateCandidate> ListAll() => store.ListAll();
 
     public X509Certificate2 Current => provider.Certificate;
 

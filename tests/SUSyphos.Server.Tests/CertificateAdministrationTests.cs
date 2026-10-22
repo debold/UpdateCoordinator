@@ -44,6 +44,39 @@ public sealed class CertificateAdministrationTests
     }
 
     [Fact]
+    public async Task Page_ListsUnusableCertificates_WithTheReason_AndCannotUseThem()
+    {
+        await using var factory = new ServerFactory();
+        var store = factory.CertificateStore;
+        var usable = store.Add(TestCertificates.Create("uc01.lab.local"));
+        var expired = store.Add(FakeCertificateStore.CreateCertificate(["old.lab.local"], DateTimeOffset.UtcNow.AddYears(-2), DateTimeOffset.UtcNow.AddDays(-1)));
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        var html = await (await browser.GetAsync("/administration/certificate")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains(expired.Thumbprint, html, StringComparison.Ordinal);
+        Assert.Contains("Not usable", html, StringComparison.Ordinal);
+        Assert.Contains("Expired", html, StringComparison.Ordinal);
+        Assert.True(html.IndexOf(usable.Thumbprint, StringComparison.Ordinal) < html.IndexOf(expired.Thumbprint, StringComparison.Ordinal), "Usable certificates come first.");
+
+        // The switch dialog does not open for it, and the switch itself is refused.
+        Assert.DoesNotContain("role=\"dialog\"", await (await browser.GetAsync($"/administration/certificate?dialog=use&thumbprint={expired.Thumbprint}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.False((await UseAsync(factory, expired.Thumbprint, "admin")).Succeeded);
+    }
+
+    [Theory]
+    [InlineData(-10, -5, "Expired")]
+    [InlineData(5, 10, "Not valid yet")]
+    public void UnusableReason_NamesTheProblem(int fromDays, int toDays, string reason)
+    {
+        using var certificate = FakeCertificateStore.CreateCertificate(["x.lab.local"], DateTimeOffset.UtcNow.AddDays(fromDays), DateTimeOffset.UtcNow.AddDays(toDays));
+        Assert.Equal(reason, ServerCertificates.UnusableReason(certificate, DateTime.UtcNow));
+    }
+
+    [Fact]
     public async Task UnknownOrCurrentCertificate_IsRefused()
     {
         await using var factory = new ServerFactory();

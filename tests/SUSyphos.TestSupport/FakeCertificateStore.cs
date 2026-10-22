@@ -33,6 +33,12 @@ internal sealed class FakeCertificateStore : IServerCertificateStore
             .OrderByDescending(c => c.NotAfterUtc)];
     }
 
+    public IReadOnlyList<CertificateCandidate> ListAll()
+    {
+        var now = Clock().UtcDateTime;
+        return ServerCertificates.Order(_certificates.Select(c => ServerCertificates.Describe(c) with { Unusable = ServerCertificates.UnusableReason(c, now) }));
+    }
+
     public X509Certificate2? Load(string thumbprint) =>
         _certificates.FirstOrDefault(c => string.Equals(c.Thumbprint, thumbprint, StringComparison.OrdinalIgnoreCase));
 
