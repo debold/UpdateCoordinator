@@ -1,3 +1,5 @@
+using SUSyphos.Contracts.Trust;
+
 namespace SUSyphos.Agent.Trust;
 
 /// <summary>
@@ -14,4 +16,10 @@ internal interface IServerTrust
     void RequestRefresh();
 
     void MarkResetReported();
+
+    /// <summary>Verifies the binding of a move target against the pinned anchor without changing anything (docs/03-communication-protocol.md, 3.4).</summary>
+    TrustDecision CheckMoveTarget(TrustBinding? binding, byte[] presentedCertificateSpkiSha256, out TrustState newState);
+
+    /// <summary>Takes over the state verified by <see cref="CheckMoveTarget"/> once the move is saved.</summary>
+    void AdoptMoveTarget(TrustState state);
 }

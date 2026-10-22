@@ -11,6 +11,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- Moves to a new central server when the current one announces its address: it switches only if the server there proves the same trust anchor and accepts its credentials, then writes `CentralServerUrl` and restarts its service; otherwise it stays and reports why with the heartbeat (tried again every 15 minutes, never when group policy sets the address).
+- Applies central agent settings delivered with the release list at run time (heartbeat, search and inventory intervals, back-off, log level and files, memory limit, priority, minimum free disk space, drivers in the search, restart warning time and message) and keeps them in a protected file for the next start; registry and policy values still win. Log level and priority changes restart the service.
+- The inventory reports whether the Microsoft Update service is registered, so the dashboard shows the real update source.
 - Looks up the released updates a search did not find and reports those Windows Update no longer knows at all (`notOffered`), so the central server can spot updates Microsoft withdrew.
 - New remote actions "uninstall, restart right after" and "uninstall, restart in the next maintenance window": removes the named update through Windows Update, or with DISM by its KB number where Windows Update cannot (e.g. combined servicing stack and cumulative packages); the local veto prevents only the restart.
 - Self-update: msiexec failed with exit code 1619 (sharing violation, log note 2203 with 0x80030020) because the agent kept the verified package open with write access. The package is now verified and installed through a read-only handle that still keeps others from changing it. Agents up to 0.7.2 have the error and cannot update themselves: install a fixed version on them once by hand (or by software distribution); from then on remote updates work.
@@ -55,6 +58,18 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- **Move to a new server** (Backup page): announce the address of a central server restored from this server's backup; agents switch after checking the trust anchor, the box counts the servers still reporting here and lists those that could not move with the reason (also on the server page).
+- **Agent settings** (Administration → Agent settings): central defaults for all agents, overrides per server group and per server in collapsed sections that show the applied value and where it comes from.
+- Windows Automatic Updates and Microsoft Update can be set per server ("Inherit from groups or system" by default). The System box shows the update source the agent reports, with a "set: …" tag while it differs from the setting.
+- TLS certificate page lists every certificate in the store; unusable ones are marked "Not usable" with the reason (expired, no private key, key not accessible, no server authentication).
+- Server list: a mark next to the agent version (current, update available, update failed), a donut with the pending updates instead of a number, a dot before the last heartbeat (within 5 minutes, within an hour, older) and a "select all" box in the table header (also on the update and approval lists).
+- Update list: superseded and completed updates are hidden unless "Show superseded" or "Show completed" is ticked; the Missing column is gone (the donut tooltip has the count). A superseded update links the update that replaces it ("KB… (Version …)") here and on the update page; start rules no longer start updates that a known newer update replaces.
+- Ring page: waiting updates are marked "Superseded" or "Stopped" and hidden unless superseded ones are shown; the title of an update opens its update page and "per server ›" opens the per-server tab.
+- Assignment rules link their ring or group to the filtered server list and have a "Servers" column with the number of matching servers (opens the server list filtered by the rule).
+- Feedback and success cells say "no server needs it" instead of percentages when no server in the ring misses the update.
+- Server page: the tasks show a running search or inventory as "now" and hide the planned window installation while installing or while "install now" is queued; no extra note in the action band after starting an action. The "No restart" option is named the same in the error message and the dialog.
+- Messages after an action appear as a toast when the page keeps its scroll position, so they are always in view.
+- Identity: AD group, role and "Add" in one row; picking a privileged group (e.g. Domain Admins) warns right at the field, and mapped privileged groups carry the tag "usually gives no role (UAC)".
 - Updates withdrawn by Microsoft: when servers report that Windows Update no longer knows a released update, no server still gets it offered and no newer revision or superseding update explains it, the update is marked "Withdrawn by Microsoft", its rollout stops at once and a notification is sent; Release rules → "Updates withdrawn by Microsoft" can switch to notifications only.
 - **Block** on the update page (Operator): stops the rollout and keeps start rules and operators from starting the update again until it is unblocked. **Block and uninstall…** (Admin) also lets every server that has the update uninstall it, and **Uninstall update…** on the server page removes one update from one server, each with the restart right after or in the next maintenance window.
 - The help showed a garbled character instead of "…" in two places (update list and update page).

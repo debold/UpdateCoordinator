@@ -133,6 +133,35 @@ internal sealed partial class ServerTrust : IServerTrust
         }
     }
 
+    public TrustDecision CheckMoveTarget(TrustBinding? binding, byte[] presentedCertificateSpkiSha256, out TrustState newState)
+    {
+        lock (_lock)
+        {
+            newState = _state;
+
+            // Without a pinned anchor there is nothing the new server could prove; a move never pins a new anchor.
+            return _state.AnchorPublicKey is null
+                ? TrustDecision.AnchorMismatch
+                : TrustBindingVerifier.Verify(binding, presentedCertificateSpkiSha256, _state, out newState);
+        }
+    }
+
+    public void AdoptMoveTarget(TrustState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        lock (_lock)
+        {
+            if (state.AnchorPublicKey is null || state.AnchorPublicKey != _state.AnchorPublicKey)
+            {
+                throw new InvalidOperationException("A move never changes the pinned trust anchor.");
+            }
+
+            _store.Save(state);
+            _state = state;
+            Volatile.Write(ref _acceptedHash, Decode(state.AcceptedCertificateSpkiSha256));
+        }
+    }
+
     private void ApplyResetToken(string? token)
     {
         if (string.IsNullOrWhiteSpace(token) || token == _state.LastResetToken)

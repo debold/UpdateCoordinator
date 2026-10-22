@@ -8,7 +8,11 @@ namespace SUSyphos.Contracts.Agents;
 /// <param name="InstallationsPaused">Global pause: no new installations start; check, search and reporting continue.</param>
 /// <param name="PendingActions">Number of remote actions waiting; the agent fetches them when it is above zero.</param>
 /// <param name="AgentUpdate">A newer agent version released for the server's ring; null if the agent is current.</param>
-public sealed record HeartbeatResponse(RegistrationState State, long? ReleasesVersion = null, bool InstallationsPaused = false, int PendingActions = 0, AgentUpdate? AgentUpdate = null);
+/// <param name="MoveTo">
+/// New address of the central server (docs/03-communication-protocol.md, 3.4): the agent switches only if the server there proves the
+/// same trust anchor and accepts the agent's credentials. Null when no move is announced.
+/// </param>
+public sealed record HeartbeatResponse(RegistrationState State, long? ReleasesVersion = null, bool InstallationsPaused = false, int PendingActions = 0, AgentUpdate? AgentUpdate = null, Uri? MoveTo = null);
 
 /// <summary>
 /// An agent package to update to (docs/05-agent-design.md, section 7). The agent downloads it from the central server

@@ -30,3 +30,13 @@ Restoring happens on the command line of the central server, not in the dashboar
 2. Run as administrator in the installation folder: `SUSyphos.Server.exe restore <backup.zip>`.
 3. Enter the backup password when asked (or set it in the environment variable `SUSYPHOS_BACKUP_PASSWORD`). The archive is checked first; only then are the database and trust anchor replaced.
 4. Start the service.
+
+## Move to a new server {#move}
+
+Moves every agent to a new central server, for example new hardware or a new name. Restore a current backup on the new server first and start it: it then has the same trust anchor and knows every agent.
+
+- **New address**: the address of the new server as the agents reach it, for example `https://updates-new.example.local:8443/`. HTTPS only, without user name, query or fragment.
+- **Announce** stores the address. Each approved agent gets it with its next heartbeat, checks that the new server proves the same trust anchor and accepts the agent's credentials, and only then switches and restarts its service. The tag shows "announced" while a move is announced.
+- **Withdraw** removes the announcement; agents that have not moved stay with this server. Emptying the field and selecting Announce does the same.
+
+While a move is announced the box shows how many approved servers still sent a heartbeat to this server in the last 15 minutes (agents that moved stop reporting here) and lists the servers that could not move with the reason, for example the new server is unreachable, has another trust anchor (not restored from this server's backup), presents an older certificate (older backup), does not know the agent, or group policy sets the address. They try again every 15 minutes. A new server without the backup cannot take over agents this way: install the agents again with its installer.

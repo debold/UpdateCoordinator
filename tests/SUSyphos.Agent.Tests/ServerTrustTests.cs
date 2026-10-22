@@ -164,5 +164,13 @@ public sealed class ServerTrustTests : IDisposable
             Calls++;
             return Task.FromResult(Result);
         }
+
+        public Uri? LastAddress { get; private set; }
+
+        public Task<(TrustBinding? Binding, byte[] PresentedCertificateSpkiSha256)> FetchFromAsync(Uri baseAddress, CancellationToken cancellationToken)
+        {
+            LastAddress = baseAddress;
+            return FetchAsync(cancellationToken);
+        }
     }
 }

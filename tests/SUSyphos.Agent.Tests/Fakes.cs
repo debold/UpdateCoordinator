@@ -238,6 +238,16 @@ internal sealed class FakeServerTrust : IServerTrust
     public void RequestRefresh() => RefreshRequests++;
 
     public void MarkResetReported() => ResetNotReported = false;
+
+    public TrustDecision CheckMoveTarget(SUSyphos.Contracts.Trust.TrustBinding? binding, byte[] presentedCertificateSpkiSha256, out TrustState newState)
+    {
+        newState = TrustState.Empty;
+        return TrustDecision.AnchorMismatch;
+    }
+
+    public void AdoptMoveTarget(TrustState state)
+    {
+    }
 }
 
 internal sealed class FakeInstallationRunner : IInstallationRunner
@@ -357,4 +367,54 @@ internal sealed class FakeUninstaller : SUSyphos.Agent.Installation.IUpdateUnins
         Calls.Add((updateId, kbArticle));
         return Task.FromResult(Result);
     }
+}
+
+internal sealed class MemoryTrustStateStore : ITrustStateStore
+{
+    public TrustState State { get; set; } = TrustState.Empty;
+
+    public TrustState Load() => State;
+
+    public void Save(TrustState state) => State = state;
+}
+
+internal sealed class FakeTrustBindingFetcher : ITrustBindingFetcher
+{
+    public (SUSyphos.Contracts.Trust.TrustBinding? Binding, byte[] Hash) Result { get; set; } = (null, []);
+
+    /// <summary>Thrown instead of a result, e.g. an unreachable address.</summary>
+    public Exception? Failure { get; set; }
+
+    public List<Uri> Addresses { get; } = [];
+
+    public Task<(SUSyphos.Contracts.Trust.TrustBinding? Binding, byte[] PresentedCertificateSpkiSha256)> FetchAsync(CancellationToken cancellationToken) =>
+        Failure is null ? Task.FromResult(Result) : Task.FromException<(SUSyphos.Contracts.Trust.TrustBinding?, byte[])>(Failure);
+
+    public Task<(SUSyphos.Contracts.Trust.TrustBinding? Binding, byte[] PresentedCertificateSpkiSha256)> FetchFromAsync(Uri baseAddress, CancellationToken cancellationToken)
+    {
+        Addresses.Add(baseAddress);
+        return FetchAsync(cancellationToken);
+    }
+}
+
+internal sealed class FakeMoveTargetProbe : IMoveTargetProbe
+{
+    public System.Net.HttpStatusCode Status { get; set; } = System.Net.HttpStatusCode.OK;
+
+    public string? LastCertificate { get; private set; }
+
+    public Task<System.Net.HttpStatusCode> ProbeAsync(Uri address, string acceptedCertificateSpkiSha256, AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        LastCertificate = acceptedCertificateSpkiSha256;
+        return Task.FromResult(Status);
+    }
+}
+
+internal sealed class FakeAgentAddressStore : IAgentAddressStore
+{
+    public bool IsSetByPolicy { get; set; }
+
+    public Uri? Saved { get; private set; }
+
+    public void Save(Uri address) => Saved = address;
 }

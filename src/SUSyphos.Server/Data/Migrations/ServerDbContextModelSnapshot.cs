@@ -634,6 +634,9 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("BLOB");
 
+                    b.Property<string>("ServerMoveError")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("State")
                         .HasColumnType("INTEGER");
 

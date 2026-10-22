@@ -82,6 +82,12 @@ View of the immutable audit log, configuration of the SIEM export (target endpoi
 
 Configuration and triggering of the central server's backup function.
 
+Implemented (2026-10-22): box "Move to a new server" announces the address of a central server restored from the backup; agents switch after checking the trust anchor (docs/03-communication-protocol.md, 3.4); the box lists agents that could not move.
+
+### Agent settings
+
+Implemented (2026-10-22): page Administration → Agent settings with the system defaults of the central agent settings (intervals, logging, resources, pre-flight, search, restart notice), grouped in boxes. Server groups and single servers override them in a collapsed "Agent settings" section of their forms that shows the applied value and its source; nothing is overridden by default.
+
 ### Agent rollout
 
 Visibility of agent versions, state of the internal agent rollout, minimum version.

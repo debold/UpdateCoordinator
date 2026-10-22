@@ -23,6 +23,7 @@
 | Agent | Central server | HTTPS, `GET /api/v1/agents/releases` | when the release version in the heartbeat changes (approved agents) | released updates with earliest installation time |
 | Agent | Central server | HTTPS, `POST /api/v1/agents/installations` | after each installation run, or later if the central server was unreachable | result per update, reboot needed |
 | Agent | Central server | HTTPS, `GET /api/v1/agents/package/{version}` | when the heartbeat announces a released newer agent version | download of the agent package for the self-update (section 22) |
+| Agent | New central server | HTTPS, `GET /api/v1/trust/binding`, then `GET /api/v1/agents/releases` | while a move is announced, until it succeeds (retried every 15 min) | verifies the same trust anchor and that the new server knows the agent before switching (section 19, move) |
 | Central server | Backup folder (local disk or SMB share) | file system / SMB, as LocalSystem (computer account) | daily at the configured time, if the scheduled backup is on | encrypted backup archives (section 19) |
 | Central server | GitHub (`api.github.com`, `github.com` and its download storage) | HTTPS | daily and on "Check for new versions now" (`AgentPackages:CheckEnabled`) | new agent versions of the project; downloaded and verified, never released automatically |
 | Agent | Windows Update (or WSUS) | HTTPS, via the Windows Update Agent API | during the update search | search for available updates; the agent itself contacts no other internet address |
@@ -125,6 +126,25 @@ Registry values are read when the agent service starts. The product name in the 
 | `AgentUpdate:InstallTimeout` | `00:30:00` | how long msiexec may run before the attempt counts as failed |
 
 Invalid configuration stops the service at startup with a clear error in the event log instead of running with wrong settings.
+
+**Central agent settings** (dashboard page Administration → Agent settings, role `Admin`): system defaults for all agents, overridden per server group (the group with the lowest number wins, then the first by name) and per server (server page, Assignment). They reach the agent with the release list and are stored in `%ProgramData%\SUSyphos\Agent\central-settings.dat` (DPAPI, LocalSystem) for the next start. Priority on the agent: registry policy key, registry installer key, central settings, `appsettings.json`. Settings and the keys they set:
+
+| Setting | Key | Range |
+|---|---|---|
+| Heartbeat | `CentralServer:HeartbeatInterval` | 5 to 600 s |
+| Update search | `Updates:SearchInterval` | 1 to 24 h |
+| Inventory | `Inventory:CollectInterval` | 1 to 24 h |
+| Longest back-off | `CentralServer:MaxBackoff` | 1 to 60 min |
+| Log level | `Logging:File:MinimumLevel` | Warning, Information, Debug (restarts the service) |
+| Log files kept | `Logging:File:RetainedFileCountLimit` | 1 to 365 (restarts the service) |
+| Memory limit | `Resources:MaxPrivateMemoryMegabytes` | 64 to 4096 MB |
+| Low priority | `Resources:LowPriority` | on/off (restarts the service) |
+| Minimum free disk | `Updates:MinFreeDiskSpaceMegabytes` | MB |
+| Include drivers | `Updates:IncludeDrivers` | on/off (off searches `Type='Software'` only) |
+| Restart warning | `Installation:RestartWarning` | 1 to 30 min |
+| Restart message | `Installation:RestartMessage` | up to 200 characters, no quotes |
+
+The central server address and trust settings are never set centrally; a move to a new server has its own flow (section 19).
 
 #### Additional role rules
 
@@ -428,6 +448,16 @@ The restore refuses to run while the service runs. It checks everything first (a
 |---|---|---|
 | `Backup:PasswordPath` | `%ProgramData%\SUSyphos\Server\backup-password.dat` | protected file with the password of the scheduled backup |
 | `Backup:CheckInterval` | `00:15:00` | how often the central server looks whether the daily backup is due (1 min to 1 h) |
+
+**Move to a new server** (same page, box "Move to a new server", role `Admin`; protocol in `docs/03-communication-protocol.md`, 3.4):
+
+1. Restore a current backup on the new central server (see above) and start it. Both servers run side by side during the move.
+2. On the old server enter the new address as the agents reach it (e.g. `https://updates-new.example.local:8443/`) and select **Announce**. The announcement is audited.
+3. Each approved agent gets the address with its next heartbeat, checks that the new server proves the same trust anchor and accepts its credentials, writes the address to `HKLM\SOFTWARE\SUSyphos\Agent\CentralServerUrl` and restarts its service. Agents that moved stop reporting to the old server; the box counts the servers that still sent a heartbeat in the last 15 minutes.
+4. Agents that cannot move stay with the old server and report why (new server unreachable, another trust anchor, older certificate, agent unknown, address set by group policy); the box and the server page list it. They try again every 15 minutes. Where group policy sets `CentralServerUrl`, change the policy instead.
+5. When no server reports to the old one any more, withdraw the announcement on the new server if it came with the backup, and shut the old server down.
+
+Taking the backup after the announcement is fine: the new server then announces its own address, which agents ignore.
 
 ## 20. Notifications
 

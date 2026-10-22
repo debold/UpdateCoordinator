@@ -169,6 +169,10 @@ The agent fetches actions from the queue, executes them in the given order and r
 
 **Implemented (2026-10-20):** the heartbeat announces a released newer version (version, SHA-256, size; see `04-central-server.md`, section 5). The agent downloads it from the central server with the same trust check as every message, streamed into `%ProgramData%\SUSyphos\Agent\Update`, a folder recreated for every update with access for SYSTEM and administrators only, and keeps the file open with read sharing only until msiexec is done, so the verified file cannot be swapped. It checks size and SHA-256 and runs `msiexec /i … /qn /norestart /l*v`. The MSI stops the service, replaces the files and starts the new version; no reboot. The attempt is kept in `agent-update.json`; after the restart the running version decides success. Failures (checksum, msiexec exit code, timeout, old version after the restart) are reported with the heartbeat (`agentUpdateError`) and retried after `AgentUpdate:RetryDelay` (6 h). Below the minimum version of the central server the agent is updated with the shipped package even without a release (`04-central-server.md`, section 5).
 
+## 7a. Central settings and moving
+
+Implemented (2026-10-22): the release list carries central agent settings; the agent applies them through a configuration provider between its own files and the registry, so registry and policy values always win, and keeps them protected for the next start. Changes of logging or priority restart the service; everything else applies with the next cycle. A heartbeat can announce a new central server address; the agent moves only after the server there proves the pinned trust anchor and accepts its credentials (docs/03-communication-protocol.md, 3.4).
+
 ## 8. Installation and uninstallation
 
 - The address of the central server comes from the registry (group policy before installer value); the installer writes it from the `SERVERURL` option or from its own file name when downloaded from the central server (see `03-communication-protocol.md` 3.3).

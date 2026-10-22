@@ -15,6 +15,9 @@ namespace SUSyphos.Agent.Trust;
 internal interface ITrustBindingFetcher
 {
     Task<(TrustBinding? Binding, byte[] PresentedCertificateSpkiSha256)> FetchAsync(CancellationToken cancellationToken);
+
+    /// <summary>The same from another address, for a move to a new central server.</summary>
+    Task<(TrustBinding? Binding, byte[] PresentedCertificateSpkiSha256)> FetchFromAsync(Uri baseAddress, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -26,7 +29,10 @@ internal sealed class TrustBindingFetcher(IOptions<CentralServerOptions> options
     private const int MaxResponseBytes = 16 * 1024;
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
-    public async Task<(TrustBinding? Binding, byte[] PresentedCertificateSpkiSha256)> FetchAsync(CancellationToken cancellationToken)
+    public Task<(TrustBinding? Binding, byte[] PresentedCertificateSpkiSha256)> FetchAsync(CancellationToken cancellationToken) =>
+        FetchFromAsync(options.Value.BaseAddress ?? throw new InvalidOperationException("No central server address is configured."), cancellationToken);
+
+    public async Task<(TrustBinding? Binding, byte[] PresentedCertificateSpkiSha256)> FetchFromAsync(Uri baseAddress, CancellationToken cancellationToken)
     {
         byte[]? presented = null;
         using var handler = new SocketsHttpHandler
@@ -50,7 +56,7 @@ internal sealed class TrustBindingFetcher(IOptions<CentralServerOptions> options
         };
         using var client = new HttpClient(handler)
         {
-            BaseAddress = options.Value.BaseAddress,
+            BaseAddress = baseAddress,
             Timeout = Timeout,
             MaxResponseContentBufferSize = MaxResponseBytes,
         };

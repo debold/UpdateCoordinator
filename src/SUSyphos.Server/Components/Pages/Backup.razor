@@ -2,6 +2,11 @@
 @attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
 @inherits DashboardPageBase
 @inject ScheduledBackup Schedule
+@inject ServerMove Move
+@inject ServerDbContext Db
+@using SUSyphos.Contracts.Trust
+@using SUSyphos.Server.Agents
+@using Microsoft.EntityFrameworkCore
 
 <PageTitle>Backup</PageTitle>
 
@@ -71,6 +76,45 @@
     </p>
 </Box>
 
+<form method="post" @formname="server-move" @onsubmit="SaveMoveAsync" class="box" id="move">
+    <AntiforgeryToken />
+    <header class="box-head">
+        <h2>Move to a new server<HelpLink To="backup#move" Label="Move to a new server" /></h2>
+        <span class="pill @(_moveTo is null ? "neutral" : "queue")">@(_moveTo is null ? "no move announced" : "announced")</span>
+    </header>
+    <div class="box-body form">
+        <p class="note">
+            Restore a backup of this server on the new one first, so it has the same trust anchor and knows every agent. Then announce its address here:
+            each agent gets it with its next heartbeat and switches only if the new server proves the same trust anchor and accepts the agent's credentials.
+            Otherwise the agent stays with this server and reports why below. A new server without the backup is a new onboarding: reinstall the agents with its installer.
+        </p>
+        <label class="field"><span>New address</span><input name="MoveAddress" value="@(MoveAddress ?? _moveTo?.AbsoluteUri)" maxlength="@CentralServerAddress.MaxLength" placeholder="https://updates-new.example.local:8443/" /><span class="help">As the agents reach the new server; empty withdraws the announcement</span></label>
+        @if (_moveTo is not null)
+        {
+            <p class="note">@_stillHere of @_approved approved servers sent a heartbeat to this server in the last 15 minutes. Agents that moved stop reporting here.</p>
+            @if (_moveFailures.Count > 0)
+            {
+                <table class="compact">
+                    <thead><tr><th>Server</th><th>Why it did not move</th></tr></thead>
+                    <tbody>
+                        @foreach (var failure in _moveFailures)
+                        {
+                            <tr><td><a href="/servers/@failure.Id">@failure.HostName</a></td><td>@failure.ServerMoveError</td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </div>
+    <footer class="box-foot">
+        @if (_moveTo is not null)
+        {
+            <button type="submit" name="MoveAction" value="withdraw">Withdraw</button>
+        }
+        <button type="submit" name="MoveAction" value="save" class="primary">Announce</button>
+    </footer>
+</form>
+
 @code {
     [SupplyParameterFromQuery(Name = "error")]
     public string? Error { get; set; }
@@ -82,10 +126,16 @@
     [SupplyParameterFromForm(FormName = "backup-schedule")] private string? Keep { get; set; }
     [SupplyParameterFromForm(FormName = "backup-schedule")] private string? SchedulePassword { get; set; }
     [SupplyParameterFromForm(FormName = "backup-schedule")] private string? SchedulePasswordRepeat { get; set; }
+    [SupplyParameterFromForm(FormName = "server-move")] private string? MoveAction { get; set; }
+    [SupplyParameterFromForm(FormName = "server-move")] private string? MoveAddress { get; set; }
 
     private ScheduledBackupSettings _settings = new();
     private ScheduledBackupRun? _lastRun;
     private bool _hasPassword;
+    private Uri? _moveTo;
+    private int _approved;
+    private int _stillHere;
+    private List<SUSyphos.Server.Data.ClientEntity> _moveFailures = [];
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -134,10 +184,38 @@
         }
     }
 
+    private async Task SaveMoveAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators can announce a move.", string.Empty);
+            return;
+        }
+
+        var withdraw = MoveAction == "withdraw" || string.IsNullOrWhiteSpace(MoveAddress);
+        var outcome = await Move.SetAsync(withdraw ? null : MoveAddress, await GetActorAsync(), CancellationToken.None);
+        if (outcome.Error is null)
+        {
+            MoveAddress = null;
+        }
+
+        ShowResultAndReload(outcome.Error, withdraw ? "The move was withdrawn; the agents stay with this server." : "The move was announced; agents switch with their next heartbeat once the new server proves the same trust anchor.");
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
         _settings = await Schedule.GetSettingsAsync(CancellationToken.None);
         _lastRun = await Schedule.GetLastRunAsync(CancellationToken.None);
         _hasPassword = Schedule.HasPassword;
+        _moveTo = await Move.GetAsync(CancellationToken.None);
+        if (_moveTo is not null)
+        {
+            var recent = DateTime.UtcNow.AddMinutes(-15);
+            var approved = Db.Clients.AsNoTracking().Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved);
+            _approved = await approved.CountAsync();
+            _stillHere = await approved.CountAsync(c => c.LastHeartbeatAtUtc >= recent);
+            _moveFailures = await approved.Where(c => c.ServerMoveError != null).OrderBy(c => c.HostName).Take(200).ToListAsync();
+        }
     }
 }

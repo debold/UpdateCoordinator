@@ -271,6 +271,7 @@ internal static class AgentEndpoints
         GlobalPause globalPause,
         AgentActionService actions,
         Approval.ClientLifecycle lifecycle,
+        ServerMove serverMove,
         AgentPackages.AgentUpdateService agentUpdates,
         ClientActivityLog activityLog,
         CancellationToken cancellationToken)
@@ -303,6 +304,10 @@ internal static class AgentEndpoints
             : null;
         var agentUpdateError = agentUpdate is null ? null : request.AgentUpdateError;
 
+        // A move error only matters while the move is announced.
+        var moveTo = state == RegistrationState.Approved ? await serverMove.GetAsync(cancellationToken).ConfigureAwait(false) : null;
+        var serverMoveError = moveTo is null ? null : request.ServerMoveError;
+
         // Single parameterized UPDATE; no read-modify-write round trip on every heartbeat.
         var updated = await db.Clients
             .Where(c => c.Id == clientId)
@@ -320,6 +325,7 @@ internal static class AgentEndpoints
                         .SetProperty(c => c.NextSearchAtUtc, nextSearch)
                         .SetProperty(c => c.NextInventoryAtUtc, nextInventory)
                         .SetProperty(c => c.AgentUpdateError, agentUpdateError)
+                        .SetProperty(c => c.ServerMoveError, serverMoveError)
                         .SetProperty(c => c.LastBootAtUtc, c => lastBoot ?? c.LastBootAtUtc);
                     LiveStatus.Apply(setters, activity, now);
                 },
@@ -372,7 +378,8 @@ internal static class AgentEndpoints
             releasesVersion,
             await globalPause.IsActiveAsync(cancellationToken).ConfigureAwait(false),
             await actions.CountQueuedAsync(clientId, cancellationToken).ConfigureAwait(false),
-            agentUpdate));
+            agentUpdate,
+            moveTo));
     }
 
     /// <summary>

@@ -120,6 +120,9 @@ internal static class AgentHostBuilder
         services.AddSingleton<ITrustBindingFetcher, TrustBindingFetcher>();
         services.AddSingleton<ServerTrust>();
         services.AddSingleton<IServerTrust>(provider => provider.GetRequiredService<ServerTrust>());
+        services.AddSingleton<IAgentAddressStore, RegistryAgentAddressStore>();
+        services.AddSingleton<IMoveTargetProbe, MoveTargetProbe>();
+        services.AddSingleton<ServerMover>();
 
         services.AddHttpClient<ICentralServerClient, CentralServerClient>((provider, http) =>
                 http.BaseAddress = provider.GetRequiredService<IOptions<CentralServerOptions>>().Value.BaseAddress)

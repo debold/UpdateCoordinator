@@ -25,6 +25,9 @@ internal sealed class ClientEntity
     /// <summary>Why the last agent self-update failed, as reported by the agent; null when it succeeded or none was attempted.</summary>
     public string? AgentUpdateError { get; set; }
 
+    /// <summary>Why the agent did not move to the announced new central server address; null when no move is announced or it has not failed.</summary>
+    public string? ServerMoveError { get; set; }
+
     /// <summary>Remote IP address seen at registration, shown to the admin for manual approval.</summary>
     public string? RegisteredFromAddress { get; set; }
 

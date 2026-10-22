@@ -65,6 +65,17 @@ The installer binary contains no environment-specific data, so it stays signed a
 
 **Forged success reports:** are addressed by approval and GUID identification (only approved clients are accepted). A content plausibility check (e.g. build number against the expected update) was deliberately rejected, because legitimate cases such as a manual rollback produce the same deviation.
 
+### 3.4 Moving to a new central server
+
+Decided with Marc on 2026-10-22. The agents trust the central server through the pinned trust anchor (3.2), so a move keeps that anchor:
+
+1. The new central server is restored from a backup of the current one (database and trust anchor), so it has the same anchor and knows every agent's credentials.
+2. An administrator announces its address on the current server (Administration → Backup, "Move to a new server"). Approved agents get it with every heartbeat (`HeartbeatResponse.MoveTo`).
+3. The agent fetches the trust binding from the new address and verifies it against its pinned anchor exactly as in 3.2 (same anchor, valid signature, presented certificate matches, serial not older). It then asks the new server with its credentials (release list, over a connection pinned to the verified certificate). Only if both succeed does it write the new address to the installer value `CentralServerUrl`, keep the verified certificate and restart its service.
+4. Otherwise the agent stays with the current server and reports the reason with its next heartbeats (`HeartbeatRequest.ServerMoveError`); it tries again every 15 minutes. A policy value `CentralServerUrl` is never changed: the agent reports that group policy sets the address.
+
+A move never pins a new anchor. A new central server without the backup (new anchor) is a new onboarding and stays manual: install the agents with its installer or reset trust locally (3.2). The announced address is normalized the same way on both sides (`CentralServerAddress`): absolute HTTPS, no user information, query or fragment, at most 256 characters.
+
 ## 4. Registration of new agents
 
 ### 4.1 Approval mechanism

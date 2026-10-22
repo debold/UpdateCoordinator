@@ -36,6 +36,11 @@ public sealed record HeartbeatRequest
     [RegularExpression(ValidationPatterns.PrintableText)]
     public string? AgentUpdateError { get; init; }
 
+    /// <summary>Why the agent did not move to the announced new central server address; null when no move is pending or it has not tried yet.</summary>
+    [StringLength(512)]
+    [RegularExpression(ValidationPatterns.PrintableText)]
+    public string? ServerMoveError { get; init; }
+
     /// <summary>Current activity (live status); null when the agent is idle.</summary>
     public AgentActivity? Activity { get; init; }
 

@@ -29,6 +29,7 @@ internal sealed partial class AgentWorker(
     IInstallationRunner installation,
     IActionRunner actions,
     SelfUpdate.AgentSelfUpdater selfUpdate,
+    ServerMover mover,
     AutomaticUpdatesManager automaticUpdates,
     MicrosoftUpdateManager microsoftUpdate,
     ResourceGuard resources,
@@ -111,6 +112,7 @@ internal sealed partial class AgentWorker(
                     RebootPending = environment.RebootPending,
                     LastBootAt = environment.LastBootAt,
                     AgentUpdateError = selfUpdate.LastError,
+                    ServerMoveError = mover.LastError,
                     Activity = activity.Current,
                     RebootWait = environment.RebootPending || installation.RestartRequested ? installation.RebootWait : null,
                     RestartRequested = installation.RestartRequested,
@@ -136,6 +138,12 @@ internal sealed partial class AgentWorker(
         {
             LogStateChanged(identity.ClientId, response.State);
             _lastState = response.State;
+        }
+
+        // A move to a new central server address restarts the service; nothing else runs against the old server then.
+        if (await mover.MoveIfAnnouncedAsync(identity, response, cancellationToken).ConfigureAwait(false))
+        {
+            return;
         }
 
         // Each step returns false if the central server no longer accepts the credentials.
