@@ -1,0 +1,45 @@
+@using SUSyphos.Contracts.Agents
+@* The input of one central agent setting; empty means "not set here". *@
+@switch (Definition.Kind)
+{
+    case AgentSettingKind.Duration or AgentSettingKind.Number:
+        <input id="@Id" name="@Name" type="number" min="@Definition.Minimum" max="@Definition.Maximum" step="1" value="@Value" placeholder="@Placeholder" data-help-term="@Definition.Label" />
+        break;
+    case AgentSettingKind.Flag:
+        <select id="@Id" name="@Name" data-help-term="@Definition.Label">
+            <option value="" selected="@(Value is null)">@Placeholder</option>
+            <option value="true" selected="@(Value == "true")">On</option>
+            <option value="false" selected="@(Value == "false")">Off</option>
+        </select>
+        break;
+    case AgentSettingKind.Choice:
+        <select id="@Id" name="@Name" data-help-term="@Definition.Label">
+            <option value="" selected="@(Value is null)">@Placeholder</option>
+            @foreach (var choice in Definition.Choices ?? [])
+            {
+                <option value="@choice" selected="@(Value == choice)">@choice</option>
+            }
+        </select>
+        break;
+    default:
+        <input id="@Id" name="@Name" maxlength="@Definition.Maximum" value="@Value" placeholder="@Placeholder" data-help-term="@Definition.Label" />
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public AgentSettingDefinition Definition { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Id { get; set; }
+
+    [Parameter]
+    public string? Value { get; set; }
+
+    /// <summary>What applies when the field stays empty, e.g. "agent default: 10".</summary>
+    [Parameter]
+    public string? Placeholder { get; set; }
+}

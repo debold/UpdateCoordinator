@@ -24,6 +24,7 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
         var systemReboot = await GetSystemRebootPolicyAsync(cancellationToken).ConfigureAwait(false);
         var systemManage = await GetSystemManageAutomaticUpdatesAsync(cancellationToken).ConfigureAwait(false);
         var systemMicrosoftUpdate = await GetSystemMicrosoftUpdateAsync(cancellationToken).ConfigureAwait(false);
+        var systemAgentSettings = AgentSettingValues.Parse(await db.Settings.AsNoTracking().Where(s => s.Key == SettingEntity.SystemAgentSettings).Select(s => s.Value).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false));
 
         var clients = await db.Clients
             .Where(c => clientId == null || c.Id == clientId)
@@ -71,9 +72,19 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
             var manage = client.ManageAutomaticUpdates ?? Effective(systemManage, groupIds.Select(g => groups.TryGetValue(g, out var group) ? group.ManageAutomaticUpdates : null));
             var microsoftUpdate = client.UseMicrosoftUpdate ?? Effective(systemMicrosoftUpdate, groupIds.Select(g => groups.TryGetValue(g, out var group) ? group.UseMicrosoftUpdate : null));
 
+            // Central agent settings: server, then its groups (by name), then the system default.
+            var groupSettings = groupIds
+                .Select(g => groups.TryGetValue(g, out var group) ? group : null)
+                .OfType<GroupEntity>()
+                .OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(g => (IReadOnlyDictionary<string, string>)AgentSettingValues.Parse(g.AgentSettingsJson))
+                .ToList();
+            var agentSettings = AgentSettingValues.ToJson(AgentSettingValues.Combine(systemAgentSettings, groupSettings, AgentSettingValues.Parse(client.AgentSettingsJson)));
+
             if (json != client.EffectiveWindowsJson || reboot != client.EffectiveRebootPolicy || requiresLease != client.RequiresLease
-                || manage != client.EffectiveManageAutomaticUpdates || microsoftUpdate != client.EffectiveUseMicrosoftUpdate)
+                || manage != client.EffectiveManageAutomaticUpdates || microsoftUpdate != client.EffectiveUseMicrosoftUpdate || agentSettings != client.EffectiveAgentSettingsJson)
             {
+                client.EffectiveAgentSettingsJson = agentSettings;
                 client.EffectiveWindowsJson = json;
                 client.EffectiveRebootPolicy = reboot;
                 client.RequiresLease = requiresLease;

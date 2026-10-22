@@ -200,6 +200,7 @@ else
                             <span class="field-label">Maintenance windows</span>
                             <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
                         </div>
+                        <AgentSettingOverrides Explained="@_agentSettings" Own="@_ownAgentSettings" ParentLabel="the groups or the system default" Help="server-detail#agent-settings" />
                     </div>
                     <footer class="box-foot">
                         <span class="note">Applies with the server's next heartbeat.</span>
@@ -465,6 +466,8 @@ else
     private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
 
     private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _ownWindows = [];
+    private Dictionary<string, string> _ownAgentSettings = [];
+    private IReadOnlyList<(SUSyphos.Contracts.Agents.AgentSettingDefinition Definition, string Value, string Source)> _agentSettings = [];
     private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _effectiveWindows = [];
     private string _fallbackRing = "Production";
 
@@ -692,6 +695,11 @@ else
             outcome = await Administration.SetClientRebootPolicyAsync(Id, reboot, actor, CancellationToken.None);
         }
 
+        if (outcome.Succeeded && HttpContext?.Request.HasFormContentType == true)
+        {
+            outcome = await Administration.SetClientAgentSettingsAsync(Id, SUSyphos.Server.Assignment.AgentSettingValues.ReadForm(HttpContext.Request.Form), actor, CancellationToken.None);
+        }
+
         if (outcome.Succeeded)
         {
             bool? manage = AutomaticUpdates switch { "prevent" => true, "leave" => false, _ => null };
@@ -816,6 +824,11 @@ else
         }
 
         _ownWindows = MaintenanceWindowFormat.FromJson(_client.MaintenanceWindowsJson) ?? [];
+        _ownAgentSettings = SUSyphos.Server.Assignment.AgentSettingValues.Parse(_client.AgentSettingsJson);
+        var systemAgentSettings = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
+        var memberGroups = _memberships.Select(m => _groups.FirstOrDefault(g => g.Id == m.GroupId)).OfType<GroupEntity>()
+            .Select(g => (g.Name, (IReadOnlyDictionary<string, string>)SUSyphos.Server.Assignment.AgentSettingValues.Parse(g.AgentSettingsJson))).ToList();
+        _agentSettings = SUSyphos.Server.Assignment.AgentSettingValues.Explain(systemAgentSettings, memberGroups, _ownAgentSettings, "this server");
         if (Dialog == "uninstall")
         {
             _installed = [.. (await Db.ClientUpdates.AsNoTracking()

@@ -34,3 +34,7 @@ With **Only part of the group installs at the same time** ticked, members ask th
 - **At most at once**: an upper limit in servers (default 5). At least one server always gets a slot, so small groups progress too.
 
 A slot lasts two hours and is returned with the result right after the installation, or after the restart when the agent restarts the server. A server in several coordinated groups needs a slot in all of them. If slots fail or expire several times in a row (two, or the number of members if fewer), the central server stops the group: no member installs until an operator resumes it under [Approvals](help/approvals#groups).
+
+## Agent settings of a group {#agent-settings}
+
+The collapsed **Agent settings** section of the dialog shows every [agent setting](help/agent-settings) with the value that applies to the group and where it comes from. Settings set on the group appear as fields; empty one (or choose "Inherit") to use the system default again. **Override** picks another setting and **Value** sets it for the group (whole numbers in the unit shown, "on"/"off", or a choice such as "Debug"). If a server is in several groups that set the same setting, the lowest number wins, for other settings the group first by name; a value set on the server wins over all groups. **Save** stores it with the rest of the group.

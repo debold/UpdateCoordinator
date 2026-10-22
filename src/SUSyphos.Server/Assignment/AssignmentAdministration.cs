@@ -510,6 +510,123 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         return await CompleteAsync(actor, "Client.RebootPolicyChanged", $"{client.HostName} ({clientId:D})", policy?.ToString() ?? "inherited", clientId, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>The central agent settings of the system default.</summary>
+    public async Task<Dictionary<string, string>> GetSystemAgentSettingsAsync(CancellationToken cancellationToken) =>
+        AgentSettingValues.Parse(await db.Settings.AsNoTracking().Where(s => s.Key == SettingEntity.SystemAgentSettings).Select(s => s.Value).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false));
+
+    /// <summary>
+    /// Replaces the system default of the central agent settings. Every entry must be a known setting with a valid value;
+    /// an empty value removes the setting (agents use their own value).
+    /// </summary>
+    public async Task<Outcome> SetSystemAgentSettingsAsync(IReadOnlyDictionary<string, string?> values, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        if (Validate(values) is { } error)
+        {
+            return new Outcome(error);
+        }
+
+        var json = AgentSettingValues.ToJson(Clean(values));
+        var setting = await db.Settings.SingleOrDefaultAsync(s => s.Key == SettingEntity.SystemAgentSettings, cancellationToken).ConfigureAwait(false);
+        if (setting is null && json is not null)
+        {
+            db.Settings.Add(new SettingEntity { Key = SettingEntity.SystemAgentSettings, Value = json });
+        }
+        else if (setting is not null && json is null)
+        {
+            db.Settings.Remove(setting);
+        }
+        else if (setting is not null)
+        {
+            setting.Value = json!;
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return await CompleteAsync(actor, "AgentSettings.SystemDefaultChanged", "system", json ?? "none", null, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Replaces the central agent settings set on a group (values that differ from the system default); empty values are dropped.</summary>
+    public async Task<Outcome> SetGroupAgentSettingsAsync(int groupId, IReadOnlyDictionary<string, string?> values, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        if (Validate(values) is { } error)
+        {
+            return new Outcome(error);
+        }
+
+        var group = await db.Groups.SingleOrDefaultAsync(g => g.Id == groupId, cancellationToken).ConfigureAwait(false);
+        if (group is null)
+        {
+            return new Outcome("The group no longer exists.");
+        }
+
+        var json = AgentSettingValues.ToJson(Clean(values));
+        if (json == group.AgentSettingsJson)
+        {
+            return Outcome.Ok;
+        }
+
+        group.AgentSettingsJson = json;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return await CompleteAsync(actor, "AgentSettings.GroupChanged", group.Name, json ?? "none", null, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Replaces the central agent settings set on one server; empty values are dropped.</summary>
+    public async Task<Outcome> SetClientAgentSettingsAsync(Guid clientId, IReadOnlyDictionary<string, string?> values, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        if (Validate(values) is { } error)
+        {
+            return new Outcome(error);
+        }
+
+        var client = await db.Clients.SingleOrDefaultAsync(c => c.Id == clientId, cancellationToken).ConfigureAwait(false);
+        if (client is null)
+        {
+            return new Outcome("The server no longer exists.");
+        }
+
+        var json = AgentSettingValues.ToJson(Clean(values));
+        if (json == client.AgentSettingsJson)
+        {
+            return Outcome.Ok;
+        }
+
+        client.AgentSettingsJson = json;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return await CompleteAsync(actor, "AgentSettings.ClientChanged", $"{client.HostName} ({clientId:D})", json ?? "none", clientId, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string? Validate(IReadOnlyDictionary<string, string?> values)
+    {
+        foreach (var (key, value) in values)
+        {
+            if (SUSyphos.Contracts.Agents.AgentSettings.Find(key) is not { } definition)
+            {
+                return "The agent setting is unknown.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(value) && definition.Normalize(value) is null)
+            {
+                return Invalid(definition);
+            }
+        }
+
+        return null;
+    }
+
+    private static Dictionary<string, string> Clean(IReadOnlyDictionary<string, string?> values) =>
+        values.Where(v => !string.IsNullOrWhiteSpace(v.Value)).ToDictionary(v => v.Key, v => v.Value!, StringComparer.Ordinal);
+
+    private static string Invalid(SUSyphos.Contracts.Agents.AgentSettingDefinition definition) => definition.Kind switch
+    {
+        SUSyphos.Contracts.Agents.AgentSettingKind.Duration or SUSyphos.Contracts.Agents.AgentSettingKind.Number =>
+            $"{definition.Label}: a whole number from {definition.Minimum} to {definition.Maximum}{(definition.Unit.Length > 0 ? " " + definition.Unit : string.Empty)}.",
+        SUSyphos.Contracts.Agents.AgentSettingKind.Choice => $"{definition.Label}: one of {string.Join(", ", definition.Choices ?? [])}.",
+        SUSyphos.Contracts.Agents.AgentSettingKind.Flag => $"{definition.Label}: on or off.",
+        _ => $"{definition.Label}: at most {definition.Maximum} characters, no quotes or control characters.",
+    };
+
     /// <summary>Sets the Automatic Updates and Microsoft Update settings of one server; null inherits from its groups or the system.</summary>
     public async Task<Outcome> SetClientUpdateSourceAsync(Guid clientId, bool? manageAutomaticUpdates, bool? useMicrosoftUpdate, string actor, CancellationToken cancellationToken)
     {

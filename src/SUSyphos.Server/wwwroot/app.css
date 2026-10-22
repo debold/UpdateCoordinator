@@ -500,3 +500,11 @@ details.week-choice[open] > summary { border-color: var(--accent); }
 .nav .nav-label .icon { opacity: 0.85; }
 .nav a.active .nav-label .icon, .nav a:hover .nav-label .icon { opacity: 1; }
 h1 .title-icon { margin-right: 0.5rem; vertical-align: -0.2em; color: var(--accent); }
+
+/* Central agent settings of a group or server: collapsed until something is set on that level. */
+details.agent-settings { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0.6rem 0.8rem; margin-top: 0.8rem; }
+details.agent-settings > summary { cursor: pointer; font-weight: 600; }
+details.agent-settings > summary .note { font-weight: 400; margin-left: 0.4rem; }
+details.agent-settings table.compact { width: 100%; margin: 0.6rem 0; font-size: 0.85rem; }
+details.agent-settings table.compact th, details.agent-settings table.compact td { padding: 0.25rem 0.4rem; }
+.form-row.wrap { flex-wrap: wrap; }

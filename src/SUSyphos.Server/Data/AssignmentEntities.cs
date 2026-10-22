@@ -52,6 +52,9 @@ internal sealed class GroupEntity
     /// <summary>Whether agents in the group use Microsoft Update (other Microsoft products); null leaves it to other groups or the system default.</summary>
     public bool? UseMicrosoftUpdate { get; set; }
 
+    /// <summary>Central agent settings of the group as JSON (setting key to value); null sets none.</summary>
+    public string? AgentSettingsJson { get; set; }
+
     /// <summary>Members install and reboot only with a lease, so not all of them are down at the same time.</summary>
     public bool Coordinated { get; set; }
 
@@ -128,6 +131,9 @@ internal sealed class SettingEntity
 
     /// <summary>What happens when an update looks withdrawn by Microsoft: "stop" (default) or "notify".</summary>
     public const string WithdrawnAction = "Rollout.WithdrawnAction";
+
+    /// <summary>Central agent settings for all agents as JSON (setting key to value).</summary>
+    public const string SystemAgentSettings = "AgentSettings.SystemDefault";
 
     public required string Key { get; set; }
 

@@ -1,0 +1,81 @@
+@page "/administration/agent-settings"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@using SUSyphos.Contracts.Agents
+@using SUSyphos.Server.Assignment
+@inject AssignmentAdministration Administration
+
+<PageTitle>Agent settings</PageTitle>
+
+<PageHeader Title="Agent settings" Icon="@PageIcons.AgentSettings" Subtitle="Defaults for every agent; groups and single servers can set other values. Empty fields keep the agent's own value." Help="agent-settings" Crumbs="@([("Administration", null), ("Agent settings", null)])" />
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<form id="agent-settings" method="post" @formname="agent-settings" @onsubmit="SaveAsync" class="detached">
+    <AntiforgeryToken />
+</form>
+
+<ActionBand>
+    <button type="submit" form="agent-settings" class="primary">Save agent settings</button>
+    <a class="btn" href="/administration/agent-settings">Discard changes</a>
+    <div class="spacer"></div>
+    <span class="note">Agents apply changes with their next heartbeat; logging and priority restart the agent service.</span>
+</ActionBand>
+
+<div class="grid-2">
+    @foreach (var section in AgentSettings.All.GroupBy(d => d.Section))
+    {
+        <section class="box">
+            <header class="box-head"><h2>@section.Key<HelpLink To="@($"agent-settings#{Anchor(section.Key)}")" Label="@section.Key" /></h2></header>
+            <div class="box-body form">
+                @foreach (var definition in section)
+                {
+                    <label class="field">
+                        <span>@definition.Label @(definition.Unit.Length > 0 ? $"({definition.Unit})" : null)</span>
+                        <AgentSettingField Definition="definition" Name="@AgentSettingValues.FieldName(definition.Key)" Id="@($"setting-{definition.Key}")" Value="@ValueOf(definition.Key)" Placeholder="@($"agent default: {AgentSettingValues.Display(definition, definition.AgentDefault)}")" />
+                        <span class="help">@Range(definition)</span>
+                    </label>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private Dictionary<string, string> _values = [];
+    private Dictionary<string, string?>? _posted;
+
+    protected override async Task OnInitializedAsync() => _values = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
+
+    /// <summary>After a refused save the posted values stay in the fields.</summary>
+    private string? ValueOf(string key) => _posted is not null ? _posted.GetValueOrDefault(key) : _values.GetValueOrDefault(key);
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private async Task SaveAsync()
+    {
+        if (HttpContext?.Request.HasFormContentType != true)
+        {
+            return;
+        }
+
+        var values = AgentSettingValues.ReadForm(HttpContext.Request.Form);
+        var outcome = await Administration.SetSystemAgentSettingsAsync(values, await GetActorAsync(), CancellationToken.None);
+        if (!outcome.Succeeded)
+        {
+            _posted = values;
+        }
+
+        ShowResultAndReload(outcome.Error, "The agent settings were saved; agents apply them with their next heartbeat.");
+        _values = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
+    }
+
+    private static string Anchor(string section) => section.ToLowerInvariant().Replace(' ', '-').Replace("pre-flight-check", "pre-flight", StringComparison.Ordinal);
+
+    private static string Range(AgentSettingDefinition definition) => definition.Kind switch
+    {
+        AgentSettingKind.Duration or AgentSettingKind.Number => $"{definition.Minimum} to {definition.Maximum}{(definition.Unit.Length > 0 ? " " + definition.Unit : string.Empty)}",
+        AgentSettingKind.Text => $"at most {definition.Maximum} characters, no quotes",
+        _ => string.Empty,
+    };
+}

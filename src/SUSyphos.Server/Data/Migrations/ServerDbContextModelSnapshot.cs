@@ -477,6 +477,9 @@ namespace SUSyphos.Server.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AgentSettingsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("AgentUpdateError")
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
@@ -500,6 +503,9 @@ namespace SUSyphos.Server.Data.Migrations
 
                     b.Property<string>("DomainName")
                         .HasMaxLength(253)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EffectiveAgentSettingsJson")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("EffectiveManageAutomaticUpdates")
@@ -756,6 +762,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("AgentSettingsJson")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("ConsecutiveLeaseFailures")
                         .HasColumnType("INTEGER");

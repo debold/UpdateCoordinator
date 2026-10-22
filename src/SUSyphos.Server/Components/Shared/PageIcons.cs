@@ -19,5 +19,6 @@ public static class PageIcons
     public const string Notifications = "bell";
     public const string Backup = "archive";
     public const string AuditLog = "scroll-text";
+    public const string AgentSettings = "sliders-horizontal";
     public const string Help = "circle-help";
 }

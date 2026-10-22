@@ -36,6 +36,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/administration/groups?dialog=new",
         "/administration/rules",
         "/administration/release-rules",
+        "/administration/agent-settings",
         "/administration/release-rules?dialog=rule-new",
         "/administration/maintenance",
         "/administration/certificate",

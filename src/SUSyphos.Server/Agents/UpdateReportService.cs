@@ -83,7 +83,7 @@ internal sealed partial class UpdateReportService(
 
     public async Task<ReleaseList> GetReleasesAsync(Guid clientId, CancellationToken cancellationToken)
     {
-        var client = await db.Clients.Where(c => c.Id == clientId).Select(c => new { c.ReleasesVersion, c.EffectiveWindowsJson, c.EffectiveRebootPolicy, c.RequiresLease, c.EffectiveManageAutomaticUpdates, c.EffectiveUseMicrosoftUpdate }).SingleAsync(cancellationToken).ConfigureAwait(false);
+        var client = await db.Clients.Where(c => c.Id == clientId).Select(c => new { c.ReleasesVersion, c.EffectiveWindowsJson, c.EffectiveRebootPolicy, c.RequiresLease, c.EffectiveManageAutomaticUpdates, c.EffectiveUseMicrosoftUpdate, c.EffectiveAgentSettingsJson }).SingleAsync(cancellationToken).ConfigureAwait(false);
         // Outside the windows only if the rollout allows it and Windows reports the update as never restarting.
         var neverReboots = (int)RebootBehavior.NeverReboots;
         var rows = await db.Releases
@@ -107,7 +107,8 @@ internal sealed partial class UpdateReportService(
             client.EffectiveRebootPolicy,
             client.RequiresLease,
             client.EffectiveManageAutomaticUpdates,
-            client.EffectiveUseMicrosoftUpdate);
+            client.EffectiveUseMicrosoftUpdate,
+            client.EffectiveAgentSettingsJson is null ? null : AgentSettingValues.Parse(client.EffectiveAgentSettingsJson));
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Client {ClientId}: pre-flight check failed ({Checks}).")]

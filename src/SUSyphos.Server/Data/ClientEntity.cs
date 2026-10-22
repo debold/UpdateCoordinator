@@ -140,6 +140,12 @@ internal sealed class ClientEntity
     /// <summary>Effective reboot policy delivered to the agent.</summary>
     public SUSyphos.Contracts.Agents.RebootPolicy EffectiveRebootPolicy { get; set; }
 
+    /// <summary>Central agent settings of this server alone as JSON (setting key to value); null sets none.</summary>
+    public string? AgentSettingsJson { get; set; }
+
+    /// <summary>Effective central agent settings delivered to the agent (JSON), combined from server, groups and system.</summary>
+    public string? EffectiveAgentSettingsJson { get; set; }
+
     /// <summary>Server specific Automatic Updates setting; null uses the setting of its groups or the system default.</summary>
     public bool? ManageAutomaticUpdates { get; set; }
 

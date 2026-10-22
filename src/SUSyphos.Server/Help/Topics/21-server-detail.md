@@ -59,6 +59,10 @@ The saved configuration of this server (administrators can change it; others see
 
 Which ring the server belongs to, and so when it gets updates ([Rings](help/rings)). "Automatic" lets the [assignment rules](help/assignment-rules) decide, or puts the server into the default ring when no rule matches; the current ring is shown in brackets. Choosing a ring sets it by hand: no rule changes it any more, and the server list marks it "manual".
 
+### Agent settings {#agent-settings}
+
+The collapsed **Agent settings** section lists every [agent setting](help/agent-settings) with the value the agent of this server gets and where it comes from ("this server", a group, the system default or the agent default). Settings set on this server appear as fields; empty one (or choose "Inherit") to take the value from the groups or the system default again. **Override** picks another setting and **Value** sets it for this server alone. **Save assignment** stores it; the agent applies it with its next heartbeat.
+
 ### Windows Automatic Updates and other Microsoft products {#update-source}
 
 Like the reboot policy, both settings can be set for this server alone; "Inherit from groups or system" (the default) shows what currently applies.

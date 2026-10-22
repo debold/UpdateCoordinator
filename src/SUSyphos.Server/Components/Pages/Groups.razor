@@ -116,6 +116,7 @@
                         </div>
                     </fieldset>
                 </div>
+                <AgentSettingOverrides Explained="@GroupAgentSettings(group)" Own="@SUSyphos.Server.Assignment.AgentSettingValues.Parse(group?.AgentSettingsJson)" Help="groups#agent-settings" />
             </div>
             <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(group is null ? "Create group" : "Save")</button></div>
         </form>
@@ -136,6 +137,11 @@ else if (_dialog == "delete" && Editing is { } doomed)
 
 @code {
     private const string Path = "/administration/groups";
+
+    private Dictionary<string, string> _systemAgentSettings = [];
+
+    private IReadOnlyList<(SUSyphos.Contracts.Agents.AgentSettingDefinition Definition, string Value, string Source)> GroupAgentSettings(GroupEntity? group) =>
+        SUSyphos.Server.Assignment.AgentSettingValues.Explain(_systemAgentSettings, [], SUSyphos.Server.Assignment.AgentSettingValues.Parse(group?.AgentSettingsJson), "this group");
 
     [SupplyParameterFromForm(FormName = "group-dialog")]
     private string? Mode { get; set; }
@@ -287,6 +293,11 @@ else if (_dialog == "delete" && Editing is { } doomed)
                 {
                     outcome = await Administration.SetGroupCoordinationAsync(coordinatedGroup, Coordinated == "true", percent, maximum, actor, CancellationToken.None);
                 }
+
+                if (outcome.Succeeded && groupId is { } settingsGroup)
+                {
+                    outcome = await Administration.SetGroupAgentSettingsAsync(settingsGroup, SUSyphos.Server.Assignment.AgentSettingValues.ReadForm(form), actor, CancellationToken.None);
+                }
             }
 
             success = Mode == "create" ? "The group was created." : "The group was saved.";
@@ -304,6 +315,7 @@ else if (_dialog == "delete" && Editing is { } doomed)
     private async Task LoadAsync()
     {
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        _systemAgentSettings = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
         _members = await Db.ClientGroups.AsNoTracking().GroupBy(m => m.GroupId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count);
         _table = TableQuery.From(Navigation, "name");
         _page = TablePaging.Apply(_groups, _table, Columns, g => $"{g.Name} {g.Description}");
