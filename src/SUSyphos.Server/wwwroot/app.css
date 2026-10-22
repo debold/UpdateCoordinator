@@ -76,6 +76,17 @@ form.detached { display: contents; }
 .field-button { justify-content: flex-end; flex: 0 0 auto; }
 .field-button button { margin-top: auto; }
 p.warning { color: var(--fail); margin: 0.25rem 0 0; }
+
+/* Small marks of the server list: agent state next to the version, freshness before the last heartbeat. */
+.mark { display: inline-block; min-width: 1rem; text-align: center; font-weight: 700; font-family: var(--font); }
+.mark.ok { color: var(--ok); }
+.mark.pend { color: var(--pend); }
+.mark.fail { color: var(--fail); }
+.mark.neutral { color: var(--idle); }
+.dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; margin-right: 0.45rem; vertical-align: 0.05em; }
+.dot.ok { background: var(--ok); }
+.dot.queue { background: var(--queue); }
+.dot.fail { background: var(--fail); }
 p.warning[hidden] { display: none; }
 
 /* Result of an action repeated in view when the page kept its scroll position (app.js). */

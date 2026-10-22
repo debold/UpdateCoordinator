@@ -47,7 +47,7 @@
     else
     {
         <ListTable Table="_pendingTable" Page="_pendingPage" Columns="PendingColumns" Search="Search name, domain or address" Noun="servers" ExtraColumns="2">
-            <Leading><th class="select"><span class="visually-hidden">Select</span></th></Leading>
+            <Leading><th class="select"><input type="checkbox" data-select-all="Selected" data-help="tables#select" data-help-term="Select all" aria-label="Select all servers shown" hidden /></th></Leading>
             <ExtraHeader><th class="n">Decide</th></ExtraHeader>
             <Row Context="client">
                         <tr>

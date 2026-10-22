@@ -45,16 +45,32 @@ internal sealed class AgentUpdateService(ServerDbContext db, IOptions<AgentPacka
             .Join(db.Rings, c => c.RingId, r => r.Id, (c, r) => (int?)r.Order)
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false) ?? AgentPackageEntity.AllRings;
+        return TargetFor(packages, ringOrder, current, Minimum);
+    }
+
+    /// <summary>
+    /// The package an agent of <paramref name="current"/> in the ring of <paramref name="ringOrder"/> should update to, or
+    /// null if it runs that version or a newer one. <paramref name="packages"/> are the released and bundled packages.
+    /// </summary>
+    public static AgentPackageEntity? TargetFor(IReadOnlyCollection<AgentPackageEntity> packages, int ringOrder, AgentVersion current, AgentVersion minimum)
+    {
+        ArgumentNullException.ThrowIfNull(packages);
         var target = AgentPackageAdministration.TargetFor(packages, ringOrder);
-        if (current < Minimum)
+        if (current < minimum)
         {
             // Below the minimum the shipped package counts as released: it came with the central server itself.
             var candidates = packages.Where(p => p.Source == AgentPackageSource.Bundled || p.ReleasedThroughRingOrder >= ringOrder);
-            target = AgentPackageStore.Newest(candidates.Where(p => AgentVersion.TryParse(p.Version, out var v) && v >= Minimum)) ?? target;
+            target = AgentPackageStore.Newest(candidates.Where(p => AgentVersion.TryParse(p.Version, out var v) && v >= minimum)) ?? target;
         }
 
         return target is not null && AgentVersion.TryParse(target.Version, out var version) && version > current ? target : null;
     }
+
+    /// <summary>Released and bundled packages, for <see cref="TargetFor(IReadOnlyCollection{AgentPackageEntity}, int, AgentVersion, AgentVersion)"/>.</summary>
+    public Task<List<AgentPackageEntity>> GetOfferablePackagesAsync(CancellationToken cancellationToken) =>
+        db.AgentPackages.AsNoTracking()
+            .Where(p => p.ReleasedThroughRingOrder != null || p.Source == AgentPackageSource.Bundled)
+            .ToListAsync(cancellationToken);
 
     public async Task<AgentUpdate?> GetUpdateAsync(Guid clientId, string agentVersion, CancellationToken cancellationToken) =>
         await GetTargetAsync(clientId, agentVersion, cancellationToken).ConfigureAwait(false) is { } target

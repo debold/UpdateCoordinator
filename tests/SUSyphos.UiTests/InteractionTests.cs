@@ -242,6 +242,28 @@ public sealed class InteractionTests(UiFixture ui)
     }
 
     [Fact]
+    public async Task SelectAll_TicksEveryServerShown_AndFollowsSingleRows()
+    {
+        await using var context = await ui.NewContextAsync(1440, 900);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync("/servers");
+
+        var all = page.Locator("input[data-select-all]");
+        var rows = page.Locator("tbody input[name='Selected']");
+        await Assertions.Expect(all).ToBeVisibleAsync();
+        await all.CheckAsync();
+        Assert.Equal(await rows.CountAsync(), await page.Locator("tbody input[name='Selected']:checked").CountAsync());
+
+        await rows.First.UncheckAsync();
+        await Assertions.Expect(all).Not.ToBeCheckedAsync();
+        Assert.True(await all.EvaluateAsync<bool>("box => box.indeterminate"));
+        await all.CheckAsync();
+        Assert.Equal(await rows.CountAsync(), await page.Locator("tbody input[name='Selected']:checked").CountAsync());
+        await all.UncheckAsync();
+        await Assertions.Expect(page.Locator("tbody input[name='Selected']:checked")).ToHaveCountAsync(0);
+    }
+
+    [Fact]
     public async Task ResultOfAnActionFurtherDown_IsShownInView()
     {
         await using var context = await ui.NewContextAsync(1280, 600);

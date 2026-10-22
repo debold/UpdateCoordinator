@@ -264,6 +264,24 @@
         });
     };
 
+    // "Select all" in a table header: ticks or clears the row checkboxes of that table with the same name.
+    for (const all of document.querySelectorAll('input[data-select-all]')) {
+        const boxes = () => [...(all.closest('table')?.querySelectorAll(`tbody input[type="checkbox"][name="${all.dataset.selectAll}"]`) ?? [])];
+        all.hidden = boxes().length === 0;
+        all.addEventListener('change', () => {
+            for (const box of boxes()) {
+                box.checked = all.checked;
+            }
+        });
+        all.closest('table')?.addEventListener('change', (event) => {
+            if (event.target !== all && event.target instanceof HTMLInputElement && event.target.name === all.dataset.selectAll) {
+                const list = boxes();
+                all.checked = list.length > 0 && list.every((box) => box.checked);
+                all.indeterminate = !all.checked && list.some((box) => box.checked);
+            }
+        });
+    }
+
     for (const input of document.querySelectorAll('input[data-ad-group-search]')) {
         groupSearch(input);
     }

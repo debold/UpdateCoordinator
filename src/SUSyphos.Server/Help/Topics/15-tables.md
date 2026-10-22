@@ -31,7 +31,7 @@ Tiles and links elsewhere in the dashboard open lists with filters already set; 
 
 ## Selecting rows {#select}
 
-Lists with actions for several rows at once (servers, updates, approvals) have a checkbox in front of each row. **Select** the rows, then use the button above the list; it applies to the selected rows only. The selection is not kept when you change page, search or filters.
+Lists with actions for several rows at once (servers, updates, approvals) have a checkbox in front of each row. **Select** the rows, then use the button above the list; it applies to the selected rows only. **Select all** in the header ticks or clears every row shown on the page (needs the dashboard script). The selection is not kept when you change page, search or filters.
 
 ## Pages {#pages}
 

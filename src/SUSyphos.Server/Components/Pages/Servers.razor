@@ -9,6 +9,7 @@
 @inject SUSyphos.Server.Assignment.AssignmentAdministration Administration
 @inject NavigationManager Navigation
 @inject TimeProvider Time
+@inject SUSyphos.Server.AgentPackages.AgentUpdateService AgentUpdates
 
 <PageTitle>Servers</PageTitle>
 
@@ -48,14 +49,14 @@
         <table>
             <thead>
                 <tr>
-                    <th class="select"><span class="visually-hidden">Select</span></th>
+                    <th class="select"><input type="checkbox" data-select-all="Selected" data-help="tables#select" data-help-term="Select all" aria-label="Select all servers shown" hidden /></th>
                     <SortHeader Table="_table" Column="name" Label="Server" FilterColumn="domain" FilterLabel="Domain" Options="@Options("domain")" />
                     <SortHeader Table="_table" Column="os" Label="Operating system" Options="@Options("os")" />
                     <SortHeader Table="_table" Column="ring" Label="Ring" Options="@Options("ring")" />
                     <SortHeader Table="_table" Column="group" Label="Groups" Options="@Options("group")" />
                     <SortHeader Table="_table" Column="agent" Label="Agent" Options="@Options("agent")" />
                     <SortHeader Table="_table" Column="status" Label="Status" Options="@Options("status")" />
-                    <SortHeader Table="_table" Column="pending" Label="Pending" Class="n" Options="@Options("pending")" />
+                    <SortHeader Table="_table" Column="pending" Label="Updates" Options="@Options("pending")" />
                     <SortHeader Table="_table" Column="seen" Label="Last seen" />
                 </tr>
             </thead>
@@ -78,10 +79,10 @@
                             <td>@row.Os<div class="note mono">@row.Build</div></td>
                             <td class="nowrap">@row.Ring@if (row.ManualRing) { <div class="note">manual</div> }</td>
                             <td>@string.Join(", ", row.Groups)</td>
-                            <td class="mono nowrap" title="@row.AgentVersion">@AgentVersion.ShortForm(row.AgentVersion)</td>
+                            <td class="mono nowrap" title="@row.AgentVersion"><span class="mark @ServerIndicators.Class(row.Agent)" title="@AgentTitle(row)">@ServerIndicators.Symbol(row.Agent)</span> @AgentVersion.ShortForm(row.AgentVersion)</td>
                             <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span></td>
-                            <td class="n">@row.Pending</td>
-                            <td class="nowrap">@DisplayTime.Format(row.LastHeartbeat)</td>
+                            <td class="nowrap"><span class="donut-cell" title="@($"{row.Pending} pending, {row.Counts.Failed} failed, {row.Counts.Successful} installed")"><Donut Counts="@row.Counts" Small="true" /><span class="note num">@row.Pending</span></span></td>
+                            <td class="nowrap"><span class="dot @ServerIndicators.Class(row.Freshness)" title="@ServerIndicators.Label(row.Freshness)"></span>@DisplayTime.Format(row.LastHeartbeat)</td>
                         </tr>
                     }
                 }
@@ -103,7 +104,15 @@
     public static string Link(string column, params string[] values) =>
         "/servers?" + string.Join("&", values.Select(v => $"{Uri.EscapeDataString("f." + column)}={Uri.EscapeDataString(v)}"));
 
-    private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, string AgentVersion, ServerHealthState Health, int Pending, DateTime? LastHeartbeat);
+    private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, string AgentVersion, ServerHealthState Health, int Pending, DateTime? LastHeartbeat, AgentState Agent, string? AgentTarget, string? AgentError, DeploymentCounts Counts, Freshness Freshness);
+
+    private static string AgentTitle(Row row) => row.Agent switch
+    {
+        AgentState.UpdateAvailable => $"Update to {row.AgentTarget} available",
+        AgentState.Failed => $"Agent update failed: {row.AgentError}",
+        AgentState.Current => "Current: no newer version released for its ring",
+        _ => "Version unknown, or too old to update itself",
+    };
 
     private static readonly IReadOnlyList<TableColumn<Row>> Columns =
     [
@@ -113,10 +122,10 @@
         new("build", "Build", r => r.Build),
         new("ring", "Ring", r => r.RingOrder, r => [r.Ring]),
         new("group", "Groups", r => r.Groups.FirstOrDefault(), r => r.Groups.Count == 0 ? [string.Empty] : r.Groups),
-        new("agent", "Agent", r => AgentVersion.SortKey(r.AgentVersion), r => [AgentVersion.ShortForm(r.AgentVersion)]),
+        new("agent", "Agent", r => AgentVersion.SortKey(r.AgentVersion), r => [AgentVersion.ShortForm(r.AgentVersion), ServerIndicators.Label(r.Agent)]),
         new("status", "Status", r => (int)r.Health, r => [ServerHealth.Label(r.Health)]),
         new("pending", "Pending updates", r => r.Pending, r => [r.Pending > 0 ? PendingYes : PendingNo]),
-        new("seen", "Last heartbeat", r => r.LastHeartbeat),
+        new("seen", "Last heartbeat", r => r.LastHeartbeat, r => [ServerIndicators.Label(r.Freshness)]),
     ];
 
     [SupplyParameterFromForm(FormName = "servers-bulk")]
@@ -227,10 +236,14 @@
         var failed = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
         var pending = entries.Where(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful).GroupBy(e => e.ClientId).ToDictionary(g => g.Key, g => g.Count());
         var now = Time.GetUtcNow().UtcDateTime;
+        var packages = await AgentUpdates.GetOfferablePackagesAsync(CancellationToken.None);
+        var counts = entries.ToLookup(e => e.ClientId);
 
         List<Row> rows = [.. clients.Select(c =>
         {
             var ring = c.RingId is { } id && rings.TryGetValue(id, out var r) ? r : null;
+            var known = AgentVersion.TryParse(c.AgentVersion, out var version);
+            var target = known && packages.Count > 0 ? SUSyphos.Server.AgentPackages.AgentUpdateService.TargetFor(packages, ring?.Order ?? SUSyphos.Server.AgentPackages.AgentPackageEntity.AllRings, version!, AgentUpdates.Minimum)?.Version : null;
             return new Row(
                 c.Id,
                 c.HostName,
@@ -245,7 +258,12 @@
                 c.AgentVersion,
                 ServerHealth.Evaluate(c, failed.Contains(c.Id), now),
                 pending.GetValueOrDefault(c.Id),
-                c.LastHeartbeatAtUtc);
+                c.LastHeartbeatAtUtc,
+                ServerIndicators.Agent(c.AgentUpdateError, known, target),
+                target,
+                c.AgentUpdateError,
+                DeploymentCounts.Of(counts[c.Id]),
+                ServerIndicators.Heartbeat(c.LastHeartbeatAtUtc, now));
         })];
 
         _page = TablePaging.Apply(rows, _table, Columns, r => $"{r.HostName} {r.Domain}");
