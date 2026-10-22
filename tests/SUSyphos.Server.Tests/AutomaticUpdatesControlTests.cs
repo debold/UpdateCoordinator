@@ -106,6 +106,17 @@ public sealed class AutomaticUpdatesControlTests
         Assert.False((await scenario.ReleasesAsync(client)).UseMicrosoftUpdate);
 
         Assert.False((await scenario.WithServiceAsync<AssignmentAdministration, Outcome>(a => a.SetGroupMicrosoftUpdateAsync(999, true, "admin", CancellationToken.None))).Succeeded);
+
+        // A setting on the server wins over its groups; back to inherited, the group decides again.
+        Assert.True((await scenario.WithServiceAsync<AssignmentAdministration, Outcome>(a => a.SetClientUpdateSourceAsync(client.ClientId, true, true, "admin", CancellationToken.None))).Succeeded);
+        var released = await scenario.ReleasesAsync(client);
+        Assert.True(released.UseMicrosoftUpdate);
+        Assert.True(released.ManageAutomaticUpdates);
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(a => a.Action == "Client.UpdateSourceChanged", TestContext.Current.CancellationToken)));
+
+        Assert.True((await scenario.WithServiceAsync<AssignmentAdministration, Outcome>(a => a.SetClientUpdateSourceAsync(client.ClientId, null, null, "admin", CancellationToken.None))).Succeeded);
+        Assert.False((await scenario.ReleasesAsync(client)).UseMicrosoftUpdate);
+        Assert.False((await scenario.WithServiceAsync<AssignmentAdministration, Outcome>(a => a.SetClientUpdateSourceAsync(Guid.NewGuid(), true, true, "admin", CancellationToken.None))).Succeeded);
     }
 
     [Theory]

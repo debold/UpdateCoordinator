@@ -140,6 +140,12 @@ internal sealed class ClientEntity
     /// <summary>Effective reboot policy delivered to the agent.</summary>
     public SUSyphos.Contracts.Agents.RebootPolicy EffectiveRebootPolicy { get; set; }
 
+    /// <summary>Server specific Automatic Updates setting; null uses the setting of its groups or the system default.</summary>
+    public bool? ManageAutomaticUpdates { get; set; }
+
+    /// <summary>Server specific Microsoft Update setting; null uses the setting of its groups or the system default.</summary>
+    public bool? UseMicrosoftUpdate { get; set; }
+
     /// <summary>Effective setting delivered to the agent: keep Windows from installing updates on its own (docs/05-agent-design.md, section 3).</summary>
     public bool EffectiveManageAutomaticUpdates { get; set; }
 

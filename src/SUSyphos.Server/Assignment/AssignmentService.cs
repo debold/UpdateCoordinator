@@ -66,9 +66,10 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
             var json = MaintenanceWindowFormat.ToJson(windows);
             var requiresLease = groupIds.Any(g => groups.TryGetValue(g, out var group) && group.Coordinated);
 
-            // Automatic Updates: the agent changes a server only if no group says otherwise ("leave unchanged" wins); else the system default.
-            var manage = Effective(systemManage, groupIds.Select(g => groups.TryGetValue(g, out var group) ? group.ManageAutomaticUpdates : null));
-            var microsoftUpdate = Effective(systemMicrosoftUpdate, groupIds.Select(g => groups.TryGetValue(g, out var group) ? group.UseMicrosoftUpdate : null));
+            // Automatic Updates and Microsoft Update: the server setting wins; among groups "leave unchanged" and "Windows Update
+            // only" win; else the system default.
+            var manage = client.ManageAutomaticUpdates ?? Effective(systemManage, groupIds.Select(g => groups.TryGetValue(g, out var group) ? group.ManageAutomaticUpdates : null));
+            var microsoftUpdate = client.UseMicrosoftUpdate ?? Effective(systemMicrosoftUpdate, groupIds.Select(g => groups.TryGetValue(g, out var group) ? group.UseMicrosoftUpdate : null));
 
             if (json != client.EffectiveWindowsJson || reboot != client.EffectiveRebootPolicy || requiresLease != client.RequiresLease
                 || manage != client.EffectiveManageAutomaticUpdates || microsoftUpdate != client.EffectiveUseMicrosoftUpdate)

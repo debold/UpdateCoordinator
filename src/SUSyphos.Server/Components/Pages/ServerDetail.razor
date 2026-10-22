@@ -170,6 +170,22 @@ else
                                 </select>
                             </label>
                         </div>
+                        <div class="form-row">
+                            <label class="field"><span>Windows Automatic Updates</span>
+                                <select name="AutomaticUpdates">
+                                    <option value="" selected="@(_client.ManageAutomaticUpdates is null)">Inherit from groups or system (now @(_client.EffectiveManageAutomaticUpdates ? "keep Windows from installing" : "leave unchanged"))</option>
+                                    <option value="leave" selected="@(_client.ManageAutomaticUpdates == false)">Leave unchanged, only warn</option>
+                                    <option value="prevent" selected="@(_client.ManageAutomaticUpdates == true)">Keep Windows from installing on its own</option>
+                                </select>
+                            </label>
+                            <label class="field"><span>Other Microsoft products</span>
+                                <select name="MicrosoftUpdate">
+                                    <option value="" selected="@(_client.UseMicrosoftUpdate is null)">Inherit from groups or system (now @(_client.EffectiveUseMicrosoftUpdate ? "Microsoft Update" : "Windows Update only"))</option>
+                                    <option value="windows" selected="@(_client.UseMicrosoftUpdate == false)">Windows Update only</option>
+                                    <option value="microsoft" selected="@(_client.UseMicrosoftUpdate == true)">Microsoft Update</option>
+                                </select>
+                            </label>
+                        </div>
                         <div class="field">
                             <span class="field-label">Groups</span>
                             <MultiSelect Name="Groups" Placeholder="No group"
@@ -198,6 +214,7 @@ else
                         <dt>Groups</dt><dd>@(_memberships.Count > 0 ? string.Join(", ", _memberships.Select(m => GroupName(m.GroupId))) : "–")</dd>
                         <dt>Maintenance windows</dt><dd>@(_effectiveWindows.Count > 0 ? WindowPickerForm.Describe(_effectiveWindows) : "none")</dd>
                         <dt>Reboots</dt><dd>@RebootPolicyText.Label(_client.EffectiveRebootPolicy)</dd>
+                        <dt>Update source</dt><dd>@(_client.EffectiveUseMicrosoftUpdate ? "Microsoft Update" : "Windows Update only")</dd>
                     </dl>
                 </Box>
             </NotAuthorized>
@@ -460,6 +477,12 @@ else
     [SupplyParameterFromForm(FormName = "restart")]
     private string? When { get; set; }
 
+    [SupplyParameterFromForm(FormName = "assignment")]
+    private string? AutomaticUpdates { get; set; }
+
+    [SupplyParameterFromForm(FormName = "assignment")]
+    private string? MicrosoftUpdate { get; set; }
+
     [SupplyParameterFromForm(FormName = "install")]
     private string? InstallRestart { get; set; }
 
@@ -660,12 +683,20 @@ else
 
         var actor = await GetActorAsync();
         var windows = HttpContext?.Request.HasFormContentType == true ? WindowPickerForm.Read(HttpContext.Request.Form, "Windows", out _) : string.Empty;
-        var outcome = RebootPolicyText.TryParse(Reboot, out var reboot)
-            ? await Administration.SetClientAssignmentAsync(Id, ring, groups, windows, actor, CancellationToken.None)
-            : new Outcome("The reboot policy is invalid.");
+        var outcome = !RebootPolicyText.TryParse(Reboot, out var reboot) ? new Outcome("The reboot policy is invalid.")
+            : AutomaticUpdates is not (null or "" or "leave" or "prevent") ? new Outcome("The Automatic Updates setting is invalid.")
+            : MicrosoftUpdate is not (null or "" or "windows" or "microsoft") ? new Outcome("The Microsoft Update setting is invalid.")
+            : await Administration.SetClientAssignmentAsync(Id, ring, groups, windows, actor, CancellationToken.None);
         if (outcome.Succeeded)
         {
             outcome = await Administration.SetClientRebootPolicyAsync(Id, reboot, actor, CancellationToken.None);
+        }
+
+        if (outcome.Succeeded)
+        {
+            bool? manage = AutomaticUpdates switch { "prevent" => true, "leave" => false, _ => null };
+            bool? microsoft = MicrosoftUpdate switch { "microsoft" => true, "windows" => false, _ => null };
+            outcome = await Administration.SetClientUpdateSourceAsync(Id, manage, microsoft, actor, CancellationToken.None);
         }
 
         ShowResultAndReload(outcome.Error, "The assignment was saved.");

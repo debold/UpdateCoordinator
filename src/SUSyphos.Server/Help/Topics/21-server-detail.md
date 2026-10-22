@@ -59,6 +59,15 @@ The saved configuration of this server (administrators can change it; others see
 
 Which ring the server belongs to, and so when it gets updates ([Rings](help/rings)). "Automatic" lets the [assignment rules](help/assignment-rules) decide, or puts the server into the default ring when no rule matches; the current ring is shown in brackets. Choosing a ring sets it by hand: no rule changes it any more, and the server list marks it "manual".
 
+### Windows Automatic Updates and other Microsoft products {#update-source}
+
+Like the reboot policy, both settings can be set for this server alone; "Inherit from groups or system" (the default) shows what currently applies.
+
+- **Windows Automatic Updates**: "Leave unchanged, only warn" or "Keep Windows from installing on its own" (the agent sets "Configure Automatic Updates" to option 3 where no group policy controls it). See [Maintenance windows](help/maintenance-windows) for the details.
+- **Other Microsoft products**: "Windows Update only" or "Microsoft Update" (the agent registers the Microsoft Update service, so SQL Server, Exchange, Office and other Microsoft products are updated through the rings too).
+
+A value set here wins over the groups and the system default; among groups "Leave unchanged" and "Windows Update only" win. The agent picks a change up with its next heartbeat.
+
 ### Reboots {#reboots}
 
 Whether the agent may restart the server after installing updates:

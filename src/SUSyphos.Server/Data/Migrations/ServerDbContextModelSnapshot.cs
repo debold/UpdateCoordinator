@@ -549,6 +549,9 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasMaxLength(4096)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool?>("ManageAutomaticUpdates")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("ManualRingId")
                         .HasColumnType("INTEGER");
 
@@ -628,6 +631,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<string>("TimeZoneId")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool?>("UseMicrosoftUpdate")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("UsesWsus")
                         .HasColumnType("INTEGER");

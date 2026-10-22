@@ -510,6 +510,27 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         return await CompleteAsync(actor, "Client.RebootPolicyChanged", $"{client.HostName} ({clientId:D})", policy?.ToString() ?? "inherited", clientId, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Sets the Automatic Updates and Microsoft Update settings of one server; null inherits from its groups or the system.</summary>
+    public async Task<Outcome> SetClientUpdateSourceAsync(Guid clientId, bool? manageAutomaticUpdates, bool? useMicrosoftUpdate, string actor, CancellationToken cancellationToken)
+    {
+        var client = await db.Clients.SingleOrDefaultAsync(c => c.Id == clientId, cancellationToken).ConfigureAwait(false);
+        if (client is null)
+        {
+            return new Outcome("The server no longer exists.");
+        }
+
+        if (client.ManageAutomaticUpdates == manageAutomaticUpdates && client.UseMicrosoftUpdate == useMicrosoftUpdate)
+        {
+            return Outcome.Ok;
+        }
+
+        client.ManageAutomaticUpdates = manageAutomaticUpdates;
+        client.UseMicrosoftUpdate = useMicrosoftUpdate;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        var details = $"automatic updates {(manageAutomaticUpdates is { } manage ? (manage ? "prevent" : "leave unchanged") : "inherited")}, Microsoft Update {(useMicrosoftUpdate is { } use ? (use ? "on" : "off") : "inherited")}";
+        return await CompleteAsync(actor, "Client.UpdateSourceChanged", $"{client.HostName} ({clientId:D})", details, clientId, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Adds servers to a group by hand (bulk action of the server list); memberships from rules become manual, other groups
     /// stay. Deleted servers and unknown ids are skipped. Returns how many servers were added.
