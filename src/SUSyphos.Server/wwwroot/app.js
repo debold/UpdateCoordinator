@@ -192,8 +192,13 @@
         let timer = 0;
         let request = 0;
         const close = () => { list.hidden = true; list.replaceChildren(); };
+        const warning = input.closest('form')?.querySelector('[data-privileged-warning]');
         input.addEventListener('input', () => {
             clearTimeout(timer);
+            if (warning) {
+                warning.hidden = true;
+            }
+
             const term = input.value.trim();
             if (term.length < 2) {
                 close();
@@ -215,7 +220,15 @@
                         choice.type = 'button';
                         choice.textContent = group.name;
                         choice.title = group.sid;
-                        choice.addEventListener('click', () => { input.value = group.name; close(); input.focus(); });
+                        choice.addEventListener('click', () => {
+                            input.value = group.name;
+                            close();
+                            if (warning) {
+                                warning.hidden = !group.privileged;
+                            }
+
+                            input.focus();
+                        });
                         item.append(choice);
                         return item;
                     }));
@@ -255,6 +268,33 @@
         groupSearch(input);
     }
 
+    // The result of an action is written at the top of the page. When the page keeps its scroll position after the
+    // action, that line is out of sight: it is repeated in a small box at the top of the window. Errors stay until
+    // closed, other messages fade after ten seconds.
+    const showMessageInView = () => {
+        const message = document.querySelector('.page-message');
+        if (!message || message.getBoundingClientRect().bottom > 0) {
+            return;
+        }
+
+        const toast = document.createElement('div');
+        toast.className = 'toast ' + (message.classList.contains('error') ? 'error' : 'notice');
+        toast.setAttribute('role', message.getAttribute('role') || 'status');
+        const text = document.createElement('span');
+        text.textContent = message.textContent;
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Close message');
+        close.textContent = '\u00d7';
+        close.addEventListener('click', () => toast.remove());
+        toast.append(text, close);
+        document.body.append(toast);
+        if (!message.classList.contains('error')) {
+            window.setTimeout(() => toast.remove(), 10000);
+        }
+    };
+
     // Buttons that post a form and links that only change the address of the same page (add a maintenance window,
     // sort, filter, page, open a tab or dialog) load the page again; it comes back at the same scroll position instead
     // of the top. Kept for one load only, in the tab's session storage.
@@ -293,6 +333,7 @@
         sessionStorage.removeItem(scrollKey);
         if (saved && saved.path === location.pathname && !location.hash && Number.isFinite(saved.y)) {
             window.scrollTo(0, saved.y);
+            showMessageInView();
         }
     } catch {
         // Nothing to restore.

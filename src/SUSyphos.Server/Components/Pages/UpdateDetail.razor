@@ -147,7 +147,7 @@ else
                                         }
                                     }
                                 </td>
-                                <td class="n">@Percent(ring.Statistics.FeedbackPercent) <span class="note">(@ring.Statistics.Reported/@ring.Statistics.Targeted)</span></td>
+                                <td class="n">@if (ring.State is not null && ring.Statistics.Targeted == 0) { <span class="note">no server needs it</span> } else { @Percent(ring.Statistics.FeedbackPercent) <span class="note">(@ring.Statistics.Reported/@ring.Statistics.Targeted)</span> }</td>
                                 <td class="n">@Percent(ring.Statistics.SuccessPercent)</td>
                                 <td><StackedBar Counts="@ring.Counts" /></td>
                             </tr>

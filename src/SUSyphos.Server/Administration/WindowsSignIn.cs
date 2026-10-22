@@ -319,7 +319,7 @@ internal static partial class WindowsSignInEndpoints
         var term = q?.Trim();
         if (term is not { Length: >= 2 and <= 64 } || term.Any(char.IsControl) || coverage.Domain is not { } domain)
         {
-            return TypedResults.Ok(Array.Empty<Approval.DirectoryGroup>());
+            return TypedResults.Ok(Array.Empty<GroupSuggestion>());
         }
 
         // "DOMAIN\Group" typed in full: search for the group part.
@@ -331,12 +331,14 @@ internal static partial class WindowsSignInEndpoints
 
         try
         {
-            return TypedResults.Ok(await directory.FindGroupsAsync(domain, term, 20, cancellationToken).ConfigureAwait(false));
+            // "privileged" lets the page warn as soon as such a group is picked (filtered by UAC, usually no role).
+            var groups = await directory.FindGroupsAsync(domain, term, 20, cancellationToken).ConfigureAwait(false);
+            return TypedResults.Ok(groups.Select(g => new GroupSuggestion(g.Name, g.Sid, WindowsSignIn.IsFilteredByUac(g.Sid))).ToList());
         }
         catch (Exception exception) when (exception is System.DirectoryServices.Protocols.LdapException or System.DirectoryServices.Protocols.DirectoryOperationException or InvalidOperationException)
         {
             LogGroupSearchFailed(loggers.CreateLogger(typeof(WindowsSignInEndpoints)), exception);
-            return TypedResults.Ok(Array.Empty<Approval.DirectoryGroup>());
+            return TypedResults.Ok(Array.Empty<GroupSuggestion>());
         }
     }
 
@@ -362,3 +364,6 @@ internal static partial class WindowsSignInEndpoints
     [LoggerMessage(Level = LogLevel.Warning, Message = "Searching AD groups failed; the field still takes a typed group name.")]
     private static partial void LogGroupSearchFailed(ILogger logger, Exception exception);
 }
+
+/// <summary>An AD group offered while typing; <see cref="Privileged"/> marks groups User Account Control filters to "deny only".</summary>
+internal sealed record GroupSuggestion(string Name, string Sid, bool Privileged);

@@ -42,7 +42,7 @@ Their role comes from the AD groups mapped here; if a user is in several mapped 
 
 - **AD group**: the group as DOMAIN\Group (for example LAB\SUSyphos-Admins) or its SID. While you type (two characters or more) a list shows the matching groups from Active Directory; choose one to fill the field. Without a connection to the directory the field still takes a typed name.
 - **Role**: the role members of this group get.
-- **Map group** adds the mapping; **Remove** deletes one.
+- **Add** (next to the role) adds the mapping; **Remove** deletes one. When you pick a privileged group from the suggestions (Domain Admins, Enterprise Admins, Administrators and the like), a warning appears right under the field, and such a mapping is marked "usually gives no role (UAC)" in the table: Windows filters these groups to "deny only" in a logon without elevation.
 - **Switch on** / **Switch off** turns Windows sign-in on or off. Local accounts keep working either way.
 
 If the configuration file sets `Authentication:Windows:Enabled` to false (emergency switch), nobody can sign in with Windows, whatever is set here. The central server must be a domain member and be opened by its DNS name for Kerberos to work.
@@ -53,7 +53,7 @@ When "Sign in with Windows" ends with a message instead of the dashboard, the Wi
 
 1. **A privileged group is mapped**, such as Domain Admins, Enterprise Admins, Schema Admins or Administrators. In a session without elevation (User Account Control) Windows keeps these groups only as "deny only" in the token, so they give no role. `whoami /groups` shows them as "Group used for deny only". The sign-in page then says so. Map a dedicated group instead, for example DOMAIN\SUSyphos-Admins; mapping a privileged group shows a warning.
 2. **The browser uses another account**: it signs in with the account logged on to Windows on that computer, not with an administrator account you use elsewhere. The audit entry shows which one.
-3. **The group was not mapped**: the AD group field only takes effect with **Map group**; **Switch on** alone does not save it. The group must be in the table above.
+3. **The group was not mapped**: the AD group field only takes effect with **Add**; **Switch on** alone does not save it. The group must be in the table above.
 4. **New group membership**: Windows reads groups at logon. After adding the account to a group, sign out of Windows and in again (or run `klist purge`).
 
 Kerberos needs no extra setup on the central server's own name: the service runs as LocalSystem and the computer account's HOST/ SPN covers it. Only for a DNS alias register an SPN (`setspn -S HTTP/<alias> <computer name>`). For sign-in without any prompt, the browser must treat the address as intranet: add it (or `*.yourdomain`) to the Local intranet zone, or set the Edge policy `AuthServerAllowlist`. An untrusted certificate ("Not secure") does not stop the sign-in, but should be replaced by a certificate from your CA ([TLS certificate](help/certificate)).

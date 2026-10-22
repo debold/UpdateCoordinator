@@ -64,7 +64,7 @@ else
                                 <td><span class="pill @update.StateClass">@update.State</span></td>
                                 <td class="nowrap">@update.Released</td>
                                 <td class="nowrap">@(update.Wait ?? "–")</td>
-                                <td class="n">@Percent(update.Statistics.FeedbackPercent) <span class="note">(@update.Statistics.Reported/@update.Statistics.Targeted)</span></td>
+                                <td class="n">@if (update.Statistics.Targeted == 0) { <span class="note">no server needs it</span> } else { @Percent(update.Statistics.FeedbackPercent) <span class="note">(@update.Statistics.Reported/@update.Statistics.Targeted)</span> }</td>
                                 <td class="n">@Percent(update.Statistics.SuccessPercent)</td>
                                 <td><StackedBar Counts="@update.Counts" /></td>
                             </tr>

@@ -229,6 +229,36 @@ public sealed class InteractionTests(UiFixture ui)
         await field.PressSequentiallyAsync("s");
         await page.WaitForTimeoutAsync(400);
         await Assertions.Expect(page.Locator(".suggest")).ToBeHiddenAsync();
+
+        // A privileged group warns right under the field; typing again removes the warning.
+        var warning = page.Locator("[data-privileged-warning]");
+        await Assertions.Expect(warning).ToBeHiddenAsync();
+        await field.FillAsync(string.Empty);
+        await field.PressSequentiallyAsync("domain");
+        await page.Locator(".suggest button", new PageLocatorOptions { HasTextString = "Domain Admins" }).ClickAsync();
+        await Assertions.Expect(warning).ToBeVisibleAsync();
+        await field.PressSequentiallyAsync("x");
+        await Assertions.Expect(warning).ToBeHiddenAsync();
+    }
+
+    [Fact]
+    public async Task ResultOfAnActionFurtherDown_IsShownInView()
+    {
+        await using var context = await ui.NewContextAsync(1280, 600);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync("/administration/users");
+
+        // A refused mapping further down the page: the page keeps its position, the message appears in view.
+        var add = page.Locator("button[name='WindowsAction'][value='add']");
+        await add.ScrollIntoViewIfNeededAsync();
+        Assert.True(await page.EvaluateAsync<double>("window.scrollY") > 100);
+        await add.ClickAsync();
+        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+
+        var toast = page.Locator(".toast");
+        await Assertions.Expect(toast).ToBeVisibleAsync();
+        await toast.Locator(".toast-close").ClickAsync();
+        await Assertions.Expect(toast).ToHaveCountAsync(0);
     }
 
     [Fact]

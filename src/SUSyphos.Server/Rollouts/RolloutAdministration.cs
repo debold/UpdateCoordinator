@@ -243,7 +243,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         // Only updates that never restart may skip the maintenance window; a restart always waits for one.
         if (outsideWindows && rebootBehavior != RebootBehavior.NeverReboots)
         {
-            return new Outcome("Installing outside the maintenance windows needs the restart condition \"never restarts\".");
+            return new Outcome("Installing outside the maintenance windows needs the restart condition \"No restart\".");
         }
 
         classification = Normalize(classification);

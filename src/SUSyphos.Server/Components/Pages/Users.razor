@@ -85,7 +85,7 @@
                     @foreach (var mapping in _mappings)
                     {
                         <tr>
-                            <td>@mapping.Name</td>
+                            <td>@mapping.Name@if (WindowsSignIn.IsFilteredByUac(mapping.Sid)) { <div class="pill fail" title="Windows filters this group by User Account Control (deny only) in a logon without elevation">usually gives no role (UAC)</div> }</td>
                             <td class="mono note">@mapping.Sid</td>
                             <td>@mapping.Role</td>
                             <td class="n"><button type="submit" name="WindowsAction" value="remove:@mapping.Sid" class="danger">Remove</button></td>
@@ -104,11 +104,12 @@
                     }
                 </select>
             </label>
+            <div class="field field-button"><button type="submit" name="WindowsAction" value="add">Add</button></div>
         </div>
+        <p class="warning field-warning" data-privileged-warning hidden>Windows filters this group by User Account Control ("deny only") in a logon without elevation, so its members usually get no role. Map a dedicated group instead.</p>
     </div>
     <footer class="box-foot">
         <span class="actions">
-            <button type="submit" name="WindowsAction" value="add">Map group</button>
             @if (_windowsEnabled)
             {
                 <button type="submit" name="WindowsAction" value="disable">Switch off</button>

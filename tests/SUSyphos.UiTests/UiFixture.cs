@@ -34,6 +34,7 @@ public sealed class UiFixture : IAsyncLifetime
         await _server.CreateUserAsync("marc", Password, "Admin");
         _server.AddDirectoryGroup(@"LAB\SUSyphos-Admins", "S-1-5-21-1-2-3-1100");
         _server.AddDirectoryGroup(@"LAB\SUSyphos-Operators", "S-1-5-21-1-2-3-1101");
+        _server.AddDirectoryGroup(@"LAB\Domain Admins", "S-1-5-21-1-2-3-512");
         MainServerId = await DemoData.SeedAsync(_server);
 
         try

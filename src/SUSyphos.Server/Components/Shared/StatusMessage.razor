@@ -1,6 +1,7 @@
 @if (Text is not null)
 {
-    <p class="@(IsError ? "error" : "notice")" role="@(IsError ? "alert" : "status")">@Text</p>
+    @* Shown at the top; when the page comes back further down (kept scroll position), app.js repeats it in view. *@
+    <p class="@(IsError ? "error" : "notice") page-message" role="@(IsError ? "alert" : "status")">@Text</p>
 }
 
 @code {

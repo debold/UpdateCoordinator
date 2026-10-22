@@ -48,10 +48,6 @@ else
             </form>
         </AuthorizeView>
         <a class="btn" href="@AddressWithoutMessage" title="Load the page again with the latest state">Refresh</a>
-        @if (IsBusy)
-        {
-            <span class="note">updates every @LiveRefreshSeconds seconds while the agent works or an action waits</span>
-        }
         <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="administer">
             <a class="btn" href="@DialogLink("install")">Install updates now…</a>
             <a class="btn" href="@DialogLink("uninstall")">Uninstall update…</a>
@@ -91,7 +87,7 @@ else
         @* Reload while the agent works or an action waits for it; not after a form post, so unsaved input is never lost. *@
         <HeadContent><meta http-equiv="refresh" content="@($"{LiveRefreshSeconds}; url={AddressWithoutMessage}")" /></HeadContent>
     }
-    <Box Title="Tasks" Anchor="tasks" Help="server-detail#tasks" Hint="@(_livePhase is null ? "what the agent does next, in order; heartbeats are not listed" : $"running now; the page updates every {LiveRefreshSeconds} seconds while the agent works")" Flush="true">
+    <Box Title="Tasks" Anchor="tasks" Help="server-detail#tasks" Hint="@(IsBusy ? $"the page updates every {LiveRefreshSeconds} seconds while the agent works or an action waits" : "what the agent does next, in order; heartbeats are not listed")" Flush="true">
         @if (_livePhase is { } livePhase)
         {
             <div class="box-body">
@@ -122,7 +118,7 @@ else
                 <tbody>
                     @if (_tasks.Count == 0)
                     {
-                        <tr><td colspan="3" class="note">Nothing planned yet; agents from version 0.7.1 report when they search and collect the inventory next.</td></tr>
+                        <tr><td colspan="3" class="note">Nothing planned: no remote action waits, no update is due and no restart is pending.</td></tr>
                     }
                     @foreach (var task in _tasks)
                     {
@@ -942,15 +938,41 @@ else
             tasks.Add(new(now, action.State == AgentActionState.Queued ? "next heartbeat" : "now", "Remote action", "queue", $"{ActionLabel(action.Kind)}, requested by {action.RequestedBy}", []));
         }
 
-        if (_client.NextSearchAtUtc is { } search)
+        // While the agent searches or after a search was requested it reports no next time: the search runs now.
+        var searchDetail = _client.LastSearchAtUtc is { } lastSearch ? $"Last search {Format(lastSearch)}{(_client.LastSearchSucceeded == false ? " (failed)" : string.Empty)}" : "First search";
+        if (_livePhase == SUSyphos.Contracts.Agents.AgentPhase.Searching)
         {
-            tasks.Add(new(search, Format(search), "Update search", "pend", _client.LastSearchAtUtc is { } last ? $"Last search {Format(last)}{(_client.LastSearchSucceeded == false ? " (failed)" : string.Empty)}" : "First search", []));
+            tasks.Add(new(now, "now", "Update search", "pend", $"Running; {searchDetail.ToLowerInvariant()}", []));
+        }
+        else if (_client.NextSearchAtUtc is { } search)
+        {
+            tasks.Add(new(search, Format(search), "Update search", "pend", searchDetail, []));
+        }
+        else if (_client.LastSearchAtUtc is not null)
+        {
+            tasks.Add(new(now, "next cycle", "Update search", "pend", searchDetail, []));
         }
 
-        if (_client.NextInventoryAtUtc is { } inventory)
+        var inventoryDetail = _client.InventoryAtUtc is { } lastInventory ? $"Last inventory {Format(lastInventory)}" : "First inventory";
+        if (_livePhase == SUSyphos.Contracts.Agents.AgentPhase.Inventory)
         {
-            tasks.Add(new(inventory, Format(inventory), "Inventory", "neutral", _client.InventoryAtUtc is { } last ? $"Last inventory {Format(last)}" : "First inventory", []));
+            tasks.Add(new(now, "now", "Inventory", "neutral", $"Running; {inventoryDetail.ToLowerInvariant()}", []));
         }
+        else if (_client.NextInventoryAtUtc is { } inventory)
+        {
+            tasks.Add(new(inventory, Format(inventory), "Inventory", "neutral", inventoryDetail, []));
+        }
+        else if (_client.InventoryAtUtc is not null)
+        {
+            tasks.Add(new(now, "next cycle", "Inventory", "neutral", inventoryDetail, []));
+        }
+
+        // An installation that runs now (also "install updates now") is not planned for the window any more.
+        var installingNow = _livePhase is SUSyphos.Contracts.Agents.AgentPhase.Downloading or SUSyphos.Contracts.Agents.AgentPhase.Installing;
+        var installNowQueued = _actions.Any(a => a.Kind is SUSyphos.Contracts.Agents.AgentActionKind.InstallNow or SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow && a.State is AgentActionState.Queued or AgentActionState.Delivered);
+        var planned = installingNow || installNowQueued
+            ? [.. _planned.Where(p => !_client.ActivityUpdateIds.Contains(p.Entry.UpdateId) && !installNowQueued)]
+            : _planned;
 
         if (_window is { } window)
         {
@@ -965,14 +987,14 @@ else
                 notes.Add("coordinated group: installs only with a lease");
             }
 
-            if (_planned.Count > 0)
+            if (planned.Count > 0)
             {
-                var start = _planned.Select(p => p.Entry.EarliestInstallAtUtc ?? window.Start).Append(window.Start).Max();
-                tasks.Add(new(start > window.Start ? start : window.Start, Format(start > window.Start ? start : window.Start), "Installation", "ok", $"{_planned.Count} {(_planned.Count == 1 ? "update" : "updates")}; {string.Join("; ", notes)}", _planned));
+                var start = planned.Select(p => p.Entry.EarliestInstallAtUtc ?? window.Start).Append(window.Start).Max();
+                tasks.Add(new(start > window.Start ? start : window.Start, Format(start > window.Start ? start : window.Start), "Installation", "ok", $"{planned.Count} {(planned.Count == 1 ? "update" : "updates")}; {string.Join("; ", notes)}", planned));
             }
 
             var restartPlanned = _client.RebootPending && _client.EffectiveRebootPolicy == SUSyphos.Contracts.Agents.RebootPolicy.InsideMaintenanceWindow;
-            if (!_client.RestartRequested && (restartPlanned || (_planned.Count > 0 && _client.EffectiveRebootPolicy == SUSyphos.Contracts.Agents.RebootPolicy.InsideMaintenanceWindow)))
+            if (!_client.RestartRequested && (restartPlanned || (planned.Count > 0 && _client.EffectiveRebootPolicy == SUSyphos.Contracts.Agents.RebootPolicy.InsideMaintenanceWindow)))
             {
                 tasks.Add(new(window.Start.AddSeconds(1), Format(window.Start), "Restart", "fail", restartPlanned
                     ? $"A restart is pending; allowed in the window if it stays open at least 30 more minutes{(_client.RebootWait is { } wait ? $" ({LiveStatus.RebootWaitText(wait)})" : string.Empty)}"
@@ -988,7 +1010,7 @@ else
 
         if (_client.RestartRequested)
         {
-            tasks.Add(new(_client.PlannedRestartAtUtc ?? DateTime.MaxValue, _client.PlannedRestartAtUtc is { } planned ? Format(planned) : "unknown", "Restart", "fail", $"Requested by an administrator{(_client.RebootWait is { } wait ? $"; {LiveStatus.RebootWaitText(wait)}" : string.Empty)}", []));
+            tasks.Add(new(_client.PlannedRestartAtUtc ?? DateTime.MaxValue, _client.PlannedRestartAtUtc is { } plannedRestart ? Format(plannedRestart) : "unknown", "Restart", "fail", $"Requested by an administrator{(_client.RebootWait is { } wait ? $"; {LiveStatus.RebootWaitText(wait)}" : string.Empty)}", []));
         }
 
         return [.. tasks.OrderBy(t => t.Sort)];

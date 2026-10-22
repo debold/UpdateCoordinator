@@ -73,6 +73,16 @@ main { min-width: 0; padding: 1.4rem max(1.75rem, env(safe-area-inset-right, 0px
 main > * { margin-top: 0; margin-bottom: 0; }
 /* A form whose fields sit in a list further down (form="id"): takes no room and adds no gap. */
 form.detached { display: contents; }
+.field-button { justify-content: flex-end; flex: 0 0 auto; }
+.field-button button { margin-top: auto; }
+p.warning { color: var(--fail); margin: 0.25rem 0 0; }
+p.warning[hidden] { display: none; }
+
+/* Result of an action repeated in view when the page kept its scroll position (app.js). */
+.toast { position: fixed; top: 0.75rem; left: 50%; transform: translateX(-50%); z-index: 50; display: flex; align-items: flex-start; gap: 0.75rem; max-width: min(46rem, calc(100vw - 2rem)); padding: 0.7rem 0.9rem; border-radius: var(--r-sm); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); margin: 0; }
+.toast.notice { background: var(--surface); border: 1px solid var(--accent); color: var(--text); }
+.toast.error { background: var(--surface); border: 1px solid var(--fail); color: var(--text); }
+.toast .toast-close { min-height: 1.6rem; padding: 0 0.5rem; border: none; background: transparent; font-size: 1.1rem; line-height: 1; }
 
 /* Page header. */
 .crumbs { color: var(--muted); font-size: 0.85rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
