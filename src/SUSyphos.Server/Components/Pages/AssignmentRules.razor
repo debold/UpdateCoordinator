@@ -21,10 +21,11 @@
         <Row Context="rule">
                     <tr>
                         <td class="n">@rule.Priority</td>
-                        <td>@TargetName(rule)</td>
+                        <td><a href="@TargetLink(rule)">@TargetName(rule)</a></td>
                         <td>@foreach (var role in AssignmentAdministration.RuleRoles(rule.Role)) { <span class="tag">@role</span> }</td>
                         <td>@rule.Domain</td>
                         <td class="mono">@rule.HostNamePattern</td>
+                        <td class="n"><a href="/servers?rule=@rule.Id" title="Approved servers whose role, domain and host name match this rule">@_matches.GetValueOrDefault(rule.Id)</a></td>
                         <td class="n"><span class="row-actions">
                             <a class="btn" href="@Path?dialog=edit&id=@rule.Id">Edit</a>
                             <a class="btn danger" href="@Path?dialog=delete&id=@rule.Id">Delete</a>
@@ -144,7 +145,11 @@ else if (_dialog == "delete" && Editing is { } doomed)
         new("roles", "Roles", r => r.Role, r => AssignmentAdministration.RuleRoles(r.Role).ToArray() is { Length: > 0 } roles ? roles : [string.Empty]),
         new("domain", "Domain", r => r.Domain, r => [r.Domain ?? string.Empty]),
         new("pattern", "Host name pattern", r => r.HostNamePattern),
+        new("servers", "Servers", r => _matches.GetValueOrDefault(r.Id), Class: "n"),
     ];
+
+    /// <summary>Approved servers each rule matches (conditions only; a manual ring or a rule with a lower number may decide first).</summary>
+    private Dictionary<int, int> _matches = [];
 
     /// <summary>Target of a new rule when the dialog is opened for a group (?target=group:7); only matching options are selected.</summary>
     [SupplyParameterFromQuery(Name = "target")]
@@ -213,6 +218,8 @@ else if (_dialog == "delete" && Editing is { } doomed)
         _nextPriority = SUSyphos.Server.Administration.RulePriority.NextFree([.. _rules.Select(r => r.Priority)]);
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        var approved = await Db.Clients.AsNoTracking().Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).ToListAsync();
+        _matches = _rules.ToDictionary(r => r.Id, r => approved.Count(c => SUSyphos.Server.Assignment.AssignmentService.Matches(r, c)));
         _table = TableQuery.From(Navigation, "priority");
         _page = TablePaging.Apply(_rules, _table, Columns, r => $"{r.Domain} {r.HostNamePattern} {r.Role}");
         var inventoryRoles = (await Db.Clients.AsNoTracking().Select(c => c.Roles).ToListAsync()).SelectMany(r => r);
@@ -222,6 +229,10 @@ else if (_dialog == "delete" && Editing is { } doomed)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)];
     }
+
+    private string TargetLink(AssignmentRuleEntity rule) => rule.Target == AssignmentTarget.Ring
+        ? Servers.Link("ring", _rings.FirstOrDefault(r => r.Id == rule.TargetId)?.Name ?? string.Empty)
+        : Servers.Link("group", _groups.FirstOrDefault(g => g.Id == rule.TargetId)?.Name ?? string.Empty);
 
     private string TargetName(AssignmentRuleEntity rule) => rule.Target == AssignmentTarget.Ring
         ? $"Ring {_rings.FirstOrDefault(r => r.Id == rule.TargetId)?.Name}"

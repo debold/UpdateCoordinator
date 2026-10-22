@@ -13,6 +13,10 @@ Administrators can also put the selected servers into a server group: choose the
 
 The action is queued and each agent runs it with its next heartbeat (every 10 seconds while the agent is running). Agents that are offline run it when they come back. Servers that are not approved get no actions. At most 500 servers are taken per click. Every action is recorded in the [audit log](help/audit-log) and shown on the server's detail page.
 
+## Servers of an assignment rule {#rule}
+
+Opened from the **Servers** number of an assignment rule, the list shows only the approved servers whose role, domain and host name match that rule. The chip "Assignment rule" with its priority says so; its **Ã—** shows all servers again.
+
 ## Columns {#columns}
 
 | Column | Meaning |

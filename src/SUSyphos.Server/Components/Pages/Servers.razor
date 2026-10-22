@@ -44,7 +44,12 @@
 </AuthorizeView>
 
 <Box Flush="true">
-    <TableTools Table="_table" Placeholder="Search name or domain" GroupOptions="GroupOptions" Labels="Labels" />
+    <TableTools Table="_table" Placeholder="Search name or domain" GroupOptions="GroupOptions" Labels="Labels">
+        @if (_rule is not null)
+        {
+            <span class="chip" data-help="servers#rule">Assignment rule @_rule.Priority<a href="@Navigation.GetUriWithQueryParameter("rule", (string?)null)" aria-label="Remove the rule filter">×</a></span>
+        }
+    </TableTools>
     <div class="scroll">
         <table>
             <thead>
@@ -127,6 +132,12 @@
         new("pending", "Pending updates", r => r.Pending, r => [r.Pending > 0 ? PendingYes : PendingNo]),
         new("seen", "Last heartbeat", r => r.LastHeartbeat, r => [ServerIndicators.Label(r.Freshness)]),
     ];
+
+    /// <summary>Shows only the approved servers an assignment rule matches (link from the assignment rules).</summary>
+    [SupplyParameterFromQuery(Name = "rule")]
+    private int? Rule { get; set; }
+
+    private AssignmentRuleEntity? _rule;
 
     [SupplyParameterFromForm(FormName = "servers-bulk")]
     private string? Bulk { get; set; }
@@ -232,6 +243,11 @@
         _groups = groups.OrderBy(g => g.Value, StringComparer.CurrentCulture).ToDictionary(g => g.Key, g => g.Value);
         var memberships = (await Db.ClientGroups.AsNoTracking().ToListAsync()).ToLookup(m => m.ClientId, m => m.GroupId);
         var clients = await Db.Clients.AsNoTracking().Where(c => c.State != RegistrationState.Deleted).ToListAsync();
+        _rule = Rule is { } ruleId ? await Db.AssignmentRules.AsNoTracking().SingleOrDefaultAsync(r => r.Id == ruleId) : null;
+        if (_rule is not null)
+        {
+            clients = [.. clients.Where(c => c.State == RegistrationState.Approved && SUSyphos.Server.Assignment.AssignmentService.Matches(_rule, c))];
+        }
         var entries = await Deployment.GetAsync(null, null, null, CancellationToken.None);
         var failed = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
         var pending = entries.Where(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful).GroupBy(e => e.ClientId).ToDictionary(g => g.Key, g => g.Count());

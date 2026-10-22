@@ -411,6 +411,40 @@ public sealed class AssignmentPageTests
     private const string Password = "correct horse battery";
 
     [Fact]
+    public async Task RuleList_CountsAndLinksTheServersARuleMatches()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var matched = await scenario.AddClientAsync("SQL01", RingEntity.PilotId);
+        await scenario.AddClientAsync("WEB01", RingEntity.PilotId);
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            var groupId = db.Groups.Add(new GroupEntity { Name = "Databases" }).Entity;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.AssignmentRules.Add(new AssignmentRuleEntity { Priority = 10, Target = AssignmentTarget.Group, TargetId = groupId.Id, HostNamePattern = "SQL*" });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        var ruleId = await scenario.Factory.WithDbAsync(db => db.AssignmentRules.Select(r => r.Id).SingleAsync(TestContext.Current.CancellationToken));
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        var rules = await (await browser.GetAsync("/administration/rules")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains($"<a href=\"/servers?rule={ruleId}\"", rules, StringComparison.Ordinal);
+        Assert.Contains(">1</a>", rules, StringComparison.Ordinal);
+        Assert.Contains("href=\"/servers?f.group=Databases\"", rules, StringComparison.Ordinal);
+
+        var servers = await (await browser.GetAsync($"/servers?rule={ruleId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains($"/servers/{matched.ClientId}", servers, StringComparison.Ordinal);
+        Assert.DoesNotContain(">WEB01<", servers, StringComparison.Ordinal);
+        Assert.Contains("Assignment rule 10", servers, StringComparison.Ordinal);
+
+        // An unknown rule is ignored.
+        Assert.Contains(">WEB01<", await (await browser.GetAsync("/servers?rule=999")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Reader_SeesServersButCannotChangeAssignment()
     {
         await using var factory = new ServerFactory();
