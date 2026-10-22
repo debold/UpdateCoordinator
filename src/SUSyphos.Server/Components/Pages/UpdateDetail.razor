@@ -22,6 +22,14 @@ else
         <span class="pill @_stateClass">@_stateLabel</span>
     </PageHeader>
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
+    @if (_update.BlockedAtUtc is { } blockedAt)
+    {
+        <p class="error" role="status">Blocked by @_update.BlockedBy on @Format(blockedAt): the rollout is stopped and the update does not start again, neither by a start rule nor by hand, until it is unblocked.</p>
+    }
+    @if (_update.WithdrawnAtUtc is { } withdrawnAt)
+    {
+        <p class="error" role="status">Probably withdrawn by Microsoft (noticed @Format(withdrawnAt)): servers that had it released no longer get it offered from Windows Update, did not install it, and no newer update or revision replaces it. Check Microsoft's release notes; block the update to keep it from coming back.</p>
+    }
     @if (_supersededBy is not null)
     {
         <p class="notice">Superseded by @_supersededBy: Windows Update offers the newer update instead. Each ring gets the newer one as soon as it is released there, and this rollout stops once the newer one reached every ring this one reached.</p>
@@ -36,11 +44,15 @@ else
                 {
                     <button type="submit" class="primary" name="Action" value="approve:@ring.RingId" data-help-term="@(ring.State == RingRolloutState.Alarm ? "Release anyway for" : "Approve for")">@(ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve") for @ring.Name</button>
                 }
-                @if (_rollout is null || _rollout.State == RolloutState.Stopped)
+                @if (_update.BlockedAtUtc is not null)
+                {
+                    <button type="submit" name="Action" value="unblock">Unblock</button>
+                }
+                else if (_rollout is null || _rollout.State == RolloutState.Stopped)
                 {
                     <button type="submit" name="Action" value="start" class="@(_ringRows.Any(r => r.State is RingRolloutState.AwaitingApproval or RingRolloutState.Alarm) ? null : "primary")">@(_rollout is null ? "Start rollout" : "Resume rollout")</button>
                 }
-                @if (_rollout is null || !_rollout.Override || _rollout.State == RolloutState.Stopped)
+                @if (_update.BlockedAtUtc is null && (_rollout is null || !_rollout.Override || _rollout.State == RolloutState.Stopped))
                 {
                     <button type="submit" name="Action" value="override">Release to all rings</button>
                 }
@@ -49,10 +61,17 @@ else
         <AuthorizeView Policy="@AdminRoles.Policies.Administer">
             <a class="btn" href="@ReleaseRuleLink">Create release rule from this update…</a>
         </AuthorizeView>
-        @if (_canOperate && _rollout is { State: not RolloutState.Stopped })
+        @if (_canOperate)
         {
             <div class="spacer"></div>
-            <button type="submit" form="update-actions" name="Action" value="stop" class="danger">Stop rollout</button>
+            @if (_rollout is { State: not RolloutState.Stopped })
+            {
+                <button type="submit" form="update-actions" name="Action" value="stop" class="danger">Stop rollout</button>
+            }
+            @if (_update.BlockedAtUtc is null)
+            {
+                <button type="submit" form="update-actions" name="Action" value="block" class="danger">Block</button>
+            }
         }
     </ActionBand>
 
@@ -306,6 +325,8 @@ else
         _supersededBy = (await Supersedence.NewerAsync(Db, [UpdateId])).GetValueOrDefault(UpdateId);
         (_stateLabel, _stateClass) = _rollout switch
         {
+            _ when _update.BlockedAtUtc is not null => ("Blocked", "fail"),
+            _ when _update.WithdrawnAtUtc is not null => ("Withdrawn by Microsoft", "fail"),
             null => ("Queued: no rollout", "queue"),
             { State: RolloutState.Stopped } => ("Stopped", "fail"),
             { Override: true } => ("Released to all rings", "pend"),
@@ -394,7 +415,7 @@ else
         // Manual actions come from the audit log; its target names the update ID and revision.
         var marker = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"({UpdateId:D}, revision {Revision})");
         var audited = await Db.AuditEntries.AsNoTracking()
-            .Where(e => e.Action.StartsWith("Rollout.") && e.Target != null && e.Target.EndsWith(marker))
+            .Where(e => (e.Action.StartsWith("Rollout.") || e.Action.StartsWith("Update.")) && e.Target != null && e.Target.EndsWith(marker))
             .OrderByDescending(e => e.Id)
             .Take(100)
             .ToListAsync();
@@ -411,6 +432,9 @@ else
         "Rollout.Override" => "Released to every ring (manual override)",
         "Rollout.RingApproved" => $"Approved: {entry.Details}",
         "Rollout.Superseded" => $"Rollout stopped: {entry.Details}",
+        "Rollout.Withdrawn" => $"Rollout stopped: {entry.Details}",
+        "Update.Blocked" => "Blocked",
+        "Update.Unblocked" => "Unblocked",
         _ => entry.Action,
     };
 

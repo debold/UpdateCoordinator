@@ -155,6 +155,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         action.ToTable("AgentActions");
         action.HasKey(a => a.Id);
         action.Property(a => a.Id).ValueGeneratedNever();
+        action.Property(a => a.KbArticle).HasMaxLength(10);
         action.Property(a => a.Kind).HasConversion<int>();
         action.Property(a => a.State).HasConversion<int>();
         action.Property(a => a.RequestedBy).HasMaxLength(256).IsRequired();
@@ -253,6 +254,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         update.Property(u => u.Title).HasMaxLength(512).IsRequired();
         update.Property(u => u.Classification).HasMaxLength(64);
         update.Property(u => u.MsrcSeverity).HasMaxLength(32);
+        update.Property(u => u.BlockedBy).HasMaxLength(256);
         update.HasIndex(u => u.KbArticle);
 
         var supersedence = modelBuilder.Entity<UpdateSupersedenceEntity>();

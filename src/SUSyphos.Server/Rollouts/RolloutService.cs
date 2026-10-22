@@ -76,7 +76,7 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
 
         var ids = updates.Select(u => u.UpdateId).Distinct().ToList();
         var candidates = await db.Updates.AsNoTracking()
-            .Where(u => ids.Contains(u.UpdateId))
+            .Where(u => ids.Contains(u.UpdateId) && u.BlockedAtUtc == null)
             .Where(u => !db.Rollouts.Any(r => r.UpdateId == u.UpdateId && r.Revision == u.Revision))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -91,7 +91,7 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
     {
         var approved = db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
         var candidates = await db.Updates.AsNoTracking()
-            .Where(u => u.ArchivedAtUtc == null)
+            .Where(u => u.ArchivedAtUtc == null && u.BlockedAtUtc == null)
             .Where(u => !db.Rollouts.Any(r => r.UpdateId == u.UpdateId && r.Revision == u.Revision))
             .Where(u => db.ClientAvailableUpdates.Any(a => a.UpdateId == u.UpdateId && a.Revision == u.Revision && approved.Contains(a.ClientId)))
             .ToListAsync(cancellationToken)
@@ -202,6 +202,7 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
         }
 
         changes += await StopSupersededAsync(cancellationToken).ConfigureAwait(false);
+        changes += await MarkWithdrawnAsync(cancellationToken).ConfigureAwait(false);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await releases.SyncAsync(null, cancellationToken).ConfigureAwait(false);
         return changes;
@@ -258,6 +259,80 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
 
         return stopped;
     }
+
+    /// <summary>Marks withdrawn updates now (after an update report) and saves; stops their rollouts unless only notifications are configured.</summary>
+    public async Task CheckWithdrawnAsync(CancellationToken cancellationToken)
+    {
+        if (await MarkWithdrawnAsync(cancellationToken).ConfigureAwait(false) > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Detects updates Microsoft probably withdrew (Marc, 2026-10-22): servers that had the update released report that
+    /// Windows Update no longer knows it (neither offered, hidden nor installed), no approved server offers it any more,
+    /// and neither a newer revision nor a known superseding update explains it. Such an update is marked, and its rollout
+    /// stops unless the setting says "notify" (a stop is undone with "Resume"). The mark goes away when a server offers the
+    /// update again; the rollout stays stopped. Does not save; returns the number of changed updates.
+    /// </summary>
+    private async Task<int> MarkWithdrawnAsync(CancellationToken cancellationToken)
+    {
+        var approved = db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
+        var offered = db.ClientAvailableUpdates.Where(a => approved.Contains(a.ClientId));
+
+        // Marked updates that are offered again lose the mark.
+        var back = await db.Updates
+            .Where(u => u.WithdrawnAtUtc != null && offered.Any(a => a.UpdateId == u.UpdateId && a.Revision == u.Revision))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        foreach (var update in back)
+        {
+            update.WithdrawnAtUtc = null;
+        }
+
+        var candidates = await db.Releases.AsNoTracking()
+            .Where(r => r.NotOfferedAtUtc != null && approved.Contains(r.ClientId))
+            .Select(r => new { r.UpdateId, r.Revision })
+            .Distinct()
+            .Where(r => !offered.Any(a => a.UpdateId == r.UpdateId))
+            .Where(r => !db.UpdateSupersedence.Any(s => s.SupersededUpdateId == r.UpdateId && s.UpdateId != r.UpdateId))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (candidates.Count == 0)
+        {
+            return back.Count;
+        }
+
+        var stop = await db.Settings.AsNoTracking().Where(s => s.Key == SettingEntity.WithdrawnAction).Select(s => s.Value).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false) != "notify";
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var changed = back.Count;
+        foreach (var candidate in candidates)
+        {
+            var update = await db.Updates.SingleOrDefaultAsync(u => u.UpdateId == candidate.UpdateId && u.Revision == candidate.Revision, cancellationToken).ConfigureAwait(false);
+            if (update is null || update.WithdrawnAtUtc is not null)
+            {
+                continue;
+            }
+
+            update.WithdrawnAtUtc = now;
+            changed++;
+            var servers = await db.Releases.CountAsync(r => r.UpdateId == candidate.UpdateId && r.Revision == candidate.Revision && r.NotOfferedAtUtc != null, cancellationToken).ConfigureAwait(false);
+            var rollout = await db.Rollouts.SingleOrDefaultAsync(r => r.UpdateId == candidate.UpdateId && r.Revision == candidate.Revision, cancellationToken).ConfigureAwait(false);
+            if (stop && rollout is { State: RolloutState.Active })
+            {
+                rollout.State = RolloutState.Stopped;
+                await audit.WriteAsync(RuleActor, "Rollout.Withdrawn", Describe(update.KbArticle, update.Title, update.UpdateId, update.Revision), string.Create(CultureInfo.InvariantCulture, $"probably withdrawn by Microsoft: Windows Update no longer knows it on {servers} servers and no server offers it"), cancellationToken).ConfigureAwait(false);
+            }
+
+            LogWithdrawn(update.UpdateId, update.Revision, servers, stop && rollout is not null);
+        }
+
+        return changed;
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Update {UpdateId} revision {Revision} looks withdrawn by Microsoft ({Servers} servers no longer know it); rollout stopped: {Stopped}.")]
+    private partial void LogWithdrawn(Guid updateId, int revision, int servers, bool stopped);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Rollout of {UpdateId} revision {Revision} stopped: superseded by {NewerId} revision {NewerRevision}, which reached every ring it had reached.")]
     private partial void LogSuperseded(Guid updateId, int revision, Guid newerId, int newerRevision);

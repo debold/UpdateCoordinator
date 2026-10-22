@@ -23,6 +23,7 @@ internal enum NotificationKind
     AgentUpdateFailed,
     BackupFailed,
     ServerVersionAvailable,
+    UpdateWithdrawn,
 }
 
 /// <summary>
@@ -73,6 +74,17 @@ internal sealed class NotificationEvents(
                 ? new NotificationEvent($"rollout.alarm:{key}", NotificationKind.RolloutAlarm, $"Rollout alarm before ring {ring.RingName}: {update}. {ring.Reason}".TrimEnd(), path)
                 : new NotificationEvent($"rollout.gate:{key}", NotificationKind.GateWaiting, $"Gate to ring {ring.RingName} waits for approval: {update}", path));
         }
+
+        // Updates that look withdrawn by Microsoft: reported until the mark goes away.
+        var withdrawn = await db.Updates.AsNoTracking()
+            .Where(u => u.WithdrawnAtUtc != null)
+            .Select(u => new { u.UpdateId, u.Revision, u.KbArticle, u.Title, Stopped = db.Rollouts.Any(r => r.UpdateId == u.UpdateId && r.Revision == u.Revision && r.State == RolloutState.Stopped) })
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        events.AddRange(withdrawn.Select(u => new NotificationEvent(
+            $"update.withdrawn:{u.UpdateId}/{u.Revision}",
+            NotificationKind.UpdateWithdrawn,
+            $"Update probably withdrawn by Microsoft: {(u.KbArticle is { Length: > 0 } kb ? $"KB{kb} " : string.Empty)}{u.Title}. {(u.Stopped ? "Its rollout is stopped." : "Its rollout was not stopped (notify only); check it now.")}",
+            $"updates/{u.UpdateId}/{u.Revision}")));
 
         var halted = await db.Groups.AsNoTracking().Where(g => g.LeasesHalted).Select(g => new { g.Id, g.Name }).ToListAsync(cancellationToken).ConfigureAwait(false);
         events.AddRange(halted.Select(g => new NotificationEvent($"group.halted:{g.Id}", NotificationKind.LeasesHalted, $"Installations in group {g.Name} stopped after failures; an operator must resume them.", "administration/groups")));

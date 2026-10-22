@@ -28,12 +28,16 @@ internal interface IUpdateReporter
 internal sealed partial class UpdateReporter(
     PreFlightCheck preFlight,
     IAvailableUpdateSearch search,
+    IReleaseSync releases,
     ICentralServerClient client,
     Status.ActivityTracker activity,
     IOptions<UpdateOptions> options,
     TimeProvider timeProvider,
     ILogger<UpdateReporter> logger) : IUpdateReporter
 {
+    /// <summary>Released updates looked up per search at most; the lookup asks for four states per update.</summary>
+    internal const int MaxLookups = 100;
+
     private DateTimeOffset? _lastRun;
 
     public IReadOnlySet<(Guid UpdateId, int Revision)>? LastMissingUpdates { get; private set; }
@@ -79,9 +83,11 @@ internal sealed partial class UpdateReporter(
         try
         {
             IReadOnlyList<Wua.WuaUpdate> available;
+            IReadOnlyList<(Guid UpdateId, int Revision)>? notOffered;
             using (activity.Begin(AgentPhase.Searching))
             {
                 available = await search.SearchAsync(cancellationToken).ConfigureAwait(false);
+                notOffered = await FindNotOfferedAsync(available, cancellationToken).ConfigureAwait(false);
             }
 
             return new UpdateReport
@@ -90,6 +96,7 @@ internal sealed partial class UpdateReporter(
                 SearchSucceeded = true,
                 HealthChecks = checks,
                 AvailableUpdates = WireFormat.ToAvailableUpdates(available),
+                NotOffered = notOffered?.Select(u => new UpdateKey(u.UpdateId, u.Revision)).ToList(),
             };
         }
         catch (WuaException ex)
@@ -98,6 +105,39 @@ internal sealed partial class UpdateReporter(
             return new UpdateReport { StartedAt = startedAt, SearchHResult = ex.HResult, HealthChecks = checks };
         }
     }
+
+    /// <summary>
+    /// Released updates the search did not find, looked up by ID: those Windows Update does not know at all any more
+    /// (withdrawn by Microsoft, or no longer applicable), so the central server can stop a faulty rollout. A failed
+    /// lookup reports nothing rather than a wrong withdrawal.
+    /// </summary>
+    private async Task<IReadOnlyList<(Guid UpdateId, int Revision)>?> FindNotOfferedAsync(IReadOnlyList<Wua.WuaUpdate> available, CancellationToken cancellationToken)
+    {
+        var offered = available.Select(u => (Guid.TryParse(u.UpdateId, out var id) ? id : Guid.Empty, u.Revision)).ToHashSet();
+        var released = releases.Current.Releases
+            .Select(r => (r.UpdateId, r.Revision))
+            .Where(r => !offered.Contains(r))
+            .Distinct()
+            .Take(MaxLookups)
+            .ToList();
+        if (released.Count == 0)
+        {
+            return [];
+        }
+
+        try
+        {
+            return await search.FindUnknownAsync(released, cancellationToken).ConfigureAwait(false);
+        }
+        catch (WuaException ex)
+        {
+            LogLookupFailed(ex.HResult, ex.Message);
+            return null;
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Looking up released updates the search did not find failed with 0x{HResult:X8}: {Reason}")]
+    private partial void LogLookupFailed(int hresult, string reason);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Update report sent (search succeeded: {Succeeded}, {Count} available updates).")]
     private partial void LogReported(bool succeeded, int count);

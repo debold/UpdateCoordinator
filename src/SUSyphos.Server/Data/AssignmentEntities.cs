@@ -126,6 +126,9 @@ internal sealed class SettingEntity
     /// <summary>Set once the default start rule for definition updates was created, so a deleted rule stays deleted.</summary>
     public const string DefinitionRuleCreated = "StartRules.DefinitionRuleCreated";
 
+    /// <summary>What happens when an update looks withdrawn by Microsoft: "stop" (default) or "notify".</summary>
+    public const string WithdrawnAction = "Rollout.WithdrawnAction";
+
     public required string Key { get; set; }
 
     public required string Value { get; set; }

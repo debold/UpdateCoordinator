@@ -325,6 +325,10 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("KbArticle")
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Kind")
                         .HasColumnType("INTEGER");
 
@@ -339,8 +343,14 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("Revision")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("State")
                         .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("UpdateId")
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -888,6 +898,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<DateTime>("EarliestInstallAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("NotOfferedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("ClientId", "UpdateId", "Revision");
 
                     b.HasIndex("UpdateId", "Revision");
@@ -1162,6 +1175,13 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<DateTime?>("ArchivedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("BlockedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BlockedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Classification")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
@@ -1189,6 +1209,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("WithdrawnAtUtc")
                         .HasColumnType("TEXT");
 
                     b.HasKey("UpdateId", "Revision");

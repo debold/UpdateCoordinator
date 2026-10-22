@@ -25,6 +25,16 @@ internal sealed class FakeAvailableUpdateSearch : IAvailableUpdateSearch
         Calls++;
         return Task.FromResult(OnSearch());
     }
+
+    /// <summary>Updates Windows Update still knows (installed, hidden or available); all others are unknown.</summary>
+    public HashSet<(Guid, int)> Known { get; } = [];
+
+    public bool FailLookup { get; set; }
+
+    public Task<IReadOnlyList<(Guid UpdateId, int Revision)>> FindUnknownAsync(IReadOnlyCollection<(Guid UpdateId, int Revision)> updates, CancellationToken cancellationToken) =>
+        FailLookup
+            ? throw new WuaException("lookup failed", unchecked((int)0x80240024))
+            : Task.FromResult<IReadOnlyList<(Guid, int)>>([.. updates.Where(u => !Known.Contains(u))]);
 }
 
 public sealed class PreFlightCheckTests
@@ -107,6 +117,7 @@ public sealed class UpdateReporterTests
     private readonly FakeDiskSpace _disk = new();
     private readonly FakeAvailableUpdateSearch _search = new();
     private readonly FakeCentralServerClient _client = new();
+    private readonly FakeReleaseSync _releases = new();
     private readonly FakeTimeProvider _time = new();
 
     public UpdateReporterTests()
@@ -129,6 +140,46 @@ public sealed class UpdateReporterTests
         Assert.Equal(123_456, update.MaxDownloadSizeBytes);
         Assert.Equal(RebootBehavior.AlwaysRequiresReboot, update.RebootBehavior);
         Assert.Equal("Critical", update.MsrcSeverity);
+    }
+
+    [Fact]
+    public async Task ReleasedUpdatesWindowsNoLongerKnows_AreReportedAsNotOffered()
+    {
+        var offered = Guid.NewGuid();
+        var installed = Guid.NewGuid();
+        var gone = Guid.NewGuid();
+        var now = _time.GetUtcNow();
+        _releases.Current = new ReleaseList(1, [new Release(offered, 1, now), new Release(installed, 1, now), new Release(gone, 3, now)]);
+        _search.OnSearch = () => [new WuaUpdate(offered.ToString(), 1, [], "Offered", null)];
+        _search.Known.Add((installed, 1));
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal([new UpdateKey(gone, 3)], Assert.Single(_client.Reports).NotOffered);
+    }
+
+    [Fact]
+    public async Task FailedLookup_ReportsNoWithdrawal()
+    {
+        _releases.Current = new ReleaseList(1, [new Release(Guid.NewGuid(), 1, _time.GetUtcNow())]);
+        _search.FailLookup = true;
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        var report = Assert.Single(_client.Reports);
+        Assert.True(report.SearchSucceeded);
+        Assert.Null(report.NotOffered);
+    }
+
+    [Fact]
+    public void LookupCriteria_AskForEveryStateOfEachUpdate()
+    {
+        var id = Guid.Parse("11111111-2222-3333-4444-555555555555");
+
+        var criteria = WuaAvailableUpdateSearch.LookupCriteria([(id, 7)]);
+
+        Assert.Equal(4, criteria.Split(" or ").Length);
+        Assert.Contains("(UpdateID='11111111-2222-3333-4444-555555555555' and RevisionNumber=7 and IsInstalled=1 and IsHidden=1)", criteria, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -189,7 +240,7 @@ public sealed class UpdateReporterTests
     private UpdateReporter Create()
     {
         var options = Options.Create(new UpdateOptions());
-        return new UpdateReporter(new PreFlightCheck(_probe, _disk, options), _search, _client, new SUSyphos.Agent.Status.ActivityTracker(_time), options, _time, NullLogger<UpdateReporter>.Instance);
+        return new UpdateReporter(new PreFlightCheck(_probe, _disk, options), _search, _releases, _client, new SUSyphos.Agent.Status.ActivityTracker(_time), options, _time, NullLogger<UpdateReporter>.Instance);
     }
 }
 

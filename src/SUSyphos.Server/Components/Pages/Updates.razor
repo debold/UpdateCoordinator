@@ -191,7 +191,15 @@
             {
                 var key = (u.UpdateId, u.Revision);
                 var (rollout, cls, detail) = Describe(rollouts.GetValueOrDefault(key), ringStates[key].ToList(), rings);
-                if (supersededBy.TryGetValue(u.UpdateId, out var newer))
+                if (u.BlockedAtUtc is not null)
+                {
+                    (rollout, cls) = ("Blocked", "fail");
+                }
+                else if (u.WithdrawnAtUtc is not null)
+                {
+                    (rollout, cls) = ("Withdrawn by Microsoft", "fail");
+                }
+                else if (supersededBy.TryGetValue(u.UpdateId, out var newer))
                 {
                     // Replaced by a newer update: marked; without a running rollout it is not offered any more.
                     if (rollouts.GetValueOrDefault(key) is not { State: RolloutState.Active })

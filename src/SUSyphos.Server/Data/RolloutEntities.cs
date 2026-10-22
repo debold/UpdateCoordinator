@@ -201,6 +201,14 @@ internal sealed class AgentActionEntity
 
     /// <summary>Size of the uploaded log archive while it is kept; null if there is none (any more).</summary>
     public long? LogFileSize { get; set; }
+
+    /// <summary>The update an action is about (uninstall); null for other actions.</summary>
+    public Guid? UpdateId { get; set; }
+
+    public int? Revision { get; set; }
+
+    /// <summary>KB number of that update, so the agent can find the package without Windows Update (DISM).</summary>
+    public string? KbArticle { get; set; }
 }
 
 internal enum LeaseState

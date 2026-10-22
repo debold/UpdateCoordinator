@@ -30,6 +30,7 @@ public sealed class UpdateSearchIntegrationTests(ServerFactory factory) : IClass
         var reporter = new UpdateReporter(
             new PreFlightCheck(new WindowsSystemProbe(), new DiskSpace(), options),
             new WuaAvailableUpdateSearch(options, new UpdateServiceSelection()),
+            new ReleaseSync(client, NullLogger<ReleaseSync>.Instance),
             client,
             new SUSyphos.Agent.Status.ActivityTracker(TimeProvider.System),
             options,

@@ -24,6 +24,11 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
             return new Outcome("The update is not in the catalog.");
         }
 
+        if (update.BlockedAtUtc is not null)
+        {
+            return new Outcome(BlockedMessage);
+        }
+
         var rollout = await db.Rollouts.SingleOrDefaultAsync(r => r.UpdateId == updateId && r.Revision == revision, cancellationToken).ConfigureAwait(false);
         string action;
         if (rollout is null)
@@ -74,6 +79,11 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
             return new Outcome("The update is not in the catalog.");
         }
 
+        if (update.BlockedAtUtc is not null)
+        {
+            return new Outcome(BlockedMessage);
+        }
+
         var rollout = await db.Rollouts.SingleOrDefaultAsync(r => r.UpdateId == updateId && r.Revision == revision, cancellationToken).ConfigureAwait(false)
             ?? await rollouts.CreateAsync(updateId, revision, actor, TimeSpan.Zero, null, cancellationToken).ConfigureAwait(false);
         if (rollout.Override && rollout.State == RolloutState.Active)
@@ -100,6 +110,11 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
     /// <summary>Approves a ring that waits at a manual gate or after an alarm.</summary>
     public async Task<Outcome> ApproveRingAsync(Guid updateId, int revision, int ringId, string actor, CancellationToken cancellationToken)
     {
+        if (await db.Updates.AnyAsync(u => u.UpdateId == updateId && u.Revision == revision && u.BlockedAtUtc != null, cancellationToken).ConfigureAwait(false))
+        {
+            return new Outcome(BlockedMessage);
+        }
+
         var rollout = await db.Rollouts.SingleOrDefaultAsync(r => r.UpdateId == updateId && r.Revision == revision, cancellationToken).ConfigureAwait(false);
         if (rollout is not { State: RolloutState.Active })
         {
@@ -329,6 +344,71 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
 
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    private const string BlockedMessage = "The update is blocked; unblock it first.";
+
+    /// <summary>True if the rollout of an update that looks withdrawn by Microsoft is stopped (default); false to only notify.</summary>
+    public async Task<bool> GetStopWithdrawnAsync(CancellationToken cancellationToken) =>
+        await db.Settings.AsNoTracking().Where(s => s.Key == SettingEntity.WithdrawnAction).Select(s => s.Value).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false) != "notify";
+
+    public async Task<Outcome> SetStopWithdrawnAsync(bool stop, string actor, CancellationToken cancellationToken)
+    {
+        var value = stop ? "stop" : "notify";
+        var setting = await db.Settings.SingleOrDefaultAsync(s => s.Key == SettingEntity.WithdrawnAction, cancellationToken).ConfigureAwait(false);
+        if (setting is null)
+        {
+            db.Settings.Add(new SettingEntity { Key = SettingEntity.WithdrawnAction, Value = value });
+        }
+        else
+        {
+            setting.Value = value;
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Rollout.WithdrawnActionChanged", value, null, cancellationToken).ConfigureAwait(false);
+        return Outcome.Ok;
+    }
+
+    /// <summary>
+    /// Blocks an update: a running rollout stops (its releases are withdrawn from every server that has not installed it)
+    /// and neither start rules nor operators start it again until it is unblocked. Also for queued updates.
+    /// </summary>
+    public async Task<Outcome> BlockAsync(Guid updateId, int revision, string actor, CancellationToken cancellationToken)
+    {
+        var update = await db.Updates.SingleOrDefaultAsync(u => u.UpdateId == updateId && u.Revision == revision, cancellationToken).ConfigureAwait(false);
+        if (update is null)
+        {
+            return new Outcome("The update is not in the catalog.");
+        }
+
+        if (update.BlockedAtUtc is not null)
+        {
+            return new Outcome("The update is already blocked.");
+        }
+
+        update.BlockedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+        update.BlockedBy = actor.Length > 256 ? actor[..256] : actor;
+        if (await db.Rollouts.SingleOrDefaultAsync(r => r.UpdateId == updateId && r.Revision == revision, cancellationToken).ConfigureAwait(false) is { State: RolloutState.Active } rollout)
+        {
+            rollout.State = RolloutState.Stopped;
+        }
+
+        return await CompleteAsync(actor, "Update.Blocked", update, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Lifts a block; a stopped rollout stays stopped until an operator resumes it.</summary>
+    public async Task<Outcome> UnblockAsync(Guid updateId, int revision, string actor, CancellationToken cancellationToken)
+    {
+        var update = await db.Updates.SingleOrDefaultAsync(u => u.UpdateId == updateId && u.Revision == revision, cancellationToken).ConfigureAwait(false);
+        if (update?.BlockedAtUtc is null)
+        {
+            return new Outcome("The update is not blocked.");
+        }
+
+        update.BlockedAtUtc = null;
+        update.BlockedBy = null;
+        return await CompleteAsync(actor, "Update.Unblocked", update, null, cancellationToken).ConfigureAwait(false);
+    }
+
     private Task<UpdateEntity?> FindUpdateAsync(Guid updateId, int revision, CancellationToken cancellationToken) =>
         db.Updates.AsNoTracking().SingleOrDefaultAsync(u => u.UpdateId == updateId && u.Revision == revision, cancellationToken);
 
@@ -350,7 +430,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
 /// <summary>Rollout actions posted by dashboard forms; shared by the update list and the update detail page.</summary>
 internal static class RolloutActions
 {
-    /// <summary>Runs "start", "stop", "override" or "approve" (with a ring) and returns the outcome and the success message.</summary>
+    /// <summary>Runs "start", "stop", "override", "block", "unblock" or "approve" (with a ring) and returns the outcome and the success message.</summary>
     public static async Task<(Outcome Outcome, string Success)> RunAsync(
         RolloutAdministration administration, string? action, Guid updateId, int revision, int? ringId, string actor, CancellationToken cancellationToken)
     {
@@ -360,6 +440,8 @@ internal static class RolloutActions
             "start" => (await administration.StartAsync(updateId, revision, actor, cancellationToken).ConfigureAwait(false), "The rollout runs."),
             "stop" => (await administration.StopAsync(updateId, revision, actor, cancellationToken).ConfigureAwait(false), "The rollout was stopped; servers that have not installed the update no longer get it."),
             "override" => (await administration.OverrideAsync(updateId, revision, actor, cancellationToken).ConfigureAwait(false), "The update is released to every ring."),
+            "block" => (await administration.BlockAsync(updateId, revision, actor, cancellationToken).ConfigureAwait(false), "The update is blocked: its rollout is stopped and it does not start again until it is unblocked."),
+            "unblock" => (await administration.UnblockAsync(updateId, revision, actor, cancellationToken).ConfigureAwait(false), "The update is unblocked; resume or start its rollout when it should be installed again."),
             "approve" when ringId is { } ring => (await administration.ApproveRingAsync(updateId, revision, ring, actor, cancellationToken).ConfigureAwait(false), "The update was released for the ring."),
             _ => (new Outcome("Invalid request."), string.Empty),
         };

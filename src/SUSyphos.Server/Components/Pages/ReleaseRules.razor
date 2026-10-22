@@ -83,6 +83,23 @@
     </ListTable>
 </Box>
 
+<form method="post" @formname="withdrawn" @onsubmit="SaveWithdrawnAsync" class="box">
+    <AntiforgeryToken />
+    <header class="box-head"><h2>Updates withdrawn by Microsoft<HelpLink To="release-rules#withdrawn" Label="Updates withdrawn by Microsoft" /></h2><span class="hint">When servers no longer get a released update offered and no newer update or revision explains it</span></header>
+    <div class="box-body form">
+        <div class="form-row">
+            <label class="field"><span>When an update looks withdrawn</span>
+                <select name="WithdrawnAction">
+                    <option value="stop" selected="@_stopWithdrawn">Stop its rollout and notify</option>
+                    <option value="notify" selected="@(!_stopWithdrawn)">Only notify</option>
+                </select>
+            </label>
+        </div>
+        <p class="help">A stopped rollout can be resumed on the update page; servers never install an update Windows Update no longer offers. Block the update there to keep it from coming back.</p>
+        <div><button type="submit">Save</button></div>
+    </div>
+</form>
+
 @if (_dialog is "rule-new" or "rule" && (_dialog == "rule-new" || EditingRule is not null))
 {
     var rule = _dialog == "rule" ? EditingRule : null;
@@ -299,6 +316,18 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
     [SupplyParameterFromForm(FormName = "release-dialog")] private string? Delay { get; set; }
     [SupplyParameterFromForm(FormName = "release-dialog")] private int[]? StartRingsSelected { get; set; }
     [SupplyParameterFromForm(FormName = "release-dialog")] private string? Restart { get; set; }
+    [SupplyParameterFromForm(FormName = "withdrawn")] private string? WithdrawnAction { get; set; }
+
+    private bool _stopWithdrawn = true;
+
+    private async Task SaveWithdrawnAsync()
+    {
+        var outcome = WithdrawnAction is "stop" or "notify"
+            ? await Administration.SetStopWithdrawnAsync(WithdrawnAction == "stop", await GetActorAsync(), CancellationToken.None)
+            : new Outcome("Choose what happens with withdrawn updates.");
+        ShowResult(outcome.Error, "The setting for withdrawn updates was saved.");
+        await LoadAsync();
+    }
     [SupplyParameterFromForm(FormName = "release-dialog")] private string? OutsideWindows { get; set; }
 
     /// <summary>Restart condition from the posted form, else from the rule; null for any.</summary>
@@ -461,6 +490,7 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
         _ruleTable = TableQuery.From(Navigation, "priority");
         _rulePage = TablePaging.Apply(_startRules, _ruleTable, RuleColumns, r => $"{r.TitlePattern} {r.Classification} {r.MsrcSeverity}");
         _servers = await Db.Clients.Where(c => c.RingId != null && c.State == RegistrationState.Approved).GroupBy(c => c.RingId!.Value).ToDictionaryAsync(g => g.Key, g => g.Count());
+        _stopWithdrawn = await Administration.GetStopWithdrawnAsync(CancellationToken.None);
         _catalogClassifications = await Db.Updates.AsNoTracking().Where(u => u.Classification != null).Select(u => u.Classification!).Distinct().Take(50).ToListAsync();
         if (DialogName is "rule" or "rule-new")
         {

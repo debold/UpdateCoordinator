@@ -36,10 +36,22 @@ public enum AgentActionKind
 
     /// <summary>Like <see cref="InstallNow"/>, but a needed restart waits for the next maintenance window that stays open long enough.</summary>
     InstallNowRestartInWindow = 8,
+
+    /// <summary>Uninstall the update named in the action (Windows Update, else DISM), then restart at once if needed (5-minute warning; local veto applies).</summary>
+    Uninstall = 9,
+
+    /// <summary>Like <see cref="Uninstall"/>, but a needed restart waits for the next maintenance window that stays open long enough.</summary>
+    UninstallRestartInWindow = 10,
 }
 
 /// <summary>One queued action.</summary>
-public sealed record AgentAction(Guid Id, AgentActionKind Kind, DateTimeOffset RequestedAt);
+/// <param name="Id">Action ID, echoed with the result.</param>
+/// <param name="Kind">What to do.</param>
+/// <param name="RequestedAt">When an administrator asked for it.</param>
+/// <param name="UpdateId">The update the action is about (uninstall); null otherwise.</param>
+/// <param name="Revision">Its revision.</param>
+/// <param name="KbArticle">Its KB number (digits), to find the package without Windows Update.</param>
+public sealed record AgentAction(Guid Id, AgentActionKind Kind, DateTimeOffset RequestedAt, Guid? UpdateId = null, int? Revision = null, string? KbArticle = null);
 
 /// <summary>Actions waiting for the agent, oldest first.</summary>
 public sealed record AgentActionList(IReadOnlyList<AgentAction> Actions)

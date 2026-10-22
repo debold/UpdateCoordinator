@@ -48,6 +48,16 @@ internal sealed partial class UpdateReportService(
                 Revision = u.Revision,
                 ReportedAtUtc = now,
             }));
+
+            // Released updates the agent looked up and Windows Update no longer knows: candidates for a withdrawal.
+            if (report.NotOffered is { } notOffered)
+            {
+                var gone = notOffered.Select(u => (u.UpdateId, u.Revision)).ToHashSet();
+                foreach (var release in await db.Releases.Where(r => r.ClientId == clientId).ToListAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    release.NotOfferedAtUtc = gone.Contains((release.UpdateId, release.Revision)) ? release.NotOfferedAtUtc ?? now : null;
+                }
+            }
         }
 
         activity.Add(clientId, ClientActivityKind.Search, report.SearchSucceeded
@@ -66,6 +76,7 @@ internal sealed partial class UpdateReportService(
 
         // New updates of configured classifications start their rollout; the client gets what is released for its ring.
         await rollouts.AutoStartAsync(reportedKeys, cancellationToken).ConfigureAwait(false);
+        await rollouts.CheckWithdrawnAsync(cancellationToken).ConfigureAwait(false);
         await releases.SyncAsync(clientId, cancellationToken).ConfigureAwait(false);
         return true;
     }

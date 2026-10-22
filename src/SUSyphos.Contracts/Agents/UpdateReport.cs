@@ -31,7 +31,22 @@ public sealed record UpdateReport
     /// <summary>Available updates; null if the search did not succeed.</summary>
     [MaxLength(MaxAvailableUpdates)]
     public IReadOnlyList<AvailableUpdate>? AvailableUpdates { get; init; }
+
+    /// <summary>Upper bound for released updates reported as no longer offered.</summary>
+    public const int MaxNotOffered = 500;
+
+    /// <summary>
+    /// Released updates that Windows Update neither offered in this search nor reports as installed (looked up by ID):
+    /// withdrawn by Microsoft, or no longer applicable. Null if the search did not succeed or the agent does not check.
+    /// </summary>
+    [MaxLength(MaxNotOffered)]
+    public IReadOnlyList<UpdateKey>? NotOffered { get; init; }
 }
+
+/// <summary>Identity of one update revision.</summary>
+/// <param name="UpdateId">Windows Update ID.</param>
+/// <param name="Revision">Revision number.</param>
+public sealed record UpdateKey(Guid UpdateId, [property: Range(0, int.MaxValue)] int Revision);
 
 [JsonConverter(typeof(JsonStringEnumConverter<HealthStatus>))]
 public enum HealthStatus

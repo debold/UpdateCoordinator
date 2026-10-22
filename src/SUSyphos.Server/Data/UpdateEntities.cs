@@ -43,6 +43,17 @@ internal sealed class UpdateEntity
 
     /// <summary>Hidden from the update lists because no server has needed it for a while; the history stays.</summary>
     public DateTime? ArchivedAtUtc { get; set; }
+
+    /// <summary>Blocked by an operator: its rollout is stopped and it never starts again until it is unblocked.</summary>
+    public DateTime? BlockedAtUtc { get; set; }
+
+    public string? BlockedBy { get; set; }
+
+    /// <summary>
+    /// No server offers the update any more although some had it released and did not install it, and no newer
+    /// update or revision explains it: probably withdrawn by Microsoft. Cleared when a server offers it again.
+    /// </summary>
+    public DateTime? WithdrawnAtUtc { get; set; }
 }
 
 /// <summary>
@@ -88,6 +99,9 @@ internal sealed class ReleaseEntity
     public DateTime EarliestInstallAtUtc { get; set; }
 
     public DateTime CreatedAtUtc { get; set; }
+
+    /// <summary>The agent reported that Windows Update neither offers nor has installed the update any more; null otherwise.</summary>
+    public DateTime? NotOfferedAtUtc { get; set; }
 }
 
 /// <summary>
