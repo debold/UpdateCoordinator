@@ -151,7 +151,7 @@ public sealed record UpdateSourceInfo
 /// </summary>
 public enum AutomaticUpdateMode
 {
-    /// <summary>Neither policy nor local setting: Windows Server 2016 and later does not install on its own.</summary>
+    /// <summary>Neither policy nor local setting: Windows Server downloads and notifies (option 3); Windows 10 and 11 install on their own.</summary>
     NotConfigured = 0,
 
     /// <summary>NoAutoUpdate = 1.</summary>
@@ -186,8 +186,11 @@ public sealed record AutomaticUpdatesInfo
     /// <summary>The policy value is the one the agent set on request of the central server (option 3), not group policy.</summary>
     public bool ManagedByAgent { get; init; }
 
+    /// <summary>Windows 10 or 11 (not Windows Server): without a setting, Windows installs updates on its own.</summary>
+    public bool ClientOperatingSystem { get; init; }
+
     /// <summary>True if Windows installs or restarts on its own, bypassing rings and maintenance windows.</summary>
-    public bool BypassesCoordination() => Mode == AutomaticUpdateMode.ScheduledInstall || ScheduledRestart || Deadline;
+    public bool BypassesCoordination() => Mode == AutomaticUpdateMode.ScheduledInstall || (Mode == AutomaticUpdateMode.NotConfigured && ClientOperatingSystem) || ScheduledRestart || Deadline;
 }
 
 /// <summary>

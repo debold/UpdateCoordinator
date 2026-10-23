@@ -121,12 +121,24 @@ internal sealed class DeploymentStatus(ServerDbContext db)
             .Concat(last.Keys)
             .Distinct();
 
+        // A failed attempt only counts while the server still misses the update (Marc, 2026-10-23): once its search no longer
+        // reports it, the failure is over; installed some other way (Windows itself, by hand) it counts as installed.
+        var missing = available.Select(a => (a.ClientId, a.UpdateId)).ToHashSet();
+        var settled = last.Where(l => !InstallEvidence.LeavesInstalled(l.Value.ResultCode, l.Value.HResult) && !missing.Contains((l.Key.ClientId, l.Key.UpdateId))).Select(l => l.Key).ToList();
+        var installedSince = await InstallEvidence.InstalledAsync(db, settled.Select(k => k.ClientId).Distinct().ToList(), settled.Select(k => k.UpdateId).Distinct().ToList(), cancellationToken).ConfigureAwait(false);
+        var settledKeys = settled.ToHashSet();
+
         var entries = new List<DeploymentEntry>();
         foreach (var key in keys)
         {
             var hasRelease = released.TryGetValue(key, out var earliest);
             last.TryGetValue(key, out var result);
-            var succeeded = result?.ResultCode is (int)InstallResultCode.Succeeded or (int)InstallResultCode.SucceededWithErrors;
+            if (settledKeys.Contains(key) && !installedSince.Contains((key.ClientId, key.UpdateId)))
+            {
+                continue;
+            }
+
+            var succeeded = result is not null && (InstallEvidence.LeavesInstalled(result.ResultCode, result.HResult) || settledKeys.Contains(key));
 
             // A release after a failure stays Failed until a new result arrives; a success without a new search is final.
             var state = result is null

@@ -29,6 +29,9 @@ internal sealed class RolloutEntity
     /// <summary>Manual override: released to every ring at once, bypassing rates, wait times and gates.</summary>
     public bool Override { get; set; }
 
+    /// <summary>Stopped automatically because the update looked withdrawn by Microsoft; resumed by itself if that turns out wrong. A manual stop or resume clears it.</summary>
+    public bool StoppedAsWithdrawn { get; set; }
+
     /// <summary>Start rule that started the rollout automatically; null for a manual start. No foreign key: the rule may be deleted later.</summary>
     public int? StartRuleId { get; set; }
 

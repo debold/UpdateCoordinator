@@ -19,7 +19,7 @@ Administrators also have:
 
 - **Block and uninstall…**: opens the [uninstall dialog](#uninstall).
 
-A red note says when the update is **blocked** (by whom and since when) or **probably withdrawn by Microsoft**: servers that had it released report that Windows Update no longer knows it, did not install it, and no newer update or revision replaces it. Depending on the setting under [Release rules](help/release-rules#withdrawn) the rollout was stopped or only a notification sent. The note goes away when a server gets the update offered again; a stopped rollout stays stopped.
+A red note says when the update is **blocked** (by whom and since when) or **probably withdrawn by Microsoft**: servers that had it released report that Windows Update no longer knows it, it is not installed on them (inventory, SUSyphos or the Windows Update history), and no newer update, revision or newer version with the same KB replaces it. Depending on the setting under [Release rules](help/release-rules#withdrawn) the rollout was stopped or only a notification sent. The note goes away when that turns out wrong (a server gets the update offered again, has it installed, or a newer version appears), and a rollout the mark stopped resumes by itself; a rollout stopped by hand stays stopped.
 
 ## Block and uninstall {#uninstall}
 

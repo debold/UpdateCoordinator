@@ -114,6 +114,11 @@ internal sealed class PreFlightCheck(ISystemProbe probe, IDiskSpace disk, IOptio
             reasons.Add($"Automatic Updates installs on its own schedule (AUOptions 4, {origin})");
         }
 
+        if (automatic.Mode == AutomaticUpdateMode.NotConfigured && automatic.ClientOperatingSystem)
+        {
+            reasons.Add("Windows 10 and 11 install updates on their own while \"Configure Automatic Updates\" is not set");
+        }
+
         if (automatic.ScheduledRestart)
         {
             reasons.Add("restarts automatically at the scheduled time");

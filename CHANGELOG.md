@@ -11,6 +11,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- Windows 10 and 11 without a "Configure Automatic Updates" setting install updates on their own; the agent now reports that as a warning (pre-flight check and server page) instead of "Windows does not install on its own". Windows Server without a setting still counts as OK (it downloads and notifies).
 - Moves to a new central server when the current one announces its address: it switches only if the server there proves the same trust anchor and accepts its credentials, then writes `CentralServerUrl` and restarts its service; otherwise it stays and reports why with the heartbeat (tried again every 15 minutes, never when group policy sets the address).
 - Applies central agent settings delivered with the release list at run time (heartbeat, search and inventory intervals, back-off, log level and files, memory limit, priority, minimum free disk space, drivers in the search, restart warning time and message) and keeps them in a protected file for the next start; registry and policy values still win. Log level and priority changes restart the service.
 - The inventory reports whether the Microsoft Update service is registered, so the dashboard shows the real update source.
@@ -58,6 +59,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Agent settings page: saving stored nothing, because the fields stood outside the form (every field is now checked to belong to a form on every page by a browser test).
+- Withdrawn by Microsoft: an update is no longer marked when it is installed on the servers that stopped getting it offered (inventory, SUSyphos or the Windows Update history; drivers vanish from the search once installed) or when a newer update with the same KB replaced it there (definition updates get a new update ID per version without supersedence; the pair is now recorded as supersedence, so the older one shows as superseded). A wrong mark goes away by itself and a rollout it stopped resumes; a rollout stopped by hand stays stopped.
+- A failed installation keeps a server "Failed" only while the server still misses the update; once the search no longer reports it, the failure is over, and installed some other way it counts as installed. 0x80070103 ("already installed", e.g. a driver Windows installed a minute earlier) is no failure; 0x80240009 and 0x800F081F have clearer texts.
 - **Move to a new server** (Backup page): announce the address of a central server restored from this server's backup; agents switch after checking the trust anchor, the box counts the servers still reporting here and lists those that could not move with the reason (also on the server page).
 - **Agent settings** (Administration → Agent settings): central defaults for all agents, overrides per server group and per server in collapsed sections that show the applied value and where it comes from.
 - Windows Automatic Updates and Microsoft Update can be set per server ("Inherit from groups or system" by default). The System box shows the update source the agent reports, with a "set: …" tag while it differs from the setting.

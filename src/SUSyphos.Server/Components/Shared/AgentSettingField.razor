@@ -3,17 +3,17 @@
 @switch (Definition.Kind)
 {
     case AgentSettingKind.Duration or AgentSettingKind.Number:
-        <input id="@Id" name="@Name" type="number" min="@Definition.Minimum" max="@Definition.Maximum" step="1" value="@Value" placeholder="@Placeholder" data-help-term="@Definition.Label" />
+        <input id="@Id" name="@Name" form="@Form" type="number" min="@Definition.Minimum" max="@Definition.Maximum" step="1" value="@Value" placeholder="@Placeholder" data-help-term="@Definition.Label" />
         break;
     case AgentSettingKind.Flag:
-        <select id="@Id" name="@Name" data-help-term="@Definition.Label">
+        <select id="@Id" name="@Name" form="@Form" data-help-term="@Definition.Label">
             <option value="" selected="@(Value is null)">@Placeholder</option>
             <option value="true" selected="@(Value == "true")">On</option>
             <option value="false" selected="@(Value == "false")">Off</option>
         </select>
         break;
     case AgentSettingKind.Choice:
-        <select id="@Id" name="@Name" data-help-term="@Definition.Label">
+        <select id="@Id" name="@Name" form="@Form" data-help-term="@Definition.Label">
             <option value="" selected="@(Value is null)">@Placeholder</option>
             @foreach (var choice in Definition.Choices ?? [])
             {
@@ -22,7 +22,7 @@
         </select>
         break;
     default:
-        <input id="@Id" name="@Name" maxlength="@Definition.Maximum" value="@Value" placeholder="@Placeholder" data-help-term="@Definition.Label" />
+        <input id="@Id" name="@Name" form="@Form" maxlength="@Definition.Maximum" value="@Value" placeholder="@Placeholder" data-help-term="@Definition.Label" />
         break;
 }
 
@@ -35,6 +35,10 @@
 
     [Parameter]
     public string? Id { get; set; }
+
+    /// <summary>Id of the form the field belongs to when it stands outside it; null inside the form.</summary>
+    [Parameter]
+    public string? Form { get; set; }
 
     [Parameter]
     public string? Value { get; set; }

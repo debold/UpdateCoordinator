@@ -1056,6 +1056,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<int>("State")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("StoppedAsWithdrawn")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("UpdateId", "Revision");
 
                     b.ToTable("Rollouts", (string)null);

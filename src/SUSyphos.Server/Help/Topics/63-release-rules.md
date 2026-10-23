@@ -37,7 +37,7 @@ Rules are applied when a server reports an update, when a rule is saved and ever
 
 ## Updates withdrawn by Microsoft {#withdrawn}
 
-Microsoft sometimes withdraws a faulty update. Windows Update then stops offering it; agents look up the released updates their search did not find and report those Windows Update no longer knows at all. An update counts as **probably withdrawn** when servers report this, no approved server still gets it offered, and neither a newer revision nor a newer update that replaces it explains it. Agents never install an update Windows Update no longer offers.
+Microsoft sometimes withdraws a faulty update. Windows Update then stops offering it; agents look up the released updates their search did not find and report those Windows Update no longer knows at all. An update counts as **probably withdrawn** when servers report this, no approved server still gets it offered, it is not installed on those servers (inventory, SUSyphos or the Windows Update history; drivers vanish from the search once installed), and neither a newer revision, a newer update that replaces it nor a newer version with the same KB (as with definition updates) explains it. A mark that turns out wrong goes away by itself, and a rollout it stopped resumes. Agents never install an update Windows Update no longer offers.
 
 - **When an update looks withdrawn**: "Stop its rollout and notify" (default) stops the rollout at once and sends a notification; "Only notify" just sends the notification. A stopped rollout can be resumed on the update page.
 - **Save** stores the choice.

@@ -21,6 +21,29 @@ public sealed class AutomaticUpdatesReaderTests
     }
 
     [Theory]
+    [InlineData("WinNT", true)]
+    [InlineData("ServerNT", false)]
+    [InlineData("LanmanNT", false)]
+    public void NothingConfigured_OnWindows10Or11_InstallsOnItsOwn(string productType, bool bypasses)
+    {
+        _probe.Values[(AutomaticUpdatesReader.ProductOptionsPath, "ProductType")] = productType;
+
+        var info = AutomaticUpdatesReader.Read(_probe);
+
+        Assert.Equal(bypasses, info.ClientOperatingSystem);
+        Assert.Equal(bypasses, info.BypassesCoordination());
+    }
+
+    [Fact]
+    public void Windows10_WithOption3_KeepsCoordination()
+    {
+        _probe.Values[(AutomaticUpdatesReader.ProductOptionsPath, "ProductType")] = "WinNT";
+        _probe.Values[(AutomaticUpdatesReader.PolicyAuPath, "AUOptions")] = "3";
+
+        Assert.False(AutomaticUpdatesReader.Read(_probe).BypassesCoordination());
+    }
+
+    [Theory]
     [InlineData("2", AutomaticUpdateMode.NotifyDownload, false)]
     [InlineData("3", AutomaticUpdateMode.AutoDownloadNotifyInstall, false)]
     [InlineData("4", AutomaticUpdateMode.ScheduledInstall, true)]

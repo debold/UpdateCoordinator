@@ -12,13 +12,16 @@ internal static class AutomaticUpdatesReader
     internal const string PolicyAuPath = PolicyPath + @"\AU";
     internal const string LocalAuPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update";
 
+    /// <summary>ProductType "WinNT" is Windows 10 or 11; servers report "ServerNT" or "LanmanNT" (domain controller).</summary>
+    internal const string ProductOptionsPath = @"SYSTEM\CurrentControlSet\Control\ProductOptions";
+
     public static AutomaticUpdatesInfo Read(ISystemProbe probe)
     {
         ArgumentNullException.ThrowIfNull(probe);
         var scheduledRestart = probe.GetRegistryValue(PolicyAuPath, "AlwaysAutoRebootAtScheduledTime") == "1";
         var deadline = probe.GetRegistryValue(PolicyPath, "SetComplianceDeadline") == "1";
         var (mode, byPolicy) = ReadMode(probe);
-        return new AutomaticUpdatesInfo { Mode = mode, ByPolicy = byPolicy, ScheduledRestart = scheduledRestart, Deadline = deadline, ManagedByAgent = AutomaticUpdatesManager.IsManagedByAgent(probe) };
+        return new AutomaticUpdatesInfo { Mode = mode, ByPolicy = byPolicy, ScheduledRestart = scheduledRestart, Deadline = deadline, ManagedByAgent = AutomaticUpdatesManager.IsManagedByAgent(probe), ClientOperatingSystem = IsClientOperatingSystem(probe) };
     }
 
     private static (AutomaticUpdateMode Mode, bool ByPolicy) ReadMode(ISystemProbe probe)
@@ -40,6 +43,8 @@ internal static class AutomaticUpdatesReader
             ? (localMode, false)
             : (policy ?? AutomaticUpdateMode.NotConfigured, policy is not null);
     }
+
+    private static bool IsClientOperatingSystem(ISystemProbe probe) => string.Equals(probe.GetRegistryValue(ProductOptionsPath, "ProductType"), "WinNT", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Known AUOptions values only; 1 means "keep my computer up to date" is off.</summary>
     private static AutomaticUpdateMode? Parse(string? value) => value switch

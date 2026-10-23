@@ -34,10 +34,11 @@ public sealed class WithdrawnUpdateTests
         var events = await scope.ServiceProvider.GetRequiredService<NotificationEvents>().CollectAsync(TestContext.Current.CancellationToken);
         Assert.Contains(events, e => e.Kind == NotificationKind.UpdateWithdrawn && e.Text.Contains("rollout is stopped", StringComparison.Ordinal));
 
-        // Offered again: the mark goes away, the rollout stays stopped until an operator resumes it.
+        // Offered again: not withdrawn after all, so the mark goes away and the rollout the mark stopped runs again.
         await ReportAsync(scenario, pilot, [update], []);
         Assert.Null(await WithdrawnAsync(scenario, update.UpdateId));
-        Assert.Equal(RolloutState.Stopped, await StateAsync(scenario, update.UpdateId));
+        Assert.Equal(RolloutState.Active, await StateAsync(scenario, update.UpdateId));
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "Rollout.Resumed" && e.Actor == "rule", TestContext.Current.CancellationToken)));
     }
 
     [Fact]
@@ -86,6 +87,95 @@ public sealed class WithdrawnUpdateTests
 
         Assert.Null(await WithdrawnAsync(scenario, revised.UpdateId));
         Assert.Null(await WithdrawnAsync(scenario, replaced.UpdateId));
+    }
+
+    [Theory]
+    [InlineData("windows-history")]
+    [InlineData("susyphos")]
+    [InlineData("already-installed")]
+    [InlineData("inventory")]
+    public async Task UpdateInstalledOnTheServer_IsNoWithdrawal(string evidence)
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Drivers") with { UpdateId = Guid.NewGuid(), KbArticle = null };
+        await scenario.ReportAsync(pilot, update);
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            var at = DateTime.UtcNow;
+            switch (evidence)
+            {
+                case "windows-history":
+                    db.ClientUpdateHistory.Add(new ClientUpdateHistoryEntity { ClientId = pilot.ClientId, UpdateId = update.UpdateId, Revision = 1, Title = "Driver", DateUtc = at, Operation = UpdateOperation.Installation, ResultCode = InstallResultCode.Succeeded, ClientApplicationId = "MoUpdateOrchestrator" });
+                    break;
+                case "inventory":
+                    db.ClientUpdates.Add(new ClientUpdateEntity { ClientId = pilot.ClientId, UpdateId = update.UpdateId, Revision = 1, ReportedAtUtc = at });
+                    break;
+                default:
+                    db.Installations.Add(new InstallationEntity
+                    {
+                        ClientId = pilot.ClientId,
+                        RunId = Guid.NewGuid(),
+                        UpdateId = update.UpdateId,
+                        Revision = 1,
+                        ResultCode = evidence == "susyphos" ? (int)InstallResultCode.Succeeded : (int)InstallResultCode.Failed,
+                        HResult = evidence == "susyphos" ? 0 : unchecked((int)0x80070103),
+                        StartedAtUtc = at,
+                        FinishedAtUtc = at,
+                        Source = "SUSyphos",
+                    });
+                    break;
+            }
+
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        await ReportAsync(scenario, pilot, [], [new UpdateKey(update.UpdateId, 1)]);
+
+        Assert.Null(await WithdrawnAsync(scenario, update.UpdateId));
+        Assert.Equal(RolloutState.Active, await StateAsync(scenario, update.UpdateId));
+    }
+
+    [Fact]
+    public async Task NewerUpdateWithTheSameKb_IsRecordedAsSupersedence_NotAsWithdrawal()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var older = RolloutScenario.Update("Definition Updates") with { UpdateId = Guid.NewGuid(), KbArticle = "2267602" };
+        await scenario.ReportAsync(pilot, older);
+
+        // The next signature version: a new update ID with the same KB and no supersedence information.
+        var newer = older with { UpdateId = Guid.NewGuid() };
+        await ReportAsync(scenario, pilot, [newer], [new UpdateKey(older.UpdateId, 1)]);
+
+        Assert.Null(await WithdrawnAsync(scenario, older.UpdateId));
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.UpdateSupersedence.AnyAsync(s => s.UpdateId == newer.UpdateId && s.SupersededUpdateId == older.UpdateId, TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task WrongMark_IsClearedLater_AndAManualStopIsKept()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Drivers") with { UpdateId = Guid.NewGuid(), KbArticle = null };
+        await scenario.ReportAsync(pilot, update);
+        await ReportAsync(scenario, pilot, [], [new UpdateKey(update.UpdateId, 1)]);
+        Assert.NotNull(await WithdrawnAsync(scenario, update.UpdateId));
+
+        // An operator stops and resumes it by hand, then stops it again: that stop is the operator's and stays.
+        Assert.True((await scenario.AdministerAsync(admin => admin.StartAsync(update.UpdateId, 1, "alice", CancellationToken.None))).Succeeded);
+        Assert.True((await scenario.AdministerAsync(admin => admin.StopAsync(update.UpdateId, 1, "alice", CancellationToken.None))).Succeeded);
+
+        // The inventory later shows it installed: the mark goes, the manual stop stays.
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            db.ClientUpdates.Add(new ClientUpdateEntity { ClientId = pilot.ClientId, UpdateId = update.UpdateId, Revision = 1, ReportedAtUtc = DateTime.UtcNow });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        await ReportAsync(scenario, pilot, [], []);
+
+        Assert.Null(await WithdrawnAsync(scenario, update.UpdateId));
+        Assert.Equal(RolloutState.Stopped, await StateAsync(scenario, update.UpdateId));
     }
 
     [Fact]

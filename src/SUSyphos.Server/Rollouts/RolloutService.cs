@@ -276,64 +276,148 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
     /// <summary>
     /// Detects updates Microsoft probably withdrew (Marc, 2026-10-22): servers that had the update released report that
     /// Windows Update no longer knows it (neither offered, hidden nor installed), no approved server offers it any more,
-    /// and neither a newer revision nor a known superseding update explains it. Such an update is marked, and its rollout
-    /// stops unless the setting says "notify" (a stop is undone with "Resume"). The mark goes away when a server offers the
-    /// update again; the rollout stays stopped. Does not save; returns the number of changed updates.
+    /// and nothing explains it: no known superseding update, not installed on those servers (inventory, SUSyphos or the
+    /// Windows Update history, since drivers vanish from the search once installed), and no newer update with the same KB
+    /// on them (definition updates get a new update ID per version, often without supersedence; such a pair is recorded
+    /// as supersedence, Marc 2026-10-23). Such an update is marked, and its rollout stops unless the setting says "notify".
+    /// A mark that turns out wrong goes away, and a rollout it stopped resumes. Does not save; returns the number of changes.
     /// </summary>
     private async Task<int> MarkWithdrawnAsync(CancellationToken cancellationToken)
     {
-        var approved = db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
-        var offered = db.ClientAvailableUpdates.Where(a => approved.Contains(a.ClientId));
-
-        // Marked updates that are offered again lose the mark.
-        var back = await db.Updates
-            .Where(u => u.WithdrawnAtUtc != null && offered.Any(a => a.UpdateId == u.UpdateId && a.Revision == u.Revision))
+        var approvedIds = await db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var notOffered = await db.Releases.AsNoTracking()
+            .Where(r => r.NotOfferedAtUtc != null && approvedIds.Contains(r.ClientId))
+            .Select(r => new { r.ClientId, r.UpdateId, r.Revision })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
-        foreach (var update in back)
+        var marked = await db.Updates.Where(u => u.WithdrawnAtUtc != null).Select(u => new { u.UpdateId, u.Revision }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var keys = notOffered.Select(r => (r.UpdateId, r.Revision)).Concat(marked.Select(u => (u.UpdateId, u.Revision))).Distinct().ToList();
+        if (keys.Count == 0)
         {
-            update.WithdrawnAtUtc = null;
+            return 0;
         }
 
-        var candidates = await db.Releases.AsNoTracking()
-            .Where(r => r.NotOfferedAtUtc != null && approved.Contains(r.ClientId))
-            .Select(r => new { r.UpdateId, r.Revision })
-            .Distinct()
-            .Where(r => !offered.Any(a => a.UpdateId == r.UpdateId))
-            .Where(r => !db.UpdateSupersedence.Any(s => s.SupersededUpdateId == r.UpdateId && s.UpdateId != r.UpdateId))
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-        if (candidates.Count == 0)
-        {
-            return back.Count;
-        }
+        var ids = keys.Select(k => k.UpdateId).Distinct().ToList();
+        var updates = await db.Updates.Where(u => ids.Contains(u.UpdateId)).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var offered = (await db.ClientAvailableUpdates.AsNoTracking()
+                .Where(a => approvedIds.Contains(a.ClientId) && ids.Contains(a.UpdateId))
+                .Select(a => a.UpdateId)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToHashSet();
+        var superseded = (await db.UpdateSupersedence.AsNoTracking()
+                .Where(s => ids.Contains(s.SupersededUpdateId) && s.UpdateId != s.SupersededUpdateId)
+                .Select(s => s.SupersededUpdateId)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToHashSet();
+        var servers = notOffered.Select(r => r.ClientId).Distinct().ToList();
+        var installed = await InstallEvidence.InstalledAsync(db, servers, ids, cancellationToken).ConfigureAwait(false);
+
+        // Newer updates with the same KB that these servers know (offered or installed).
+        var kbs = updates.Where(u => !string.IsNullOrEmpty(u.KbArticle)).Select(u => u.KbArticle!).Distinct().ToList();
+        var sameKb = kbs.Count == 0
+            ? []
+            : await db.Updates.AsNoTracking()
+                .Where(u => u.KbArticle != null && kbs.Contains(u.KbArticle) && !ids.Contains(u.UpdateId))
+                .Select(u => new SameKbUpdate(u.UpdateId, u.Revision, u.KbArticle!, u.FirstSeenAtUtc))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        var sameKbIds = sameKb.Select(u => u.UpdateId).Distinct().ToList();
+        var knownOnServer = (await db.ClientAvailableUpdates.AsNoTracking()
+                .Where(a => servers.Contains(a.ClientId) && sameKbIds.Contains(a.UpdateId))
+                .Select(a => new { a.ClientId, a.UpdateId })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .Select(a => (a.ClientId, a.UpdateId))
+            .Concat(await InstallEvidence.InstalledAsync(db, servers, sameKbIds, cancellationToken).ConfigureAwait(false))
+            .ToHashSet();
+        var pairs = (await db.UpdateSupersedence.AsNoTracking()
+                .Where(s => sameKbIds.Contains(s.UpdateId) && ids.Contains(s.SupersededUpdateId))
+                .Select(s => new { s.UpdateId, s.Revision, s.SupersededUpdateId })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .Select(s => (s.UpdateId, s.Revision, s.SupersededUpdateId))
+            .ToHashSet();
 
         var stop = await db.Settings.AsNoTracking().Where(s => s.Key == SettingEntity.WithdrawnAction).Select(s => s.Value).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false) != "notify";
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var changed = back.Count;
-        foreach (var candidate in candidates)
+        var changed = 0;
+        foreach (var (updateId, revision) in keys)
         {
-            var update = await db.Updates.SingleOrDefaultAsync(u => u.UpdateId == candidate.UpdateId && u.Revision == candidate.Revision, cancellationToken).ConfigureAwait(false);
-            if (update is null || update.WithdrawnAtUtc is not null)
+            var update = updates.FirstOrDefault(u => u.UpdateId == updateId && u.Revision == revision);
+            if (update is null)
+            {
+                continue;
+            }
+
+            var unexplained = 0;
+            if (!offered.Contains(updateId) && !superseded.Contains(updateId))
+            {
+                foreach (var server in notOffered.Where(r => r.UpdateId == updateId && r.Revision == revision).Select(r => r.ClientId).Distinct())
+                {
+                    if (installed.Contains((server, updateId)))
+                    {
+                        continue;
+                    }
+
+                    var newer = sameKb.FirstOrDefault(u => u.KbArticle == update.KbArticle && u.FirstSeenAtUtc >= update.FirstSeenAtUtc && knownOnServer.Contains((server, u.UpdateId)));
+                    if (newer is null)
+                    {
+                        unexplained++;
+                    }
+                    else if (pairs.Add((newer.UpdateId, newer.Revision, updateId)))
+                    {
+                        db.UpdateSupersedence.Add(new UpdateSupersedenceEntity { UpdateId = newer.UpdateId, Revision = newer.Revision, SupersededUpdateId = updateId });
+                        changed++;
+                    }
+                }
+            }
+
+            var rollout = await db.Rollouts.SingleOrDefaultAsync(r => r.UpdateId == updateId && r.Revision == revision, cancellationToken).ConfigureAwait(false);
+            if (unexplained == 0)
+            {
+                if (update.WithdrawnAtUtc is null)
+                {
+                    continue;
+                }
+
+                // Not withdrawn after all: the mark goes, and a rollout the mark stopped runs again.
+                update.WithdrawnAtUtc = null;
+                changed++;
+                if (rollout is { State: RolloutState.Stopped, StoppedAsWithdrawn: true } && update.BlockedAtUtc is null)
+                {
+                    rollout.State = RolloutState.Active;
+                    rollout.StoppedAsWithdrawn = false;
+                    await audit.WriteAsync(RuleActor, "Rollout.Resumed", Describe(update.KbArticle, update.Title, update.UpdateId, update.Revision), "not withdrawn after all: installed, offered again or replaced by a newer update", cancellationToken).ConfigureAwait(false);
+                }
+
+                continue;
+            }
+
+            if (update.WithdrawnAtUtc is not null)
             {
                 continue;
             }
 
             update.WithdrawnAtUtc = now;
             changed++;
-            var servers = await db.Releases.CountAsync(r => r.UpdateId == candidate.UpdateId && r.Revision == candidate.Revision && r.NotOfferedAtUtc != null, cancellationToken).ConfigureAwait(false);
-            var rollout = await db.Rollouts.SingleOrDefaultAsync(r => r.UpdateId == candidate.UpdateId && r.Revision == candidate.Revision, cancellationToken).ConfigureAwait(false);
             if (stop && rollout is { State: RolloutState.Active })
             {
                 rollout.State = RolloutState.Stopped;
-                await audit.WriteAsync(RuleActor, "Rollout.Withdrawn", Describe(update.KbArticle, update.Title, update.UpdateId, update.Revision), string.Create(CultureInfo.InvariantCulture, $"probably withdrawn by Microsoft: Windows Update no longer knows it on {servers} servers and no server offers it"), cancellationToken).ConfigureAwait(false);
+                rollout.StoppedAsWithdrawn = true;
+                await audit.WriteAsync(RuleActor, "Rollout.Withdrawn", Describe(update.KbArticle, update.Title, update.UpdateId, update.Revision), string.Create(CultureInfo.InvariantCulture, $"probably withdrawn by Microsoft: Windows Update no longer knows it on {unexplained} servers that do not have it installed, and no server offers it"), cancellationToken).ConfigureAwait(false);
             }
 
-            LogWithdrawn(update.UpdateId, update.Revision, servers, stop && rollout is not null);
+            LogWithdrawn(update.UpdateId, update.Revision, unexplained, stop && rollout is not null);
         }
 
         return changed;
     }
+
+    private sealed record SameKbUpdate(Guid UpdateId, int Revision, string KbArticle, DateTime FirstSeenAtUtc);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Update {UpdateId} revision {Revision} looks withdrawn by Microsoft ({Servers} servers no longer know it); rollout stopped: {Stopped}.")]
     private partial void LogWithdrawn(Guid updateId, int revision, int servers, bool stopped);

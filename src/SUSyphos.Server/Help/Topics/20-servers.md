@@ -36,7 +36,7 @@ One status per server; the first that applies wins:
 
 - **Not approved**: registered but not (yet) approved, blocked or rejected. See [Approvals](help/approvals).
 - **Offline**: no heartbeat for more than one hour.
-- **Failed**: the last installation of an update that is still released failed, or a pre-flight check failed (for example the Windows Update service is disabled).
+- **Failed**: the last installation of an update the server still misses failed, or a pre-flight check failed (for example the Windows Update service is disabled). Once the update search no longer reports the update, or it was installed some other way (Windows itself, by hand), the failure no longer counts; it stays in the update history. "Already installed" (0x80070103, a driver that is already there) is no failure.
 - **Updating**: the agent is downloading or installing updates right now.
 - **Reboot pending**: Windows waits for a restart to finish installed updates.
 - **Warning**: a pre-flight check warns (for example low disk space), the server gets its updates from WSUS, or Windows installs updates on its own (Automatic Updates).

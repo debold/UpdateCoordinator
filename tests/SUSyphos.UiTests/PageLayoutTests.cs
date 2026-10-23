@@ -106,6 +106,22 @@ public sealed class PageLayoutTests(UiFixture ui)
         Assert.True(broken.Count == 0, $"{path} has broken links:\n{string.Join('\n', broken)}");
     }
 
+    /// <summary>A named field outside every form is never sent; it looks saved and silently is not.</summary>
+    [Theory]
+    [MemberData(nameof(Pages))]
+    public async Task EveryField_BelongsToAForm(string path)
+    {
+        await using var context = await ui.NewContextAsync();
+        var page = await context.NewPageAsync();
+        await page.GotoAsync(await ResolveAsync(path));
+
+        var orphans = await page.EvalOnSelectorAllAsync<string[]>(
+            "main input[name], main select[name], main textarea[name], main button[name]",
+            "fields => fields.filter(f => !f.form).map(f => f.tagName.toLowerCase() + '[name=' + f.name + ']')");
+
+        Assert.True(orphans.Length == 0, $"{path} has fields outside every form:\n{string.Join('\n', orphans)}");
+    }
+
     /// <summary>Fills the ids of the demo lab into a path.</summary>
     internal async Task<string> ResolveAsync(string path)
     {

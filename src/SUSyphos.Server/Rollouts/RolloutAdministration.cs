@@ -44,6 +44,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         {
             rollout.State = RolloutState.Active;
             action = "Rollout.Resumed";
+            rollout.StoppedAsWithdrawn = false;
         }
         else
         {
@@ -62,6 +63,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
             return new Outcome("The rollout is not running.");
         }
 
+        rollout.StoppedAsWithdrawn = false;
         rollout.State = RolloutState.Stopped;
         var update = await FindUpdateAsync(updateId, revision, cancellationToken).ConfigureAwait(false);
         return await CompleteAsync(actor, "Rollout.Stopped", update!, null, cancellationToken).ConfigureAwait(false);
@@ -93,6 +95,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
 
         rollout.Override = true;
         rollout.State = RolloutState.Active;
+        rollout.StoppedAsWithdrawn = false;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
