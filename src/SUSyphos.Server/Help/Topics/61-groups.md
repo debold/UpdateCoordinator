@@ -37,4 +37,9 @@ A slot lasts two hours and is returned with the result right after the installat
 
 ## Agent settings of a group {#agent-settings}
 
-The collapsed **Agent settings** section of the dialog shows every [agent setting](help/agent-settings) with the value that applies to the group and where it comes from. Settings set on the group appear as fields; empty one (or choose "Inherit") to use the system default again. **Override** picks another setting and **Value** sets it for the group (whole numbers in the unit shown, "on"/"off", or a choice such as "Debug"). If a server is in several groups that set the same setting, the lowest number wins, for other settings the group first by name; a value set on the server wins over all groups. **Save** stores it with the rest of the group.
+The **Agent settings** section of the dialog (collapsed while the group sets none) lists every [agent setting](help/agent-settings) with the value that applies to the group and where it comes from; settings set on the group are in bold. A new group has to be saved first.
+
+- **Edit** (pencil) opens a small dialog for that one setting: **Value** with the allowed range, and **Inherit**, which takes the system default again (the field is then locked). **Save** stores just this setting at once and returns to the group; **Cancel** goes back without a change.
+- **Reset** (arrow) appears for settings set on the group and takes the inherited value again at once.
+
+Both act immediately; other unsaved changes in the group dialog are not saved by them. If a server is in several groups that set the same setting, the lowest number wins, for other settings the group first by name; a value set on the server wins over all groups.

@@ -116,11 +116,17 @@
                         </div>
                     </fieldset>
                 </div>
-                <AgentSettingOverrides Explained="@GroupAgentSettings(group)" Own="@SUSyphos.Server.Assignment.AgentSettingValues.Parse(group?.AgentSettingsJson)" Help="groups#agent-settings" />
+                <AgentSettingOverrides Explained="@GroupAgentSettings(group)" Own="@SUSyphos.Server.Assignment.AgentSettingValues.Parse(group?.AgentSettingsJson)" EditHref="@(group is null ? null : key => SettingHref(group.Id, key))" Help="groups#agent-settings" />
             </div>
             <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(group is null ? "Create group" : "Save")</button></div>
         </form>
     </Dialog>
+}
+else if (_dialog == "agent-setting" && Editing is { } settingGroup && SUSyphos.Contracts.Agents.AgentSettings.Find(SettingKey) is { } settingDefinition)
+{
+    var inherited = AgentSettingValues.Explain(_systemAgentSettings, [], new Dictionary<string, string>(), "this group").First(e => e.Definition.Key == settingDefinition.Key);
+    <AgentSettingDialog Definition="settingDefinition" Scope="@($"group {settingGroup.Name}")" Own="@AgentSettingValues.Parse(settingGroup.AgentSettingsJson).GetValueOrDefault(settingDefinition.Key)"
+                        InheritedValue="@inherited.Value" InheritedSource="@inherited.Source" CancelHref="@EditGroupHref(settingGroup.Id)" Error="@_settingError" Help="groups#agent-settings" OnSave="SaveSettingAsync" />
 }
 else if (_dialog == "delete" && Editing is { } doomed)
 {
@@ -135,8 +141,69 @@ else if (_dialog == "delete" && Editing is { } doomed)
     </Dialog>
 }
 
+@* Resets one agent setting of the group in the edit dialog; its buttons sit in the group form but belong to this form. *@
+<form id="agent-setting-reset" method="post" @formname="agent-setting-reset" @onsubmit="ResetSettingAsync" class="detached">
+    <AntiforgeryToken />
+    <input type="hidden" name="GroupId" value="@DialogId" />
+</form>
+
 @code {
     private const string Path = "/administration/groups";
+
+    private string? _settingError;
+
+    [SupplyParameterFromQuery(Name = "key")]
+    private string? SettingKey { get; set; }
+
+    private static string EditGroupHref(int groupId) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Path}?dialog=edit&id={groupId}");
+
+    private static string SettingHref(int groupId, string key) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Path}?dialog=agent-setting&id={groupId}&key={Uri.EscapeDataString(key)}");
+
+    private async Task SaveSettingAsync()
+    {
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        var key = form?["SettingKey"].ToString();
+        if (Editing is not { } group || form is null || string.IsNullOrEmpty(key))
+        {
+            ShowResult("Invalid request.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var value = form["Inherit"] == "yes" ? null : form["Value"].ToString();
+        var outcome = await Administration.SetGroupAgentSettingAsync(group.Id, key, value, await GetActorAsync(), CancellationToken.None);
+        if (outcome.Succeeded)
+        {
+            Navigation.NavigateTo(EditGroupHref(group.Id));
+            return;
+        }
+
+        _settingError = outcome.Error;
+        _dialog = "agent-setting";
+        await LoadAsync();
+    }
+
+    private async Task ResetSettingAsync()
+    {
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        var key = form?["ResetKey"].ToString();
+        if (Editing is not { } group || string.IsNullOrEmpty(key))
+        {
+            ShowResult("Invalid request.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var outcome = await Administration.SetGroupAgentSettingAsync(group.Id, key, null, await GetActorAsync(), CancellationToken.None);
+        if (outcome.Succeeded)
+        {
+            Navigation.NavigateTo(EditGroupHref(group.Id));
+            return;
+        }
+
+        ShowResult(outcome.Error, string.Empty);
+        await LoadAsync();
+    }
 
     private Dictionary<string, string> _systemAgentSettings = [];
 
@@ -292,11 +359,6 @@ else if (_dialog == "delete" && Editing is { } doomed)
                 if (outcome.Succeeded && groupId is { } coordinatedGroup)
                 {
                     outcome = await Administration.SetGroupCoordinationAsync(coordinatedGroup, Coordinated == "true", percent, maximum, actor, CancellationToken.None);
-                }
-
-                if (outcome.Succeeded && groupId is { } settingsGroup)
-                {
-                    outcome = await Administration.SetGroupAgentSettingsAsync(settingsGroup, SUSyphos.Server.Assignment.AgentSettingValues.ReadForm(form), actor, CancellationToken.None);
                 }
             }
 

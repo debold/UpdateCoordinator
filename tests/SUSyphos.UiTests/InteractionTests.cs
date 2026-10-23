@@ -27,6 +27,9 @@ public sealed class InteractionTests(UiFixture ui)
         foreach (var link in links)
         {
             await page.GotoAsync(start);
+
+            // Links in a collapsed section (agent settings) are opened the way a user would.
+            await page.EvalOnSelectorAsync($"main a[href='{link}']", "a => { const section = a.closest('details'); if (section) section.open = true; }");
             await page.ClickAsync($"main a[href='{link}']");
             var dialog = page.Locator("[role='dialog']");
             await Assertions.Expect(dialog).ToBeVisibleAsync();

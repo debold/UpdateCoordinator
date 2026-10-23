@@ -1,6 +1,6 @@
 # Agent settings {#top}
 
-Settings of the agents themselves, set once for all agents here; a group or a single server can set other values (their "Agent settings" section). Empty fields keep the agent's own value (its configuration file, shown as "agent default"). Agents apply changes with their next heartbeat and keep them, so they also apply after a restart before the central server is reached. Changes of logging or process priority restart the agent service once. Values in the registry of a server (installer or policy key) win over these settings. Administrators only.
+Settings of the agents themselves, set once for all agents here; a group or a single server can set other values (their "Agent settings" section). Empty fields keep the agent's own value (its configuration file, shown as "agent default"). Agents apply changes with their next heartbeat and keep them, so they also apply after a restart before the central server is reached. Changes of logging or process priority restart the agent service once. Values in the registry of a server (installer or policy key) win over these settings. What an agent actually applies, and where each value comes from, shows on its server page (System, "Agent settings", Show). Administrators only.
 
 Which value applies: a value set on the server wins; then its groups (if several groups set a setting, the lowest number wins, for other settings the group first by name); then the value set here; else the agent's own value.
 

@@ -597,6 +597,27 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         return await CompleteAsync(actor, "AgentSettings.ClientChanged", $"{client.HostName} ({clientId:D})", json ?? "none", clientId, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Sets or (with null) removes one central agent setting of a group; the others stay as they are.</summary>
+    public async Task<Outcome> SetGroupAgentSettingAsync(int groupId, string key, string? value, string actor, CancellationToken cancellationToken)
+    {
+        var json = await db.Groups.AsNoTracking().Where(g => g.Id == groupId).Select(g => g.AgentSettingsJson).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        return await SetGroupAgentSettingsAsync(groupId, WithOne(json, key, value), actor, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Sets or (with null) removes one central agent setting of a server; the others stay as they are.</summary>
+    public async Task<Outcome> SetClientAgentSettingAsync(Guid clientId, string key, string? value, string actor, CancellationToken cancellationToken)
+    {
+        var json = await db.Clients.AsNoTracking().Where(c => c.Id == clientId).Select(c => c.AgentSettingsJson).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        return await SetClientAgentSettingsAsync(clientId, WithOne(json, key, value), actor, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static Dictionary<string, string?> WithOne(string? json, string key, string? value)
+    {
+        var values = AgentSettingValues.Parse(json).ToDictionary(v => v.Key, v => (string?)v.Value, StringComparer.Ordinal);
+        values[key ?? string.Empty] = value;
+        return values;
+    }
+
     private static string? Validate(IReadOnlyDictionary<string, string?> values)
     {
         foreach (var (key, value) in values)

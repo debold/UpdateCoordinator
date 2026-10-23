@@ -75,6 +75,32 @@ public sealed record AgentSettingDefinition(
         };
     }
 
+    /// <summary>
+    /// The value the agent has in its configuration, in the form the dashboard shows (durations as whole numbers of
+    /// <see cref="Unit"/>), without range checks; null if it cannot be read.
+    /// </summary>
+    public string? FromConfiguration(string? configured)
+    {
+        var text = configured?.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        if (Kind != AgentSettingKind.Duration)
+        {
+            return Kind == AgentSettingKind.Flag ? text.ToLowerInvariant() : text;
+        }
+
+        if (!TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out var duration))
+        {
+            return null;
+        }
+
+        var amount = Unit switch { "seconds" => duration.TotalSeconds, "minutes" => duration.TotalMinutes, _ => duration.TotalHours };
+        return amount.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
     /// <summary>The normalized value in the form the agent's configuration binds (durations as hh:mm:ss).</summary>
     public string ToConfiguration(string normalized) => Kind == AgentSettingKind.Duration
         ? (Unit switch
@@ -131,4 +157,26 @@ public static class AgentSettings
 
         return clean;
     }
+}
+
+/// <summary>Where the value of an agent setting on the agent comes from.</summary>
+public enum AgentSettingSource
+{
+    /// <summary>Nothing set: the agent's own default.</summary>
+    AgentDefault = 0,
+
+    /// <summary>The central server set it (system default, group or server).</summary>
+    Central = 1,
+
+    /// <summary>The server itself sets it (registry, group policy or its own configuration file), above the central value.</summary>
+    Local = 2,
+}
+
+/// <summary>A setting as the agent applies it, reported with the heartbeat when it changed.</summary>
+/// <param name="Value">The value in the form the dashboard shows (durations in the setting's unit).</param>
+/// <param name="Source">Where it comes from.</param>
+public sealed record AppliedAgentSetting(string Value, AgentSettingSource Source)
+{
+    /// <summary>Upper bound for a reported value.</summary>
+    public const int MaxValueLength = 256;
 }

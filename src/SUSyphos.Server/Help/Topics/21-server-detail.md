@@ -61,7 +61,12 @@ Which ring the server belongs to, and so when it gets updates ([Rings](help/ring
 
 ### Agent settings {#agent-settings}
 
-The collapsed **Agent settings** section lists every [agent setting](help/agent-settings) with the value the agent of this server gets and where it comes from ("this server", a group, the system default or the agent default). Settings set on this server appear as fields; empty one (or choose "Inherit") to take the value from the groups or the system default again. **Override** picks another setting and **Value** sets it for this server alone. **Save assignment** stores it; the agent applies it with its next heartbeat.
+The **Agent settings** section (collapsed while the server sets none) lists every [agent setting](help/agent-settings) with the value the agent of this server gets and where it comes from ("this server", a group, the system default or the agent default).
+
+- **Edit** (pencil) opens a small dialog for that one setting: **Value** with the allowed range, and **Inherit**, which takes the value from the groups or the system default again (the field is then locked). **Save** stores just this setting at once.
+- **Reset** (arrow) appears for settings set on this server and takes the inherited value again at once.
+
+The agent applies a change with its next heartbeat; what it actually applies shows under [System](#applied-settings).
 
 ### Windows Automatic Updates and other Microsoft products {#update-source}
 
@@ -98,11 +103,16 @@ What the agent reported about the server:
 - **Operating system**, **Build**, **Domain**, **Roles** (detected roles such as domain controller, SQL Server, Hyper-V).
 - **Update source**: what the agent reports: Microsoft Update (Windows and other Microsoft products, when the agent registered the Microsoft Update service), Windows Update, or WSUS with its address (a warning: the server should not depend on WSUS). A tag "set: …" next to it means the setting differs from what the agent reported last; it applies with the next heartbeat and shows after the next inventory.
 - **Agent update**: installed agent version (opens all servers with this version), a failed agent update with its error, or "below minimum" when the agent is older than the minimum version.
+- **Agent settings**: whether the agent applies the central agent settings as set, or how many differ (usually because the server sets them itself in the registry or by group policy). **Show** opens the [agent settings on the server](#applied-settings).
 - **Move**: shown while a [move to a new server](help/backup#move) is announced and this agent could not move, with the reason; the link opens the move box.
 - **Automatic updates**: whether Windows could install or restart on its own, outside rings and windows (problem), or not (OK), with the current setting.
 - **Restart**: whether a restart is pending and why the agent waits.
 - **Outside SUSyphos**: installations of the last 90 days that Windows or an administrator started, not SUSyphos (see the Windows Update history).
 - **Time zone** (maintenance windows are local to the server), **Uptime**, **Last update search** (OK or failed with the error), **Registered**.
+
+## Agent settings on the server {#applied-settings}
+
+Opened with **Show** next to "Agent settings" in the System box. For every agent setting: the **Central value** (from this server, a group, the system default, or the agent default when nothing is set), what the **Agent applies** and the **Source on the agent**: "central" (the central value arrived), "set on the server" (the registry, group policy or the agent's own configuration file wins over the central value) or "agent default". A tag **differs** marks a value that is not the central one. Agents report this with the first heartbeat after a start and whenever it changes; "not reported" means the agent is older than 0.7.7 or has not reported yet. Each change also appears in [Recent activity](#activity). **Close** returns to the page.
 
 ## Missing updates {#missing}
 
@@ -122,7 +132,7 @@ The history Windows itself keeps for the last 90 days, sent with the inventory. 
 
 ## Recent activity {#activity}
 
-What the agent did and reported, newest first, kept for 90 days: registration, approval, inventory, update searches, installations, remote actions, restarts and agent updates. Heartbeats are not listed.
+What the agent did and reported, newest first, kept for 90 days: registration, approval, inventory, update searches, installations, remote actions, restarts, agent updates and changed agent settings the agent applies (with the values and their source). Heartbeats are not listed.
 
 ## Remote actions {#remote-actions}
 

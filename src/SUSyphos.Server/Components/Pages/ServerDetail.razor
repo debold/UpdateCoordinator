@@ -146,7 +146,7 @@ else
     <div class="grid-side">
         <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="assign">
             <Authorized>
-                <form method="post" @formname="assignment" @onsubmit="SaveAsync" class="box">
+                <form method="post" @formname="assignment" @onsubmit="SaveAsync" class="box" id="assignment">
                     <AntiforgeryToken />
                     <header class="box-head"><h2>Assignment<HelpLink To="server-detail#assignment" Label="Assignment" /></h2><span class="hint">Saved configuration of this server; empty values inherit</span></header>
                     <div class="box-body form">
@@ -200,7 +200,7 @@ else
                             <span class="field-label">Maintenance windows</span>
                             <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
                         </div>
-                        <AgentSettingOverrides Explained="@_agentSettings" Own="@_ownAgentSettings" ParentLabel="the groups or the system default" Help="server-detail#agent-settings" />
+                        <AgentSettingOverrides Explained="@_agentSettings" Own="@_ownAgentSettings" EditHref="@(key => SettingHref(key))" Help="server-detail#agent-settings" />
                     </div>
                     <footer class="box-foot">
                         <span class="note">Applies with the server's next heartbeat.</span>
@@ -221,7 +221,7 @@ else
             </NotAuthorized>
         </AuthorizeView>
 
-        <Box Title="System" Help="server-detail#system">
+        <Box Title="System" Help="server-detail#system" Anchor="system">
             <dl class="facts">
                 <dt>Operating system</dt><dd>@OperatingSystems.Name(_client.OsProductName, _client.OsVersion)@(_client.OsEditionId is { Length: > 0 } edition ? $" ({edition})" : string.Empty)</dd>
                 <dt>Build</dt><dd class="mono">@OperatingSystems.Build(_client.OsVersion)</dd>
@@ -229,6 +229,7 @@ else
                 <dt>Roles</dt><dd>@(_client.Roles.Count > 0 ? string.Join(", ", _client.Roles) : "–")</dd>
                 <dt>Update source</dt><dd>@UpdateSourceText@if (_client.MicrosoftUpdateRegistered is { } registered && registered != _client.EffectiveUseMicrosoftUpdate) { <span class="pill queue" title="The agent applies the setting with its next heartbeat and reports it with the next inventory">@(_client.EffectiveUseMicrosoftUpdate ? "set: Microsoft Update" : "set: Windows Update only")</span> }</dd>
                 <dt>Agent update</dt><dd>@if (_client.AgentUpdateError is { } agentError) { <span class="pill fail">failed</span> <span>@agentError</span> } else { <a href="@Servers.Link("agent", AgentVersion.ShortForm(_client.AgentVersion))" title="@_client.AgentVersion: show all servers with this agent version" class="mono">@AgentVersion.ShortForm(_client.AgentVersion)</a> }@if (AgentUpdates.IsBelowMinimum(_client.AgentVersion)) { <span class="pill fail">below minimum @AgentUpdates.Minimum</span> }</dd>
+                <dt>Agent settings</dt><dd>@AppliedSummary <a href="/servers/@Id?dialog=agent-settings" data-help-term="Show agent settings">Show</a></dd>
                 @if (_client.ServerMoveError is { } moveError)
                 {
                     <dt>Move</dt><dd><span class="pill fail">not moved</span> <span>@moveError</span> <a href="/administration/backup#move" title="The announced move to a new central server">Move to a new server</a></dd>
@@ -427,6 +428,40 @@ else
             </form>
         </Dialog>
     }
+    else if (Dialog == "agent-setting" && SUSyphos.Contracts.Agents.AgentSettings.Find(SettingKey) is { } settingDefinition)
+    {
+        var inherited = SUSyphos.Server.Assignment.AgentSettingValues.Explain(_systemAgentSettings, _memberGroupSettings, new Dictionary<string, string>(), "this server").First(e => e.Definition.Key == settingDefinition.Key);
+        <AgentSettingDialog Definition="settingDefinition" Scope="@($"server {_client.HostName}")" Own="@_ownAgentSettings.GetValueOrDefault(settingDefinition.Key)"
+                            InheritedValue="@inherited.Value" InheritedSource="@inherited.Source" CancelHref="@($"/servers/{Id}#assignment")" Error="@_settingError" Help="server-detail#agent-settings" OnSave="SaveSettingAsync" />
+    }
+    else if (Dialog == "agent-settings")
+    {
+        <Dialog Title="@($"Agent settings on {_client.HostName}")" CloseHref="@($"/servers/{Id}#system")" Wide="true" Help="server-detail#applied-settings">
+            <div class="dialog-body">
+                @if (_appliedSettings.Count == 0)
+                {
+                    <p class="note">The agent has not reported its settings yet; agents from version 0.7.7 report them with the next heartbeat after a start or a change.</p>
+                }
+                <table class="compact">
+                    <thead><tr><th>Setting</th><th>Central value</th><th>Agent applies</th><th>Source on the agent</th></tr></thead>
+                    <tbody>
+                        @foreach (var (definition, value, source) in _agentSettings)
+                        {
+                            var applied = _appliedSettings.GetValueOrDefault(definition.Key);
+                            var differs = applied is not null && !string.Equals(applied.Value, value, StringComparison.OrdinalIgnoreCase);
+                            <tr>
+                                <td>@definition.Label</td>
+                                <td>@SUSyphos.Server.Assignment.AgentSettingValues.Display(definition, value) <span class="note">(@source)</span></td>
+                                <td>@if (applied is null) { <span class="note">not reported</span> } else { <span>@SUSyphos.Server.Assignment.AgentSettingValues.Display(definition, applied.Value)</span> @if (differs) { <span class="pill queue" title="The agent applies another value than the central one, usually because the server sets it itself (registry or group policy)">differs</span> } }</td>
+                                <td>@(applied is null ? "–" : SUSyphos.Server.Assignment.AppliedAgentSettings.SourceText(applied.Source))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="dialog-foot"><a class="btn" href="/servers/@Id#system">Close</a></div>
+        </Dialog>
+    }
     else if (Dialog is "remove" or "purge")
     {
         <Dialog Title="@(Dialog == "purge" ? $"Delete {_client.HostName} with its history?" : $"Remove {_client.HostName}?")" CloseHref="@($"/servers/{Id}")" Help="server-detail#remove">
@@ -448,6 +483,11 @@ else
         </Dialog>
     }
 }
+
+@* Resets one agent setting of this server; its buttons sit in the assignment form but belong to this form. *@
+<form id="agent-setting-reset" method="post" @formname="agent-setting-reset" @onsubmit="ResetSettingAsync" class="detached">
+    <AntiforgeryToken />
+</form>
 
 @code {
     [Parameter]
@@ -472,6 +512,15 @@ else
     private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _ownWindows = [];
     private Dictionary<string, string> _ownAgentSettings = [];
     private IReadOnlyList<(SUSyphos.Contracts.Agents.AgentSettingDefinition Definition, string Value, string Source)> _agentSettings = [];
+    private Dictionary<string, string> _systemAgentSettings = [];
+    private List<(string Name, IReadOnlyDictionary<string, string> Values)> _memberGroupSettings = [];
+    private Dictionary<string, SUSyphos.Contracts.Agents.AppliedAgentSetting> _appliedSettings = [];
+    private string? _settingError;
+
+    [SupplyParameterFromQuery(Name = "key")]
+    private string? SettingKey { get; set; }
+
+    private string SettingHref(string key) => $"/servers/{Id}?dialog=agent-setting&key={Uri.EscapeDataString(key)}";
     private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _effectiveWindows = [];
     private string _fallbackRing = "Production";
 
@@ -646,6 +695,60 @@ else
         await LoadAsync();
     }
 
+    /// <summary>One line for the System box: whether the agent applies the central values.</summary>
+    private string AppliedSummary
+    {
+        get
+        {
+            if (_appliedSettings.Count == 0)
+            {
+                return "not reported yet;";
+            }
+
+            var differing = _agentSettings.Count(e => _appliedSettings.GetValueOrDefault(e.Definition.Key) is { } applied && !string.Equals(applied.Value, e.Value, StringComparison.OrdinalIgnoreCase));
+            return differing == 0 ? "applied as set;" : $"{differing} differ from the central value (set on the server);";
+        }
+    }
+
+    private async Task SaveSettingAsync()
+    {
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        var key = form?["SettingKey"].ToString();
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer) || form is null || string.IsNullOrEmpty(key))
+        {
+            ShowResult("Only administrators can change agent settings.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var value = form["Inherit"] == "yes" ? null : form["Value"].ToString();
+        var outcome = await Administration.SetClientAgentSettingAsync(Id, key, value, await GetActorAsync(), CancellationToken.None);
+        if (outcome.Succeeded)
+        {
+            Navigation.NavigateTo($"/servers/{Id}#assignment");
+            return;
+        }
+
+        _settingError = outcome.Error;
+        await LoadAsync();
+    }
+
+    private async Task ResetSettingAsync()
+    {
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        var key = form?["ResetKey"].ToString();
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer) || string.IsNullOrEmpty(key))
+        {
+            ShowResult("Only administrators can change agent settings.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var outcome = await Administration.SetClientAgentSettingAsync(Id, key, null, await GetActorAsync(), CancellationToken.None);
+        ShowResultAndReload(outcome.Error, "The setting takes the inherited value again; the agent applies it with its next heartbeat.");
+        await LoadAsync();
+    }
+
     private async Task SaveAsync()
     {
         if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
@@ -697,11 +800,6 @@ else
         if (outcome.Succeeded)
         {
             outcome = await Administration.SetClientRebootPolicyAsync(Id, reboot, actor, CancellationToken.None);
-        }
-
-        if (outcome.Succeeded && HttpContext?.Request.HasFormContentType == true)
-        {
-            outcome = await Administration.SetClientAgentSettingsAsync(Id, SUSyphos.Server.Assignment.AgentSettingValues.ReadForm(HttpContext.Request.Form), actor, CancellationToken.None);
         }
 
         if (outcome.Succeeded)
@@ -829,10 +927,11 @@ else
 
         _ownWindows = MaintenanceWindowFormat.FromJson(_client.MaintenanceWindowsJson) ?? [];
         _ownAgentSettings = SUSyphos.Server.Assignment.AgentSettingValues.Parse(_client.AgentSettingsJson);
-        var systemAgentSettings = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
-        var memberGroups = _memberships.Select(m => _groups.FirstOrDefault(g => g.Id == m.GroupId)).OfType<GroupEntity>()
+        _systemAgentSettings = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
+        _memberGroupSettings = _memberships.Select(m => _groups.FirstOrDefault(g => g.Id == m.GroupId)).OfType<GroupEntity>()
             .Select(g => (g.Name, (IReadOnlyDictionary<string, string>)SUSyphos.Server.Assignment.AgentSettingValues.Parse(g.AgentSettingsJson))).ToList();
-        _agentSettings = SUSyphos.Server.Assignment.AgentSettingValues.Explain(systemAgentSettings, memberGroups, _ownAgentSettings, "this server");
+        _agentSettings = SUSyphos.Server.Assignment.AgentSettingValues.Explain(_systemAgentSettings, _memberGroupSettings, _ownAgentSettings, "this server");
+        _appliedSettings = SUSyphos.Server.Assignment.AppliedAgentSettings.Parse(_client.AppliedAgentSettingsJson);
         if (Dialog == "uninstall")
         {
             _installed = [.. (await Db.ClientUpdates.AsNoTracking()

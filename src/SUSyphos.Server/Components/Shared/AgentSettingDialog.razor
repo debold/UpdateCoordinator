@@ -1,0 +1,70 @@
+@using SUSyphos.Contracts.Agents
+@using SUSyphos.Server.Assignment
+@* Edits one central agent setting of a group or a server: the matching field with its range, or "Inherit" to take the
+   value from the level above again (the field is then locked and shows the inherited value). *@
+<Dialog Title="@($"{Definition.Label}: {Scope}")" CloseHref="@CancelHref" Help="@Help">
+    <form method="post" @formname="agent-setting-edit" @onsubmit="OnSave">
+        <AntiforgeryToken />
+        <input type="hidden" name="SettingKey" value="@Definition.Key" />
+        <div class="dialog-body form gated inverse">
+            @if (Error is { Length: > 0 })
+            {
+                <p class="error" role="alert">@Error</p>
+            }
+            <label class="check gate"><input type="checkbox" name="Inherit" value="yes" data-help-term="Inherit" checked="@(Own is null)" /> Inherit: @AgentSettingValues.Display(Definition, InheritedValue) (@InheritedSource)</label>
+            <div class="gated-body form">
+                <label class="field">
+                    <span>@Definition.Label @(Definition.Unit.Length > 0 ? $"({Definition.Unit})" : null)</span>
+                    <AgentSettingField Definition="Definition" Name="Value" Id="agent-setting-value" HelpTerm="Value" Value="@(Own ?? InheritedValue)" />
+                    <span class="help">@Range(Definition)</span>
+                </label>
+            </div>
+            @if (Definition.NeedsRestart)
+            {
+                <p class="note">The agent service restarts to apply a change of this setting.</p>
+            }
+        </div>
+        <div class="dialog-foot"><a class="btn" href="@CancelHref">Cancel</a><button type="submit" class="primary">Save</button></div>
+    </form>
+</Dialog>
+
+@code {
+    [Parameter, EditorRequired]
+    public AgentSettingDefinition Definition { get; set; } = default!;
+
+    /// <summary>"group Databases" or "server SRV01".</summary>
+    [Parameter, EditorRequired]
+    public string Scope { get; set; } = string.Empty;
+
+    /// <summary>The value set on this level; null when inherited.</summary>
+    [Parameter]
+    public string? Own { get; set; }
+
+    [Parameter, EditorRequired]
+    public string InheritedValue { get; set; } = string.Empty;
+
+    /// <summary>Where the inherited value comes from, e.g. "system default".</summary>
+    [Parameter, EditorRequired]
+    public string InheritedSource { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string CancelHref { get; set; } = "/";
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Help { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public EventCallback OnSave { get; set; }
+
+    /// <summary>The allowed values in words, shared with the system page.</summary>
+    public static string Range(AgentSettingDefinition definition) => definition.Kind switch
+    {
+        AgentSettingKind.Duration or AgentSettingKind.Number => $"{definition.Minimum} to {definition.Maximum}{(definition.Unit.Length > 0 ? " " + definition.Unit : string.Empty)}",
+        AgentSettingKind.Text => $"at most {definition.Maximum} characters, no quotes",
+        AgentSettingKind.Choice => string.Join(", ", definition.Choices ?? []),
+        _ => "on or off",
+    };
+}

@@ -36,7 +36,8 @@ internal sealed partial class AgentWorker(
     Status.ActivityTracker activity,
     IOptions<CentralServerOptions> options,
     TimeProvider timeProvider,
-    ILogger<AgentWorker> logger) : BackgroundService
+    ILogger<AgentWorker> logger,
+    Configuration.AppliedSettingsReport? appliedSettings = null) : BackgroundService
 {
     private RegistrationState? _lastState;
 
@@ -100,6 +101,7 @@ internal sealed partial class AgentWorker(
         var identity = identityStore.Load() ?? await RegisterAsync(cancellationToken).ConfigureAwait(false);
 
         var trustReset = trust.ResetNotReported;
+        var applied = appliedSettings?.Pending();
         var response = await client
             .HeartbeatAsync(
                 identity,
@@ -113,6 +115,7 @@ internal sealed partial class AgentWorker(
                     LastBootAt = environment.LastBootAt,
                     AgentUpdateError = selfUpdate.LastError,
                     ServerMoveError = mover.LastError,
+                    AppliedSettings = applied,
                     Activity = activity.Current,
                     RebootWait = environment.RebootPending || installation.RestartRequested ? installation.RebootWait : null,
                     RestartRequested = installation.RestartRequested,
@@ -133,6 +136,8 @@ internal sealed partial class AgentWorker(
         {
             trust.MarkResetReported();
         }
+
+        appliedSettings?.Acknowledge(applied);
 
         if (response.State != _lastState)
         {

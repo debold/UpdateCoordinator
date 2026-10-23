@@ -144,6 +144,8 @@ Invalid configuration stops the service at startup with a clear error in the eve
 | Restart warning | `Installation:RestartWarning` | 1 to 30 min |
 | Restart message | `Installation:RestartMessage` | up to 200 characters, no quotes |
 
+Groups and servers set single values in their dialog: **Edit** opens a small dialog for one setting (with **Inherit**), **Reset** takes the inherited value again; both act at once. The agent reports with the first heartbeat after a start and after every change what it applies and where each value comes from (central, set on the server, agent default); the server page shows it (System, "Agent settings", Show), marks values that differ from the central one, and lists each change under Recent activity.
+
 The central server address and trust settings are never set centrally; a move to a new server has its own flow (section 19).
 
 #### Additional role rules

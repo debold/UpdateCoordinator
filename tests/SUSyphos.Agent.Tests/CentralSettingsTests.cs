@@ -115,5 +115,34 @@ public sealed class CentralSettingsTests
     {
         var definition = AgentSettings.Find(key)!;
         Assert.Equal(expected, definition.ToConfiguration(definition.Normalize(value)!));
+        Assert.Equal(definition.Normalize(value), definition.FromConfiguration(expected));
+    }
+
+    [Fact]
+    public void AppliedReport_NamesTheSource_AndIsSentOnlyWhenItChanged()
+    {
+        var source = new CentralSettingsSource(new Dictionary<string, string> { ["heartbeat-interval"] = "30", ["log-level"] = "Debug" });
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Updates:SearchInterval"] = "02:00:00", ["Updates:MinFreeDiskSpaceMegabytes"] = "4096" })
+            .Add(source)
+            // A local policy above the central value (like the registry keys).
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Logging:File:MinimumLevel"] = "Warning" })
+            .Build();
+        var report = new AppliedSettingsReport(configuration, source.Provider);
+
+        var first = report.Pending()!;
+        Assert.Equal(new AppliedAgentSetting("30", AgentSettingSource.Central), first["heartbeat-interval"]);
+        Assert.Equal(new AppliedAgentSetting("Warning", AgentSettingSource.Local), first["log-level"]);
+        Assert.Equal(new AppliedAgentSetting("2", AgentSettingSource.Local), first["search-interval"]);
+        Assert.Equal(new AppliedAgentSetting("4096", AgentSettingSource.AgentDefault), first["min-free-disk"]);
+        Assert.Equal(AgentSettings.All.Count, first.Count);
+
+        // Not acknowledged (heartbeat failed): sent again; acknowledged: nothing until it changes.
+        Assert.NotNull(report.Pending());
+        report.Acknowledge(first);
+        Assert.Null(report.Pending());
+
+        source.Provider.Apply(new Dictionary<string, string> { ["heartbeat-interval"] = "60" });
+        Assert.Equal("60", report.Pending()!["heartbeat-interval"].Value);
     }
 }

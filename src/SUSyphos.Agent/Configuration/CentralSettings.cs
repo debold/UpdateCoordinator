@@ -116,3 +116,62 @@ internal sealed class LiveOptions<T>(IOptionsMonitor<T> monitor) : IOptions<T> w
 {
     public T Value => monitor.CurrentValue;
 }
+
+/// <summary>
+/// What the agent actually applies for every central agent setting and where it comes from, so the dashboard can show
+/// whether the central value arrived or a local setting (registry, group policy, own file) wins. Reported with the
+/// heartbeat only when it changed since the last acknowledged report, and once after each start.
+/// </summary>
+internal sealed class AppliedSettingsReport(IConfiguration configuration, CentralSettingsProvider provider)
+{
+    private readonly Lock _lock = new();
+    private Dictionary<string, AppliedAgentSetting>? _acknowledged;
+
+    public Dictionary<string, AppliedAgentSetting> Build()
+    {
+        var central = provider.Current;
+        var applied = new Dictionary<string, AppliedAgentSetting>(StringComparer.Ordinal);
+        foreach (var definition in AgentSettings.All)
+        {
+            var configured = definition.FromConfiguration(configuration[definition.ConfigurationPath]);
+            var value = configured ?? definition.AgentDefault;
+            AgentSettingSource source;
+            if (central.TryGetValue(definition.Key, out var centralValue))
+            {
+                source = string.Equals(value, centralValue, StringComparison.OrdinalIgnoreCase) ? AgentSettingSource.Central : AgentSettingSource.Local;
+            }
+            else
+            {
+                source = configured is null || string.Equals(value, definition.AgentDefault, StringComparison.OrdinalIgnoreCase) ? AgentSettingSource.AgentDefault : AgentSettingSource.Local;
+            }
+
+            applied[definition.Key] = new AppliedAgentSetting(value.Length <= AppliedAgentSetting.MaxValueLength ? value : value[..AppliedAgentSetting.MaxValueLength], source);
+        }
+
+        return applied;
+    }
+
+    /// <summary>The report for the next heartbeat, or null if the central server already has it.</summary>
+    public Dictionary<string, AppliedAgentSetting>? Pending()
+    {
+        var current = Build();
+        lock (_lock)
+        {
+            return _acknowledged is not null && current.Count == _acknowledged.Count && current.All(c => _acknowledged.TryGetValue(c.Key, out var known) && known == c.Value) ? null : current;
+        }
+    }
+
+    /// <summary>The central server accepted the heartbeat that carried this report.</summary>
+    public void Acknowledge(Dictionary<string, AppliedAgentSetting>? report)
+    {
+        if (report is null)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            _acknowledged = report;
+        }
+    }
+}

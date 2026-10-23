@@ -283,7 +283,7 @@ internal static class AgentEndpoints
         DateTime? lastBoot = request.LastBootAt is { } boot && boot.UtcDateTime <= now.AddHours(1) && boot.Year >= 2000 ? boot.UtcDateTime : null;
 
         // Restarts and agent updates go to the activity list; one indexed read per heartbeat.
-        var previous = await db.Clients.AsNoTracking().Where(c => c.Id == clientId).Select(c => new { c.LastBootAtUtc, c.AgentVersion }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        var previous = await db.Clients.AsNoTracking().Where(c => c.Id == clientId).Select(c => new { c.LastBootAtUtc, c.AgentVersion, c.AppliedAgentSettingsJson }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
         var activity = LiveStatus.Normalize(request.Activity, now);
         RebootWait? rebootWait = (request.RebootPending || request.RestartRequested) && request.RebootWait is { } wait && Enum.IsDefined(wait) ? wait : null;
@@ -348,6 +348,20 @@ internal static class AgentEndpoints
             if (!string.Equals(previous.AgentVersion, request.AgentVersion, StringComparison.Ordinal))
             {
                 activityLog.Add(clientId, ClientActivityKind.AgentUpdated, $"Agent version changed from {previous.AgentVersion} to {request.AgentVersion}.");
+            }
+
+            if (Assignment.AppliedAgentSettings.Clean(request.AppliedSettings) is { } applied)
+            {
+                var reportedBefore = Assignment.AppliedAgentSettings.Parse(previous.AppliedAgentSettingsJson);
+                var json = Assignment.AppliedAgentSettings.ToJson(applied);
+                if (!string.Equals(json, previous.AppliedAgentSettingsJson, StringComparison.Ordinal))
+                {
+                    await db.Clients.Where(c => c.Id == clientId).ExecuteUpdateAsync(s => s.SetProperty(c => c.AppliedAgentSettingsJson, json), cancellationToken).ConfigureAwait(false);
+                    if (Assignment.AppliedAgentSettings.DescribeChange(reportedBefore, applied) is { } change)
+                    {
+                        activityLog.Add(clientId, ClientActivityKind.AgentSettings, change);
+                    }
+                }
             }
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

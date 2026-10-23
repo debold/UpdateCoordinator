@@ -32,7 +32,7 @@
                     <label class="field">
                         <span>@definition.Label @(definition.Unit.Length > 0 ? $"({definition.Unit})" : null)</span>
                         <AgentSettingField Definition="definition" Name="@AgentSettingValues.FieldName(definition.Key)" Id="@($"setting-{definition.Key}")" Form="agent-settings" Value="@ValueOf(definition.Key)" Placeholder="@($"agent default: {AgentSettingValues.Display(definition, definition.AgentDefault)}")" />
-                        <span class="help">@Range(definition)</span>
+                        <span class="help">@AgentSettingDialog.Range(definition)</span>
                     </label>
                 }
             </div>
@@ -72,10 +72,4 @@
 
     private static string Anchor(string section) => section.ToLowerInvariant().Replace(' ', '-').Replace("pre-flight-check", "pre-flight", StringComparison.Ordinal);
 
-    private static string Range(AgentSettingDefinition definition) => definition.Kind switch
-    {
-        AgentSettingKind.Duration or AgentSettingKind.Number => $"{definition.Minimum} to {definition.Maximum}{(definition.Unit.Length > 0 ? " " + definition.Unit : string.Empty)}",
-        AgentSettingKind.Text => $"at most {definition.Maximum} characters, no quotes",
-        _ => string.Empty,
-    };
 }

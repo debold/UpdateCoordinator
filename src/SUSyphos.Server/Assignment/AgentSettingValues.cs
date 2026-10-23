@@ -98,7 +98,7 @@ internal static class AgentSettingValues
         ];
     }
 
-    /// <summary>Reads the posted fields "AgentSetting.&lt;key&gt;" (and the pair AgentSettingNew / AgentSettingNewValue) of a level.</summary>
+    /// <summary>Reads the posted fields "AgentSetting.&lt;key&gt;" of the system page.</summary>
     public static Dictionary<string, string?> ReadForm(IEnumerable<KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues>> form)
     {
         ArgumentNullException.ThrowIfNull(form);
@@ -112,17 +112,8 @@ internal static class AgentSettingValues
             }
         }
 
-        if (fields.GetValueOrDefault(NewKeyField) is { Length: > 0 } added)
-        {
-            values[added] = fields.GetValueOrDefault(NewValueField);
-        }
-
         return values;
     }
-
-    public const string NewKeyField = "AgentSettingNew";
-
-    public const string NewValueField = "AgentSettingNewValue";
 
     public static string FieldName(string key) => "AgentSetting." + key;
 

@@ -59,6 +59,7 @@ internal static class AgentHostBuilder
             provider.GetService<ProtectedJsonFile<Dictionary<string, string>>>(),
             provider.GetService<IServiceRestarter>(),
             provider.GetRequiredService<ILogger<CentralSettings>>()));
+        services.AddSingleton(provider => new AppliedSettingsReport(configuration, provider.GetRequiredService<CentralSettingsProvider>()));
         services.AddSingleton<ISystemProbe, WindowsSystemProbe>();
         services.AddSingleton<IAgentEnvironment, AgentEnvironment>();
 

@@ -16,6 +16,7 @@ internal enum ClientActivityKind
     RemoteAction = 6,
     Restarted = 7,
     AgentUpdated = 8,
+    AgentSettings = 9,
 }
 
 /// <summary>An entry in the activity list of a server: what the agent did or reported, without heartbeats.</summary>
@@ -82,6 +83,7 @@ internal sealed class ClientActivityLog(ServerDbContext db, TimeProvider timePro
         ClientActivityKind.RemoteAction => "Remote action",
         ClientActivityKind.Restarted => "Restart",
         ClientActivityKind.AgentUpdated => "Agent update",
+        ClientActivityKind.AgentSettings => "Agent settings",
         _ => kind.ToString(),
     };
 }

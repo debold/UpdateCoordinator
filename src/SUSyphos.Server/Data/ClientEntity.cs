@@ -28,6 +28,9 @@ internal sealed class ClientEntity
     /// <summary>Why the agent did not move to the announced new central server address; null when no move is announced or it has not failed.</summary>
     public string? ServerMoveError { get; set; }
 
+    /// <summary>The agent settings the agent reports as applied, with their source, as JSON; null until reported (agents from 0.7.7).</summary>
+    public string? AppliedAgentSettingsJson { get; set; }
+
     /// <summary>Remote IP address seen at registration, shown to the admin for manual approval.</summary>
     public string? RegisteredFromAddress { get; set; }
 

@@ -41,6 +41,12 @@ public sealed record HeartbeatRequest
     [RegularExpression(ValidationPatterns.PrintableText)]
     public string? ServerMoveError { get; init; }
 
+    /// <summary>
+    /// Every central agent setting as the agent applies it, by setting key; sent when it changed since the last
+    /// acknowledged heartbeat (and after each start), otherwise null. The central server checks keys and values itself.
+    /// </summary>
+    public IReadOnlyDictionary<string, AppliedAgentSetting>? AppliedSettings { get; init; }
+
     /// <summary>Current activity (live status); null when the agent is idle.</summary>
     public AgentActivity? Activity { get; init; }
 

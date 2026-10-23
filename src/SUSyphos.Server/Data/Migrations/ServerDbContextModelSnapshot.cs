@@ -489,6 +489,9 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AppliedAgentSettingsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("AutoUpdateMode")
                         .HasColumnType("INTEGER");
 

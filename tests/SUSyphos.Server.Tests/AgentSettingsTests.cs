@@ -70,6 +70,94 @@ public sealed class AgentSettingsTests
         Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "AgentSettings.ClientChanged", TestContext.Current.CancellationToken)));
     }
 
+    [Fact]
+    public async Task OneSetting_IsSetAndResetAlone_AndSavingTheGroupKeepsIt()
+    {
+        await using var factory = new SUSyphos.TestSupport.ServerFactory();
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        var groupId = await factory.WithDbAsync(async db =>
+        {
+            var group = db.Groups.Add(new GroupEntity { Name = "Databases", AgentSettingsJson = "{\"log-level\":\"Debug\"}" }).Entity;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            return group.Id;
+        });
+        using var browser = new SUSyphos.TestSupport.DashboardClient(factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        var dialog = $"/administration/groups?dialog=agent-setting&id={groupId}&key=heartbeat-interval";
+        using (var refused = await browser.PostFormAsync(dialog, new Dictionary<string, string> { ["_handler"] = "agent-setting-edit", ["Value"] = "2" }))
+        {
+            Assert.Contains("Heartbeat: a whole number from 5 to 600 seconds.", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        using (await browser.PostFormAsync(dialog, new Dictionary<string, string> { ["_handler"] = "agent-setting-edit", ["Value"] = "30" }))
+        {
+        }
+
+        Assert.Equal("{\"heartbeat-interval\":\"30\",\"log-level\":\"Debug\"}", await GroupSettingsAsync(factory, groupId));
+
+        // Saving the group dialog leaves the agent settings alone.
+        using (await browser.PostFormAsync($"/administration/groups?dialog=edit&id={groupId}", new Dictionary<string, string> { ["_handler"] = "group-dialog", ["Mode"] = "edit", ["Id"] = groupId.ToString(System.Globalization.CultureInfo.InvariantCulture), ["Name"] = "Databases", ["Percent"] = "25", ["Max"] = "5", ["WindowsInherit"] = "yes" }))
+        {
+        }
+
+        Assert.Equal("{\"heartbeat-interval\":\"30\",\"log-level\":\"Debug\"}", await GroupSettingsAsync(factory, groupId));
+
+        // "Inherit" removes it; the reset button removes the other.
+        using (await browser.PostFormAsync(dialog, new Dictionary<string, string> { ["_handler"] = "agent-setting-edit", ["Inherit"] = "yes", ["Value"] = "30" }))
+        {
+        }
+
+        using (await browser.PostFormAsync($"/administration/groups?dialog=edit&id={groupId}", new Dictionary<string, string> { ["_handler"] = "agent-setting-reset", ["ResetKey"] = "log-level" }))
+        {
+        }
+
+        Assert.Null(await GroupSettingsAsync(factory, groupId));
+    }
+
+    [Fact]
+    public async Task AppliedSettings_AreStored_AndAChangeGoesToTheActivityList()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        var applied = new Dictionary<string, SUSyphos.Contracts.Agents.AppliedAgentSetting>
+        {
+            ["heartbeat-interval"] = new("30", SUSyphos.Contracts.Agents.AgentSettingSource.Central),
+            ["log-level"] = new("Warning", SUSyphos.Contracts.Agents.AgentSettingSource.Local),
+            ["CentralServer:BaseAddress"] = new("https://evil.example/", SUSyphos.Contracts.Agents.AgentSettingSource.Central),
+            ["restart-message"] = new("bad\u0007text", SUSyphos.Contracts.Agents.AgentSettingSource.Central),
+        };
+
+        await HeartbeatAsync(scenario, client, applied);
+        await HeartbeatAsync(scenario, client, applied);
+        applied["heartbeat-interval"] = new("60", SUSyphos.Contracts.Agents.AgentSettingSource.Central);
+        await HeartbeatAsync(scenario, client, applied);
+
+        var stored = await scenario.Factory.WithDbAsync(db => db.Clients.Where(c => c.Id == client.ClientId).Select(c => c.AppliedAgentSettingsJson).SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("\"heartbeat-interval\":{\"Value\":\"60\"", stored, StringComparison.Ordinal);
+        Assert.DoesNotContain("evil", stored, StringComparison.Ordinal);
+        Assert.DoesNotContain("restart-message", stored, StringComparison.Ordinal);
+        var entries = await scenario.Factory.WithDbAsync(db => db.ClientActivities.Where(a => a.ClientId == client.ClientId && a.Kind == SUSyphos.Server.Agents.ClientActivityKind.AgentSettings).Select(a => a.Detail).ToListAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(2, entries.Count);
+        Assert.Contains(entries, e => e.Contains("Heartbeat 60 seconds (central)", StringComparison.Ordinal));
+    }
+
+    private static Task<string?> GroupSettingsAsync(SUSyphos.TestSupport.ServerFactory factory, int groupId) =>
+        factory.WithDbAsync(db => db.Groups.Where(g => g.Id == groupId).Select(g => g.AgentSettingsJson).SingleAsync(TestContext.Current.CancellationToken));
+
+    private static async Task HeartbeatAsync(RolloutScenario scenario, SUSyphos.Contracts.Agents.RegisterResponse client, IReadOnlyDictionary<string, SUSyphos.Contracts.Agents.AppliedAgentSetting> applied)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(SUSyphos.Contracts.ApiRoutes.AgentHeartbeat, UriKind.Relative))
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new SUSyphos.Contracts.Agents.HeartbeatRequest { AgentVersion = "1.2.3", AppliedSettings = applied }),
+        };
+        request.Headers.Authorization = SUSyphos.Contracts.Agents.AgentCredentials.ToHeader(client.ClientId, client.ClientSecret);
+        using var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
     [Theory]
     [InlineData("heartbeat-interval", "1")]
     [InlineData("heartbeat-interval", "ten")]

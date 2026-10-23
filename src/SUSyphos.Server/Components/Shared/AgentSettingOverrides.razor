@@ -1,43 +1,37 @@
 @using SUSyphos.Contracts.Agents
 @using SUSyphos.Server.Assignment
-@* Central agent settings of a group or a server, inside its form: what applies and from where, the values set on this
-   level (empty removes one) and "Override" for another setting. Collapsed, so the dialog stays short. *@
+@* Central agent settings of a group or a server inside its form: every setting with the value that applies and where it
+   comes from; "Edit" opens a small dialog for one setting, "Reset" takes the inherited value again. Both act at once,
+   independent of the rest of the form. Collapsed while nothing is set here, so the dialog stays short. *@
 <details class="agent-settings" data-help="@Help" open="@(Own.Count > 0)">
     <summary data-help-term="Agent settings">Agent settings <span class="note">@(Own.Count == 0 ? "all inherited" : $"{Own.Count} set here")</span></summary>
     <table class="compact">
-        <thead><tr><th>Setting</th><th>Applies</th><th>From</th></tr></thead>
+        <thead><tr><th>Setting</th><th>Applies</th><th>From</th><th class="n"><span class="visually-hidden">Actions</span></th></tr></thead>
         <tbody>
             @foreach (var (definition, value, source) in Explained)
             {
-                <tr><td>@definition.Label</td><td>@AgentSettingValues.Display(definition, value)</td><td class="note">@source</td></tr>
+                var own = Own.ContainsKey(definition.Key);
+                <tr class="@(own ? "set-here" : null)">
+                    <td>@definition.Label</td>
+                    <td>@AgentSettingValues.Display(definition, value)</td>
+                    <td class="note">@source</td>
+                    <td class="n"><span class="icon-actions">
+                        @if (EditHref is not null)
+                        {
+                            <a class="btn icon-button" href="@EditHref(definition.Key)" title="@($"Edit {definition.Label}")" aria-label="@($"Edit {definition.Label}")" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
+                            @if (own)
+                            {
+                                <button type="submit" class="icon-button" form="@ResetForm" name="ResetKey" value="@definition.Key" title="@($"Reset {definition.Label} to the inherited value")" aria-label="@($"Reset {definition.Label} to the inherited value")" data-help-term="Reset"><Icon Name="rotate-ccw" Size="16" /></button>
+                            }
+                        }
+                    </span></td>
+                </tr>
             }
         </tbody>
     </table>
-    @if (Own.Count > 0)
+    @if (EditHref is null)
     {
-        <div class="form-row wrap">
-            @foreach (var (key, value) in Own)
-            {
-                var definition = AgentSettings.Find(key)!;
-                <label class="field"><span>@definition.Label @(definition.Unit.Length > 0 ? $"({definition.Unit})" : null)</span><AgentSettingField Definition="definition" Name="@AgentSettingValues.FieldName(key)" Value="@value" Placeholder="Inherit" /></label>
-            }
-        </div>
-        <p class="help">Empty a field (or choose "Inherit") to take the value from @(ParentLabel) again.</p>
-    }
-    @if (AgentSettings.All.Any(d => !Own.ContainsKey(d.Key)))
-    {
-        <div class="form-row">
-            <label class="field"><span>Override</span>
-                <select name="@AgentSettingValues.NewKeyField" data-help-term="Override">
-                    <option value="">Choose a setting…</option>
-                    @foreach (var definition in AgentSettings.All.Where(d => !Own.ContainsKey(d.Key)))
-                    {
-                        <option value="@definition.Key">@definition.Label@(definition.Unit.Length > 0 ? $" ({definition.Unit})" : null)</option>
-                    }
-                </select>
-            </label>
-            <label class="field"><span>Value</span><input name="@AgentSettingValues.NewValueField" maxlength="200" placeholder="e.g. 30, on, Debug" data-help-term="Value" /></label>
-        </div>
+        <p class="help">Save first; then the settings can be changed here.</p>
     }
 </details>
 
@@ -49,9 +43,13 @@
     [Parameter, EditorRequired]
     public IReadOnlyDictionary<string, string> Own { get; set; } = new Dictionary<string, string>();
 
-    /// <summary>Where values come from when not set here, e.g. "the groups or the system default".</summary>
+    /// <summary>Address of the edit dialog for a setting key; null while the group or server does not exist yet.</summary>
     [Parameter]
-    public string ParentLabel { get; set; } = "the system default";
+    public Func<string, string>? EditHref { get; set; }
+
+    /// <summary>Id of the detached form that resets a setting (outside the surrounding form).</summary>
+    [Parameter]
+    public string ResetForm { get; set; } = "agent-setting-reset";
 
     [Parameter, EditorRequired]
     public string Help { get; set; } = string.Empty;

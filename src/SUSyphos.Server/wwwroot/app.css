@@ -507,4 +507,10 @@ details.agent-settings > summary { cursor: pointer; font-weight: 600; }
 details.agent-settings > summary .note { font-weight: 400; margin-left: 0.4rem; }
 details.agent-settings table.compact { width: 100%; margin: 0.6rem 0; font-size: 0.85rem; }
 details.agent-settings table.compact th, details.agent-settings table.compact td { padding: 0.25rem 0.4rem; }
+details.agent-settings tr.set-here td:first-child { font-weight: 600; }
+
+/* Small square buttons with only an icon (edit, reset, expand); the title and aria-label name the action. */
+.icon-actions { display: inline-flex; gap: 0.25rem; justify-content: flex-end; }
+button.icon-button, a.icon-button { min-height: 1.75rem; width: 1.75rem; padding: 0; border-color: transparent; background: transparent; color: var(--muted); }
+button.icon-button:hover, a.icon-button:hover { background: var(--surface-2); color: var(--accent); border-color: var(--line); }
 .form-row.wrap { flex-wrap: wrap; }
