@@ -106,6 +106,7 @@ internal static class DashboardServiceCollectionExtensions
         services.AddHostedService<UpdateArchiveWorker>();
         services.AddScoped<DeploymentStatus>();
         services.AddScoped<ComplianceHistory>();
+        services.AddScoped<DashboardStatistics>();
         services.AddHostedService<RolloutWorker>();
         services.AddSingleton<IDirectoryLookup, LdapDirectoryLookup>();
         services.AddSingleton<IDnsLookup, SystemDnsLookup>();

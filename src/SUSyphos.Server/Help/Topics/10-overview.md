@@ -25,6 +25,7 @@ Each tile opens the server list filtered to the servers it counts.
 | **Servers with failures** | Servers whose last installation or pre-flight check failed (for example not enough disk space or a stopped Windows Update service). |
 | **Servers with warnings** | Servers with a warning: update source WSUS, Windows installs updates on its own (Automatic Updates), low disk space, or a reboot that is pending. |
 | **Patch compliance** | Share of approved servers that have every update released for their ring installed. |
+| **Fully patched** | Share of approved servers whose update search reports no missing update at all, also none the rings still hold back. The difference to patch compliance is what the rings deliberately hold back. |
 | **AD coverage** | Only when the directory was read: share of the supported server accounts in Active Directory that run an agent. Opens the [AD coverage](help/coverage) list. |
 
 ## Deployment by ring {#rings}
@@ -54,6 +55,17 @@ Everything that waits for a human decision or points to a problem, each with a b
 
 Released updates that are not installed everywhere yet, ordered by the earliest time one of the servers will install them. **Earliest installation** is the start of the next maintenance window of the first server that still needs the update, or "due now" when a window is already open. **Servers** counts the servers that still need it, **Rings** the rings they are in.
 
-## Patch compliance, last 90 days {#trend}
+## Statistics {#statistics}
 
-The share of approved servers with every released update installed, once per day over the last 90 days. A drop after a release is normal and closes again as the servers install in their windows; a curve that stays low points to servers that never get a chance to install (no maintenance window, offline, failures).
+**Show** picks the statistic, **Period** the last 30, 90 or 365 days (up to 90 days one value per day, beyond that per week); with script the chart changes at once. Every mark shows its value as a tooltip, two or more series have a legend, and **Show as table** lists the same values.
+
+- **Patch compliance and fully patched** (default): both shares per day as lines. A drop after a release is normal and closes as the servers install in their windows; a curve that stays low points to servers that never get a chance to install (no maintenance window, offline, failures).
+- **Servers by status**: approved servers per day by status (OK, updating, reboot pending, warning, failed, offline) as stacked bars.
+- **New updates by classification**: updates reported for the first time, stacked by classification; each classification keeps its colour.
+- **Installations**: installations by SUSyphos (succeeded, failed) and outside SUSyphos from the Windows Update history (kept for 90 days).
+- **Open updates: released and held back**: open server × update pairs per day, released and waiting for installation, or held back by the rings.
+- **Time from release to installation**: median days from the release in a ring to the installation by SUSyphos, one line per ring.
+- **Restarts**: server starts per day, those after a SUSyphos installation that needed one or a requested restart apart from the others (the activity list keeps 90 days).
+- **Most frequent error codes**: the ten most frequent error codes of failed installations in the period, with their explanation.
+
+The central server records the daily values (status, fully patched, open updates) from version 0.7.7 on, so those charts fill from then.

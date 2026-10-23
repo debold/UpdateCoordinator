@@ -1,0 +1,206 @@
+@using System.Globalization
+@using SUSyphos.Server.Rollouts
+@* One statistic of the overview as SVG drawn on the server (lines, stacked bars or a ranking), with a legend for two or
+   more series, a tooltip on every mark and the same values as a table. *@
+@if (Data.IsEmpty)
+{
+    <p class="note">No values for this period yet.</p>
+}
+else if (Data.Form == ChartForm.Ranking)
+{
+    var series = Data.Series[0];
+    var top = series.Values.Max() ?? 1;
+    <svg class="stat-chart" viewBox="@($"0 0 {Width} {RankRow * Data.Labels.Count + 8}")" role="img" aria-label="@Describe()">
+        @for (var i = 0; i < Data.Labels.Count; i++)
+        {
+            var value = series.Values[i] ?? 0;
+            var y = 4 + (i * RankRow);
+            var length = (Width - RankLabel - 56) * value / top;
+            <g>
+                <title>@($"{Data.Labels[i]}: {Number(value)}")</title>
+                <text class="axis rank-label" x="0" y="@N(y + 15)">@Shorten(Data.Labels[i], 70)</text>
+                <rect class="mark @series.Class" x="@RankLabel" y="@N(y + 4)" width="@N(Math.Max(length, 2))" height="14" rx="3"></rect>
+                <text class="value" x="@N(RankLabel + Math.Max(length, 2) + 6)" y="@N(y + 15)">@Number(value)</text>
+            </g>
+        }
+    </svg>
+}
+else
+{
+    var top = Data.Max ?? NiceMax(Data.Form == ChartForm.StackedBars
+        ? Enumerable.Range(0, Data.Labels.Count).Select(i => Data.Series.Sum(s => s.Values[i] ?? 0)).DefaultIfEmpty(0).Max()
+        : Data.Series.SelectMany(s => s.Values).Select(v => v ?? 0).DefaultIfEmpty(0).Max());
+    <svg class="stat-chart" viewBox="@($"0 0 {Width} {Height}")" role="img" aria-label="@Describe()">
+        @foreach (var tick in Ticks(top))
+        {
+            <g>
+                <line class="grid" x1="@Left" y1="@N(Y(tick, top))" x2="@Right" y2="@N(Y(tick, top))"></line>
+                <text class="axis" x="@(Left - 6)" y="@N(Y(tick, top) + 4)" text-anchor="end">@Number(tick)@(Data.Unit == "%" ? "%" : null)</text>
+            </g>
+        }
+        @foreach (var (index, anchor) in AxisLabels())
+        {
+            <g><text class="axis" x="@N(X(index))" y="@(Height - 6)" text-anchor="@anchor">@Data.Labels[index]</text></g>
+        }
+        @if (Data.Form == ChartForm.StackedBars)
+        {
+            var slot = (Right - Left) / Data.Labels.Count;
+            var width = Math.Max(1.5, slot * 0.72);
+            @for (var i = 0; i < Data.Labels.Count; i++)
+            {
+                var baseline = 0.0;
+                foreach (var series in Data.Series)
+                {
+                    var value = series.Values[i] ?? 0;
+                    if (value <= 0)
+                    {
+                        continue;
+                    }
+
+                    var y0 = Y(baseline, top);
+                    var y1 = Y(baseline + value, top);
+                    baseline += value;
+                    <rect class="mark col @series.Class" x="@N(Left + (slot * i) + ((slot - width) / 2))" y="@N(y1)" width="@N(width)" height="@N(Math.Max(y0 - y1, 1))"><title>@($"{Data.Labels[i]} · {series.Name}: {Number(value)}")</title></rect>
+                }
+            }
+        }
+        else
+        {
+            foreach (var series in Data.Series)
+            {
+                foreach (var segment in Segments(series, top))
+                {
+                    <polyline class="line @series.Class" points="@segment"></polyline>
+                }
+
+                @for (var i = 0; i < series.Values.Count; i++)
+                {
+                    if (series.Values[i] is not { } value)
+                    {
+                        continue;
+                    }
+
+                    var last = i == series.Values.Count - 1 || series.Values.Skip(i + 1).All(v => v is null);
+                    <g>
+                        <title>@($"{Data.Labels[i]} · {series.Name}: {Number(value)}{Suffix}")</title>
+                        <circle class="hit" cx="@N(X(i))" cy="@N(Y(value, top))" r="8"></circle>
+                        @if (last || Data.Labels.Count <= 31)
+                        {
+                            <circle class="dot @series.Class" cx="@N(X(i))" cy="@N(Y(value, top))" r="@(last ? 4 : 3)"></circle>
+                        }
+                    </g>
+                }
+            }
+        }
+    </svg>
+}
+@if (!Data.IsEmpty && Data.Series.Count > 1)
+{
+    <div class="legend">
+        @foreach (var series in Data.Series)
+        {
+            <span><span class="swatch @series.Class"></span>@series.Name</span>
+        }
+    </div>
+}
+@if (!Data.IsEmpty)
+{
+    <details class="chart-table" data-help-term="Show as table">
+        <summary>Show as table</summary>
+        <div class="scroll">
+            <table class="compact">
+                <thead><tr><th>@(Data.Form == ChartForm.Ranking ? "Error" : "Period")</th>@foreach (var series in Data.Series) { <th class="n">@series.Name</th> }</tr></thead>
+                <tbody>
+                    @for (var i = 0; i < Data.Labels.Count; i++)
+                    {
+                        var row = i;
+                        <tr><td>@Data.Labels[row]</td>@foreach (var series in Data.Series) { <td class="n">@(series.Values[row] is { } value ? Number(value) + Suffix : "–")</td> }</tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </details>
+}
+
+@code {
+    private const int Width = 1000;
+    private const int Height = 250;
+    private const int Left = 52;
+    private const int Right = 988;
+    private const int Top = 12;
+    private const int Bottom = 216;
+    private const int RankRow = 26;
+    private const int RankLabel = 420;
+
+    [Parameter, EditorRequired]
+    public ChartData Data { get; set; } = default!;
+
+    private string Suffix => Data.Unit.Length == 0 ? string.Empty : Data.Unit == "%" ? " %" : " " + Data.Unit;
+
+    private double X(int index) => Data.Form == ChartForm.StackedBars
+        ? Left + ((Right - Left) / (double)Data.Labels.Count * (index + 0.5))
+        : Data.Labels.Count == 1 ? Right : Left + ((Right - Left) * index / (double)(Data.Labels.Count - 1));
+
+    private static double Y(double value, double top) => Bottom - ((Bottom - Top) * value / (top <= 0 ? 1 : top));
+
+    /// <summary>First, middle and last period under the axis.</summary>
+    private IEnumerable<(int Index, string Anchor)> AxisLabels()
+    {
+        var count = Data.Labels.Count;
+        yield return (0, Data.Form == ChartForm.StackedBars ? "middle" : "start");
+        if (count > 2)
+        {
+            yield return (count / 2, "middle");
+        }
+
+        if (count > 1)
+        {
+            yield return (count - 1, Data.Form == ChartForm.StackedBars ? "middle" : "end");
+        }
+    }
+
+    /// <summary>Consecutive values of a series as polylines; a missing value starts a new one.</summary>
+    private IEnumerable<string> Segments(ChartSeries series, double top)
+    {
+        var points = new List<string>();
+        for (var i = 0; i < series.Values.Count; i++)
+        {
+            if (series.Values[i] is { } value)
+            {
+                points.Add($"{N(X(i))},{N(Y(value, top))}");
+                continue;
+            }
+
+            if (points.Count > 1)
+            {
+                yield return string.Join(' ', points);
+            }
+
+            points.Clear();
+        }
+
+        if (points.Count > 1)
+        {
+            yield return string.Join(' ', points);
+        }
+    }
+
+    /// <summary>Top of the axis: four round steps (1, 2 or 5 times a power of ten, at least 1), so counts get whole ticks.</summary>
+    internal static double NiceMax(double max)
+    {
+        var step = Math.Max(max, 1) / 4;
+        var magnitude = Math.Pow(10, Math.Floor(Math.Log10(step)));
+        var nice = new[] { 1, 2, 5, 10 }.Select(f => f * magnitude).First(v => v >= step);
+        return Math.Max(1, nice) * 4;
+    }
+
+    private static IEnumerable<double> Ticks(double top) => Enumerable.Range(0, 5).Select(i => top * i / 4);
+
+    private static string N(double value) => Charts.Number(value);
+
+    private static string Number(double value) => value.ToString(value % 1 == 0 ? "0" : "0.#", CultureInfo.InvariantCulture);
+
+    private static string Shorten(string text, int length) => text.Length <= length ? text : text[..(length - 1)] + "…";
+
+    private string Describe() => $"{string.Join(", ", Data.Series.Select(s => s.Name))} over {Data.Labels.Count} {(Data.Form == ChartForm.Ranking ? "entries" : "periods")}; the table below has the values";
+}

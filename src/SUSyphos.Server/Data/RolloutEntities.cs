@@ -160,7 +160,11 @@ internal sealed class StartRuleEntity
     public bool OutsideWindows { get; set; }
 }
 
-/// <summary>Patch compliance of one day: approved servers and those with every released update installed.</summary>
+/// <summary>
+/// The state of one day for the overview statistics: approved servers, those with every released update installed
+/// (patch compliance), those missing no update at all (fully patched), servers by status and open server × update pairs.
+/// Recorded every worker cycle; the last record of a day stays.
+/// </summary>
 internal sealed class ComplianceSnapshotEntity
 {
     public DateOnly Day { get; set; }
@@ -168,6 +172,30 @@ internal sealed class ComplianceSnapshotEntity
     public int Servers { get; set; }
 
     public int Compliant { get; set; }
+
+    /// <summary>When the day was last recorded (the worker records every 15 minutes).</summary>
+    public DateTime? RecordedAtUtc { get; set; }
+
+    /// <summary>Servers whose update search reports no missing update, released or not; null before 0.7.7.</summary>
+    public int? FullyPatched { get; set; }
+
+    public int? StatusOk { get; set; }
+
+    public int? StatusUpdating { get; set; }
+
+    public int? StatusRebootPending { get; set; }
+
+    public int? StatusWarning { get; set; }
+
+    public int? StatusFailed { get; set; }
+
+    public int? StatusOffline { get; set; }
+
+    /// <summary>Server × update pairs released and not installed yet.</summary>
+    public int? OpenReleased { get; set; }
+
+    /// <summary>Server × update pairs reported missing but not released to the server's ring yet.</summary>
+    public int? OpenHeld { get; set; }
 }
 
 internal enum AgentActionState

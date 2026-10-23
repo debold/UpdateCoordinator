@@ -758,7 +758,37 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<int>("Compliant")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("FullyPatched")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OpenHeld")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OpenReleased")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("RecordedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Servers")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StatusFailed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StatusOffline")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StatusOk")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StatusRebootPending")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StatusUpdating")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StatusWarning")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Day");

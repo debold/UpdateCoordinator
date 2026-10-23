@@ -270,11 +270,6 @@ td.bar-cell { min-width: 5rem; }
 td.bar-cell .bar { min-width: 4.5rem; }
 dl.facts .pill { white-space: normal; }
 .swatch.none { background: var(--idle); opacity: 0.45; }
-.trend { width: 100%; height: auto; margin-top: 0.75rem; }
-.trend .grid { stroke: var(--line); }
-.trend .axis { fill: var(--muted); font-size: 11px; }
-.trend .line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
-.trend .dot { fill: var(--accent); }
 .ring-status, .donut-row { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; }
 .donut-cell { display: inline-flex; align-items: center; gap: 0.5rem; }
 
@@ -539,3 +534,30 @@ button.icon-button:hover, a.icon-button:hover { background: var(--surface-2); co
 .upgrade-steps { margin-top: 1.1rem; padding: 0.8rem 1rem; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: var(--r-sm); }
 .upgrade-steps h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
 .upgrade-steps ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.3rem; }
+
+/* Overview statistics: categorical slots in a fixed order (validated palette), status colours for states. */
+:root { --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-8: #e34948; }
+.chart-picker { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 0.5rem; }
+.field.inline { flex-direction: row; align-items: center; gap: 0.5rem; }
+.stat-chart { width: 100%; max-width: 1100px; height: auto; margin-top: 0.5rem; display: block; }
+.stat-chart .grid { stroke: var(--line); }
+.stat-chart .axis { fill: var(--muted); font-size: 11px; }
+.stat-chart .value { fill: var(--text); font-size: 11px; }
+.stat-chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.stat-chart .hit { fill: transparent; }
+.stat-chart .dot { stroke: var(--surface); stroke-width: 1.5; }
+.stat-chart rect.col { stroke: var(--surface); stroke-width: 1; }
+.stat-chart .s1 { stroke: var(--series-1); } .stat-chart .s2 { stroke: var(--series-2); } .stat-chart .s3 { stroke: var(--series-3); } .stat-chart .s4 { stroke: var(--series-4); }
+.stat-chart .s5 { stroke: var(--series-5); } .stat-chart .s6 { stroke: var(--series-6); } .stat-chart .s7 { stroke: var(--series-7); } .stat-chart .s8 { stroke: var(--series-8); }
+.stat-chart .mark.s1, .stat-chart .dot.s1 { fill: var(--series-1); } .stat-chart .mark.s2, .stat-chart .dot.s2 { fill: var(--series-2); }
+.stat-chart .mark.s3, .stat-chart .dot.s3 { fill: var(--series-3); } .stat-chart .mark.s4, .stat-chart .dot.s4 { fill: var(--series-4); }
+.stat-chart .mark.s5, .stat-chart .dot.s5 { fill: var(--series-5); } .stat-chart .mark.s6, .stat-chart .dot.s6 { fill: var(--series-6); }
+.stat-chart .mark.s7, .stat-chart .dot.s7 { fill: var(--series-7); } .stat-chart .mark.s8, .stat-chart .dot.s8 { fill: var(--series-8); }
+.stat-chart .mark.ok, .stat-chart .dot.ok { fill: var(--ok); } .stat-chart .mark.pend, .stat-chart .dot.pend { fill: var(--pend); }
+.stat-chart .mark.queue, .stat-chart .dot.queue { fill: var(--queue); } .stat-chart .mark.warn { fill: var(--queue); opacity: 0.55; }
+.stat-chart .mark.fail, .stat-chart .dot.fail { fill: var(--fail); } .stat-chart .mark.none { fill: var(--idle); opacity: 0.6; }
+.stat-chart .line.ok { stroke: var(--ok); } .stat-chart .line.fail { stroke: var(--fail); } .stat-chart .line.pend { stroke: var(--pend); }
+.swatch.s1 { background: var(--series-1); } .swatch.s2 { background: var(--series-2); } .swatch.s3 { background: var(--series-3); } .swatch.s4 { background: var(--series-4); }
+.swatch.s5 { background: var(--series-5); } .swatch.s6 { background: var(--series-6); } .swatch.s7 { background: var(--series-7); } .swatch.s8 { background: var(--series-8); }
+details.chart-table { margin-top: 0.6rem; }
+details.chart-table > summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; }

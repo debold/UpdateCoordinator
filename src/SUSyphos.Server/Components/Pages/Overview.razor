@@ -6,7 +6,7 @@
 @using SUSyphos.Server.Rollouts
 @inject ServerDbContext Db
 @inject DeploymentStatus Deployment
-@inject ComplianceHistory Compliance
+@inject DashboardStatistics Statistics
 @inject GlobalPause Pause
 @inject BlackoutPeriods Blackouts
 @inject TimeProvider Time
@@ -66,6 +66,12 @@
         <div class="label">Patch compliance</div>
         <div class="value">@_compliancePercent %</div>
         <div class="detail">servers with every released update installed</div>
+    </a>
+    <a class="tile" href="/updates">
+        <span class="go">Open ›</span>
+        <div class="label">Fully patched</div>
+        <div class="value">@_fullyPatchedPercent %</div>
+        <div class="detail">servers missing no update at all, released or held back by the rings</div>
     </a>
     @if (_coverage.ReadAtUtc is not null)
     {
@@ -137,8 +143,29 @@
     </ListTable>
 </Box>
 
-<Box Title="Patch compliance, last 90 days" Help="overview#trend" Hint="Share of approved servers with every released update installed">
-    <TrendChart Points="@_trend" />
+<Box Title="Statistics" Anchor="statistics" Help="overview#statistics" Hint="@_chart.Note">
+    <ChildContent>
+        <form method="get" action="#statistics" class="chart-picker">
+            <label class="field inline"><span>Show</span>
+                <select name="stat" data-auto-submit data-help-term="Statistic">
+                    @foreach (var (kind, key, label) in DashboardStatistics.Kinds)
+                    {
+                        <option value="@key" selected="@(kind == _chart.Kind)">@label</option>
+                    }
+                </select>
+            </label>
+            <label class="field inline"><span>Period</span>
+                <select name="days" data-auto-submit data-help-term="Period">
+                    @foreach (var period in DashboardStatistics.Periods)
+                    {
+                        <option value="@period" selected="@(period == _days)">last @period days</option>
+                    }
+                </select>
+            </label>
+            <button type="submit" class="ghost">Show</button>
+        </form>
+        <StatisticsChart Data="@_chart" />
+    </ChildContent>
 </Box>
 
 @code {
@@ -169,7 +196,15 @@
     private bool _canOperate;
     private List<AttentionItem> _attention = [];
     private List<RingRow> _rings = [];
-    private List<(DateOnly Day, double Percent)> _trend = [];
+    private ChartData _chart = new(StatisticKind.Compliance, ChartForm.Lines, [], [], string.Empty, null, string.Empty);
+    private int _days = 90;
+    private int _fullyPatchedPercent;
+
+    [SupplyParameterFromQuery(Name = "stat")]
+    private string? StatisticKey { get; set; }
+
+    [SupplyParameterFromQuery(Name = "days")]
+    private string? Days { get; set; }
     private int _approved;
     private int _reporting;
     private int _pendingUpdates;
@@ -259,7 +294,10 @@
         await LoadAttentionAsync(health);
         await LoadRingsAsync(clients, entries);
         _coverage = await CoverageReader.GetReportAsync(CancellationToken.None);
-        _trend = [.. (await Compliance.GetAsync(90, CancellationToken.None)).Select(s => (s.Day, s.Servers == 0 ? 100.0 : s.Compliant * 100.0 / s.Servers))];
+        _days = DashboardStatistics.ParsePeriod(Days);
+        _chart = await Statistics.GetAsync(DashboardStatistics.ParseKind(StatisticKey), _days, CancellationToken.None);
+        var missingAnything = (await Db.ClientAvailableUpdates.AsNoTracking().Select(a => a.ClientId).Distinct().ToListAsync()).ToHashSet();
+        _fullyPatchedPercent = _approved == 0 ? 100 : (int)Math.Floor(100.0 * clients.Count(c => !missingAnything.Contains(c.Id)) / _approved);
     }
 
     private async Task LoadAttentionAsync(Dictionary<Guid, ServerHealthState> health)

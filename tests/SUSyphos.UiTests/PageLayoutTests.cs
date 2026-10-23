@@ -14,6 +14,8 @@ public sealed class PageLayoutTests(UiFixture ui)
     public static readonly TheoryData<string> Pages =
     [
         "/",
+        "/?stat=errors",
+        "/?stat=new-updates&days=365",
         "/servers",
         "/servers?group=os",
         "/servers/{main}",

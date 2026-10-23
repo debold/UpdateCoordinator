@@ -55,13 +55,21 @@ internal sealed partial class RolloutWorker(
         }
     }
 
+    private DateTimeOffset? _recordedAt;
+
     internal async Task<int> RunOnceAsync(CancellationToken cancellationToken)
     {
         await using var scope = scopes.CreateAsyncScope();
         var rollouts = scope.ServiceProvider.GetRequiredService<RolloutService>();
         var changes = await rollouts.AutoStartWaitingAsync(cancellationToken).ConfigureAwait(false);
         changes += await rollouts.AdvanceAsync(cancellationToken).ConfigureAwait(false);
-        await scope.ServiceProvider.GetRequiredService<ComplianceHistory>().RecordAsync(cancellationToken).ConfigureAwait(false);
+        // The daily statistics evaluate every server: recorded every 15 minutes, not every cycle.
+        var now = timeProvider.GetUtcNow();
+        if (_recordedAt is not { } recorded || now - recorded >= ComplianceHistory.RecordInterval || now < recorded)
+        {
+            await scope.ServiceProvider.GetRequiredService<ComplianceHistory>().RecordAsync(cancellationToken).ConfigureAwait(false);
+            _recordedAt = now;
+        }
         var actions = scope.ServiceProvider.GetRequiredService<SUSyphos.Server.Agents.AgentActionService>();
         await actions.ExpireAsync(cancellationToken).ConfigureAwait(false);
         await actions.DeleteOldLogsAsync(cancellationToken).ConfigureAwait(false);
