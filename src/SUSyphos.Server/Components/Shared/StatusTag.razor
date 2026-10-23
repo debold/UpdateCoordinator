@@ -1,0 +1,18 @@
+@* A coloured tag for a state, the same on every page (green OK, yellow attention, red failure, grey neutral), with an
+   optional detail next to it such as an error code or a time. *@
+<span class="pill @Kind" title="@Title">@Text</span>@if (Detail is { Length: > 0 }) { <span class="tag-detail">@Detail</span> }
+
+@code {
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>"ok", "pend", "queue", "fail" or "neutral".</summary>
+    [Parameter]
+    public string Kind { get; set; } = "neutral";
+
+    [Parameter]
+    public string? Detail { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+}

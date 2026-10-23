@@ -26,6 +26,6 @@ internal sealed class InstallationEntity
 
     public DateTime FinishedAtUtc { get; set; }
 
-    /// <summary>"Coordinator" for installations of this solution; external installations follow with history sync.</summary>
+    /// <summary>"SUSyphos" for installations of this solution (installations outside it are in the Windows Update history).</summary>
     public required string Source { get; set; }
 }

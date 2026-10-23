@@ -10,7 +10,7 @@ namespace SUSyphos.Server.Agents;
 /// </summary>
 internal sealed partial class InstallationService(ServerDbContext db, ClientActivityLog activity, TimeProvider timeProvider, ILogger<InstallationService> logger)
 {
-    public const string CoordinatorSource = "Coordinator";
+    public const string SUSyphosSource = "SUSyphos";
 
     /// <summary>Returns false if the client no longer exists.</summary>
     public async Task<bool> StoreAsync(Guid clientId, InstallReport report, CancellationToken cancellationToken)
@@ -61,7 +61,7 @@ internal sealed partial class InstallationService(ServerDbContext db, ClientActi
             RebootRequired = result.RebootRequired,
             StartedAtUtc = started,
             FinishedAtUtc = finished,
-            Source = CoordinatorSource,
+            Source = SUSyphosSource,
         }));
 
         client.LastInstallAtUtc = finished;

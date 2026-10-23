@@ -28,6 +28,33 @@ internal static class UpdateHistoryText
         _ => clientApplicationId,
     };
 
+    /// <summary>Short result for a tag: "Succeeded", "Succeeded with errors", "Already installed", "Failed" or "Aborted".</summary>
+    public static string ResultLabel(InstallResultCode code, int hresult) => code switch
+    {
+        InstallResultCode.Succeeded => "Succeeded",
+        InstallResultCode.SucceededWithErrors => "Succeeded with errors",
+        _ when hresult == Rollouts.InstallEvidence.AlreadyInstalled => "Already installed",
+        InstallResultCode.Aborted => "Aborted",
+        InstallResultCode.Failed => "Failed",
+        _ => code.ToString(),
+    };
+
+    /// <summary>Colour of the result tag, the same everywhere: green, yellow for success with errors, red for failures, grey when aborted.</summary>
+    public static string ResultClass(InstallResultCode code, int hresult) => code switch
+    {
+        InstallResultCode.Succeeded => "ok",
+        InstallResultCode.SucceededWithErrors => "queue",
+        _ when hresult == Rollouts.InstallEvidence.AlreadyInstalled => "ok",
+        InstallResultCode.Failed => "fail",
+        _ => "neutral",
+    };
+
+    /// <summary>Error code and its explanation next to the tag; null for a success.</summary>
+    public static string? ResultDetail(InstallResultCode code, int hresult) =>
+        code is InstallResultCode.Succeeded or InstallResultCode.SucceededWithErrors
+            ? null
+            : string.Create(CultureInfo.InvariantCulture, $"0x{hresult:X8}: {HResultCatalog.Describe(hresult)}");
+
     /// <summary>Result with error code and its explanation for anything but success.</summary>
     public static string Result(InstallResultCode code, int hresult) =>
         code is InstallResultCode.Succeeded or InstallResultCode.SucceededWithErrors

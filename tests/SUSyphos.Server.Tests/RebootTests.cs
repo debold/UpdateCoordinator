@@ -159,7 +159,7 @@ public sealed class RebootPolicyTests
         {
         }
 
-        Assert.Contains("Required, restarted", await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains("<span class=\"pill ok\">Restarted</span>", await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         Assert.Null(await scenario.Factory.WithDbAsync(db => db.Clients.Select(c => c.RebootPolicy).SingleAsync(TestContext.Current.CancellationToken)));
     }
 

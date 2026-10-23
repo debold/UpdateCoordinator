@@ -47,7 +47,7 @@ public sealed class InstallReportTests(ServerFactory factory) : IClassFixture<Se
         var history = await factory.WithDbAsync(db => db.Installations.Where(i => i.ClientId == credentials.ClientId).ToListAsync(TestContext.Current.CancellationToken));
         var entry = Assert.Single(history);
         Assert.Equal((int)InstallResultCode.Succeeded, entry.ResultCode);
-        Assert.Equal(InstallationService.CoordinatorSource, entry.Source);
+        Assert.Equal("SUSyphos", entry.Source);
         var stored = await factory.WithDbAsync(db => db.Clients.SingleAsync(c => c.Id == credentials.ClientId, TestContext.Current.CancellationToken));
         Assert.True(stored.RebootPending);
         Assert.Equal("10.0.20348.2900", stored.OsVersion);

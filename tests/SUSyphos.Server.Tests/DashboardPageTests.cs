@@ -501,7 +501,7 @@ public sealed class DashboardViewTests
         Assert.Contains("Disk space", html, StringComparison.Ordinal);
         Assert.Contains("Missing updates", html, StringComparison.Ordinal);
         Assert.Contains("KB5040000", html, StringComparison.Ordinal);
-        Assert.Contains("Failed, 0x80070005", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"pill fail\">Failed</span><span class=\"tag-detail\">0x80070005", html, StringComparison.Ordinal);
     }
 
     private static async Task<DashboardClient> LoginAsync(RolloutScenario scenario, string role)

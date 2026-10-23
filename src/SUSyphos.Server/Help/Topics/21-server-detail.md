@@ -124,11 +124,11 @@ Before each update run the agent checks: **Disk space**, **Windows Update servic
 
 ## Update history {#history}
 
-Installations done by SUSyphos: when they finished, which update, the source, the result (with error code and explanation on failure) and whether a reboot was needed and has happened.
+Installations done by SUSyphos: when they finished, which update, **Started by** (always SUSyphos here), the **Result** and the **Restart**. Results and restarts are coloured tags, the same on every page: green for Succeeded, Already installed (0x80070103, nothing to do), No restart and Restarted (with the time); yellow for Succeeded with errors and Restart pending; red for Failed (with the error code and a plain explanation next to it); grey for Aborted.
 
 ## Windows Update history {#windows-history}
 
-The history Windows itself keeps for the last 90 days, sent with the inventory. **Started by** tells installations by SUSyphos from those started outside SUSyphos (Windows Automatic Updates, Settings, Defender, wusa or another tool, named where Windows records it). Installations outside SUSyphos bypass rings and maintenance windows; they are a reason to check the Automatic Updates setting.
+The history Windows itself keeps for the last 90 days, sent with the inventory. **Operation** (Installation or Uninstallation) and **Result** are tags as in the update history; **Started by** tells installations by SUSyphos (green) from those started outside SUSyphos (yellow) (Windows Automatic Updates, Settings, Defender, wusa or another tool, named where Windows records it). Installations outside SUSyphos bypass rings and maintenance windows; they are a reason to check the Automatic Updates setting.
 
 ## Recent activity {#activity}
 

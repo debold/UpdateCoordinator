@@ -170,6 +170,7 @@ a.tile .label { padding-right: 3rem; }
 .pill.queue { background: var(--queue-soft); color: var(--queue); }
 .pill.fail { background: var(--fail-soft); color: var(--fail); }
 .pill.neutral { background: var(--line); color: var(--muted); }
+.tag-detail { margin-left: 0.4rem; }
 
 /* Messages. */
 .error { background: var(--fail-soft); color: var(--fail); padding: 0.65rem 0.9rem; border-radius: var(--r-sm); }
