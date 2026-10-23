@@ -1,9 +1,9 @@
 @typeparam TRow
 @* A list with search, column filters, sorting, pages and page size from the address (TableQuery); the page supplies
    the cells of each row. Headers come from the columns, so a list is declared once. *@
-@if (Page.Total > 0 && Search is not null)
+@if ((Page.Total > 0 || Tools is not null) && Search is not null)
 {
-    <TableTools Table="Table" Placeholder="@Search" Labels="TablePaging.Labels(Columns)" GroupOptions="GroupOptions" />
+    <TableTools Table="Table" Placeholder="@Search" Labels="TablePaging.Labels(Columns)" GroupOptions="GroupOptions">@Tools</TableTools>
 }
 <div class="scroll">
     <table>
@@ -54,6 +54,10 @@
 
     [Parameter]
     public IReadOnlyList<(string Key, string Label)>? GroupOptions { get; set; }
+
+    /// <summary>Controls in the row of the search field, e.g. switches that show hidden entries.</summary>
+    [Parameter]
+    public RenderFragment? Tools { get; set; }
 
     /// <summary>Text when the list has no rows at all.</summary>
     [Parameter]

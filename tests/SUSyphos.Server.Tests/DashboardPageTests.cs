@@ -368,20 +368,22 @@ public sealed class DashboardViewTests
         await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Failed);
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
-        using var response = await browser.GetAsync($"/rings/{RingEntity.PilotId}?update={update.UpdateId:D}:1&tab=update");
+        using var response = await browser.GetAsync($"/rings/{RingEntity.PilotId}?expand={update.UpdateId:D}:1");
         var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var members = await (await browser.GetAsync($"/rings/{RingEntity.PilotId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Contains("Pilot<a class=\"help-link\" href=\"help/rings\"", html, StringComparison.Ordinal);
         Assert.Contains("KB5040000", html, StringComparison.Ordinal);
-        Assert.Contains("Status of KB5040000 per server", html, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Status of KB5040000 per server\"", html, StringComparison.Ordinal);
+        Assert.Contains($"id=\"servers-{update.UpdateId:D}-1\">", html, StringComparison.Ordinal);
         Assert.Contains("PILOT01", html, StringComparison.Ordinal);
         Assert.Contains("0x80070005", html, StringComparison.Ordinal);
 
-        // The members of the ring are always the first tab, also before an update is selected.
+        // Without "expand" the servers of the update are there for the script but closed; the members of the ring are listed below.
+        Assert.Contains($"id=\"servers-{update.UpdateId:D}-1\" hidden", members, StringComparison.Ordinal);
+        Assert.DoesNotContain($"id=\"servers-{update.UpdateId:D}-1\" hidden", html, StringComparison.Ordinal);
         Assert.Contains("Servers in this ring (1)", members, StringComparison.Ordinal);
         Assert.Contains("PILOT01", members, StringComparison.Ordinal);
-        Assert.DoesNotContain("0x80070005", members, StringComparison.Ordinal);
     }
 
     [Fact]

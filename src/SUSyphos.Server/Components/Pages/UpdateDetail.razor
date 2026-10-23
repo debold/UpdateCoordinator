@@ -391,14 +391,15 @@ else
         _supersededBy = (await Supersedence.NewerAsync(Db, [UpdateId])).GetValueOrDefault(UpdateId);
         var approvedClients = Db.Clients.Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).Select(c => c.Id);
         _installedOn = await Db.ClientUpdates.Where(u => u.UpdateId == UpdateId && approvedClients.Contains(u.ClientId)).Select(u => u.ClientId).Distinct().CountAsync();
-        _outside = await Db.ClientUpdateHistory.AsNoTracking()
+        var outside = await Db.ClientUpdateHistory.AsNoTracking()
             .Where(h => h.UpdateId == UpdateId && h.Operation == SUSyphos.Contracts.Agents.UpdateOperation.Installation
                 && (h.ResultCode == SUSyphos.Contracts.Agents.InstallResultCode.Succeeded || h.ResultCode == SUSyphos.Contracts.Agents.InstallResultCode.SucceededWithErrors)
                 && h.ClientApplicationId != SUSyphos.Contracts.Agents.UpdateHistoryEntry.AgentClientApplicationId)
-            .Join(Db.Clients.Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved), h => h.ClientId, c => c.Id, (h, c) => new OutsideInstallation(c.Id, c.HostName, h.DateUtc, h.ClientApplicationId))
-            .OrderByDescending(o => o.DateUtc)
+            .OrderByDescending(h => h.DateUtc)
             .Take(500)
+            .Join(Db.Clients.Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved), h => h.ClientId, c => c.Id, (h, c) => new { c.Id, c.HostName, h.DateUtc, h.ClientApplicationId })
             .ToListAsync();
+        _outside = [.. outside.Select(o => new OutsideInstallation(o.Id, o.HostName, o.DateUtc, o.ClientApplicationId)).OrderByDescending(o => o.DateUtc)];
         (_stateLabel, _stateClass) = _rollout switch
         {
             _ when _update.BlockedAtUtc is not null => ("Blocked", "fail"),

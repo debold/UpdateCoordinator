@@ -28,7 +28,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/updates/{update}",
         "/updates/{update}?dialog=uninstall",
         "/rings/1",
-        "/rings/1?tab=update",
+        "/rings/1?superseded=1",
         "/rings/3",
         "/approvals",
         "/agents",

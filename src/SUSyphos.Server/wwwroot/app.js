@@ -282,6 +282,22 @@
         });
     }
 
+    // Expandable rows: the button opens the detail row below in place instead of loading the page with it open.
+    for (const button of document.querySelectorAll('a[data-expand]')) {
+        button.addEventListener('click', (event) => {
+            const detail = document.getElementById(button.dataset.expand);
+            if (!detail) {
+                return;
+            }
+
+            event.preventDefault();
+            const open = detail.hidden;
+            detail.hidden = !open;
+            button.setAttribute('aria-expanded', open ? 'true' : 'false');
+            button.closest('tr')?.classList.toggle('expanded', open);
+        });
+    }
+
     for (const input of document.querySelectorAll('input[data-ad-group-search]')) {
         groupSearch(input);
     }

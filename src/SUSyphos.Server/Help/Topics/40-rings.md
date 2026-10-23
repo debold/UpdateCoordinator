@@ -13,9 +13,9 @@ The line under the title summarises the transition rule of this ring: after how 
 
 ## Updates in this ring {#updates}
 
-Updates released to this ring, and updates its servers report as missing that are not released here yet. A title opens the update page; **per server** in the last column shows the state of that update on each server of the ring in the tab below and scrolls there.
+Updates released to this ring, and updates its servers report as missing that are not released here yet. A title opens the update page; **Status per server** (the arrow at the end of the row) opens the servers of the ring below the row: each with its maintenance windows (server time), earliest installation, state and result. Select the arrow again to close it.
 
-- **Show superseded and stopped** / **Hide superseded and stopped**: updates a newer known update replaces and updates whose rollout was stopped are hidden by default (often they were installed long ago); the button shows how many.
+- **superseded and stopped** (after **Show:** next to the search): updates a newer known update replaces and updates whose rollout was stopped are hidden by default (often they were installed long ago); the switch shows how many and is highlighted while they are shown.
 
 - **State**: *Rolling out* (servers still have to install it), *Released* (done in this ring), *Waiting for manual release*, *Alarm* with the reason, *Waiting for the ring before* (the rollout has not reached this ring yet) or *Queued: no rollout yet* (servers here report it as missing, but no rollout runs), *Superseded* (a newer update replaces it) or *Stopped* (its rollout was stopped). The list holds every update the ring status counts.
 - **Installs from**: when the ring's servers may install it at the earliest.
@@ -27,11 +27,13 @@ Updates released to this ring, and updates its servers report as missing that ar
 
 Every server of the ring for every update released here: successful, pending (released, waiting for the window or installing), queued (reported as missing, not released for this ring yet), failed, not needed (installed otherwise or not applicable).
 
+## Servers in this ring by status {#server-status}
+
+The tile next to the ring status counts the servers of the ring by their status, as in the [server list](help/servers#status): OK, updating, reboot pending, warning, failed, offline. Select a status to open the server list filtered to this ring and that status.
+
 ## Servers in this ring {#servers}
 
-The tab lists the members of the ring with operating system, build, **Assigned by** (manual, an assignment rule, or the fallback to the last ring), status and pending updates. Search, sorting and filters work as described in [Working with lists](help/tables).
-
-The second tab, **Status of … per server**, appears after selecting an update: each server of the ring with its maintenance windows (server time), earliest installation, state and result. **Update details ›** opens the update.
+The list of the members of the ring with operating system, build, **Assigned by** (manual, an assignment rule, or the fallback to the last ring), status and pending updates. Search, sorting and filters work as described in [Working with lists](help/tables).
 
 ## Add servers {#add-servers}
 

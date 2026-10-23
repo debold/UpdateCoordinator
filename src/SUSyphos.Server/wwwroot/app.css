@@ -81,8 +81,6 @@ p.warning { color: var(--fail); margin: 0.25rem 0 0; }
 .view-toggles .btn.toggle.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 tr.unusable td { color: var(--muted); }
 .list-head-tools { display: flex; justify-content: flex-end; padding: 0.5rem 1.15rem 0; }
-.bar-link { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; }
-.bar-link:hover .note { text-decoration: underline; }
 
 /* Small marks of the server list: agent state next to the version, freshness before the last heartbeat. */
 .mark { display: inline-block; min-width: 1rem; text-align: center; font-weight: 700; font-family: var(--font); }
@@ -246,6 +244,7 @@ details.col-filter[open] > summary { color: var(--accent); background: var(--acc
 .donut .pend { stroke: var(--pend); }
 .donut .queue { stroke: var(--queue); }
 .donut .fail { stroke: var(--fail); }
+.donut .warn { stroke: var(--queue); opacity: 0.55; }
 .donut .none { stroke: var(--idle); opacity: 0.45; }
 .donut text { fill: var(--text); font-family: inherit; }
 .donut .caption { fill: var(--muted); }
@@ -256,6 +255,20 @@ details.col-filter[open] > summary { color: var(--accent); background: var(--acc
 .swatch.pend { background: var(--pend); }
 .swatch.queue { background: var(--queue); }
 .swatch.fail { background: var(--fail); }
+.swatch.warn { background: var(--queue); opacity: 0.55; }
+.legend a { color: var(--text); text-decoration: none; }
+.legend a:hover { color: var(--accent); }
+
+/* Expandable rows: the servers of one update below its row (ring page). */
+tr.expanded > td { background: var(--accent-soft); }
+tr.row-detail > td { background: var(--surface-2); padding: 0.4rem 0.8rem 0.8rem 1.6rem; }
+table.detail-table { width: 100%; font-size: 0.85rem; }
+table.detail-table th, table.detail-table td { padding: 0.3rem 0.5rem; }
+a.icon-button.expand .icon { transition: transform 0.15s; }
+tr.expanded a.icon-button.expand .icon { transform: rotate(180deg); }
+td.bar-cell { min-width: 5rem; }
+td.bar-cell .bar { min-width: 4.5rem; }
+dl.facts .pill { white-space: normal; }
 .swatch.none { background: var(--idle); opacity: 0.45; }
 .trend { width: 100%; height: auto; margin-top: 0.75rem; }
 .trend .grid { stroke: var(--line); }

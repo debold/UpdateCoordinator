@@ -1,8 +1,12 @@
 @using SUSyphos.Server.Rollouts
-<svg class="donut @(Small ? "small" : null)" viewBox="0 0 140 140" role="img" aria-label="@Charts.Describe(Counts)">
+@{
+    var parts = Parts ?? Charts.Parts(Counts);
+    var total = parts.Sum(p => p.Value);
+}
+<svg class="donut @(Small ? "small" : null)" viewBox="0 0 140 140" role="img" aria-label="@(Parts is null ? Charts.Describe(Counts) : Charts.Describe(Parts))">
     <g transform="rotate(-90 70 70)" fill="none" stroke-width="18">
         <circle class="track" cx="70" cy="70" r="@Radius"></circle>
-        @foreach (var (cls, offset, length) in Charts.Segments(Counts, Circumference))
+        @foreach (var (cls, offset, length) in Charts.Segments(parts, Circumference))
         {
             <circle class="@cls" cx="70" cy="70" r="@Radius" stroke-dasharray="@($"{Charts.Number(length)} {Charts.Number(Circumference)}")" stroke-dashoffset="@Charts.Number(-offset)"></circle>
         }
@@ -10,8 +14,8 @@
     @if (!Small)
     {
         <g>
-            <text x="70" y="68" text-anchor="middle" font-size="22" font-weight="600">@Counts.Total</text>
-            <text class="caption" x="70" y="86" text-anchor="middle" font-size="10">server × update</text>
+            <text x="70" y="68" text-anchor="middle" font-size="22" font-weight="600">@total</text>
+            <text class="caption" x="70" y="86" text-anchor="middle" font-size="10">@Caption</text>
         </g>
     }
 </svg>
@@ -24,6 +28,15 @@
     [Parameter]
     public bool Small { get; set; }
 
-    [Parameter, EditorRequired]
+    /// <summary>Deployment states (server × update); ignored when <see cref="Parts"/> is given.</summary>
+    [Parameter]
     public DeploymentCounts Counts { get; set; } = DeploymentCounts.Empty;
+
+    /// <summary>Any other split as CSS class (ok, pend, queue, warn, fail, none) and count, e.g. servers by status.</summary>
+    [Parameter]
+    public IReadOnlyList<(string Class, int Value)>? Parts { get; set; }
+
+    /// <summary>What the number in the middle counts.</summary>
+    [Parameter]
+    public string Caption { get; set; } = "server × update";
 }

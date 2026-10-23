@@ -181,7 +181,7 @@ public sealed class InteractionTests(UiFixture ui)
 
         // A sort link only changes the address: the ring page keeps its position.
         await page.GotoAsync("/rings/1");
-        var sort = page.Locator(".grid-side table thead a.sort").First;
+        var sort = page.Locator("#updates table thead a.sort").First;
         await sort.ScrollIntoViewIfNeededAsync();
         await page.EvaluateAsync("window.scrollBy(0, 120)");
         var ringBefore = await page.EvaluateAsync<double>("window.scrollY");
@@ -190,10 +190,15 @@ public sealed class InteractionTests(UiFixture ui)
         var ringAfter = await page.EvaluateAsync<double>("window.scrollY");
         Assert.True(ringBefore > 0 && Math.Abs(ringAfter - ringBefore) < 150, $"The ring page jumped from {ringBefore} to {ringAfter}.");
 
-        // "per server" opens the status per server and scrolls to it.
-        await page.Locator(".grid-side table tbody a.bar-link").First.ClickAsync();
-        await page.WaitForURLAsync(url => url.Contains("tab=update", StringComparison.Ordinal));
-        await Assertions.Expect(page.Locator("#per-server")).ToBeInViewportAsync();
+        // The expand button opens the servers of the update below its row, in place, and closes them again.
+        var expand = page.Locator("#updates a[data-expand]").First;
+        var detail = page.Locator("#" + await expand.GetAttributeAsync("data-expand"));
+        await Assertions.Expect(detail).ToBeHiddenAsync();
+        await expand.ClickAsync();
+        await Assertions.Expect(detail).ToBeVisibleAsync();
+        Assert.Equal("true", await expand.GetAttributeAsync("aria-expanded"));
+        await expand.ClickAsync();
+        await Assertions.Expect(detail).ToBeHiddenAsync();
     }
 
     [Fact]

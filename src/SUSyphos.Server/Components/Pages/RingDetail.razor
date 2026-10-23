@@ -54,27 +54,7 @@ else
         </AuthorizeView>
     </ActionBand>
 
-    <div class="grid-side wide-only">
-        <Box Title="Updates in this ring" Help="rings#updates" Hint="Select an update to see its status per server" Flush="true">
-            <div class="list-head-tools" data-help="rings#updates">
-                <a class="btn ghost" href="@Navigation.GetUriWithQueryParameter("superseded", ShowSuperseded ? null : "1")">@(ShowSuperseded ? "Hide superseded and stopped" : $"Show superseded and stopped ({_hiddenUpdates})")</a>
-            </div>
-            <ListTable Table="_updateTable" Page="_updatePage" Columns="UpdateColumns" Search="Search KB or title" Noun="updates" Empty="No update is released for this ring or waiting before it.">
-                <Row Context="update">
-                            <tr class="@(update.Key == _selected?.Key && Tab == "update" ? "selected" : null)">
-                                <td class="wrap"><a href="/updates/@(update.Key.Replace(":", "/", StringComparison.Ordinal))">@update.Title</a></td>
-                                <td>@(update.Classification ?? "–")</td>
-                                <td><span class="pill @update.StateClass">@update.State</span></td>
-                                <td class="nowrap">@update.Released</td>
-                                <td class="nowrap">@(update.Wait ?? "–")</td>
-                                <td class="n">@if (update.Statistics.Targeted == 0) { <span class="note">no server needs it</span> } else { @Percent(update.Statistics.FeedbackPercent) <span class="note">(@update.Statistics.Reported/@update.Statistics.Targeted)</span> }</td>
-                                <td class="n">@Percent(update.Statistics.SuccessPercent)</td>
-                                <td><a class="bar-link" href="@UpdateLink(update)" title="Show the status of this update per server"><StackedBar Counts="@update.Counts" /><span class="note">per server ›</span></a></td>
-                            </tr>
-                </Row>
-            </ListTable>
-        </Box>
-
+    <div class="grid-2">
         <Box Title="Ring status" Help="rings#status" Hint="servers × updates">
             <div class="ring-status">
                 <Donut Counts="@_ringCounts" />
@@ -82,75 +62,117 @@ else
             </div>
             <p class="note">Every server of the ring for every update released here. Pending: released, waiting for the maintenance window or installing. Queued: reported as missing, not released for this ring yet. Not needed: already installed otherwise or not applicable to the server.</p>
         </Box>
+
+        <Box Title="Servers in this ring" Help="rings#server-status" Hint="by server status">
+            <div class="ring-status">
+                <Donut Parts="@HealthParts" Caption="@(_servers == 1 ? "server" : "servers")" />
+                <div class="legend vertical">
+                    @foreach (var (state, count) in _health)
+                    {
+                        <a href="@StatusLink(state)" data-help-term="Server status"><span class="swatch @HealthSwatch(state)"></span>@ServerHealth.Label(state) <b>@count</b></a>
+                    }
+                </div>
+            </div>
+            <p class="note">The status of each server of the ring as in the server list; select a status to open those servers.</p>
+        </Box>
     </div>
 
-    <Box Flush="true" Anchor="per-server">
-        <Header>
-            <nav class="tabs" aria-label="Ring details">
-                <a class="@(Tab != "update" ? "current" : null)" href="@TabLink("servers")">Servers in this ring (@_servers)</a>
-                @if (_selected is not null)
-                {
-                    <a class="@(Tab == "update" ? "current" : null)" href="@TabLink("update")">Status of @_selected.ShortTitle per server</a>
+    <Box Title="Updates in this ring" Anchor="updates" Help="rings#updates" Hint="Expand a row to see the status of the update per server" Flush="true">
+        <ListTable Table="_updateTable" Page="_updatePage" Columns="UpdateColumns" Search="Search KB or title" Noun="updates" Empty="No update is released for this ring or waiting before it." ExtraColumns="1">
+            <Tools>
+                <span class="view-toggles" data-help="rings#updates">
+                    <span class="note">Show:</span>
+                    <a class="btn ghost toggle @(ShowSuperseded ? "on" : null)" href="@Navigation.GetUriWithQueryParameter("superseded", ShowSuperseded ? null : "1")" aria-pressed="@(ShowSuperseded ? "true" : "false")" data-help-term="superseded and stopped">superseded and stopped (@_hiddenUpdates)</a>
+                </span>
+            </Tools>
+            <ExtraHeader><th class="n"><span class="visually-hidden">Status per server</span></th></ExtraHeader>
+            <Row Context="update">
+                @{
+                    var expanded = Expanded == update.Key;
+                    var detailId = DetailId(update);
                 }
-            </nav>
-            <HelpLink To="rings#servers" Label="Servers in this ring" />
-            @if (Tab == "update" && _selected is not null)
-            {
-                <a href="/updates/@(_selected.Key.Replace(":", "/", StringComparison.Ordinal))">Update details ›</a>
-            }
-        </Header>
-        <ChildContent>
-            @if (Tab == "update" && _selected is not null)
-            {
-                <ListTable Table="_serverTable" Page="_serverPage" Columns="ServerColumns" Search="Search server" Noun="servers" Empty="No server of this ring reported this update as missing.">
-                    <Row Context="row">
+                <tr class="@(expanded ? "expanded" : null)">
+                    <td class="wrap"><a href="/updates/@(update.Key.Replace(":", "/", StringComparison.Ordinal))">@update.Title</a></td>
+                    <td>@(update.Classification ?? "–")</td>
+                    <td><span class="pill @update.StateClass">@update.State</span></td>
+                    <td class="nowrap">@update.Released</td>
+                    <td class="nowrap">@(update.Wait ?? "–")</td>
+                    <td class="n nowrap">@if (update.Statistics.Targeted == 0) { <span class="note">no server needs it</span> } else { @Percent(update.Statistics.FeedbackPercent) <span class="note">(@update.Statistics.Reported/@update.Statistics.Targeted)</span> }</td>
+                    <td class="n nowrap">@Percent(update.Statistics.SuccessPercent)</td>
+                    <td class="bar-cell"><StackedBar Counts="@update.Counts" /></td>
+                    <td class="n"><a class="btn icon-button expand" href="@ExpandLink(update)" data-expand="@detailId" aria-controls="@detailId" aria-expanded="@(expanded ? "true" : "false")" title="Status per server" aria-label="@($"Status of {update.ShortTitle} per server")" data-help-term="Status per server"><Icon Name="chevron-down" Size="16" /></a></td>
+                </tr>
+                <tr class="row-detail" id="@detailId" hidden="@(!expanded)">
+                    <td colspan="@(UpdateColumns.Count + 1)">
+                        @{
+                            var rows = ServerRowsFor(update);
+                        }
+                        @if (rows.Count == 0)
+                        {
+                            <p class="note">No server of this ring reported this update as missing.</p>
+                        }
+                        else
+                        {
+                            <table class="compact detail-table">
+                                <thead><tr><th>Server</th><th>Maintenance windows (server time)</th><th>Earliest installation</th><th>Status</th><th>Result</th></tr></thead>
+                                <tbody>
+                                    @foreach (var row in rows)
+                                    {
+                                        <tr>
+                                            <td><a href="/servers/@row.ClientId">@row.HostName</a></td>
+                                            <td>@row.Windows</td>
+                                            <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
+                                            <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@row.Entry.State</span></td>
+                                            <td>@DeploymentText.Result(row.Entry)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                            @if (rows.Count >= MaxServerRows)
+                            {
+                                <p class="note">The first @MaxServerRows servers; <a href="/updates/@(update.Key.Replace(":", "/", StringComparison.Ordinal))#servers">all servers on the update page</a>.</p>
+                            }
+                        }
+                    </td>
+                </tr>
+            </Row>
+        </ListTable>
+    </Box>
+
+    <Box Title="@($"Servers in this ring ({_servers})")" Anchor="servers" Help="rings#servers" Flush="true">
+        <TableTools Table="_table" Placeholder="Search server" Labels="MemberLabels" />
+        <div class="scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <SortHeader Table="_table" Column="name" Label="Server" />
+                        <SortHeader Table="_table" Column="os" Label="Operating system" Options="@_members.Options.GetValueOrDefault("os")" />
+                        <SortHeader Table="_table" Column="build" Label="Build" />
+                        <SortHeader Table="_table" Column="assigned" Label="Assigned by" Options="@_members.Options.GetValueOrDefault("assigned")" />
+                        <SortHeader Table="_table" Column="status" Label="Status" Options="@_members.Options.GetValueOrDefault("status")" />
+                        <SortHeader Table="_table" Column="pending" Label="Pending updates" Class="n" />
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_members.Rows.Count == 0)
+                    {
+                        <tr><td colspan="6" class="note">No server matches.</td></tr>
+                    }
+                    @foreach (var member in _members.Rows)
+                    {
                         <tr>
-                            <td><a href="/servers/@row.ClientId">@row.HostName</a></td>
-                            <td>@row.Windows</td>
-                            <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
-                            <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@row.Entry.State</span></td>
-                            <td>@DeploymentText.Result(row.Entry)</td>
+                            <td><a href="/servers/@member.Id">@member.HostName</a></td>
+                            <td class="nowrap">@member.Os</td>
+                            <td class="mono">@member.Build</td>
+                            <td>@member.AssignedBy</td>
+                            <td><span class="pill @ServerHealth.PillClass(member.Health)">@ServerHealth.Label(member.Health)</span></td>
+                            <td class="n">@member.Pending</td>
                         </tr>
-                    </Row>
-                </ListTable>
-            }
-            else
-            {
-                <TableTools Table="_table" Placeholder="Search server" Labels="MemberLabels" />
-                <div class="scroll">
-                    <table>
-                        <thead>
-                            <tr>
-                                <SortHeader Table="_table" Column="name" Label="Server" />
-                                <SortHeader Table="_table" Column="os" Label="Operating system" Options="@_members.Options.GetValueOrDefault("os")" />
-                                <SortHeader Table="_table" Column="build" Label="Build" />
-                                <SortHeader Table="_table" Column="assigned" Label="Assigned by" Options="@_members.Options.GetValueOrDefault("assigned")" />
-                                <SortHeader Table="_table" Column="status" Label="Status" Options="@_members.Options.GetValueOrDefault("status")" />
-                                <SortHeader Table="_table" Column="pending" Label="Pending updates" Class="n" />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (_members.Rows.Count == 0)
-                            {
-                                <tr><td colspan="6" class="note">No server matches.</td></tr>
-                            }
-                            @foreach (var member in _members.Rows)
-                            {
-                                <tr>
-                                    <td><a href="/servers/@member.Id">@member.HostName</a></td>
-                                    <td class="nowrap">@member.Os</td>
-                                    <td class="mono">@member.Build</td>
-                                    <td>@member.AssignedBy</td>
-                                    <td><span class="pill @ServerHealth.PillClass(member.Health)">@ServerHealth.Label(member.Health)</span></td>
-                                    <td class="n">@member.Pending</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                <Pager Table="_table" Page="PageInfo.Of(_members)" Noun="servers" />
-            }
-        </ChildContent>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <Pager Table="_table" Page="PageInfo.Of(_members)" Noun="servers" />
     </Box>
 }
 
@@ -207,15 +229,6 @@ else
         new("servers", "Servers", u => u.Counts.Pending, Sortable: false),
     ];
 
-    private static readonly IReadOnlyList<TableColumn<ServerRow>> ServerColumns =
-    [
-        new("name", "Server", r => r.HostName),
-        new("windows", "Maintenance windows (server time)", r => r.Windows, Sortable: false),
-        new("earliest", "Earliest installation", r => r.Entry.EarliestInstallAtUtc),
-        new("status", "Status", r => (int)r.Entry.State, r => [r.Entry.State.ToString()]),
-        new("result", "Result", r => DeploymentText.Result(r.Entry), Sortable: false),
-    ];
-
     private const string SupersededState = "Superseded";
     private const string StoppedState = "Stopped";
 
@@ -234,8 +247,6 @@ else
 
     private TableQuery _updateTable = default!;
     private TablePage<ActiveUpdate> _updatePage = default!;
-    private TableQuery _serverTable = default!;
-    private TablePage<ServerRow> _serverPage = default!;
 
     private sealed record Member(Guid Id, string HostName, string Os, string Build, int BuildNumber, string AssignedBy, ServerHealthState Health, int Pending);
 
@@ -251,27 +262,43 @@ else
         new("pending", "Pending updates", m => m.Pending),
     ];
 
-    /// <summary>Lower box: "servers" (members of the ring) or "update" (status of the selected update per server).</summary>
-    [SupplyParameterFromQuery(Name = "tab")]
-    public string? Tab { get; set; }
-
     private Dictionary<int, int> _serverCounts = [];
     private TableQuery _table = default!;
     private TablePage<Member> _members = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
 
-    // Both keep the view of the update list (search, filters, page) in the address.
-    private string UpdateLink(ActiveUpdate update) => Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> { ["update"] = update.Key, ["tab"] = "update", ["us.page"] = null }) + "#per-server";
+    /// <summary>Without script the expand button loads the page with this row open; the script opens it in place.</summary>
+    private string ExpandLink(ActiveUpdate update) => Navigation.GetUriWithQueryParameter("expand", Expanded == update.Key ? null : update.Key) + "#" + DetailId(update);
 
-    private string TabLink(string tab) => Navigation.GetUriWithQueryParameters(new Dictionary<string, object?> { ["update"] = _selected?.Key, ["tab"] = tab });
+    private static string DetailId(ActiveUpdate update) => "servers-" + update.Key.Replace(":", "-", StringComparison.Ordinal);
+
+    private List<ServerRow> ServerRowsFor(ActiveUpdate update) => _serverRows.GetValueOrDefault(update.Key) ?? [];
+
+    /// <summary>The update whose servers are shown below its row when the page loads, as "{update id}:{revision}".</summary>
+    [SupplyParameterFromQuery(Name = "expand")]
+    public string? Expanded { get; set; }
+
+    private List<(ServerHealthState State, int Count)> _health = [];
+
+    private IReadOnlyList<(string Class, int Value)> HealthParts => [.. _health.Select(h => (HealthSwatch(h.State), h.Count))];
+
+    private string StatusLink(ServerHealthState state) =>
+        $"/servers?{Uri.EscapeDataString("f.ring")}={Uri.EscapeDataString(_ring!.Name)}&{Uri.EscapeDataString("f.status")}={Uri.EscapeDataString(ServerHealth.Label(state))}";
+
+    /// <summary>Colour of a server status in the donut, as in the status tags; warnings lighter than pending reboots, offline grey.</summary>
+    private static string HealthSwatch(ServerHealthState state) => state switch
+    {
+        ServerHealthState.Ok => "ok",
+        ServerHealthState.Updating => "pend",
+        ServerHealthState.RebootPending => "queue",
+        ServerHealthState.Warning => "warn",
+        ServerHealthState.Failed => "fail",
+        _ => "none",
+    };
 
     private sealed record ServerRow(Guid ClientId, string HostName, string Windows, DeploymentEntry Entry);
 
     [Parameter]
     public int RingId { get; set; }
-
-    /// <summary>Selected update as "{update id}:{revision}".</summary>
-    [SupplyParameterFromQuery(Name = "update")]
-    public string? UpdateKey { get; set; }
 
     private RingEntity? _ring;
     private List<RingEntity> _rings = [];
@@ -279,8 +306,7 @@ else
     private int _servers;
     private DeploymentCounts _ringCounts = DeploymentCounts.Empty;
     private List<ActiveUpdate> _active = [];
-    private ActiveUpdate? _selected;
-    private List<ServerRow> _serverRows = [];
+    private Dictionary<string, List<ServerRow>> _serverRows = [];
 
     private string TransitionText => _transitions.GetValueOrDefault(_ring!.Id) is { } t
         ? string.Create(System.Globalization.CultureInfo.InvariantCulture,
@@ -415,32 +441,27 @@ else
         _hiddenUpdates = _active.Count(u => u.State is SupersededState or StoppedState);
         var shown = ShowSuperseded ? _active : [.. _active.Where(u => u.State is not (SupersededState or StoppedState))];
         _updatePage = TablePaging.Apply(shown, _updateTable, UpdateColumns, u => $"{u.ShortTitle} {u.Title}");
-        _selected = _active.FirstOrDefault(a => a.Key == UpdateKey) ?? _active.FirstOrDefault();
-        await LoadServersAsync(entries);
+        await LoadServersAsync(entries, _updatePage.Rows);
         await LoadMembersAsync(entries, now);
     }
 
-    private async Task LoadServersAsync(IReadOnlyList<DeploymentEntry> entries)
+    /// <summary>The servers of the ring for each update on the current page, shown when its row is expanded.</summary>
+    private async Task LoadServersAsync(IReadOnlyList<DeploymentEntry> entries, IReadOnlyList<ActiveUpdate> updates)
     {
-        _serverTable = TableQuery.From(Navigation, "status", prefix: "us.");
-        _serverRows = [];
-        _serverPage = TablePaging.Apply(_serverRows, _serverTable, ServerColumns, r => r.HostName);
-        if (_selected is null)
-        {
-            return;
-        }
-
-        var selected = entries.Where(e => Key(e.UpdateId, e.Revision) == _selected.Key).Take(MaxServerRows).ToList();
-        var ids = selected.Select(e => e.ClientId).ToList();
+        var keys = updates.Select(u => u.Key).ToHashSet();
+        var relevant = entries.Where(e => keys.Contains(Key(e.UpdateId, e.Revision))).ToList();
+        var ids = relevant.Select(e => e.ClientId).Distinct().ToList();
         var clients = await Db.Clients.AsNoTracking()
             .Where(c => ids.Contains(c.Id))
             .Select(c => new { c.Id, c.HostName, c.EffectiveWindowsJson })
             .ToDictionaryAsync(c => c.Id);
-        _serverRows = [.. selected
+        var windows = clients.ToDictionary(c => c.Key, c => MaintenanceWindowFormat.Format(MaintenanceWindowFormat.FromJson(c.Value.EffectiveWindowsJson) ?? []).Replace("\n", "; ", StringComparison.Ordinal));
+        _serverRows = relevant
             .Where(e => clients.ContainsKey(e.ClientId))
-            .Select(e => new ServerRow(e.ClientId, clients[e.ClientId].HostName, MaintenanceWindowFormat.Format(MaintenanceWindowFormat.FromJson(clients[e.ClientId].EffectiveWindowsJson) ?? []).Replace("\n", "; ", StringComparison.Ordinal), e))
-            .OrderBy(r => r.Entry.State).ThenBy(r => r.HostName)];
-        _serverPage = TablePaging.Apply(_serverRows, _serverTable, ServerColumns, r => r.HostName);
+            .GroupBy(e => Key(e.UpdateId, e.Revision))
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(e => new ServerRow(e.ClientId, clients[e.ClientId].HostName, windows[e.ClientId], e)).OrderBy(r => r.Entry.State).ThenBy(r => r.HostName).Take(MaxServerRows).ToList());
     }
 
     private async Task LoadMembersAsync(IReadOnlyList<DeploymentEntry> entries, DateTime now)
@@ -458,6 +479,7 @@ else
             c.ManualRingId is not null ? "Manual" : "Assignment rule or fallback",
             ServerHealth.Evaluate(c, failed.Contains(c.Id), now),
             pending.GetValueOrDefault(c.Id)))];
+        _health = [.. members.GroupBy(m => m.Health).OrderBy(g => g.Key == ServerHealthState.Ok ? 0 : 1).ThenBy(g => g.Key).Select(g => (g.Key, g.Count()))];
         _members = TablePaging.Apply(members, _table, MemberColumns, m => m.HostName);
     }
 
