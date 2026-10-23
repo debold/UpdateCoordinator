@@ -3,6 +3,7 @@
 @inherits DashboardPageBase
 @using SUSyphos.Contracts.Agents
 @using SUSyphos.Server.Rollouts
+@using SUSyphos.Server.Agents
 @inject ServerDbContext Db
 @inject DeploymentStatus Deployment
 @inject RolloutAdministration Administration
@@ -34,8 +35,11 @@
         @if (!ShowArchived)
         {
             <span class="view-toggles" data-help="updates#toggles">
-                <a class="btn ghost" href="@Navigation.GetUriWithQueryParameter("superseded", ShowSuperseded ? null : "1")">@(ShowSuperseded ? "Hide superseded" : $"Show superseded ({_hiddenSuperseded})")</a>
-                <a class="btn ghost" href="@Navigation.GetUriWithQueryParameter("completed", ShowCompleted ? null : "1")">@(ShowCompleted ? "Hide completed" : $"Show completed ({_hiddenCompleted})")</a>
+                <span class="note">Show:</span>
+                @foreach (var (name, label, on, count) in Toggles)
+                {
+                    <a class="btn ghost toggle @(on ? "on" : null)" href="@Navigation.GetUriWithQueryParameter(name, on ? null : "1")" aria-pressed="@(on ? "true" : "false")" data-help-term="@label" title="@(on ? $"Hide {label} updates" : $"Show {label} updates")">@label (@count)</a>
+                }
             </span>
         }
     </TableTools>
@@ -62,9 +66,9 @@
                 @foreach (var row in _page.Rows)
                 {
                     <tr>
-                        <td><input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /></td>
+                        <td>@if (!row.Outside) { <input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /> }</td>
 
-                        <td class="wrap"><a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a>@if (row.Kb.Length > 0 && !row.Title.Contains($"KB{row.Kb}", StringComparison.OrdinalIgnoreCase)) { <span class="note mono"> KB@(row.Kb)</span> }</td>
+                        <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }@if (row.Kb.Length > 0 && !row.Title.Contains($"KB{row.Kb}", StringComparison.OrdinalIgnoreCase)) { <span class="note mono"> KB@(row.Kb)</span> }</td>
                         <td>@row.Classification</td>
                         <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
                         <td class="nowrap">@row.Restart</td>
@@ -83,7 +87,7 @@
 @code {
     private const int MaxRows = 5000;
 
-    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts, string Restart, NewerUpdate? Newer = null, bool Completed = false);
+    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts, string Restart, NewerUpdate? Newer = null, bool Completed = false, bool Outside = false, bool Linked = true);
 
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["classification"] = "Classification", ["severity"] = "Severity", ["rollout"] = "Rollout", ["restart"] = "Restart" };
     private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("classification", "Classification"), ("severity", "Severity"), ("restart", "Restart"), ("rollout", "Rollout")];
@@ -116,10 +120,32 @@
 
     private bool ShowSuperseded => Superseded == "1";
 
+    /// <summary>Updates that look withdrawn by Microsoft are hidden unless "1".</summary>
+    [SupplyParameterFromQuery(Name = "withdrawn")]
+    private string? Withdrawn { get; set; }
+
+    /// <summary>Updates only installed outside SUSyphos (Windows Update history, no rollout, missing nowhere) are listed only with "1".</summary>
+    [SupplyParameterFromQuery(Name = "outside")]
+    private string? Outside { get; set; }
+
     private bool ShowCompleted => Completed == "1";
+
+    private bool ShowWithdrawn => Withdrawn == "1";
+
+    private bool ShowOutside => Outside == "1";
 
     private int _hiddenSuperseded;
     private int _hiddenCompleted;
+    private int _hiddenWithdrawn;
+    private int _hiddenOutside;
+
+    private IEnumerable<(string Name, string Label, bool On, int Count)> Toggles =>
+    [
+        ("superseded", "superseded", ShowSuperseded, _hiddenSuperseded),
+        ("completed", "completed", ShowCompleted, _hiddenCompleted),
+        ("withdrawn", "withdrawn", ShowWithdrawn, _hiddenWithdrawn),
+        ("outside", "installed outside SUSyphos", ShowOutside, _hiddenOutside),
+    ];
 
     [SupplyParameterFromForm(FormName = "updates-bulk")]
     private string? Bulk { get; set; }
@@ -213,7 +239,8 @@
                 var (rollout, cls, detail) = Describe(rollouts.GetValueOrDefault(key), ringStates[key].ToList(), rings);
                 var deployment = DeploymentCounts.Of(counts[key]);
                 NewerUpdate? newerUpdate = null;
-                var completed = cls == "ok" && rollouts.GetValueOrDefault(key) is { State: RolloutState.Active } && deployment.Pending == 0 && deployment.Failed == 0 && deployment.Queued == 0;
+                var installedEverywhere = deployment.Total > 0 && deployment.Pending == 0 && deployment.Failed == 0 && deployment.Queued == 0;
+                var completed = installedEverywhere && ((cls == "ok" && rollouts.GetValueOrDefault(key) is { State: RolloutState.Active }) || u.WithdrawnAtUtc is not null);
                 if (completed)
                 {
                     (rollout, detail) = ("Completed", "released to every ring, nothing pending");
@@ -225,7 +252,7 @@
                 }
                 else if (u.WithdrawnAtUtc is not null)
                 {
-                    (rollout, cls) = ("Withdrawn by Microsoft", "fail");
+                    (rollout, cls) = (WithdrawnLabel, "fail");
                 }
                 else if (supersededBy.TryGetValue(u.UpdateId, out var newer))
                 {
@@ -256,15 +283,66 @@
                     completed);
             })];
 
-        // Superseded and completed updates are out of the way unless asked for; the toggles say how many.
+        // Superseded, completed, withdrawn and outside updates are out of the way unless asked for; the toggles say how many.
         if (!ShowArchived)
         {
+            rows.AddRange(await OutsideRowsAsync(keys));
             _hiddenSuperseded = rows.Count(r => r.Rollout == "Superseded");
             _hiddenCompleted = rows.Count(r => r.Completed);
-            rows = [.. rows.Where(r => (ShowSuperseded || r.Rollout != "Superseded") && (ShowCompleted || !r.Completed))];
+            _hiddenWithdrawn = rows.Count(r => r.Rollout == WithdrawnLabel);
+            _hiddenOutside = rows.Count(r => r.Outside);
+            rows = [.. rows.Where(r => (ShowSuperseded || r.Rollout != "Superseded") && (ShowCompleted || !r.Completed) && (ShowWithdrawn || r.Rollout != WithdrawnLabel) && (ShowOutside || !r.Outside))];
         }
 
         _page = TablePaging.Apply(rows, _table, Columns, r => $"KB{r.Kb} {r.Title}");
+    }
+
+    private const string WithdrawnLabel = "Withdrawn by Microsoft";
+
+    /// <summary>
+    /// Updates approved servers installed outside SUSyphos (Windows Update history: Automatic Updates, Settings, wusa …)
+    /// that are neither missing anywhere nor in a rollout. Linked to the update page when the catalog knows the update.
+    /// </summary>
+    private async Task<List<Row>> OutsideRowsAsync(HashSet<(Guid, int)> listed)
+    {
+        var approved = Db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
+        var entries = await Db.ClientUpdateHistory.AsNoTracking()
+            .Where(h => approved.Contains(h.ClientId) && h.Operation == UpdateOperation.Installation
+                && (h.ResultCode == InstallResultCode.Succeeded || h.ResultCode == InstallResultCode.SucceededWithErrors)
+                && h.ClientApplicationId != UpdateHistoryEntry.AgentClientApplicationId)
+            .Select(h => new { h.ClientId, h.UpdateId, h.Revision, h.Title, h.DateUtc, h.ClientApplicationId })
+            .Take(MaxRows * 4)
+            .ToListAsync();
+        var listedIds = listed.Select(k => k.Item1).ToHashSet();
+        var groups = entries.Where(e => !listedIds.Contains(e.UpdateId) && !UpdateHistoryText.IsAgent(e.ClientApplicationId)).GroupBy(e => e.UpdateId).Take(MaxRows).ToList();
+        var ids = groups.Select(g => g.Key).ToList();
+        var catalog = (await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync())
+            .GroupBy(u => u.UpdateId).ToDictionary(g => g.Key, g => g.MaxBy(u => u.Revision)!);
+        return [.. groups.Select(g =>
+        {
+            var latest = g.MaxBy(e => e.DateUtc)!;
+            var known = catalog.GetValueOrDefault(g.Key);
+            var servers = g.Select(e => e.ClientId).Distinct().Count();
+            var starters = string.Join(", ", g.Select(e => UpdateHistoryText.Source(e.ClientApplicationId)).Distinct().Take(3));
+            var kb = known?.KbArticle ?? System.Text.RegularExpressions.Regex.Match(latest.Title, @"KB(\d{6,8})").Groups[1].Value;
+            return new Row(
+                g.Key,
+                known?.Revision ?? latest.Revision,
+                string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{g.Key:D}:{known?.Revision ?? latest.Revision}"),
+                kb,
+                known?.Title ?? latest.Title,
+                known?.Classification ?? "Unclassified",
+                known?.MsrcSeverity ?? string.Empty,
+                g.Min(e => e.DateUtc),
+                "Installed outside SUSyphos",
+                "queue",
+                $"on {servers} {(servers == 1 ? "server" : "servers")}, by {starters}",
+                0,
+                new DeploymentCounts(0, 0, servers, 0),
+                UpdateText.Restart(known?.RebootBehavior),
+                Outside: true,
+                Linked: known is not null);
+        })];
     }
 
     /// <summary>Rollout state for the list: queued, alarm or gate first, else the furthest released ring.</summary>

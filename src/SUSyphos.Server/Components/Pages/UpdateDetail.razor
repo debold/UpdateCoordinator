@@ -199,6 +199,23 @@ else
         <Pager Table="_table" Page="PageInfo.Of(_serverPage)" Noun="servers" />
     </Box>
 
+    @if (_outside.Count > 0)
+    {
+        <Box Title="Installed outside SUSyphos" Help="update-detail#outside" Hint="from the Windows Update history of the servers: installations Windows itself or an administrator started" Flush="true">
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>Server</th><th>Date</th><th>Started by</th></tr></thead>
+                    <tbody>
+                        @foreach (var item in _outside)
+                        {
+                            <tr><td><a href="/servers/@item.ClientId#windows-history">@item.HostName</a></td><td class="nowrap">@Format(item.DateUtc)</td><td><StatusTag Text="outside SUSyphos" Kind="queue" Detail="@UpdateHistoryText.Source(item.ClientApplicationId)" /></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </Box>
+    }
+
     <Box Title="Timeline" Help="update-detail#timeline" Flush="true">
         <ListTable Table="_timelineTable" Page="_timelinePage" Columns="TimelineColumns" Search="Search event" Noun="events" Empty="No rollout yet: the update is queued.">
             <Row Context="item">
@@ -209,6 +226,9 @@ else
 }
 
 @code {
+    private sealed record OutsideInstallation(Guid ClientId, string HostName, DateTime DateUtc, string? ClientApplicationId);
+
+    private List<OutsideInstallation> _outside = [];
 
     private sealed record RingRow(int RingId, int Order, string Name, RingRolloutState? State, string? Reason, DateTime? ReleasedAtUtc, RingStatistics Statistics, DeploymentCounts Counts, RingForecast? Forecast = null);
 
@@ -371,6 +391,14 @@ else
         _supersededBy = (await Supersedence.NewerAsync(Db, [UpdateId])).GetValueOrDefault(UpdateId);
         var approvedClients = Db.Clients.Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).Select(c => c.Id);
         _installedOn = await Db.ClientUpdates.Where(u => u.UpdateId == UpdateId && approvedClients.Contains(u.ClientId)).Select(u => u.ClientId).Distinct().CountAsync();
+        _outside = await Db.ClientUpdateHistory.AsNoTracking()
+            .Where(h => h.UpdateId == UpdateId && h.Operation == SUSyphos.Contracts.Agents.UpdateOperation.Installation
+                && (h.ResultCode == SUSyphos.Contracts.Agents.InstallResultCode.Succeeded || h.ResultCode == SUSyphos.Contracts.Agents.InstallResultCode.SucceededWithErrors)
+                && h.ClientApplicationId != SUSyphos.Contracts.Agents.UpdateHistoryEntry.AgentClientApplicationId)
+            .Join(Db.Clients.Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved), h => h.ClientId, c => c.Id, (h, c) => new OutsideInstallation(c.Id, c.HostName, h.DateUtc, h.ClientApplicationId))
+            .OrderByDescending(o => o.DateUtc)
+            .Take(500)
+            .ToListAsync();
         (_stateLabel, _stateClass) = _rollout switch
         {
             _ when _update.BlockedAtUtc is not null => ("Blocked", "fail"),

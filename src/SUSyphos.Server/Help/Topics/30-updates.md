@@ -17,14 +17,16 @@ The other buttons:
 
 All actions are recorded in the update's timeline and the [audit log](help/audit-log).
 
-## Superseded and completed updates {#toggles}
+## Hidden updates {#toggles}
 
-To keep the list on what still needs attention, two kinds of updates are hidden by default; the buttons next to the search show them, with their number:
+To keep the list on what still needs attention, four kinds of updates are hidden by default. The switches after **Show:** next to the search show them, with their number; a highlighted switch is on, select it again to hide them:
 
-- **Show superseded** / **Hide superseded**: updates a newer known update replaces and that have no running rollout (Windows Update offers the newer one instead).
-- **Show completed** / **Hide completed**: updates released to every ring with nothing pending, failed or queued on any server; the rollout column shows "Completed".
+- **superseded**: updates a newer known update replaces and that have no running rollout (Windows Update offers the newer one instead).
+- **completed**: updates installed on every server that needs them with nothing pending, failed or queued: released to every ring (the rollout column shows "Completed"), or withdrawn by Microsoft after every server installed them.
+- **withdrawn**: updates that look withdrawn by Microsoft (see [Release rules](help/release-rules#withdrawn)).
+- **installed outside SUSyphos**: updates approved servers installed outside SUSyphos according to their Windows Update history (Windows Automatic Updates, Settings, wusa or another tool) that are missing nowhere and have no rollout. The rollout column shows "Installed outside SUSyphos" with the number of servers and who started it; the title opens the update page when the catalog knows the update. They cannot be selected for rollout actions.
 
-Both choices are part of the address, like search and filters.
+The choices are part of the address, like search and filters.
 
 ## Columns {#columns}
 

@@ -76,7 +76,9 @@ form.detached { display: contents; }
 .field-button { justify-content: flex-end; flex: 0 0 auto; }
 .field-button button { margin-top: auto; }
 p.warning { color: var(--fail); margin: 0.25rem 0 0; }
-.view-toggles { display: inline-flex; gap: 0.4rem; flex-wrap: wrap; margin-left: auto; }
+.view-toggles { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; align-items: center; margin-left: auto; }
+.view-toggles .btn.toggle { min-height: 1.9rem; padding: 0 0.65rem; font-size: 0.85rem; }
+.view-toggles .btn.toggle.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 tr.unusable td { color: var(--muted); }
 .list-head-tools { display: flex; justify-content: flex-end; padding: 0.5rem 1.15rem 0; }
 .bar-link { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; }

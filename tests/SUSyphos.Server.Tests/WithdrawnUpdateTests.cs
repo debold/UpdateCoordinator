@@ -179,6 +179,38 @@ public sealed class WithdrawnUpdateTests
     }
 
     [Fact]
+    public async Task UpdateList_HidesWithdrawnAndOutsideUpdates_UntilAskedFor()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var withdrawn = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid(), Title = "Faulty update", KbArticle = "5040111" };
+        await scenario.ReportAsync(pilot, withdrawn);
+        await ReportAsync(scenario, pilot, [], [new UpdateKey(withdrawn.UpdateId, 1)]);
+        var outsideId = Guid.NewGuid();
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            db.ClientUpdateHistory.Add(new ClientUpdateHistoryEntity { ClientId = pilot.ClientId, UpdateId = outsideId, Revision = 1, Title = "Some tool update (KB5040999)", DateUtc = DateTime.UtcNow, Operation = UpdateOperation.Installation, ResultCode = InstallResultCode.Succeeded, ClientApplicationId = "wusa" });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        await scenario.Factory.CreateUserAsync("reader", "correct horse battery", SUSyphos.Server.Administration.AdminRoles.Reader);
+        using var browser = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("reader", "correct horse battery"))
+        {
+        }
+
+        var list = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("Faulty update", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("Some tool update", list, StringComparison.Ordinal);
+        Assert.Contains("withdrawn (1)</a>", list, StringComparison.Ordinal);
+        Assert.Contains("installed outside SUSyphos (1)</a>", list, StringComparison.Ordinal);
+
+        var all = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates?withdrawn=1&outside=1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("Faulty update", all, StringComparison.Ordinal);
+        Assert.Contains("<span>Some tool update (KB5040999)</span>", all, StringComparison.Ordinal);
+        Assert.Contains("on 1 server, by Standalone installer (wusa)", all, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BlockedUpdate_StopsAndNeverStartsAgainUntilUnblocked()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
