@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -96,11 +97,129 @@ public sealed class NotificationTests
     }
 
     [Fact]
+    public async Task EachChannel_GetsOnlyTheChosenEvents_AndOptionalOnesAreOffByDefault()
+    {
+        await using var factory = new ServerFactory();
+        factory.StartServer();
+        var settings = ValidSettings();
+        settings.WebhookEnabled = true;
+        settings.WebhookUrl = "https://hooks.lab.local/uc";
+        settings.WebhookEvents = [NotificationKind.CloneSuspected];
+        await WithScopeAsync(factory, async s => { await s.GetRequiredService<NotificationSettingsStore>().SaveAsync(settings, null, null, CancellationToken.None); return 0; });
+        await AddClientAsync(factory, "srv01", RegistrationState.Pending);
+        await AddClientAsync(factory, "srv02", RegistrationState.Blocked);
+        var email = new RecordingChannel();
+        var webhook = new RecordingChannel { ChannelName = "Webhook", Webhook = true };
+
+        await RunAsync(factory, email, webhook);
+
+        Assert.Contains(email.Messages.Single().Events, e => e.Kind == NotificationKind.ServerPendingApproval);
+        Assert.Equal([NotificationKind.CloneSuspected], webhook.Messages.Single().Events.Select(e => e.Kind));
+        Assert.DoesNotContain(NotificationKind.DailySummary, new NotificationSettings().EmailKinds);
+        Assert.Contains(NotificationKind.ServerOffline, new NotificationSettings().EmailKinds);
+        Assert.StartsWith("[SUSyphos] ", email.Messages.Single().Subject, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ServerEvents_CoverOfflineFailedChecksLongRestartsAndInstallationsOutside()
+    {
+        await using var factory = new ServerFactory();
+        factory.StartServer();
+        var offline = await AddClientAsync(factory, "srv-offline", RegistrationState.Approved);
+        var troubled = await AddClientAsync(factory, "srv-troubled", RegistrationState.Approved);
+        await factory.WithDbAsync(async db =>
+        {
+            var now = DateTime.UtcNow;
+            await db.Clients.Where(c => c.Id == offline).ExecuteUpdateAsync(s => s.SetProperty(c => c.LastHeartbeatAtUtc, now.AddHours(-5)));
+            var client = await db.Clients.SingleAsync(c => c.Id == troubled);
+            client.LastHeartbeatAtUtc = now;
+            client.RebootPending = true;
+            client.LastBootAtUtc = now.AddDays(-4);
+            client.HealthChecks = [new HealthCheckEntry { Name = "DiskSpace", Status = (int)HealthStatus.Failed, Detail = "200 MB free" }];
+            db.ClientUpdateHistory.Add(new ClientUpdateHistoryEntity { ClientId = troubled, UpdateId = Guid.NewGuid(), Revision = 1, Title = "KB5040999 tool", DateUtc = now.AddHours(-2), Operation = UpdateOperation.Installation, ResultCode = InstallResultCode.Succeeded, ClientApplicationId = "wusa" });
+            db.Updates.Add(new UpdateEntity { UpdateId = Guid.NewGuid(), Revision = 1, KbArticle = "5040888", Title = "New update", FirstSeenAtUtc = now.Date.AddDays(-1).AddHours(3) });
+            await db.ComplianceSnapshots.ExecuteDeleteAsync();
+            db.ComplianceSnapshots.Add(new ComplianceSnapshotEntity { Day = DateOnly.FromDateTime(now), Servers = 2, Compliant = 1, StatusFailed = 1 });
+            return await db.SaveChangesAsync();
+        });
+
+        var events = await WithScopeAsync(factory, s => s.GetRequiredService<NotificationEvents>().CollectAsync(CancellationToken.None));
+
+        Assert.Contains(events, e => e.Kind == NotificationKind.ServerOffline && e.Affected == "srv-offline");
+        Assert.Contains(events, e => e.Kind == NotificationKind.PreFlightFailed && e.Text.Contains("DiskSpace", StringComparison.Ordinal) && e.Text.Contains("200 MB free", StringComparison.Ordinal));
+        Assert.Contains(events, e => e.Kind == NotificationKind.RebootPendingLong && e.Affected == "srv-troubled");
+        Assert.Contains(events, e => e.Kind == NotificationKind.InstalledOutside && e.Text.Contains("Standalone installer (wusa)", StringComparison.Ordinal));
+        Assert.Contains(events, e => e.Kind == NotificationKind.NewUpdatesDaily && e.Text.Contains("KB5040888", StringComparison.Ordinal));
+        Assert.Contains(events, e => e.Kind == NotificationKind.DailySummary && e.Text.Contains("patch compliance 50 %", StringComparison.Ordinal));
+        Assert.Equal(events.Count, events.Select(e => e.Key).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task TrustReset_IsAudited_AndNotified()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(SUSyphos.Contracts.ApiRoutes.AgentHeartbeat, UriKind.Relative))
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new HeartbeatRequest { AgentVersion = "1.2.3", TrustReset = true }),
+        };
+        request.Headers.Authorization = AgentCredentials.ToHeader(client.ClientId, client.ClientSecret);
+        using (var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken))
+        {
+            response.EnsureSuccessStatusCode();
+        }
+
+        await using var scope = scenario.Factory.Services.CreateAsyncScope();
+        var events = await scope.ServiceProvider.GetRequiredService<NotificationEvents>().CollectAsync(CancellationToken.None);
+
+        Assert.Contains(events, e => e.Kind == NotificationKind.TrustReset && e.Affected == "SRV01");
+    }
+
+    [Fact]
+    public async Task Page_SavesPrefixAndEventChoice()
+    {
+        await using var factory = new ServerFactory();
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var admin = new DashboardClient(factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        using (await PostAsync(admin, new() { ["Action"] = "save", ["SecurityMode"] = "StartTls", ["SmtpPort"] = "587", ["SubjectPrefix"] = "[Updates] ", ["OfflineHours"] = "8", ["RebootPendingDays"] = "5", ["EventsShown"] = "yes", ["EmailEvent"] = "BackupFailed", ["WebhookEvent"] = "Bogus" }))
+        {
+        }
+
+        var settings = await WithScopeAsync(factory, s => s.GetRequiredService<NotificationSettingsStore>().LoadAsync(CancellationToken.None));
+        Assert.Equal("[Updates] ", settings.SubjectPrefix);
+        Assert.Equal(8, settings.OfflineHours);
+        Assert.Equal([NotificationKind.BackupFailed], settings.EmailEvents);
+        Assert.Empty(settings.WebhookEvents!);
+
+        var page = await (await admin.GetAsync("/administration/notifications")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("name=\"EmailEvent\" value=\"BackupFailed\" checked", page, StringComparison.Ordinal);
+        Assert.Contains("Daily summary", page, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("https://*:8443", ":8443/")]
+    [InlineData("https://0.0.0.0:9443/", ":9443/")]
+    [InlineData(null, "/")]
+    public void DefaultAddress_UsesTheMachineNameAndTheHttpsPort(string? url, string ending)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Kestrel:Endpoints:Https:Url"] = url }).Build();
+
+        var address = ServerIdentity.DefaultAddress(configuration);
+
+        Assert.StartsWith("https://" + ServerIdentity.MachineFqdn, address, StringComparison.Ordinal);
+        Assert.EndsWith(ending, address, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Email_GoesToEveryRecipient_WithLinksToTheDashboard()
     {
         var transport = new RecordingTransport();
         var settings = ValidSettings();
-        var message = new NotificationMessage("SUSyphos: test", [new NotificationEvent("k", NotificationKind.ServerPendingApproval, "New server waiting for approval: srv01", "approvals")], new DateTime(2026, 10, 19, 12, 0, 0, DateTimeKind.Utc));
+        var message = NotificationMessage.Create([new NotificationEvent("k", NotificationKind.ServerPendingApproval, "New server waiting for approval: srv01 <script>", "approvals", "srv01", "Nothing is installed until approved.")], new DateTime(2026, 10, 19, 12, 0, 0, DateTimeKind.Utc), settings.SubjectPrefix, settings.DashboardUrl);
 
         await new EmailChannel(transport).SendAsync(message, settings, new NotificationSecrets("smtp-secret", null), CancellationToken.None);
 
@@ -108,6 +227,14 @@ public sealed class NotificationTests
         Assert.Equal(["ops@lab.local", "lead@lab.local"], mail.To.Mailboxes.Select(m => m.Address));
         Assert.Equal("uc01@lab.local", mail.From.Mailboxes.Single().Address);
         Assert.Contains("https://uc01.lab.local:8443/approvals", mail.TextBody, StringComparison.Ordinal);
+        Assert.Equal("[SUSyphos] New server waiting for approval: srv01 <script>", mail.Subject);
+        Assert.Contains("Affected: srv01", mail.TextBody, StringComparison.Ordinal);
+        Assert.Contains("<h2", mail.HtmlBody, StringComparison.Ordinal);
+        Assert.Contains("Server waiting for approval", mail.HtmlBody, StringComparison.Ordinal);
+        Assert.Contains("href=\"https://uc01.lab.local:8443/approvals\"", mail.HtmlBody, StringComparison.Ordinal);
+        Assert.Contains("srv01 &lt;script&gt;", mail.HtmlBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script>", mail.HtmlBody, StringComparison.Ordinal);
+        Assert.Contains("Warning", mail.HtmlBody, StringComparison.Ordinal);
         Assert.Equal("smtp-secret", transport.Password);
     }
 
@@ -119,12 +246,14 @@ public sealed class NotificationTests
         var settings = ValidSettings();
         settings.WebhookEnabled = true;
         settings.WebhookUrl = "https://hooks.lab.local/uc";
-        var message = new NotificationMessage("SUSyphos: 1 new event", [new NotificationEvent("group.halted:1", NotificationKind.LeasesHalted, "Installations stopped", "administration/groups")], DateTime.UtcNow);
+        var message = NotificationMessage.Create([new NotificationEvent("group.halted:1", NotificationKind.LeasesHalted, "Installations stopped", "administration/groups")], DateTime.UtcNow, null, settings.DashboardUrl);
 
         await new WebhookChannel(http).SendAsync(message, settings, new NotificationSecrets(null, "hook-secret"), CancellationToken.None);
 
         using var json = JsonDocument.Parse(handler.Body!);
         Assert.Equal("LeasesHalted", json.RootElement.GetProperty("events")[0].GetProperty("kind").GetString());
+        Assert.Equal("Critical", json.RootElement.GetProperty("events")[0].GetProperty("severity").GetString());
+        Assert.Equal("Coordinated group stopped", json.RootElement.GetProperty("events")[0].GetProperty("title").GetString());
         Assert.Equal("https://uc01.lab.local:8443/administration/groups", json.RootElement.GetProperty("events")[0].GetProperty("link").GetString());
         var expected = "sha256=" + Convert.ToHexStringLower(HMACSHA256.HashData("hook-secret"u8.ToArray(), handler.Body!));
         Assert.Equal(expected, handler.Signature);
@@ -347,13 +476,17 @@ public sealed class NotificationTests
 
         public bool Fail { get; init; }
 
+        public bool Webhook { get; init; }
+
         public int Attempts { get; private set; }
 
         public List<NotificationMessage> Messages { get; } = [];
 
         public string Name => ChannelName;
 
-        public bool IsEnabled(NotificationSettings settings) => settings.EmailEnabled;
+        public bool IsEnabled(NotificationSettings settings) => Webhook ? settings.WebhookEnabled : settings.EmailEnabled;
+
+        public IReadOnlyCollection<NotificationKind> Kinds(NotificationSettings settings) => Webhook ? settings.WebhookKinds : settings.EmailKinds;
 
         public Task SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken)
         {

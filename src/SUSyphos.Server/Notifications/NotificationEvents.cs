@@ -24,20 +24,40 @@ internal enum NotificationKind
     BackupFailed,
     ServerVersionAvailable,
     UpdateWithdrawn,
+    ServerOffline,
+    TrustReset,
+    InstallationFailed,
+    PreFlightFailed,
+    RebootPendingLong,
+    InstalledOutside,
+    AdminChanged,
+    RolloutProgress,
+    PauseChanged,
+    NewUpdatesDaily,
+    DailySummary,
+    WeeklySummary,
 }
 
 /// <summary>
 /// One condition worth a notification. <see cref="Key"/> identifies it: a notification is sent once while the condition
 /// lasts and again only after it ended and came back.
 /// </summary>
-internal sealed record NotificationEvent(string Key, NotificationKind Kind, string Text, string? Path);
+/// <param name="Key">Identifies the condition: sent once while it lasts.</param>
+/// <param name="Kind">The event kind.</param>
+/// <param name="Text">What happened, one sentence.</param>
+/// <param name="Path">Dashboard page relative to its address; null for no link.</param>
+/// <param name="Affected">Who or what is affected (server, update, ring), shown as its own line in e-mails; null if the text says it.</param>
+/// <param name="Impact">What it means for the operation, shown as its own line; null if obvious.</param>
+internal sealed record NotificationEvent(string Key, NotificationKind Kind, string Text, string? Path, string? Affected = null, string? Impact = null);
 
 /// <summary>Derives the current notification conditions from the stored state, so no feature has to raise events itself.</summary>
 internal sealed class NotificationEvents(
     ServerDbContext db,
     ITlsCertificateProvider certificates,
     IOptions<CertificateOptions> certificateOptions,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    NotificationSettingsStore? settingsStore = null,
+    Rollouts.DeploymentStatus? deployment = null)
 {
     private static readonly string[] CertificateActions = [CertificateLifecycle.Renewed, CertificateLifecycle.RolledOver, CertificateLifecycle.FallBack];
 
@@ -141,6 +161,167 @@ internal sealed class NotificationEvents(
                 : $"The central server switched to a new TLS certificate ({c.Target}); agents follow automatically.",
             "administration/certificate")));
 
+        var settings = settingsStore is null ? new NotificationSettings() : await settingsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        await AddServerEventsAsync(events, settings, now, cancellationToken).ConfigureAwait(false);
+        await AddActivityEventsAsync(events, now, cancellationToken).ConfigureAwait(false);
+        await AddDigestEventsAsync(events, now, cancellationToken).ConfigureAwait(false);
         return events;
     }
+
+    /// <summary>Audit actions that change who administers SUSyphos.</summary>
+    private static readonly string[] AdminActions = ["User.Created", "User.CreatedFromWindows", "User.Deleted", "User.RoleChanged", "WindowsSignIn.GroupMapped", "WindowsSignIn.GroupUnmapped", "WindowsSignIn.Enabled", "WindowsSignIn.Disabled"];
+
+    private static readonly string[] PauseActions = ["Installation.Paused", "Installation.Resumed"];
+
+    /// <summary>States of single servers: offline, failed checks and installations, long pending restarts, installations outside SUSyphos.</summary>
+    private async Task AddServerEventsAsync(List<NotificationEvent> events, NotificationSettings settings, DateTime now, CancellationToken cancellationToken)
+    {
+        var clients = await db.Clients.AsNoTracking()
+            .Where(c => c.State == RegistrationState.Approved)
+            .Select(c => new { c.Id, c.HostName, c.LastHeartbeatAtUtc, c.RebootPending, c.LastBootAtUtc, c.HealthChecks, c.AutomaticUpdatesBypass })
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var names = clients.ToDictionary(c => c.Id, c => c.HostName);
+        foreach (var client in clients)
+        {
+            var path = $"servers/{client.Id}";
+            if (client.LastHeartbeatAtUtc is { } heartbeat && now - heartbeat > TimeSpan.FromHours(settings.OfflineHours))
+            {
+                events.Add(new NotificationEvent($"server.offline:{client.Id}", NotificationKind.ServerOffline, $"{client.HostName} has sent no heartbeat since {Format(heartbeat)}.", path, client.HostName, "The server installs nothing new and reports nothing until the agent reaches the central server again."));
+            }
+
+            foreach (var check in client.HealthChecks.Where(h => h.Status == (int)HealthStatus.Failed))
+            {
+                events.Add(new NotificationEvent($"server.preflight:{client.Id}:{check.Name}", NotificationKind.PreFlightFailed, $"Pre-flight check {check.Name} failed on {client.HostName}: {check.Detail}".TrimEnd(' ', ':'), path + "#checks", client.HostName, "The server installs no updates until the check passes."));
+            }
+
+            if (client.RebootPending && client.LastBootAtUtc is { } boot && now - boot > TimeSpan.FromDays(settings.RebootPendingDays))
+            {
+                events.Add(new NotificationEvent($"server.reboot:{client.Id}", NotificationKind.RebootPendingLong, $"{client.HostName} has been waiting for a restart; it last started on {Format(boot)}.", path, client.HostName, "Installed updates take full effect only after the restart; further updates may wait for it."));
+            }
+
+            if (client.AutomaticUpdatesBypass)
+            {
+                events.Add(new NotificationEvent($"server.self-installing:{client.Id}", NotificationKind.InstalledOutside, $"Windows on {client.HostName} installs or restarts on its own, outside rings and maintenance windows.", path + "#checks", client.HostName, "Updates may arrive before the rings tested them and restarts may happen outside the maintenance windows."));
+            }
+        }
+
+        if (deployment is not null)
+        {
+            var failed = (await deployment.GetAsync(null, null, null, cancellationToken).ConfigureAwait(false)).Where(e => e.State == Rollouts.DeploymentState.Failed).Take(200).ToList();
+            var ids = failed.Select(e => e.UpdateId).Distinct().ToList();
+            var titles = await db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).Select(u => new { u.UpdateId, u.Revision, u.KbArticle, u.Title }).ToListAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var entry in failed.Where(e => names.ContainsKey(e.ClientId)))
+            {
+                var update = titles.FirstOrDefault(u => u.UpdateId == entry.UpdateId && u.Revision == entry.Revision);
+                var name = update is null ? entry.UpdateId.ToString("D") : Rollouts.UpdateText.Title(update.KbArticle, update.Title);
+                var code = entry.HResult ?? 0;
+                events.Add(new NotificationEvent(
+                    $"installation.failed:{entry.ClientId}:{entry.UpdateId}/{entry.Revision}",
+                    NotificationKind.InstallationFailed,
+                    string.Create(CultureInfo.InvariantCulture, $"{name} failed on {names[entry.ClientId]}: 0x{code:X8} {Agents.HResultCatalog.Describe(code)}"),
+                    $"servers/{entry.ClientId}#history",
+                    $"{names[entry.ClientId]}, {name}",
+                    "The server still misses the update; the agent tries again after the retry delay."));
+            }
+        }
+
+        var since = now.AddDays(-1);
+        var outside = await db.ClientUpdateHistory.AsNoTracking()
+            .Where(h => h.DateUtc >= since && h.Operation == UpdateOperation.Installation && h.ClientApplicationId != UpdateHistoryEntry.AgentClientApplicationId
+                && (h.ResultCode == InstallResultCode.Succeeded || h.ResultCode == InstallResultCode.SucceededWithErrors))
+            .Select(h => new { h.Id, h.ClientId, h.Title, h.ClientApplicationId })
+            .Take(200)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        events.AddRange(outside.Where(h => names.ContainsKey(h.ClientId)).Select(h => new NotificationEvent(
+            $"installation.outside:{h.Id}",
+            NotificationKind.InstalledOutside,
+            $"{h.Title} was installed on {names[h.ClientId]} outside SUSyphos by {Agents.UpdateHistoryText.Source(h.ClientApplicationId)}.",
+            $"servers/{h.ClientId}#windows-history",
+            names[h.ClientId],
+            "The installation bypassed rings and maintenance windows.")));
+    }
+
+    /// <summary>Things that happened in the last day: trust resets, administration changes, pauses and blackouts, rollouts reaching a ring.</summary>
+    private async Task AddActivityEventsAsync(List<NotificationEvent> events, DateTime now, CancellationToken cancellationToken)
+    {
+        var since = now.AddDays(-1);
+        var audits = await db.AuditEntries.AsNoTracking()
+            .Where(a => a.AtUtc >= since && (a.Action == Agents.AgentEndpoints.TrustResetAuditAction || AdminActions.Contains(a.Action) || PauseActions.Contains(a.Action) || a.Action == "Installation.BlackoutAdded"))
+            .Select(a => new { a.Id, a.Action, a.Actor, a.Target, a.Details })
+            .Take(200)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var audit in audits)
+        {
+            var key = string.Create(CultureInfo.InvariantCulture, $"audit:{audit.Id}");
+            if (audit.Action == Agents.AgentEndpoints.TrustResetAuditAction)
+            {
+                events.Add(new NotificationEvent(key, NotificationKind.TrustReset, $"The agent on {audit.Target} reset its trust in the central server locally and pinned it again.", null, audit.Target, "Expected after a planned reset; otherwise check who changed the registry value TrustResetToken on that server."));
+            }
+            else if (AdminActions.Contains(audit.Action))
+            {
+                events.Add(new NotificationEvent(key, NotificationKind.AdminChanged, $"{audit.Action}: {audit.Target} {audit.Details} (by {audit.Actor})".Replace("  ", " ", StringComparison.Ordinal), "administration/users", audit.Target));
+            }
+            else
+            {
+                var text = audit.Action switch
+                {
+                    "Installation.Paused" => $"All installations were paused by {audit.Actor}.",
+                    "Installation.Resumed" => $"Installations run again (resumed by {audit.Actor}).",
+                    _ => $"Blackout period added by {audit.Actor}: {audit.Details}".TrimEnd(' ', ':'),
+                };
+                events.Add(new NotificationEvent(key, NotificationKind.PauseChanged, text, "administration/maintenance"));
+            }
+        }
+
+        var released = await (
+                from state in db.RolloutRings.AsNoTracking()
+                where state.ReleasedAtUtc >= since && state.State == RingRolloutState.Released
+                join ring in db.Rings on state.RingId equals ring.Id
+                join update in db.Updates on new { state.UpdateId, state.Revision } equals new { update.UpdateId, update.Revision }
+                select new { state.UpdateId, state.Revision, state.RingId, RingName = ring.Name, update.KbArticle, update.Title })
+            .Take(200)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        events.AddRange(released.Select(r => new NotificationEvent(
+            $"rollout.ring:{r.UpdateId}/{r.Revision}/{r.RingId}",
+            NotificationKind.RolloutProgress,
+            $"{Rollouts.UpdateText.Title(r.KbArticle, r.Title)} was released to ring {r.RingName}.",
+            $"updates/{r.UpdateId}/{r.Revision}",
+            $"ring {r.RingName}")));
+    }
+
+    /// <summary>Once a day: new updates of the day before and the summary; on Mondays the weekly summary.</summary>
+    private async Task AddDigestEventsAsync(List<NotificationEvent> events, DateTime now, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(now);
+        var yesterday = today.AddDays(-1).ToDateTime(TimeOnly.MinValue);
+        var start = today.ToDateTime(TimeOnly.MinValue);
+        var fresh = await db.Updates.AsNoTracking().Where(u => u.FirstSeenAtUtc >= yesterday && u.FirstSeenAtUtc < start).Select(u => new { u.KbArticle, u.Title }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (fresh.Count > 0)
+        {
+            var names = string.Join("; ", fresh.Take(5).Select(u => Rollouts.UpdateText.Title(u.KbArticle, u.Title)));
+            events.Add(new NotificationEvent(
+                $"digest.new-updates:{today:yyyy-MM-dd}",
+                NotificationKind.NewUpdatesDaily,
+                $"{fresh.Count} new {(fresh.Count == 1 ? "update" : "updates")} reported yesterday: {names}{(fresh.Count > 5 ? " and more" : string.Empty)}.",
+                "updates"));
+        }
+
+        var snapshot = await db.ComplianceSnapshots.AsNoTracking().Where(s => s.Day <= today).OrderByDescending(s => s.Day).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        var percent = snapshot.Servers == 0 ? 100 : 100 * snapshot.Compliant / snapshot.Servers;
+        var summary = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{snapshot.Servers} servers, patch compliance {percent} %, {snapshot.StatusFailed ?? 0} with failures, {snapshot.StatusOffline ?? 0} offline, {snapshot.OpenReleased ?? 0} released installations pending.");
+        events.Add(new NotificationEvent($"digest.daily:{today:yyyy-MM-dd}", NotificationKind.DailySummary, "Daily summary: " + summary, string.Empty));
+        if (today.DayOfWeek == DayOfWeek.Monday)
+        {
+            events.Add(new NotificationEvent($"digest.weekly:{today:yyyy-MM-dd}", NotificationKind.WeeklySummary, "Weekly summary: " + summary, string.Empty));
+        }
+    }
+
+    private static string Format(DateTime utc) => SUSyphos.Server.Components.DisplayTime.Format(utc);
 }

@@ -11,23 +11,68 @@ using MimeKit;
 
 namespace SUSyphos.Server.Notifications;
 
-/// <summary>One notification: a subject and the new events since the last one.</summary>
+/// <summary>
+/// One notification: the new events since the last one, with what the e-mail header and footer show (central server,
+/// version, dashboard address for links).
+/// </summary>
 internal sealed record NotificationMessage(string Subject, IReadOnlyList<NotificationEvent> Events, DateTime CreatedAtUtc)
 {
-    /// <summary>Plain text body; links point to the dashboard when its address is configured.</summary>
-    public string FormatText(string? dashboardUrl)
+    /// <summary>Base address for links; null leaves them out.</summary>
+    public string? DashboardUrl { get; init; }
+
+    /// <summary>Name of the central server in header and footer.</summary>
+    public string ServerName { get; init; } = Administration.ServerIdentity.MachineFqdn;
+
+    public string ServerVersion { get; init; } = Administration.ServerVersion.Display;
+
+    /// <summary>The most important category among the events, for the header tag.</summary>
+    public NotificationCategory Category => Events.Count == 0 ? NotificationCategory.Optional : Events.Min(e => NotificationCatalog.Of(e.Kind).Category);
+
+    /// <summary>Subject with the prefix: the event itself, or how many events and the most important category.</summary>
+    public static NotificationMessage Create(IReadOnlyList<NotificationEvent> events, DateTime createdAtUtc, string? prefix, string? dashboardUrl)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        var subject = events.Count == 1
+            ? events[0].Text
+            : $"{events.Count} new events ({NotificationCatalog.Severity(events.Min(e => NotificationCatalog.Of(e.Kind).Category)).ToLowerInvariant()})";
+        subject = (prefix ?? string.Empty) + subject;
+        return new NotificationMessage(subject.Length <= 200 ? subject : subject[..199] + "…", events, createdAtUtc) { DashboardUrl = dashboardUrl };
+    }
+
+    /// <summary>Plain text body, also the alternative part of the HTML e-mail and what filter rules see.</summary>
+    public string FormatText()
     {
         var text = new StringBuilder();
+        text.Append(CultureInfo.InvariantCulture, $"{NotificationCatalog.Severity(Category)} · {ServerName} · {SUSyphos.Server.Components.DisplayTime.Format(CreatedAtUtc)} ({SUSyphos.Server.Components.DisplayTime.Zone.StandardName})").AppendLine().AppendLine();
         foreach (var item in Events)
         {
-            text.Append("- ").AppendLine(item.Text);
-            if (Link(dashboardUrl, item.Path) is { } link)
+            var info = NotificationCatalog.Of(item.Kind);
+            text.Append(CultureInfo.InvariantCulture, $"[{NotificationCatalog.Severity(info.Category)}] {info.Label}").AppendLine();
+            text.AppendLine(item.Text);
+            if (item.Affected is { } affected)
             {
-                text.Append("  ").AppendLine(link);
+                text.Append("Affected: ").AppendLine(affected);
             }
+
+            if (item.Impact is { } impact)
+            {
+                text.Append("Impact: ").AppendLine(impact);
+            }
+
+            if (Link(DashboardUrl, item.Path) is { } link)
+            {
+                text.AppendLine(link);
+            }
+
+            text.AppendLine();
         }
 
-        text.AppendLine().Append(CultureInfo.InvariantCulture, $"SUSyphos central server, {CreatedAtUtc:yyyy-MM-dd HH:mm} UTC");
+        text.Append(CultureInfo.InvariantCulture, $"SUSyphos {ServerVersion} on {ServerName}");
+        if (DashboardUrl is { Length: > 0 } dashboard)
+        {
+            text.Append(" · ").Append(dashboard).AppendLine().Append("Notification settings: ").Append(Link(dashboard, "administration/notifications"));
+        }
+
         return text.ToString();
     }
 
@@ -41,6 +86,9 @@ internal interface INotificationChannel
     string Name { get; }
 
     bool IsEnabled(NotificationSettings settings);
+
+    /// <summary>The event kinds this channel sends.</summary>
+    IReadOnlyCollection<NotificationKind> Kinds(NotificationSettings settings);
 
     Task SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken);
 }
@@ -80,6 +128,8 @@ internal sealed class EmailChannel(IMailTransport transport) : INotificationChan
 
     public bool IsEnabled(NotificationSettings settings) => settings.EmailEnabled;
 
+    public IReadOnlyCollection<NotificationKind> Kinds(NotificationSettings settings) => settings.EmailKinds;
+
     public Task SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken)
     {
         var mail = new MimeMessage { Subject = message.Subject };
@@ -89,7 +139,7 @@ internal sealed class EmailChannel(IMailTransport transport) : INotificationChan
             mail.To.Add(MailboxAddress.Parse(recipient));
         }
 
-        mail.Body = new TextPart("plain") { Text = message.FormatText(settings.DashboardUrl) };
+        mail.Body = new BodyBuilder { TextBody = message.FormatText(), HtmlBody = NotificationEmail.Html(message) }.ToMessageBody();
         return transport.SendAsync(mail, settings, secrets.SmtpPassword, cancellationToken);
     }
 }
@@ -108,6 +158,8 @@ internal sealed class WebhookChannel(HttpClient http) : INotificationChannel
 
     public bool IsEnabled(NotificationSettings settings) => settings.WebhookEnabled;
 
+    public IReadOnlyCollection<NotificationKind> Kinds(NotificationSettings settings) => settings.WebhookKinds;
+
     public async Task SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken)
     {
         var body = JsonSerializer.SerializeToUtf8Bytes(
@@ -115,7 +167,21 @@ internal sealed class WebhookChannel(HttpClient http) : INotificationChannel
             {
                 message.Subject,
                 message.CreatedAtUtc,
-                Events = message.Events.Select(e => new { e.Kind, e.Key, e.Text, Link = NotificationMessage.Link(settings.DashboardUrl, e.Path) }),
+                Severity = NotificationCatalog.Severity(message.Category),
+                Server = message.ServerName,
+                Version = message.ServerVersion,
+                Events = message.Events.Select(e => new
+                {
+                    e.Kind,
+                    Category = NotificationCatalog.Of(e.Kind).Category,
+                    Severity = NotificationCatalog.Severity(NotificationCatalog.Of(e.Kind).Category),
+                    Title = NotificationCatalog.Of(e.Kind).Label,
+                    e.Key,
+                    e.Text,
+                    e.Affected,
+                    e.Impact,
+                    Link = NotificationMessage.Link(message.DashboardUrl, e.Path),
+                }),
             },
             Json);
 

@@ -72,9 +72,35 @@ internal sealed class NotificationSettings : IValidatableObject
     [MaxLength(2000)]
     public string? WebhookUrl { get; set; }
 
-    /// <summary>Base address of the dashboard for links in notifications, e.g. https://uc01.lab.local:8443/; optional.</summary>
+    /// <summary>Base address of the dashboard for links in notifications when it differs from this server's own name and port (e.g. a DNS alias); empty uses its own.</summary>
     [MaxLength(2000)]
     public string? DashboardUrl { get; set; }
+
+    /// <summary>Text before every e-mail subject, so recipients can filter the messages.</summary>
+    [MaxLength(MaxPrefixLength)]
+    public string? SubjectPrefix { get; set; } = DefaultPrefix;
+
+    /// <summary>Event kinds sent by e-mail; null sends the defaults (critical and recommended).</summary>
+    public List<NotificationKind>? EmailEvents { get; set; }
+
+    /// <summary>Event kinds sent to the webhook; null sends the defaults.</summary>
+    public List<NotificationKind>? WebhookEvents { get; set; }
+
+    /// <summary>Hours without heartbeat before "Server offline" is sent.</summary>
+    [Range(1, 168)]
+    public int OfflineHours { get; set; } = 4;
+
+    /// <summary>Days a restart may be pending before "Restart pending for long" is sent.</summary>
+    [Range(1, 60)]
+    public int RebootPendingDays { get; set; } = 3;
+
+    public const string DefaultPrefix = "[SUSyphos] ";
+
+    public const int MaxPrefixLength = 40;
+
+    public IReadOnlyCollection<NotificationKind> EmailKinds => EmailEvents ?? [.. NotificationCatalog.Defaults];
+
+    public IReadOnlyCollection<NotificationKind> WebhookKinds => WebhookEvents ?? [.. NotificationCatalog.Defaults];
 
     public IReadOnlyList<string> RecipientList =>
         (Recipients ?? string.Empty).Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -112,6 +138,16 @@ internal sealed class NotificationSettings : IValidatableObject
         if (!string.IsNullOrWhiteSpace(DashboardUrl) && !IsHttpsUrl(DashboardUrl))
         {
             yield return new ValidationResult("The dashboard address must be an absolute https:// URL.", [nameof(DashboardUrl)]);
+        }
+
+        if (SubjectPrefix is { } prefix && prefix.Any(char.IsControl))
+        {
+            yield return new ValidationResult("The subject prefix must not contain line breaks or control characters.", [nameof(SubjectPrefix)]);
+        }
+
+        if ((EmailEvents ?? []).Concat(WebhookEvents ?? []).Any(k => !Enum.IsDefined(k)))
+        {
+            yield return new ValidationResult("An event kind is unknown.", [nameof(EmailEvents)]);
         }
     }
 

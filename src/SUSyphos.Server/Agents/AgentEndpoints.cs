@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 using SUSyphos.Contracts;
 using SUSyphos.Contracts.Agents;
+using SUSyphos.Server.Administration;
 using SUSyphos.Server.Assignment;
 using SUSyphos.Server.Data;
 
@@ -16,6 +17,9 @@ internal static class AgentEndpoints
 {
     public const string RegisterRateLimitPolicy = "agent-register";
     private const string LogCategory = "SUSyphos.Server.Agents";
+
+    /// <summary>Audit action of a local trust reset an agent reported (notified as "Trust reset on a server").</summary>
+    public const string TrustResetAuditAction = "Agent.TrustReset";
 
     public static IEndpointRouteBuilder MapAgentEndpoints(this IEndpointRouteBuilder endpoints)
     {
@@ -272,6 +276,7 @@ internal static class AgentEndpoints
         AgentActionService actions,
         Approval.ClientLifecycle lifecycle,
         ServerMove serverMove,
+        AuditLog audit,
         AgentPackages.AgentUpdateService agentUpdates,
         ClientActivityLog activityLog,
         CancellationToken cancellationToken)
@@ -283,7 +288,7 @@ internal static class AgentEndpoints
         DateTime? lastBoot = request.LastBootAt is { } boot && boot.UtcDateTime <= now.AddHours(1) && boot.Year >= 2000 ? boot.UtcDateTime : null;
 
         // Restarts and agent updates go to the activity list; one indexed read per heartbeat.
-        var previous = await db.Clients.AsNoTracking().Where(c => c.Id == clientId).Select(c => new { c.LastBootAtUtc, c.AgentVersion, c.AppliedAgentSettingsJson }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        var previous = await db.Clients.AsNoTracking().Where(c => c.Id == clientId).Select(c => new { c.LastBootAtUtc, c.AgentVersion, c.AppliedAgentSettingsJson, c.HostName }).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
         var activity = LiveStatus.Normalize(request.Activity, now);
         RebootWait? rebootWait = (request.RebootPending || request.RestartRequested) && request.RebootWait is { } wait && Enum.IsDefined(wait) ? wait : null;
@@ -369,9 +374,10 @@ internal static class AgentEndpoints
 
         if (request.TrustReset)
         {
-            // Security-relevant: will go to the audit log once it exists.
+            // Security-relevant: logged, audited and notified.
             var logger = loggerFactory.CreateLogger(LogCategory);
             AgentLog.TrustReset(logger, clientId);
+            await audit.WriteAsync("agent", TrustResetAuditAction, previous?.HostName ?? clientId.ToString("D"), $"client {clientId:D} reported a local trust reset", cancellationToken).ConfigureAwait(false);
         }
 
         // The same credentials from two hosts in turn: most likely a copied machine; it is blocked until an admin decides.

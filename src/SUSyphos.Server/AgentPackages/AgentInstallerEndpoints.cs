@@ -72,7 +72,7 @@ internal static class AgentInstallerEndpoints
     internal static async Task<string> QualifyAsync(string host, bool loopback, CancellationToken cancellationToken)
     {
         var properties = IPGlobalProperties.GetIPGlobalProperties();
-        var machine = string.IsNullOrEmpty(properties.DomainName) ? properties.HostName : $"{properties.HostName}.{properties.DomainName}";
+        var machine = Administration.ServerIdentity.MachineFqdn;
         if (loopback || string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) || string.Equals(host, properties.HostName, StringComparison.OrdinalIgnoreCase))
         {
             return machine;

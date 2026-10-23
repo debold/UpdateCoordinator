@@ -27,7 +27,8 @@ internal sealed partial class NotificationService(
     IEnumerable<INotificationChannel> channels,
     AuditLog audit,
     TimeProvider timeProvider,
-    ILogger<NotificationService> logger)
+    ILogger<NotificationService> logger,
+    IConfiguration? configuration = null)
 {
     /// <summary>Upper bound of events in one message; the rest follows with the next run.</summary>
     public const int MaxEventsPerMessage = 50;
@@ -59,15 +60,21 @@ internal sealed partial class NotificationService(
         }
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var subject = fresh.Count == 1 ? $"SUSyphos: {fresh[0].Text}" : $"SUSyphos: {fresh.Count} new events";
-        var message = new NotificationMessage(Truncate(subject, 200), fresh, now);
         var secrets = store.LoadSecrets();
         var delivered = false;
         foreach (var channel in enabled)
         {
+            // Each channel gets the kinds chosen for it; a channel with none of them stays quiet.
+            var kinds = channel.Kinds(settings);
+            var own = fresh.Where(e => kinds.Contains(e.Kind)).ToList();
+            if (own.Count == 0)
+            {
+                continue;
+            }
+
             try
             {
-                await channel.SendAsync(message, settings, secrets, cancellationToken).ConfigureAwait(false);
+                await channel.SendAsync(NotificationMessage.Create(own, now, settings.SubjectPrefix, DashboardUrl(settings)), settings, secrets, cancellationToken).ConfigureAwait(false);
                 delivered = true;
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
@@ -76,8 +83,8 @@ internal sealed partial class NotificationService(
             }
         }
 
-        // Remembered once at least one channel delivered; a channel that is down does not repeat the others every minute.
-        if (!delivered)
+        // Remembered once at least one channel delivered (or none wanted them); a channel that is down does not repeat the others every minute.
+        if (!delivered && enabled.Any(c => fresh.Any(e => c.Kinds(settings).Contains(e.Kind))))
         {
             return 0;
         }
@@ -98,10 +105,11 @@ internal sealed partial class NotificationService(
             return new Outcome("Enable e-mail or the webhook first.");
         }
 
-        var message = new NotificationMessage(
-            "SUSyphos: test notification",
-            [new NotificationEvent("test", NotificationKind.ServerPendingApproval, "This is a test notification from the central server.", string.Empty)],
-            timeProvider.GetUtcNow().UtcDateTime);
+        var message = NotificationMessage.Create(
+            [new NotificationEvent("test", NotificationKind.ServerPendingApproval, "Test notification from the central server.", "administration/notifications", "the notification settings", "None: this is a test.")],
+            timeProvider.GetUtcNow().UtcDateTime,
+            settings.SubjectPrefix,
+            DashboardUrl(settings));
         var secrets = store.LoadSecrets();
         var errors = new List<string>();
         foreach (var channel in enabled)
@@ -120,6 +128,10 @@ internal sealed partial class NotificationService(
         await audit.WriteAsync(actor, "Notifications.Tested", null, errors.Count == 0 ? "delivered" : string.Join("; ", errors), cancellationToken).ConfigureAwait(false);
         return errors.Count == 0 ? Outcome.Ok : new Outcome(string.Join(" ", errors));
     }
+
+    /// <summary>The address for links: the one set on the Notifications page, else this server's own name and port.</summary>
+    private string? DashboardUrl(NotificationSettings settings) =>
+        settings.DashboardUrl is { Length: > 0 } configured ? configured : configuration is null ? null : ServerIdentity.DefaultAddress(configuration);
 
     private static string Truncate(string value, int length) => value.Length <= length ? value : value[..(length - 1)] + "…";
 

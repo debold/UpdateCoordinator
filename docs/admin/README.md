@@ -463,30 +463,31 @@ Taking the backup after the announcement is fine: the new server then announces 
 
 ## 20. Notifications
 
-Administration → Notifications (role `Admin`). Every minute the central server derives the current conditions from its data and notifies each new one once, collected in one message per check (at most 50 events; the rest follows a minute later):
+Administration → Notifications (role `Admin`). Every minute the central server derives the current conditions from its data and notifies each new one once, collected in one message per channel and check (at most 50 events; the rest follows a minute later). A condition (a server offline, an alarm) is sent once while it lasts and again after it ended and came back; something that happened (a ring release, an installation outside SUSyphos, a change of the administration, a certificate change) is sent once within a day of happening.
 
-| Event | Notified again |
+**Events** (box "Events", one tick per event for e-mail and for the webhook; Marc, 2026-10-23). Critical and recommended events are on by default, optional ones off:
+
+| Category | Events |
 |---|---|
-| New server waiting for approval | after it was approved or rejected and appears again |
-| Server blocked as suspected clone | after it was unblocked and blocked again |
-| Rollout alarm before a ring | after the alarm was resolved and occurs again |
-| Gate waiting for approval | for every update and ring |
-| Coordinated group stopped after failures | after an operator resumed it and it stops again |
-| CA certificate expires within 30 days and no renewal is in the store | for a new certificate |
-| Automatic certificate change (renewal, rollover, fallback) | each change, reported for a day |
+| Critical | rollout alarm, update withdrawn by Microsoft, server blocked as suspected clone, coordinated group stopped, certificate expiring (CA certificate within 30 days without renewal), backup failed, server offline (no heartbeat for the hours set, default 4), trust reset on a server (reported by the agent, also in the audit log as `Agent.TrustReset`) |
+| Recommended | server waiting for approval, gate waiting for approval, agent update failed, installation failed (on a server that still misses the update), pre-flight check failed, restart pending for long (days set, default 3), installation outside SUSyphos or Windows set to install on its own, certificate changed, new central server version, administration changed (accounts created, deleted or with another role, AD groups mapped or removed, Windows sign-in switched) |
+| Optional | new agent version, rollout reached a ring, pause or blackout (paused, resumed, blackout added), new updates (once a day, first reported the day before), daily summary, weekly summary (Mondays) |
 
-**E-mail:** SMTP server, port, encryption (STARTTLS, TLS or none for an internal relay), optional user and password, sender and up to 20 recipients. The certificate of the mail server is validated.
+**E-mail:** SMTP server, port, encryption (STARTTLS, TLS or none for an internal relay), optional user and password, sender and up to 20 recipients. The certificate of the mail server is validated. Messages are HTML in the look of the dashboard (header with date, time, central server and severity Critical/Warning/Info; per event the category as heading, what happened, affected, impact and a button to the page; footer with address and version of the central server) with a plain text part. The **subject prefix** ("[SUSyphos] " by default) precedes every subject.
 
 **Webhook:** `POST` of a JSON document to an `https://` address (redirects are not followed):
 
 ```json
-{ "subject": "SUSyphos: 2 new events", "createdAtUtc": "2026-10-19T12:00:00Z",
-  "events": [ { "kind": "ServerPendingApproval", "key": "client.pending:…", "text": "New server waiting for approval: srv01.lab.local", "link": "https://uc01.lab.local:8443/approvals" } ] }
+{ "subject": "[SUSyphos] 2 new events (warning)", "createdAtUtc": "2026-10-19T12:00:00Z", "severity": "Warning",
+  "server": "uc01.lab.local", "version": "0.7.7",
+  "events": [ { "kind": "ServerPendingApproval", "category": "Recommended", "severity": "Warning", "title": "Server waiting for approval",
+                "key": "client.pending:…", "text": "New server waiting for approval: srv01.lab.local", "affected": null, "impact": null,
+                "link": "https://uc01.lab.local:8443/approvals" } ] }
 ```
 
 With a signature secret, the header `X-SUSyphos-Signature: sha256=<hex>` carries the HMAC-SHA256 of the body; check it on the receiving side.
 
-**Dashboard address** (optional) turns the events into links. **Send a test notification** checks every enabled channel and shows the error per channel.
+**Links:** messages link to the dashboard at this server's own name and HTTPS port (`Kestrel:Endpoints:Https:Url`), or at the **dashboard address** set on the page (e.g. a DNS alias the certificate is issued for). **Send a test notification** checks every enabled channel and shows the error per channel.
 
 If no channel is configured, nothing is sent and nothing is lost: the events go out once a channel is set up. If a channel fails, the events are sent again on the next check, unless another channel delivered them. The SMTP password and the webhook secret are stored DPAPI-protected in `%ProgramData%\SUSyphos\Server\notification-secrets.dat` and are **not** part of the backup; enter them again after a restore. Changes and test notifications are audited.
 
