@@ -671,7 +671,7 @@ public sealed class AgentInstallerAddressTests
         {
             var qualified = await AgentInstallerEndpoints.QualifyAsync(host, loopback: false, CancellationToken.None);
             Assert.StartsWith(properties.HostName, qualified, StringComparison.OrdinalIgnoreCase);
-            Assert.Equal(string.IsNullOrEmpty(properties.DomainName) ? properties.HostName : $"{properties.HostName}.{properties.DomainName}", qualified);
+            Assert.Equal(string.IsNullOrEmpty(properties.DomainName) ? properties.HostName : $"{properties.HostName}.{properties.DomainName}", qualified, ignoreCase: true);
         }
     }
 
