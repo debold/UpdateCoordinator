@@ -8,9 +8,9 @@ Install the SUSyphos agent on new servers and keep the agents up to date. New ag
 
 ## Central server {#server}
 
-The version this central server runs (**Running**, the full version with commit as tooltip) and the **Newest release** found by the check: "up to date", or the newer version with the time it was found. A newer version also appears on the overview under "Needs attention", next to the version at the bottom of the navigation, and in a notification.
+Two tiles side by side: the version this central server runs (**Running**, the full version with commit as tooltip) and the **Newest release** found by the check: "up to date", or the newer version with "update available" and the time it was found. A newer version also appears on the overview under "Needs attention", next to the version at the bottom of the navigation, and in a notification.
 
-The central server does not install itself. When a newer version is available:
+The central server does not install itself. When a newer version is available, the box shows the steps under **How to upgrade** and the buttons at its foot:
 
 - **Release notes** opens the release on GitHub.
 - **Download SUSyphos.Server-X.Y.Z.msi** downloads the installer. Check it against SHA256SUMS.txt of the release, then run it as administrator on the central server.
