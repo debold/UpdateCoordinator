@@ -192,3 +192,19 @@ Every form, in dialogs and on pages (Marc, 2026-10-25).
 - **Switches and checkboxes:** a switch turns a feature on or off (channel, schedule, coordination); its fields hang below it, indented with a thin line, greyed while it is off. Plain options inside a form are checkboxes.
 - **Adding to a list:** below the list a lightly tinted block holds all fields of the new entry and "+ Add" in one row, the button aligned with the fields; help and warnings sit right below the block.
 - **Settings pages:** one form across all boxes with Save (and Discard changes) in the action band at the top; with script "Unsaved changes" appears as soon as something changes, and leaving the page asks first.
+
+### Status indicators
+
+How states are shown everywhere (Marc, 2026-10-25).
+
+- **Five status colours with fixed meanings**, never used for anything else (rings and charts use the categorical palette): green = good (done, healthy, up to date, succeeded, released); blue = in progress (running, pending, updating, waiting for the window); amber = attention (warning, reboot pending, waiting for approval, update available); red = problem (failed, offline, alarm, blocked, withdrawn); grey = neutral (not needed, queued, superseded, expected, off). Colour is never alone: a word or an icon always goes with it.
+- **One form per job:**
+  - *Pill* (outlined, with a dot): the state of a thing; large in tiles.
+  - *Tag* (filled grey, square corners): a category or origin, not a state (classification, "manual", "rule", "SUSyphos", "Installation").
+  - *Ring tag*: outlined in the ring's colour with the ring number ("1 Pilot"); one fixed colour per ring.
+  - *Dot*: a small indicator next to a value, explained in its tooltip (e.g. heartbeat freshness).
+  - *Icon mark*: a state in front of a value (agent version: ✓ current, ↑ update available, – failed).
+  - *Edge*: a tile or box that needs attention.
+- **Alignment:** an indicator and its text form one line box, centred vertically, with fixed sizes (dot 8 px, icon mark 16 px, pill and tag 20 px high) and a fixed 6 px gap; table rows have one fixed height, so rows with different indicators line up.
+- **Severity** of notifications, banners and messages: Critical = red, Warning = amber, Info = blue, as the same pill everywhere.
+- **One vocabulary:** a state has one word everywhere ("Failed", not "Error"; "Reboot pending", not "restart pending"; "Offline"; "Up to date"). Words and colours come from one shared table in the code.
