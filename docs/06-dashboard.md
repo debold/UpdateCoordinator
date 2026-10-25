@@ -167,3 +167,16 @@ Every list (Marc, 2026-10-25), built on the shared list components.
 - **Grouping:** a group row with the value and the count above each group; columns stay aligned.
 - **Footer:** count ("1–10 of 48 servers"), rows per page (10, 25, 50, 100) and pages.
 - **Empty states:** "nothing there yet" explains what belongs here and offers the action to add it; "nothing matches" says how many entries search and filters hide and offers to clear them.
+
+### Dialogs
+
+Every modal dialog (Marc, 2026-10-25), built on the shared dialog component.
+
+- **Two widths only:** narrow for short forms and confirmations, wide for long forms and dialogs with a preview.
+- **Header:** title, "?" (help section of the dialog) and × to close. **Footer:** right-aligned, Cancel then the main action, named after what it does ("Create user", "Restart", never "OK"); an optional note on the left of the footer (e.g. when a change takes effect). The body scrolls, header and footer stay.
+- **Fields:** stacked, label above, help below; two short fields may share a row. Long forms are split into sections with a small heading and a thin line.
+- **Errors:** a refused save keeps the dialog open with everything typed; a short summary at the top ("2 fields need a change"), the specific message right at each field, the field outlined in red.
+- **Dangerous actions:** the title is a question, the body says in plain words what happens and lists what is affected, the main button is red with the exact verb ("Delete with history"). An irreversible action needs a ticked "I understand …" first.
+- **Choosing between options:** selectable options, each with a one-line explanation, and a single main button; the usual option is preselected. No dialog shows one button per option.
+- **Preview:** where the setting affects servers (assignment rules, groups, agent settings), the wide dialog shows on the right what would change; it updates while typing with script and on "Preview" without.
+- Dialogs open from the address (`?dialog=…`), so they work without script and survive a reload; they close with ×, Cancel or Esc, and focus starts in the first field.
