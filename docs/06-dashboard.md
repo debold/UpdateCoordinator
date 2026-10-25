@@ -217,3 +217,32 @@ How the dashboard tells what happened and what lasts (Marc, 2026-10-25).
 - **Toast:** when the page keeps its scroll position after an action, the same message also appears at the top right, with a thin line while a success fades. Without script the line at the top is enough.
 - **Lasting banners:** a state of the page's object that lasts (restart planned, installations paused, blackout, update blocked or withdrawn) is a banner below the header in its severity colour, with one sentence on when and why and, on the right, the action that ends it ("Cancel restart", "Resume"). It stays as long as the state; at most two at a time, the more severe first.
 - **Notes in boxes and forms:** explanations grey with an "i"; a warning about the current input amber with a "!", right where it applies; no coloured background inside boxes.
+
+### Page header and boxes
+
+- **Page header:** breadcrumb on every page below the top level, icon, title and "?", one subtitle line with the key facts only (explanations belong in the help).
+- **Order of a page,** always: messages and banners, action band, tiles, tabs, boxes.
+- **Boxes:** title with "?", a short hint on the right (one line, about 60 characters at most), optionally a state pill or switch in the header. A box with its own form has a footer: Save (and further box actions) on the right, an optional note on the left. Tables fill the box edge to edge.
+- **Layouts:** one column, two equal columns, or main and side column (2 : 1).
+
+### Fact lists
+
+- Term on the left in a fixed column, value on the right; a value may carry a pill or tag and a muted detail; missing values are "–".
+- Long lists get small group headings; links only on values that open more.
+
+### Charts
+
+- Donut sizes: 40 px in table cells, 64 px in tiles, 120 px in boxes (with the total in the middle). Bars are thin.
+- Status colours for states, the categorical palette for categories (rings, classifications), assigned in a fixed order.
+- A legend from two series on, a tooltip on every mark, and "Show as table" below larger charts.
+
+### Texts and formats
+
+One way to write each kind of value, produced by shared helpers in the code.
+
+- **Date and time:** "2026-10-25 14:23", server time, 24 hours; relative times ("in 9 hours") only as an addition.
+- **Durations:** "5 minutes", "1–2 days".
+- **Numbers and percentages:** digit grouping and decimal separator come from the regional settings of the central server's operating system (never hard-coded); a percentage is the number, a space and "%" ("75 %").
+- **Versions and updates:** "v0.7.7", "KB5066791".
+- **Buttons:** verb first, sentence case, "…" only when a dialog follows ("Restart server…"); never "OK".
+- **Titles and labels:** sentence case, no full stop. **Notes and messages:** full sentences with a full stop that say what happened.
