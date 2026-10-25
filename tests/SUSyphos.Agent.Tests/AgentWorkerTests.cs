@@ -170,6 +170,37 @@ public sealed class AgentWorkerTests
     }
 
     [Fact]
+    public async Task RunCycle_SendsWhenTheAnnouncedRestartHappens()
+    {
+        HeartbeatRequest? sent = null;
+        _client.OnHeartbeatRequest = request => sent = request;
+        var at = new DateTimeOffset(2026, 10, 25, 14, 23, 0, TimeSpan.Zero);
+        _installation.RestartAnnouncedAt = at;
+        using var worker = CreateWorker();
+
+        await worker.RunCycleAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(at, sent?.RestartAnnouncedAt);
+    }
+
+    [Fact]
+    public void RestartAnnouncement_IsKeptDuringTheWarning_AndForgottenWhenCancelledOrOverdue()
+    {
+        var announcement = new SUSyphos.Agent.Installation.RestartAnnouncement(_time);
+        Assert.Null(announcement.At);
+
+        announcement.Announce(TimeSpan.FromMinutes(5));
+        Assert.Equal(_time.GetUtcNow().AddMinutes(5), announcement.At);
+
+        _time.Advance(TimeSpan.FromMinutes(5) + SUSyphos.Agent.Installation.RestartAnnouncement.Overdue);
+        Assert.Null(announcement.At);
+
+        announcement.Announce(TimeSpan.FromMinutes(5));
+        announcement.Clear();
+        Assert.Null(announcement.At);
+    }
+
+    [Fact]
     public async Task RunCycle_SendsOsVersionWithHeartbeat()
     {
         HeartbeatRequest? sent = null;

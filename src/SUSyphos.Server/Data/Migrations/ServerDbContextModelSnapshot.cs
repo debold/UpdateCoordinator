@@ -622,6 +622,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<bool>("RequiresLease")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("RestartAnnouncedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("RestartRequested")
                         .HasColumnType("INTEGER");
 

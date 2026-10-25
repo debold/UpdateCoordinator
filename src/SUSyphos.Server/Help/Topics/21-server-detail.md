@@ -4,7 +4,7 @@ Everything about one server: its state, what the agent does next, its configurat
 
 ## Queued restart {#restart-queued}
 
-A red banner at the top appears when a restart of the server is queued or planned: requested by an administrator (now or in the next maintenance window) or announced by the agent. It says when the restart happens or why it waits.
+A red banner at the top appears when a restart of the server is queued or planned: requested by an administrator (now or in the next maintenance window) or announced by the agent. It says when the restart happens or why it waits. Once the agent has announced the restart to Windows (the five-minute warning signed-in users see), the banner says **Restart announced** with the exact time; the System box, the Tasks box and the server list show that time too.
 
 **Cancel restart** (administrators) withdraws it. If the agent has not picked up the request yet, it is simply cancelled; otherwise the agent is told to drop the restart it holds or has announced (a "Cancel restart" remote action). An announced Windows restart with its five-minute warning is aborted as well.
 

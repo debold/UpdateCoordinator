@@ -29,7 +29,7 @@ else
     {
         <form method="post" @formname="cancel-restart" @onsubmit="CancelRestartAsync" class="restart-banner help-scope" role="status">
             <AntiforgeryToken />
-            <span class="pill fail">Restart queued</span>
+            <span class="pill fail">@(_client.RestartAnnouncedAtUtc is null ? "Restart queued" : "Restart announced")</span>
             <span>@restartText</span><HelpLink To="server-detail#restart-queued" Label="Queued restart" />
             <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="cancelRestart">
                 <button type="submit" class="danger">Cancel restart</button>
@@ -235,7 +235,7 @@ else
                     <dt>Move</dt><dd><span class="pill fail">not moved</span> <span>@moveError</span> <a href="/administration/backup#move" title="The announced move to a new central server">Move to a new server</a></dd>
                 }
                 <dt>Automatic updates</dt><dd>@if (_client.AutoUpdateMode is null) { <span class="note">reported by agents from version 0.3</span> } else if (_client.AutomaticUpdatesBypass) { <span class="pill fail">problem</span> <span>Windows may install or restart on its own, outside rings and windows (<a href="/servers/@Id#checks">details</a>); setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> } else { <span class="pill ok">OK</span> <span>Windows does not install on its own; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> }</dd>
-                <dt>Restart</dt><dd>@if (!_client.RebootPending) { <span class="pill ok">not pending</span> } else if (_client.RebootWait is { } wait) { <span class="pill queue">pending</span> <span>@LiveStatus.RebootWaitText(wait) (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> } else { <span class="pill queue">pending</span> <span>the agent reports why it waits from version 0.7 (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> }</dd>
+                <dt>Restart</dt><dd>@if (_client.RestartAnnouncedAtUtc is { } restartAt) { <span class="pill pend">restarting</span> <span>at @Format(restartAt), announced to Windows by the agent</span> } else if (!_client.RebootPending) { <span class="pill ok">not pending</span> } else if (_client.RebootWait is { } wait) { <span class="pill queue">pending</span> <span>@LiveStatus.RebootWaitText(wait) (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> } else { <span class="pill queue">pending</span> <span>the agent reports why it waits from version 0.7 (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> }</dd>
                 <dt>Outside SUSyphos</dt><dd>@if (_externalInstalls > 0) { <span class="pill queue">@_externalInstalls</span> <span>installations in the last @SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays days were started by Windows or an administrator, not by SUSyphos (<a href="/servers/@Id#windows-history">history</a>)</span> } else { <span>none in the reported history</span> }</dd>
                 <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
                 <dt>Uptime</dt><dd>@UptimeText</dd>
@@ -645,6 +645,11 @@ else
             if (cancelling)
             {
                 return "Cancellation requested; the agent drops the restart with its next heartbeat.";
+            }
+
+            if (_client.RestartAnnouncedAtUtc is { } announced)
+            {
+                return $"The agent announced the restart to Windows: the server restarts at {Format(announced)}; signed-in users see the warning.";
             }
 
             if (pending is not null)
@@ -1146,7 +1151,7 @@ else
             }
 
             var restartPlanned = _client.RebootPending && _client.EffectiveRebootPolicy == SUSyphos.Contracts.Agents.RebootPolicy.InsideMaintenanceWindow;
-            if (!_client.RestartRequested && (restartPlanned || (planned.Count > 0 && _client.EffectiveRebootPolicy == SUSyphos.Contracts.Agents.RebootPolicy.InsideMaintenanceWindow)))
+            if (!_client.RestartRequested && _client.RestartAnnouncedAtUtc is null && (restartPlanned || (planned.Count > 0 && _client.EffectiveRebootPolicy == SUSyphos.Contracts.Agents.RebootPolicy.InsideMaintenanceWindow)))
             {
                 tasks.Add(new(window.Start.AddSeconds(1), Format(window.Start), "Restart", "fail", restartPlanned
                     ? $"A restart is pending; allowed in the window if it stays open at least 30 more minutes{(_client.RebootWait is { } wait ? $" ({LiveStatus.RebootWaitText(wait)})" : string.Empty)}"
@@ -1160,7 +1165,11 @@ else
                 : "No maintenance window, so nothing is installed.", []));
         }
 
-        if (_client.RestartRequested)
+        if (_client.RestartAnnouncedAtUtc is { } announcedAt)
+        {
+            tasks.Add(new(announcedAt, Format(announcedAt), "Restart", "fail", "Announced to Windows by the agent; signed-in users see the warning", []));
+        }
+        else if (_client.RestartRequested)
         {
             tasks.Add(new(_client.PlannedRestartAtUtc ?? DateTime.MaxValue, _client.PlannedRestartAtUtc is { } plannedRestart ? Format(plannedRestart) : "unknown", "Restart", "fail", $"Requested by an administrator{(_client.RebootWait is { } wait ? $"; {LiveStatus.RebootWaitText(wait)}" : string.Empty)}", []));
         }

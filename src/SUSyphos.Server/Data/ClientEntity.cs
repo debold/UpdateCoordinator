@@ -99,6 +99,9 @@ internal sealed class ClientEntity
     /// <summary>When the agent plans the requested restart; null if unknown.</summary>
     public DateTime? PlannedRestartAtUtc { get; set; }
 
+    /// <summary>When the restart the agent announced to Windows happens (warning period); null when none is announced.</summary>
+    public DateTime? RestartAnnouncedAtUtc { get; set; }
+
     // Live status (docs/05-agent-design.md, section 5); see Agents.LiveStatus.
 
     public AgentPhase? ActivityPhase { get; set; }

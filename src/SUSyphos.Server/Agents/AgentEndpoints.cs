@@ -300,6 +300,7 @@ internal static class AgentEndpoints
 
         // The agent clock is not trusted: a planned restart in the past (beyond an hour) or more than 60 days ahead is not shown.
         DateTime? plannedRestart = request.RestartRequested && request.PlannedRestartAt is { } planned && planned.UtcDateTime > now.AddHours(-1) && planned.UtcDateTime < now.AddDays(60) ? planned.UtcDateTime : null;
+        DateTime? restartAnnounced = request.RestartAnnouncedAt is { } announced && announced.UtcDateTime > now.AddMinutes(-10) && announced.UtcDateTime < now.AddDays(1) ? announced.UtcDateTime : null;
 
         // A reported update failure only matters while there is still an update for this agent: once it runs the newest
         // version released for its ring (updated later, or installed by hand), the old failure is over.
@@ -327,6 +328,7 @@ internal static class AgentEndpoints
                         .SetProperty(c => c.RebootWait, rebootWait)
                         .SetProperty(c => c.RestartRequested, request.RestartRequested)
                         .SetProperty(c => c.PlannedRestartAtUtc, plannedRestart)
+                        .SetProperty(c => c.RestartAnnouncedAtUtc, restartAnnounced)
                         .SetProperty(c => c.NextSearchAtUtc, nextSearch)
                         .SetProperty(c => c.NextInventoryAtUtc, nextInventory)
                         .SetProperty(c => c.AgentUpdateError, agentUpdateError)

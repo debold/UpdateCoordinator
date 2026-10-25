@@ -59,6 +59,9 @@ public sealed record HeartbeatRequest
     /// <summary>When the agent plans the requested restart (start of the next suitable window); null if it cannot tell.</summary>
     public DateTimeOffset? PlannedRestartAt { get; init; }
 
+    /// <summary>When the restart the agent announced to Windows happens (the warning period runs, signed-in users see the message); null when none is announced.</summary>
+    public DateTimeOffset? RestartAnnouncedAt { get; init; }
+
     /// <summary>When the agent plans its next update search; null before the first one (then with the next cycle).</summary>
     public DateTimeOffset? NextSearchAt { get; init; }
 

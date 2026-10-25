@@ -262,6 +262,8 @@ internal sealed class FakeInstallationRunner : IInstallationRunner
 
     public DateTimeOffset? PlannedRestartAt { get; set; }
 
+    public DateTimeOffset? RestartAnnouncedAt { get; set; }
+
     public DateTimeOffset? RequestRestart()
     {
         RestartRequested = true;
@@ -288,6 +290,8 @@ internal sealed class FakeInstallationRunner : IInstallationRunner
 
 internal sealed class FakeRestart : SUSyphos.Agent.Installation.ISystemRestart
 {
+    public DateTimeOffset? AnnouncedFor { get; set; }
+
     public List<TimeSpan> Requests { get; } = [];
 
     public bool Accept { get; set; } = true;

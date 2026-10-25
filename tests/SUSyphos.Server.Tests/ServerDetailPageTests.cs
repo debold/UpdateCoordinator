@@ -217,6 +217,36 @@ public sealed class ServerDetailPageTests
         Assert.Equal(AgentActionKind.InstallNowRestartInWindow, await scenario.Factory.WithDbAsync(db => db.AgentActions.Select(a => a.Kind).SingleAsync(TestContext.Current.CancellationToken)));
     }
 
+    [Theory]
+    [InlineData(4, true)]
+    [InlineData(60 * 48, false)]
+    public async Task AnnouncedRestart_ShowsItsTime_OnTheServerPageAndInTheList(int minutesAhead, bool shown)
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        // An implausible time (the agent clock is not trusted) is not stored.
+        var at = DateTime.UtcNow.AddMinutes(minutesAhead);
+        using (var request = new HttpRequestMessage(HttpMethod.Post, new Uri(SUSyphos.Contracts.ApiRoutes.AgentHeartbeat, UriKind.Relative)) { Content = System.Net.Http.Json.JsonContent.Create(new HeartbeatRequest { AgentVersion = "0.7.8", RebootPending = true, RebootWait = RebootWait.Restarting, RestartAnnouncedAt = at }) })
+        {
+            request.Headers.Authorization = AgentCredentials.ToHeader(client.ClientId, client.ClientSecret);
+            using var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken);
+            Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        }
+
+        var page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var list = await (await reader.GetAsync("/servers")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(shown, page.Contains("Restart announced", StringComparison.Ordinal));
+        Assert.Equal(shown, page.Contains($"the server restarts at {DisplayTime.Format(at)}", StringComparison.Ordinal));
+        Assert.Equal(shown, list.Contains($"restart {DisplayTime.Format(at)}", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task RestartInWindow_ShowsThePlannedTime_AndCancelGoesToTheAgent()
     {

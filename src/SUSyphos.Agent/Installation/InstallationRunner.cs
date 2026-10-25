@@ -34,6 +34,9 @@ internal interface IInstallationRunner
     /// <summary>When the held restart is planned; null without request or without windows.</summary>
     DateTimeOffset? PlannedRestartAt { get; }
 
+    /// <summary>When the restart this agent announced to Windows happens (the warning period runs); null when none is announced.</summary>
+    DateTimeOffset? RestartAnnouncedAt { get; }
+
     /// <summary>Installs every released update the server misses with the next cycle (remote action); a needed restart follows at once or in the next window.</summary>
     void RequestInstallNow(bool restartNow);
 }
@@ -205,6 +208,8 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             _ => "No restart was requested or announced.",
         };
     }
+
+    public DateTimeOffset? RestartAnnouncedAt => _restart.AnnouncedFor;
 
     public DateTimeOffset? PlannedRestartAt
     {
