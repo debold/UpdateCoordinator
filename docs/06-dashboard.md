@@ -208,3 +208,12 @@ How states are shown everywhere (Marc, 2026-10-25).
 - **Alignment:** an indicator and its text form one line box, centred vertically, with fixed sizes (dot 8 px, icon mark 16 px, pill and tag 20 px high) and a fixed 6 px gap; table rows have one fixed height, so rows with different indicators line up.
 - **Severity** of notifications, banners and messages: Critical = red, Warning = amber, Info = blue, as the same pill everywhere.
 - **One vocabulary:** a state has one word everywhere ("Failed", not "Error"; "Reboot pending", not "restart pending"; "Offline"; "Up to date"). Words and colours come from one shared table in the code.
+
+### Messages
+
+How the dashboard tells what happened and what lasts (Marc, 2026-10-25).
+
+- **Result of an action:** one line with an icon right below the page header; green when done, red when refused (with what to change). The text says what happened ("The restart of LABSQL01 is queued; …"), never just "Success". Success fades after 10 seconds, an error stays until closed.
+- **Toast:** when the page keeps its scroll position after an action, the same message also appears at the top right, with a thin line while a success fades. Without script the line at the top is enough.
+- **Lasting banners:** a state of the page's object that lasts (restart planned, installations paused, blackout, update blocked or withdrawn) is a banner below the header in its severity colour, with one sentence on when and why and, on the right, the action that ends it ("Cancel restart", "Resume"). It stays as long as the state; at most two at a time, the more severe first.
+- **Notes in boxes and forms:** explanations grey with an "i"; a warning about the current input amber with a "!", right where it applies; no coloured background inside boxes.
