@@ -33,6 +33,8 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/servers/{main}?dialog=agent-setting&key=log-level",
         "/updates",
         "/updates/{update}",
+        "/updates/{update}?tab=servers",
+        "/updates/{update}?tab=timeline",
         "/updates/{update}?dialog=uninstall",
         "/approvals",
         "/agents",

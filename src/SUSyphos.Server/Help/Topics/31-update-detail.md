@@ -2,7 +2,15 @@
 
 One update with its rollout through the rings and its state on every server. The line under the title shows classification, severity, revision, restart behaviour and when it was first reported; the tag next to the title shows the rollout state as in the [update list](help/updates#columns).
 
-When a newer update replaces this one (Windows Update supersedence), a note names it. Each ring then gets the newer update as soon as it is released there: servers that get the newer one no longer get this one, the others keep it. Once the newer update has reached every ring this one reached, this rollout stops by itself ("Rollout stopped: superseded by …" in the timeline).
+The boxes are split into three tabs: **Overview** (start rule, progress by ring and the state of all servers), **Servers** (every server with its state, and installations outside SUSyphos; the tab shows the number of failed installations) and **Timeline**. The tab is part of the address.
+
+## Blocked, withdrawn and superseded {#block}
+
+Lasting states appear as banners below the title:
+
+- **Blocked** (red): by whom and since when; **Unblock** on the right (operators) lifts the lock and leaves the rollout stopped; resume it when the update should be installed again.
+- **Withdrawn** (red): probably withdrawn by Microsoft. Servers that had it released report that Windows Update no longer knows it, it is not installed on them (inventory, SUSyphos or the Windows Update history), and no newer update, revision or newer version with the same KB replaces it. Depending on the setting under [Release rules](help/release-rules#withdrawn) the rollout was stopped or only a notification sent. **Block** on the right keeps it from coming back. The banner goes away when that turns out wrong (a server gets the update offered again, has it installed, or a newer version appears), and a rollout the mark stopped resumes by itself; a rollout stopped by hand stays stopped.
+- **Superseded** (blue): a newer update replaces this one (Windows Update supersedence). Each ring then gets the newer update as soon as it is released there: servers that get the newer one no longer get this one, the others keep it. Once the newer update has reached every ring this one reached, this rollout stops by itself ("Rollout stopped: superseded by …" in the timeline).
 
 ## Actions for this update {#actions}
 
@@ -10,16 +18,21 @@ Operators and administrators:
 
 - **Approve for** a ring: a manual gate before this ring is passed and the update is released to it.
 - **Release anyway for** a ring: an alarm before this ring is overruled and the update is released to it. Look at the failures in the previous ring first.
+
+The drop-down button **Rollout** (blue unless an approval waits):
+
 - **Start rollout** / **Resume rollout**: starts a queued update or resumes a stopped rollout.
 - **Release to all rings**: releases the update to every ring at once, skipping wait times, rates and gates.
-- **Stop rollout**: withdraws all releases that are not installed yet; can be resumed later.
-- **Block**: stops the rollout like "Stop rollout" and locks the update: neither a start rule nor an operator starts it again until someone chooses **Unblock** (which leaves the rollout stopped; resume it when the update should be installed again). For an update known to be faulty.
+- **Stop rollout** (red): withdraws all releases that are not installed yet; can be resumed later.
 
-Administrators also have:
+An entry that does not fit the current state is greyed out with the reason as tooltip.
 
-- **Block and uninstall…**: opens the [uninstall dialog](#uninstall).
+**Create release rule…** (administrators) opens a new start rule prefilled from this update.
 
-A red note says when the update is **blocked** (by whom and since when) or **probably withdrawn by Microsoft**: servers that had it released report that Windows Update no longer knows it, it is not installed on them (inventory, SUSyphos or the Windows Update history), and no newer update, revision or newer version with the same KB replaces it. Depending on the setting under [Release rules](help/release-rules#withdrawn) the rollout was stopped or only a notification sent. The note goes away when that turns out wrong (a server gets the update offered again, has it installed, or a newer version appears), and a rollout the mark stopped resumes by itself; a rollout stopped by hand stays stopped.
+The red drop-down button **Block** on the right:
+
+- **Block**: stops the rollout like "Stop rollout" and locks the update: neither a start rule nor an operator starts it again until someone chooses **Unblock**. For an update known to be faulty.
+- **Block and uninstall…** (administrators): opens the [uninstall dialog](#uninstall).
 
 ## Block and uninstall {#uninstall}
 
@@ -39,13 +52,13 @@ Which start rule started the rollout and when, or, before a rollout, which rule 
 
 ## Progress by ring {#progress}
 
-One row per ring:
+One row per ring, with the ring tag first; it opens the Servers tab filtered to the servers of that ring.
 
-- **State**: *Waiting* (the previous ring has not met its transition rule yet), *Released*, *Waiting for manual release* (gate), *Alarm* with the reason, or nothing when the rollout has not reached the ring.
+- **State**: *Waiting* (the previous ring has not met its transition rule yet), *Released*, *Awaiting approval* (a manual gate), *Alarm* with the reason, or *Not started* when the rollout has not reached the ring.
 - **Released**: when the update was released to the ring. For rings the rollout has not reached yet it shows the **expected** time: from the release of the last reached ring plus the minimum waits of the transitions (all servers report at once) to the same plus the maximum waits (a good success rate without full feedback). **manual approval** marks a ring that needs an operator on the way. It is an estimate: low feedback, alarms and gates change it, and rings behind an alarm or an open gate show none.
 - **Feedback**: share of the targeted servers of the ring that reported a result (reported / targeted).
 - **Success**: share of successful installations among the results. The last result per server counts, so a successful retry replaces a failure.
-- **Status (servers)**: the servers of the ring by state. Click the ring to see them one by one.
+- **Status (servers)**: the servers of the ring by state.
 
 ## All servers {#all-servers}
 

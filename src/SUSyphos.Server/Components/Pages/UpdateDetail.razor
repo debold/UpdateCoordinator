@@ -23,60 +23,56 @@ else
         <span class="pill @_stateClass">@_stateLabel</span>
     </PageHeader>
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
+    <form id="update-actions" method="post" @formname="update" @onsubmit="HandleAsync" class="detached"><AntiforgeryToken /></form>
     @if (_update.BlockedAtUtc is { } blockedAt)
     {
-        <p class="error" role="status">Blocked by @_update.BlockedBy on @Format(blockedAt): the rollout is stopped and the update does not start again, neither by a start rule nor by hand, until it is unblocked.</p>
+        <Banner Label="Blocked" Severity="fail" Help="update-detail#block">
+            <ChildContent>Blocked by @_update.BlockedBy on @Format(blockedAt): the rollout is stopped and the update does not start again, neither by a start rule nor by hand, until it is unblocked.</ChildContent>
+            <Action>@if (_canOperate) { <button type="submit" form="update-actions" name="Action" value="unblock">Unblock</button> }</Action>
+        </Banner>
     }
     @if (_update.WithdrawnAtUtc is { } withdrawnAt)
     {
-        <p class="error" role="status">Probably withdrawn by Microsoft (noticed @Format(withdrawnAt)): servers that had it released no longer get it offered from Windows Update, did not install it, and no newer update or revision replaces it. Check Microsoft's release notes; block the update to keep it from coming back.</p>
+        <Banner Label="Withdrawn" Severity="fail" Help="update-detail#block">
+            <ChildContent>Probably withdrawn by Microsoft (noticed @Format(withdrawnAt)): servers that had it released no longer get it offered from Windows Update, did not install it, and no newer update or revision replaces it. Check Microsoft's release notes; block the update to keep it from coming back.</ChildContent>
+            <Action>@if (_canOperate && _update.BlockedAtUtc is null) { <button type="submit" form="update-actions" name="Action" value="block" class="danger">Block</button> }</Action>
+        </Banner>
     }
-    @if (_supersededBy is not null)
+    @if (_supersededBy is not null && (_update.BlockedAtUtc is null || _update.WithdrawnAtUtc is null))
     {
-        <p class="notice">Superseded by <a href="/updates/@_supersededBy.UpdateId/@_supersededBy.Revision">@_supersededBy.Name</a>: Windows Update offers the newer update instead. Each ring gets the newer one as soon as it is released there, and this rollout stops once the newer one reached every ring this one reached.</p>
+        <Banner Label="Superseded" Severity="pend" Help="update-detail#block">
+            <ChildContent>Superseded by <a href="/updates/@_supersededBy.UpdateId/@_supersededBy.Revision">@_supersededBy.Name</a>: Windows Update offers the newer update instead. Each ring gets the newer one as soon as it is released there, and this rollout stops once the newer one reached every ring this one reached.</ChildContent>
+        </Banner>
     }
 
     <ActionBand>
         @if (_canOperate)
         {
-            <form id="update-actions" method="post" @formname="update" @onsubmit="HandleAsync">
-                <AntiforgeryToken />
-                @foreach (var ring in _ringRows.Where(r => r.State is RingRolloutState.AwaitingApproval or RingRolloutState.Alarm))
-                {
-                    <button type="submit" class="primary" name="Action" value="approve:@ring.RingId" data-help-term="@(ring.State == RingRolloutState.Alarm ? "Release anyway for" : "Approve for")">@(ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve") for @ring.Name</button>
-                }
-                @if (_update.BlockedAtUtc is not null)
-                {
-                    <button type="submit" name="Action" value="unblock">Unblock</button>
-                }
-                else if (_rollout is null || _rollout.State == RolloutState.Stopped)
-                {
-                    <button type="submit" name="Action" value="start" class="@(_ringRows.Any(r => r.State is RingRolloutState.AwaitingApproval or RingRolloutState.Alarm) ? null : "primary")">@(_rollout is null ? "Start rollout" : "Resume rollout")</button>
-                }
-                @if (_update.BlockedAtUtc is null && (_rollout is null || !_rollout.Override || _rollout.State == RolloutState.Stopped))
-                {
-                    <button type="submit" name="Action" value="override">Release to all rings</button>
-                }
-            </form>
+            @foreach (var ring in _ringRows.Where(r => r.State is RingRolloutState.AwaitingApproval or RingRolloutState.Alarm))
+            {
+                <button type="submit" form="update-actions" class="primary" name="Action" value="approve:@ring.RingId" data-help-term="@(ring.State == RingRolloutState.Alarm ? "Release anyway for" : "Approve for")"><Icon Name="check" Size="16" />@(ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve") for @ring.Name</button>
+            }
+            var waiting = _ringRows.Any(r => r.State is RingRolloutState.AwaitingApproval or RingRolloutState.Alarm);
+            var blocked = _update.BlockedAtUtc is not null;
+            var running = _rollout is { State: not RolloutState.Stopped };
+            <ActionMenu Label="Rollout" Icon="git-branch" Kind="@(waiting ? null : "primary")">
+                <MenuItem Form="update-actions" Name="Action" Value="start" Icon="play" Disabled="@(blocked || running)" Reason="@(blocked ? "Unblock the update first" : running ? "The rollout is running" : null)">@(_rollout is null ? "Start rollout" : "Resume rollout")</MenuItem>
+                <MenuItem Form="update-actions" Name="Action" Value="override" Icon="send" Disabled="@(blocked || _rollout is { Override: true, State: not RolloutState.Stopped })" Reason="@(blocked ? "Unblock the update first" : _rollout is { Override: true, State: not RolloutState.Stopped } ? "Already released to every ring" : "Release to every ring at once, without waiting for the transitions")">Release to all rings</MenuItem>
+                <MenuSeparator />
+                <MenuItem Form="update-actions" Name="Action" Value="stop" Icon="circle-stop" Danger="true" Disabled="@(!running)" Reason="@(running ? "Withdraw the releases not installed yet" : "No rollout is running")">Stop rollout</MenuItem>
+            </ActionMenu>
         }
         <AuthorizeView Policy="@AdminRoles.Policies.Administer">
-            <a class="btn" href="@ReleaseRuleLink">Create release rule from this update…</a>
+            <a class="btn" href="@ReleaseRuleLink"><Icon Name="list-plus" Size="16" />Create release rule…</a>
         </AuthorizeView>
         @if (_canOperate)
         {
             <div class="spacer"></div>
-            @if (_rollout is { State: not RolloutState.Stopped })
-            {
-                <button type="submit" form="update-actions" name="Action" value="stop" class="danger">Stop rollout</button>
-            }
-            @if (_update.BlockedAtUtc is null)
-            {
-                <button type="submit" form="update-actions" name="Action" value="block" class="danger">Block</button>
-            }
+            <ActionMenu Label="Block" Icon="ban" Kind="danger" Align="right">
+                <MenuItem Form="update-actions" Name="Action" Value="block" Icon="ban" Danger="true" Disabled="@(_update.BlockedAtUtc is not null)" Reason="@(_update.BlockedAtUtc is null ? "Stop the rollout and keep the update from starting again" : "The update is blocked already")">Block</MenuItem>
+                <MenuItem Href="@($"/updates/{UpdateId}/{Revision}?dialog=uninstall")" Icon="undo-2" Danger="true" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? null : "Only administrators can do this")">Block and uninstall…</MenuItem>
+            </ActionMenu>
         }
-        <AuthorizeView Policy="@AdminRoles.Policies.Administer">
-            <a class="btn danger" href="@($"/updates/{UpdateId}/{Revision}?dialog=uninstall")">Block and uninstall…</a>
-        </AuthorizeView>
     </ActionBand>
 
     @if (Dialog == "uninstall")
@@ -94,6 +90,10 @@ else
         </Dialog>
     }
 
+    <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => TabLink(tab))" />
+
+    @if (_tab == "overview")
+    {
     <Box Title="Start rule" Help="update-detail#start-rule" Hint="Which start rule decides how this update enters the rings">
         @if (_rollout is { } started)
         {
@@ -131,7 +131,7 @@ else
                         @foreach (var ring in _ringRows)
                         {
                             <tr>
-                                <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@($"{_table.WithFilter("ring", ring.Name)}#servers")" Title="Show the servers of this ring for this update" /></td>
+                                <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@($"{TabLink("servers")}&f.ring={Uri.EscapeDataString(ring.Name)}#servers")" Title="Show the servers of this ring for this update" /></td>
                                 <td><span class="pill @RingStateClass(ring.State)">@RingStateLabel(ring)</span></td>
                                 <td class="nowrap">
                                     @if (ring.ReleasedAtUtc is not null || ring.Forecast is null)
@@ -164,7 +164,9 @@ else
             </div>
         </Box>
     </div>
-
+    }
+    else if (_tab == "servers")
+    {
     <Box Title="Servers" Help="update-detail#servers" Flush="true">
         <TableTools Table="_table" Placeholder="Search server" Labels="ServerLabels" />
         <div class="scroll">
@@ -215,7 +217,9 @@ else
             </div>
         </Box>
     }
-
+    }
+    else
+    {
     <Box Title="Timeline" Help="update-detail#timeline" Flush="true">
         <ListTable Table="_timelineTable" Page="_timelinePage" Columns="TimelineColumns" Search="Search event" Noun="events" Empty="No rollout yet: the update is queued.">
             <Row Context="item">
@@ -223,6 +227,7 @@ else
             </Row>
         </ListTable>
     </Box>
+    }
 }
 
 @code {
@@ -306,6 +311,19 @@ else
     [SupplyParameterFromForm(FormName = "update")]
     private string? Action { get; set; }
 
+    [SupplyParameterFromQuery(Name = "tab")]
+    private string? Tab { get; set; }
+
+    private string _tab = "overview";
+    private bool _canAdminister;
+
+    private static readonly IReadOnlyList<(string Key, string Label)> Tabs = [("overview", "Overview"), ("servers", "Servers"), ("timeline", "Timeline")];
+
+    private string TabLink(string tab) => tab == "overview" ? $"/updates/{UpdateId}/{Revision}" : $"/updates/{UpdateId}/{Revision}?tab={tab}";
+
+    /// <summary>The tabs; the servers tab counts the failed installations.</summary>
+    private IReadOnlyList<TabItem> TabItems => [.. Tabs.Select(t => t.Key == "servers" && _total.Failed > 0 ? new TabItem(t.Key, t.Label, DisplayNumber.Format(_total.Failed), "fail") : new TabItem(t.Key, t.Label))];
+
     [SupplyParameterFromQuery(Name = "dialog")]
     private string? Dialog { get; set; }
 
@@ -348,6 +366,8 @@ else
     protected override async Task OnParametersSetAsync()
     {
         _canOperate = await IsAuthorizedAsync(AdminRoles.Policies.Operate);
+        _canAdminister = await IsAuthorizedAsync(AdminRoles.Policies.Administer);
+        _tab = Tabs.Any(t => t.Key == Tab) ? Tab! : "overview";
         await LoadAsync();
     }
 

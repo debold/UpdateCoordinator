@@ -482,12 +482,14 @@ public sealed class UpdateDetailTests
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
         var html = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1");
+        var timeline = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?tab=timeline");
+        var servers = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?tab=servers");
 
         Assert.Contains("Progress by ring", html, StringComparison.Ordinal);
         Assert.Contains("(1/2)", html, StringComparison.Ordinal);
-        Assert.Contains("Released for ring Pilot", html, StringComparison.Ordinal);
+        Assert.Contains("Released for ring Pilot", timeline, StringComparison.Ordinal);
         Assert.Contains("Rollout started", html, StringComparison.Ordinal);
-        Assert.Contains("PILOT02", html, StringComparison.Ordinal);
+        Assert.Contains("PILOT02", servers, StringComparison.Ordinal);
         Assert.DoesNotContain("value=\"stop\"", html, StringComparison.Ordinal);
 
         using var post = await browser.PostFormAsync($"/updates/{update.UpdateId:D}/1", new Dictionary<string, string> { ["_handler"] = "update", ["Action"] = "stop" }, pageToRead: "/");
@@ -506,8 +508,8 @@ public sealed class UpdateDetailTests
         await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Failed);
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
-        var failed = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?f.status=Failed");
-        var unknown = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?f.status=%3Cscript%3E&sort=%27");
+        var failed = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?tab=servers&f.status=Failed");
+        var unknown = await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1?tab=servers&f.status=%3Cscript%3E&sort=%27");
 
         Assert.Contains("PILOT01", failed, StringComparison.Ordinal);
         Assert.DoesNotContain("PILOT02", failed, StringComparison.Ordinal);
@@ -530,9 +532,9 @@ public sealed class UpdateDetailTests
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
         var path = $"/updates/{update.UpdateId:D}/1";
 
-        var waiting = await GetHtmlAsync(browser, path + "?f.status=Waiting%20for%20release");
-        var notNeeded = await GetHtmlAsync(browser, path + "?f.status=Not%20needed");
-        var installed = await GetHtmlAsync(browser, path + "?f.status=Installed");
+        var waiting = await GetHtmlAsync(browser, path + "?tab=servers&f.status=Waiting%20for%20release");
+        var notNeeded = await GetHtmlAsync(browser, path + "?tab=servers&f.status=Not%20needed");
+        var installed = await GetHtmlAsync(browser, path + "?tab=servers&f.status=Installed");
 
         Assert.Contains("TEST01", waiting, StringComparison.Ordinal);
         Assert.DoesNotContain("PILOT01", waiting, StringComparison.Ordinal);
@@ -568,7 +570,7 @@ public sealed class UpdateDetailTests
         }
 
         Assert.Empty((await scenario.ReleasesAsync(test)).Releases);
-        Assert.Contains("Rollout stopped", await GetHtmlAsync(browser, path), StringComparison.Ordinal);
+        Assert.Contains("Rollout stopped", await GetHtmlAsync(browser, path + "?tab=timeline"), StringComparison.Ordinal);
     }
 
     [Theory]
