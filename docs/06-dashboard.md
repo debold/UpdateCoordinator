@@ -180,3 +180,15 @@ Every modal dialog (Marc, 2026-10-25), built on the shared dialog component.
 - **Choosing between options:** selectable options, each with a one-line explanation, and a single main button; the usual option is preselected. No dialog shows one button per option.
 - **Preview:** where the setting affects servers (assignment rules, groups, agent settings), the wide dialog shows on the right what would change; it updates while typing with script and on "Preview" without.
 - Dialogs open from the address (`?dialog=…`), so they work without script and survive a reload; they close with ×, Cancel or Esc, and focus starts in the first field.
+
+### Forms and fields
+
+Every form, in dialogs and on pages (Marc, 2026-10-25).
+
+- **Field anatomy:** label above (small, bold), "optional" next to the label of a field that may stay empty, help text below. Units sit inside the field on the right ("30 seconds"); several values are chips in one field.
+- **Selection fields** look like text fields (same height, full width of their column) with a chevron icon at the right edge, whatever the text length. Drop-down *buttons* (action bands, row menus) are buttons: as wide as their text, the caret beside the label.
+- **States:** focus with a blue ring; error with a red outline and the message below; disabled greyed with the reason as help; read-only (no right to change) as plain text, not as a locked field.
+- **Inherit:** every setting that can come from a level above (ring, reboots, Automatic Updates, Microsoft Update, maintenance windows, agent settings) has an "Inherit" switch at its label. While on, the field shows the inherited value dashed and greyed with its source below; switched off, the field is editable.
+- **Switches and checkboxes:** a switch turns a feature on or off (channel, schedule, coordination); its fields hang below it, indented with a thin line, greyed while it is off. Plain options inside a form are checkboxes.
+- **Adding to a list:** below the list a lightly tinted block holds all fields of the new entry and "+ Add" in one row, the button aligned with the fields; help and warnings sit right below the block.
+- **Settings pages:** one form across all boxes with Save (and Discard changes) in the action band at the top; with script "Unsaved changes" appears as soon as something changes, and leaving the page asks first.
