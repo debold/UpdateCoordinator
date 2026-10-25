@@ -116,6 +116,10 @@ internal sealed class DashboardStatistics(ServerDbContext db, ComplianceHistory 
     private async Task<List<ComplianceSnapshotEntity?>> SnapshotsAsync(List<(DateOnly From, DateOnly To)> buckets, int days, CancellationToken cancellationToken)
     {
         var snapshots = await history.GetAsync(days + 7, cancellationToken).ConfigureAwait(false);
+
+        // Today as it is now, so the chart agrees with the tiles (the stored record may be 15 minutes old).
+        var live = await history.CaptureAsync(cancellationToken).ConfigureAwait(false);
+        snapshots = [.. snapshots.Where(s => s.Day != live.Day), live];
         return [.. buckets.Select(b => snapshots.LastOrDefault(s => s.Day >= b.From && s.Day <= b.To))];
     }
 

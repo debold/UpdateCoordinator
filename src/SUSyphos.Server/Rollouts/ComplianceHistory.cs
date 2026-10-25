@@ -22,7 +22,28 @@ internal sealed class ComplianceHistory(ServerDbContext db, DeploymentStatus dep
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var today = DateOnly.FromDateTime(now);
+        var current = await CaptureAsync(cancellationToken).ConfigureAwait(false);
         var snapshot = await db.ComplianceSnapshots.SingleOrDefaultAsync(s => s.Day == today, cancellationToken).ConfigureAwait(false);
+        if (snapshot is null)
+        {
+            db.ComplianceSnapshots.Add(current);
+        }
+        else
+        {
+            db.Entry(snapshot).CurrentValues.SetValues(current);
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await db.ComplianceSnapshots.Where(s => s.Day < today.AddDays(-DaysKept)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The values of today as they are right now, without saving: the overview chart shows them for today, so tile and
+    /// chart always agree (the stored record is up to 15 minutes old).
+    /// </summary>
+    public async Task<ComplianceSnapshotEntity> CaptureAsync(CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
         var clients = await db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).ToListAsync(cancellationToken).ConfigureAwait(false);
         var withRelease = (await db.Releases.AsNoTracking().Select(r => r.ClientId).Distinct().ToListAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
         var missing = (await db.ClientAvailableUpdates.AsNoTracking().Select(a => a.ClientId).Distinct().ToListAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
@@ -30,28 +51,22 @@ internal sealed class ComplianceHistory(ServerDbContext db, DeploymentStatus dep
         var failed = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
         var health = clients.Select(c => ServerHealth.Evaluate(c, failed.Contains(c.Id), now)).ToList();
         int Count(ServerHealthState state) => health.Count(h => h == state);
-
-        if (snapshot is null)
+        return new ComplianceSnapshotEntity
         {
-            snapshot = new ComplianceSnapshotEntity { Day = today };
-            db.ComplianceSnapshots.Add(snapshot);
-        }
-
-        snapshot.RecordedAtUtc = now;
-        snapshot.Servers = clients.Count;
-        snapshot.Compliant = clients.Count(c => !withRelease.Contains(c.Id));
-        snapshot.FullyPatched = clients.Count(c => !missing.Contains(c.Id));
-        snapshot.StatusOk = Count(ServerHealthState.Ok);
-        snapshot.StatusUpdating = Count(ServerHealthState.Updating);
-        snapshot.StatusRebootPending = Count(ServerHealthState.RebootPending);
-        snapshot.StatusWarning = Count(ServerHealthState.Warning);
-        snapshot.StatusFailed = Count(ServerHealthState.Failed);
-        snapshot.StatusOffline = Count(ServerHealthState.Offline);
-        snapshot.OpenReleased = entries.Count(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful);
-        snapshot.OpenHeld = entries.Count(e => e.State == DeploymentState.Queued);
-
-        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        await db.ComplianceSnapshots.Where(s => s.Day < today.AddDays(-DaysKept)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+            Day = DateOnly.FromDateTime(now),
+            RecordedAtUtc = now,
+            Servers = clients.Count,
+            Compliant = clients.Count(c => !withRelease.Contains(c.Id)),
+            FullyPatched = clients.Count(c => !missing.Contains(c.Id)),
+            StatusOk = Count(ServerHealthState.Ok),
+            StatusUpdating = Count(ServerHealthState.Updating),
+            StatusRebootPending = Count(ServerHealthState.RebootPending),
+            StatusWarning = Count(ServerHealthState.Warning),
+            StatusFailed = Count(ServerHealthState.Failed),
+            StatusOffline = Count(ServerHealthState.Offline),
+            OpenReleased = entries.Count(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful),
+            OpenHeld = entries.Count(e => e.State == DeploymentState.Queued),
+        };
     }
 
     /// <summary>Snapshots of the last <paramref name="days"/> days, oldest first.</summary>

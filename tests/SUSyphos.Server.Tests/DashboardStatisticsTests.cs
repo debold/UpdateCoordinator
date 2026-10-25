@@ -92,4 +92,18 @@ public sealed class DashboardStatisticsTests
         Assert.Contains("Security Updates: 1", System.Net.WebUtility.HtmlDecode(html), StringComparison.Ordinal);
         Assert.Contains("Show as table", html, StringComparison.Ordinal);
     }
+    [Fact]
+    public async Task TodaysValue_IsLive_EvenWhenTheStoredRecordIsOlder()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        await scenario.WithServiceAsync<ComplianceHistory, int>(async h => { await h.RecordAsync(CancellationToken.None); return 0; });
+        await scenario.AddClientAsync("PROD01", RingEntity.ProductionId);
+
+        var servers = await scenario.WithServiceAsync<DashboardStatistics, ChartData>(s => s.GetAsync(StatisticKind.Servers, 30, CancellationToken.None));
+        var stored = Assert.Single(await scenario.WithServiceAsync<ComplianceHistory, List<ComplianceSnapshotEntity>>(h => h.GetAsync(1, CancellationToken.None)));
+
+        Assert.Equal(1, stored.Servers);
+        Assert.Equal(2, servers.Series.Sum(s => s.Values[^1]));
+    }
 }
