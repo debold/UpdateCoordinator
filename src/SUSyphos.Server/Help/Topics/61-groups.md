@@ -10,8 +10,8 @@ A new group is empty. Servers join it in one of three ways: select them in the [
 
 The table shows each group with **Description**, number of **Members** (the name opens the server list filtered to the group), its **Maintenance windows** ("system default" if it has none), **Reboots** ("inherit" if not set) and **Coordination** (share and maximum, "Stopped" when its installations were stopped after failures, or "not coordinated").
 
-- **Edit**: opens the group dialog.
-- **Delete**: opens a confirmation. With **Delete group**, members leave the group and fall back to the system defaults; assignment rules that point to the group are removed too.
+- **Edit** (the pencil at the end of the row): opens the group dialog. **More** (⋯) has **Show members** (the server list filtered to the group) and:
+- **Delete group…**: opens a confirmation. With **Delete group**, members leave the group and fall back to the system defaults; assignment rules that point to the group are removed too.
 
 ## New group and edit {#dialog}
 
@@ -23,6 +23,8 @@ The table shows each group with **Description**, number of **Members** (the name
 - **Reboots**: "Inherit from the system default", "Reboot inside the maintenance window" or "Never reboot (report only)". If one of a server's groups says "Never", that wins.
 - **Windows Automatic Updates**: inherit, "Leave unchanged, only warn" or "Keep Windows from installing on its own" ([details](help/maintenance-windows#automatic-updates)). "Leave unchanged" in one group wins.
 - **Other Microsoft products**: inherit, "Windows Update only" or "Microsoft Update" ([details](help/maintenance-windows#microsoft-update)). "Windows Update only" in one group wins.
+
+**Applies to** lists the members of the group (up to 15, each linked), so you see which servers a change affects; a value set on a server itself still wins.
 
 **Create group** or **Save** stores the group; **Cancel** closes the dialog. Members get the changes with their next heartbeat.
 

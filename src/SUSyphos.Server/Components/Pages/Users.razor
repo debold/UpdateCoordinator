@@ -40,17 +40,20 @@
                             <span class="row-actions">
                                 @if (!user.Windows)
                                 {
-                                    <a class="btn" href="@Path?dialog=edit&id=@Uri.EscapeDataString(user.Id)">Edit</a>
+                                    <a class="btn icon-button" href="@Path?dialog=edit&id=@Uri.EscapeDataString(user.Id)" title="Edit @user.UserName" aria-label="Edit @user.UserName" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
                                 }
-                                @if (user.LockedOut)
-                                {
-                                    <button type="submit" form="users" name="Action" value="unlock:@user.Id">Unlock</button>
-                                }
-                                else
-                                {
-                                    <button type="submit" form="users" name="Action" value="lock:@user.Id">Lock</button>
-                                }
-                                <a class="btn danger" href="@Path?dialog=delete&id=@Uri.EscapeDataString(user.Id)">Delete</a>
+                                <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {user.UserName}")">
+                                    @if (user.LockedOut)
+                                    {
+                                        <MenuItem Form="users" Name="Action" Value="@($"unlock:{user.Id}")" Icon="rotate-ccw">Unlock</MenuItem>
+                                    }
+                                    else
+                                    {
+                                        <MenuItem Form="users" Name="Action" Value="@($"lock:{user.Id}")" Icon="ban">Lock</MenuItem>
+                                    }
+                                    <MenuSeparator />
+                                    <MenuItem Href="@($"{Path}?dialog=delete&id={Uri.EscapeDataString(user.Id)}")" Icon="trash-2" Danger="true">Delete account…</MenuItem>
+                                </ActionMenu>
                             </span>
                         </td>
                     </tr>

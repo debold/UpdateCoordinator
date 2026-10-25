@@ -43,8 +43,12 @@
                             }
                         </td>
                         <td class="n"><span class="row-actions">
-                            <a class="btn" href="@Path?dialog=edit&id=@group.Id">Edit</a>
-                            <a class="btn danger" href="@Path?dialog=delete&id=@group.Id">Delete</a>
+                            <a class="btn icon-button" href="@Path?dialog=edit&id=@group.Id" title="Edit @group.Name" aria-label="Edit @group.Name" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
+                            <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {group.Name}")">
+                                <MenuItem Href="@Servers.Link("group", group.Name)" Icon="server">Show members</MenuItem>
+                                <MenuSeparator />
+                                <MenuItem Href="@($"{Path}?dialog=delete&id={group.Id}")" Icon="trash-2" Danger="true">Delete group…</MenuItem>
+                            </ActionMenu>
                         </span></td>
                     </tr>
         </Row>
@@ -59,7 +63,7 @@
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="@(group is null ? "create" : "edit")" />
             <input type="hidden" name="Id" value="@group?.Id" />
-            <div class="dialog-body">
+            <div class="dialog-body dialog-split"><div class="dialog-main">
                 @if (MessageIsError)
                 {
                     <p class="error" role="alert">@Message</p>
@@ -117,6 +121,20 @@
                     </fieldset>
                 </div>
                 <AgentSettingOverrides Explained="@GroupAgentSettings(group)" Own="@SUSyphos.Server.Assignment.AgentSettingValues.Parse(group?.AgentSettingsJson)" EditHref="@(group is null ? null : key => SettingHref(group.Id, key))" Help="groups#agent-settings" />
+                </div>
+                <fieldset class="preview">
+                    <legend>Applies to (@DisplayNumber.Format(_memberNames.Count) @(_memberNames.Count == 1 ? "server" : "servers"))</legend>
+                    @if (_memberNames.Count == 0)
+                    {
+                        <p class="help">No member yet: add servers in the server list (Assign) or create an assignment rule for this group.</p>
+                    }
+                    else
+                    {
+                        <ul class="plain">@foreach (var (id, name) in _memberNames.Take(15)) { <li><a href="/servers/@id">@name</a></li> }</ul>
+                        @if (_memberNames.Count > 15) { <p class="help">and @(_memberNames.Count - 15) more.</p> }
+                    }
+                    <p class="help">Saving changes maintenance windows, restarts, coordination and agent settings of these servers with their next heartbeat; a value set on a server itself wins.</p>
+                </fieldset>
             </div>
             <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(group is null ? "Create group" : "Save")</button></div>
         </form>
@@ -253,6 +271,9 @@ else if (_dialog == "delete" && Editing is { } doomed)
     private AssignmentService Assignment { get; set; } = default!;
 
     private string? _dialog;
+
+    /// <summary>Members of the group in the edit dialog, for the preview of what a change affects.</summary>
+    private List<(Guid Id, string Name)> _memberNames = [];
     private List<GroupEntity> _groups = [];
     private Dictionary<int, int> _members = [];
     private TableQuery _table = default!;
@@ -379,6 +400,9 @@ else if (_dialog == "delete" && Editing is { } doomed)
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         _systemAgentSettings = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
         _members = await Db.ClientGroups.AsNoTracking().GroupBy(m => m.GroupId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count);
+        _memberNames = Editing is { } editing
+            ? [.. (await Db.ClientGroups.AsNoTracking().Where(m => m.GroupId == editing.Id).Join(Db.Clients, m => m.ClientId, c => c.Id, (m, c) => new { c.Id, c.HostName }).OrderBy(c => c.HostName).Take(1000).ToListAsync()).Select(c => (c.Id, c.HostName))]
+            : [];
         _table = TableQuery.From(Navigation, "name");
         _page = TablePaging.Apply(_groups, _table, Columns, g => $"{g.Name} {g.Description}");
         _systemWindows = await Assignment.GetSystemWindowsAsync(CancellationToken.None);

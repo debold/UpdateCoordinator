@@ -49,7 +49,7 @@
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="@(rule is null ? "create" : "edit")" />
             <input type="hidden" name="Id" value="@rule?.Id" />
-            <div class="dialog-body">
+            <div class="dialog-body dialog-split"><div class="dialog-main">
                 @if (MessageIsError)
                 {
                     <p class="error" role="alert">@Message</p>
@@ -84,6 +84,7 @@
                 <div class="form-row">
                     <label class="field"><span>Domain</span><input name="Domain" maxlength="253" value="@(Domain ?? rule?.Domain)" placeholder="e.g. lab.local" /></label>
                     <label class="field"><span>Host name pattern</span><input name="HostNamePattern" maxlength="63" value="@(HostNamePattern ?? rule?.HostNamePattern)" placeholder="e.g. SQL* or WEB0?" /></label>
+                </div>
                 </div>
                 @{
                     var changes = PreviewChanges(rule, target);
