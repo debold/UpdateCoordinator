@@ -13,8 +13,10 @@ using MimeKit;
 
 using SUSyphos.Contracts.Agents;
 using SUSyphos.Server.Administration;
+using SUSyphos.Server.Agents;
 using SUSyphos.Server.Data;
 using SUSyphos.Server.Notifications;
+using SUSyphos.Server.Rollouts;
 using SUSyphos.TestSupport;
 
 namespace SUSyphos.Server.Tests;
@@ -152,6 +154,49 @@ public sealed class NotificationTests
         Assert.Contains(events, e => e.Kind == NotificationKind.NewUpdatesDaily && e.Text.Contains("KB5040888", StringComparison.Ordinal));
         Assert.Contains(events, e => e.Kind == NotificationKind.DailySummary && e.Text.Contains("patch compliance 50 %", StringComparison.Ordinal));
         Assert.Equal(events.Count, events.Select(e => e.Key).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task DefinitionUpdates_AreExpected_ButOutdatedSignaturesAreCritical()
+    {
+        await using var factory = new ServerFactory();
+        factory.StartServer();
+        var current = await AddClientAsync(factory, "srv-current", RegistrationState.Approved);
+        var stale = await AddClientAsync(factory, "srv-stale", RegistrationState.Approved);
+        var catalogDefinition = Guid.NewGuid();
+        await factory.WithDbAsync(async db =>
+        {
+            var now = DateTime.UtcNow;
+            await db.Clients.Where(c => c.Id == current || c.Id == stale).ExecuteUpdateAsync(s => s.SetProperty(c => c.LastHeartbeatAtUtc, now).SetProperty(c => c.InventoryAtUtc, now));
+            db.Updates.Add(new UpdateEntity { UpdateId = catalogDefinition, Revision = 1, KbArticle = "2267602", Title = "Signature package", Classification = DefinitionUpdates.Classification, FirstSeenAtUtc = now.AddDays(-10) });
+            db.ClientUpdateHistory.Add(new ClientUpdateHistoryEntity { ClientId = current, UpdateId = Guid.NewGuid(), Revision = 1, Title = "Security Intelligence Update for Microsoft Defender Antivirus - KB2267602 (Version 1.421.1)", DateUtc = now.AddHours(-2), Operation = UpdateOperation.Installation, ResultCode = InstallResultCode.Succeeded, ClientApplicationId = "Windows Defender" });
+            db.ClientUpdateHistory.Add(new ClientUpdateHistoryEntity { ClientId = stale, UpdateId = catalogDefinition, Revision = 1, Title = "Signature package", DateUtc = now.AddDays(-3), Operation = UpdateOperation.Installation, ResultCode = InstallResultCode.Succeeded, ClientApplicationId = "UpdateOrchestrator" });
+            db.ClientUpdateHistory.Add(new ClientUpdateHistoryEntity { ClientId = stale, UpdateId = catalogDefinition, Revision = 1, Title = "Signature package", DateUtc = now.AddHours(-1), Operation = UpdateOperation.Installation, ResultCode = InstallResultCode.Failed, HResult = unchecked((int)0x80240034), ClientApplicationId = "UpdateOrchestrator" });
+            return await db.SaveChangesAsync();
+        });
+
+        var events = await WithScopeAsync(factory, s => s.GetRequiredService<NotificationEvents>().CollectAsync(CancellationToken.None));
+
+        Assert.DoesNotContain(events, e => e.Kind == NotificationKind.InstalledOutside);
+        var signature = Assert.Single(events, e => e.Kind == NotificationKind.DefenderSignaturesOutdated);
+        Assert.Equal("srv-stale", signature.Affected);
+        Assert.Equal(NotificationCategory.Critical, NotificationCatalog.Of(signature.Kind).Category);
+    }
+
+    [Theory]
+    [InlineData("{6ACE2A6B-1D14-4C3C-ADB0-EE7B5F7DE82E}", false, "SUSyphos", "ok")]
+    [InlineData("Windows Defender", true, "expected", "neutral")]
+    [InlineData("wusa", false, "outside SUSyphos", "queue")]
+    public void StartedBy_IsGreenForSUSyphos_GreyForDefinitions_AndAmberOtherwise(string application, bool definition, string text, string kind)
+    {
+        var id = application.StartsWith('{') ? UpdateHistoryEntry.AgentClientApplicationId : application;
+
+        var tag = UpdateHistoryText.StartedByTag(id, definition);
+
+        Assert.Equal((text, kind), (tag.Text, tag.Kind));
+        Assert.True(DefinitionUpdates.IsTitle("Security Intelligence Update for Microsoft Defender Antivirus - KB2267602"));
+        Assert.False(DefinitionUpdates.IsTitle("2026-10 Cumulative Update for Windows Server 2022"));
+        Assert.StartsWith("The download of the update failed", HResultCatalog.Describe(unchecked((int)0x80240034)), StringComparison.Ordinal);
     }
 
     [Fact]

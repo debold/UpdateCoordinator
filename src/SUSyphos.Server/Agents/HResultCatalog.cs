@@ -21,6 +21,7 @@ internal static class HResultCatalog
         [unchecked((int)0x80240024)] = "There are no updates (the update is not offered by the update source).",
         [unchecked((int)0x8024002E)] = "Access to an unmanaged server is not allowed.",
         [unchecked((int)0x80240031)] = "The format of the update metadata is invalid.",
+        [unchecked((int)0x80240034)] = "The download of the update failed (check the connection to Windows Update or the proxy).",
         [unchecked((int)0x8024200B)] = "The installation of the update failed (installation handler error).",
         [unchecked((int)0x80242016)] = "The state of the update after its post-reboot operation was unexpected.",
         [unchecked((int)0x8024401B)] = "The update server requires proxy authentication.",

@@ -32,6 +32,7 @@ internal static class NotificationCatalog
         new(NotificationKind.BackupFailed, NotificationCategory.Critical, "Backup failed", "The scheduled backup failed."),
         new(NotificationKind.ServerOffline, NotificationCategory.Critical, "Server offline", "An approved server sent no heartbeat for longer than the time set below."),
         new(NotificationKind.TrustReset, NotificationCategory.Critical, "Trust reset on a server", "An agent reports that its trust in the central server was reset locally (registry value TrustResetToken)."),
+        new(NotificationKind.DefenderSignaturesOutdated, NotificationCategory.Critical, "Defender signatures out of date", "A server that receives antivirus definition updates has installed none for more than 48 hours."),
         new(NotificationKind.ServerPendingApproval, NotificationCategory.Recommended, "Server waiting for approval", "A new server registered and waits for approval."),
         new(NotificationKind.GateWaiting, NotificationCategory.Recommended, "Gate waiting for approval", "An update waits at a manual gate before the next ring."),
         new(NotificationKind.AgentUpdateFailed, NotificationCategory.Recommended, "Agent update failed", "An agent could not install a released agent version."),

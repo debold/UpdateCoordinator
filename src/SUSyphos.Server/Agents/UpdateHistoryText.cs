@@ -28,6 +28,15 @@ internal static class UpdateHistoryText
         _ => clientApplicationId,
     };
 
+    /// <summary>
+    /// Tag for who started an installation, the same everywhere: SUSyphos green, a definition update grey "expected"
+    /// (whoever installs signatures first is normal, see <see cref="Rollouts.DefinitionUpdates"/>), anything else amber.
+    /// </summary>
+    public static (string Text, string Kind, string? Detail) StartedByTag(string? clientApplicationId, bool definition) =>
+        IsAgent(clientApplicationId) ? ("SUSyphos", "ok", null)
+        : definition ? ("expected", "neutral", $"definition update installed by {Source(clientApplicationId)}")
+        : ("outside SUSyphos", "queue", Source(clientApplicationId));
+
     /// <summary>Short result for a tag: "Succeeded", "Succeeded with errors", "Already installed", "Failed" or "Aborted".</summary>
     public static string ResultLabel(InstallResultCode code, int hresult) => code switch
     {

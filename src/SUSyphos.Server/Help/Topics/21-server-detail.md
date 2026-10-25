@@ -128,7 +128,7 @@ Installations done by SUSyphos: when they finished, which update, **Started by**
 
 ## Windows Update history {#windows-history}
 
-The history Windows itself keeps for the last 90 days, sent with the inventory. **Operation** (Installation or Uninstallation) and **Result** are tags as in the update history; **Started by** tells installations by SUSyphos (green) from those started outside SUSyphos (yellow) (Windows Automatic Updates, Settings, Defender, wusa or another tool, named where Windows records it). Installations outside SUSyphos bypass rings and maintenance windows; they are a reason to check the Automatic Updates setting.
+The history Windows itself keeps for the last 90 days, sent with the inventory. **Operation** (Installation or Uninstallation) and **Result** are tags as in the update history; **Started by** tells installations by SUSyphos (green) from those started outside SUSyphos (yellow) (Windows Automatic Updates, Settings, Defender, wusa or another tool, named where Windows records it). Antivirus definition updates are grey **expected**: Defender or Windows often installs them before SUSyphos does, which is normal; they do not count as outside installations. Installations outside SUSyphos bypass rings and maintenance windows; they are a reason to check the Automatic Updates setting.
 
 ## Recent activity {#activity}
 

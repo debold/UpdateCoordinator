@@ -24,7 +24,7 @@ To keep the list on what still needs attention, four kinds of updates are hidden
 - **superseded**: updates a newer known update replaces and that have no running rollout (Windows Update offers the newer one instead).
 - **completed**: updates installed on every server that needs them with nothing pending, failed or queued: released to every ring (the rollout column shows "Completed"), or withdrawn by Microsoft after every server installed them.
 - **withdrawn**: updates that look withdrawn by Microsoft (see [Release rules](help/release-rules#withdrawn)).
-- **installed outside SUSyphos**: updates approved servers installed outside SUSyphos according to their Windows Update history (Windows Automatic Updates, Settings, wusa or another tool) that are missing nowhere and have no rollout. The rollout column shows "Installed outside SUSyphos" with the number of servers and who started it; the title opens the update page when the catalog knows the update. They cannot be selected for rollout actions.
+- **installed outside SUSyphos**: updates approved servers installed outside SUSyphos according to their Windows Update history (Windows Automatic Updates, Settings, wusa or another tool) that are missing nowhere and have no rollout. Antivirus definition updates are left out: Defender installing them on its own is expected. The rollout column shows "Installed outside SUSyphos" with the number of servers and who started it; the title opens the update page when the catalog knows the update. They cannot be selected for rollout actions.
 
 The choices are part of the address, like search and filters.
 

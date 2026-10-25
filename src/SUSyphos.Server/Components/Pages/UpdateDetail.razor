@@ -201,14 +201,14 @@ else
 
     @if (_outside.Count > 0)
     {
-        <Box Title="Installed outside SUSyphos" Help="update-detail#outside" Hint="from the Windows Update history of the servers: installations Windows itself or an administrator started" Flush="true">
+        <Box Title="Installed outside SUSyphos" Help="update-detail#outside" Hint="@(DefinitionUpdates.IsClassification(_update.Classification) ? "definition update: Defender or Windows installing it before SUSyphos is expected" : "from the Windows Update history of the servers: installations Windows itself or an administrator started")" Flush="true">
             <div class="scroll">
                 <table>
                     <thead><tr><th>Server</th><th>Date</th><th>Started by</th></tr></thead>
                     <tbody>
                         @foreach (var item in _outside)
                         {
-                            <tr><td><a href="/servers/@item.ClientId#windows-history">@item.HostName</a></td><td class="nowrap">@Format(item.DateUtc)</td><td><StatusTag Text="outside SUSyphos" Kind="queue" Detail="@UpdateHistoryText.Source(item.ClientApplicationId)" /></td></tr>
+                            <tr><td><a href="/servers/@item.ClientId#windows-history">@item.HostName</a></td><td class="nowrap">@Format(item.DateUtc)</td><td>@{ var started = UpdateHistoryText.StartedByTag(item.ClientApplicationId, DefinitionUpdates.IsClassification(_update.Classification)); }<StatusTag Text="@started.Text" Kind="@started.Kind" Detail="@started.Detail" /></td></tr>
                         }
                     </tbody>
                 </table>

@@ -185,9 +185,6 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         RebootBehavior? rebootBehavior = null, bool outsideWindows = false) =>
         SaveStartRuleAsync(ruleId, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings, rebootBehavior, outsideWindows, actor, cancellationToken);
 
-    /// <summary>Classification Windows Update reports for antivirus definitions (Defender and others).</summary>
-    public const string DefinitionUpdates = "Definition Updates";
-
     /// <summary>
     /// Creates the default start rule for definition updates once (Marc, 2026-10-21): they never restart, so they start in
     /// every ring at once and install outside the maintenance windows. Administrators may change or delete it; it is not
@@ -202,7 +199,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
 
         db.Settings.Add(new SettingEntity { Key = SettingEntity.DefinitionRuleCreated, Value = "true" });
         var rules = await db.StartRules.AsNoTracking().Select(r => new { r.Id, r.Priority, r.Classification }).ToListAsync(cancellationToken).ConfigureAwait(false);
-        if (rules.Any(r => string.Equals(r.Classification, DefinitionUpdates, StringComparison.OrdinalIgnoreCase)))
+        if (rules.Any(r => DefinitionUpdates.IsClassification(r.Classification)))
         {
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return false;
@@ -212,7 +209,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         var rule = new StartRuleEntity
         {
             Priority = NextFreePriority([.. rules.Select(r => (r.Id, r.Priority))]),
-            Classification = DefinitionUpdates,
+            Classification = DefinitionUpdates.Classification,
             RebootBehavior = (int)RebootBehavior.NeverReboots,
             Mode = StartMode.Automatic,
             Delay = TimeSpan.Zero,

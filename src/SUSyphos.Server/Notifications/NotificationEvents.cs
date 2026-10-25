@@ -36,6 +36,7 @@ internal enum NotificationKind
     NewUpdatesDaily,
     DailySummary,
     WeeklySummary,
+    DefenderSignaturesOutdated,
 }
 
 /// <summary>
@@ -178,7 +179,7 @@ internal sealed class NotificationEvents(
     {
         var clients = await db.Clients.AsNoTracking()
             .Where(c => c.State == RegistrationState.Approved)
-            .Select(c => new { c.Id, c.HostName, c.LastHeartbeatAtUtc, c.RebootPending, c.LastBootAtUtc, c.HealthChecks, c.AutomaticUpdatesBypass })
+            .Select(c => new { c.Id, c.HostName, c.LastHeartbeatAtUtc, c.RebootPending, c.LastBootAtUtc, c.HealthChecks, c.AutomaticUpdatesBypass, c.InventoryAtUtc })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var names = clients.ToDictionary(c => c.Id, c => c.HostName);
         foreach (var client in clients)
@@ -209,10 +210,15 @@ internal sealed class NotificationEvents(
         {
             var failed = (await deployment.GetAsync(null, null, null, cancellationToken).ConfigureAwait(false)).Where(e => e.State == Rollouts.DeploymentState.Failed).Take(200).ToList();
             var ids = failed.Select(e => e.UpdateId).Distinct().ToList();
-            var titles = await db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).Select(u => new { u.UpdateId, u.Revision, u.KbArticle, u.Title }).ToListAsync(cancellationToken).ConfigureAwait(false);
+            var titles = await db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).Select(u => new { u.UpdateId, u.Revision, u.KbArticle, u.Title, u.Classification }).ToListAsync(cancellationToken).ConfigureAwait(false);
             foreach (var entry in failed.Where(e => names.ContainsKey(e.ClientId)))
             {
                 var update = titles.FirstOrDefault(u => u.UpdateId == entry.UpdateId && u.Revision == entry.Revision);
+                if (Rollouts.DefinitionUpdates.IsClassification(update?.Classification))
+                {
+                    continue;
+                }
+
                 var name = update is null ? entry.UpdateId.ToString("D") : Rollouts.UpdateText.Title(update.KbArticle, update.Title);
                 var code = entry.HResult ?? 0;
                 events.Add(new NotificationEvent(
@@ -229,16 +235,42 @@ internal sealed class NotificationEvents(
         var outside = await db.ClientUpdateHistory.AsNoTracking()
             .Where(h => h.DateUtc >= since && h.Operation == UpdateOperation.Installation && h.ClientApplicationId != UpdateHistoryEntry.AgentClientApplicationId
                 && (h.ResultCode == InstallResultCode.Succeeded || h.ResultCode == InstallResultCode.SucceededWithErrors))
-            .Select(h => new { h.Id, h.ClientId, h.Title, h.ClientApplicationId })
+            .Select(h => new { h.Id, h.ClientId, h.UpdateId, h.Title, h.ClientApplicationId })
             .Take(200)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
-        events.AddRange(outside.Where(h => names.ContainsKey(h.ClientId)).Select(h => new NotificationEvent(
+        var definitions = await Rollouts.DefinitionUpdates.CatalogIdsAsync(db, outside.Select(h => h.UpdateId), cancellationToken).ConfigureAwait(false);
+        events.AddRange(outside.Where(h => names.ContainsKey(h.ClientId) && !Rollouts.DefinitionUpdates.Is(h.UpdateId, h.Title, definitions)).Select(h => new NotificationEvent(
             $"installation.outside:{h.Id}",
             NotificationKind.InstalledOutside,
             $"{h.Title} was installed on {names[h.ClientId]} outside SUSyphos by {Agents.UpdateHistoryText.Source(h.ClientApplicationId)}.",
             $"servers/{h.ClientId}#windows-history",
             names[h.ClientId],
             "The installation bypassed rings and maintenance windows.")));
+
+        // Defender: servers that receive definition updates but got none for long, measured up to the last inventory
+        // (it brings the history), so a long inventory interval or an offline server does not raise it.
+        var definitionIds = db.Updates.Where(u => u.Classification == Rollouts.DefinitionUpdates.Classification).Select(u => u.UpdateId);
+        var signatures = await db.ClientUpdateHistory.AsNoTracking()
+            .Where(h => h.Operation == UpdateOperation.Installation
+                && (h.ResultCode == InstallResultCode.Succeeded || h.ResultCode == InstallResultCode.SucceededWithErrors)
+                && (definitionIds.Contains(h.UpdateId) || EF.Functions.Like(h.Title, Rollouts.DefinitionUpdates.TitlePatterns[0]) || EF.Functions.Like(h.Title, Rollouts.DefinitionUpdates.TitlePatterns[1])))
+            .GroupBy(h => h.ClientId)
+            .Select(g => new { ClientId = g.Key, Last = g.Max(h => h.DateUtc) })
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var signature in signatures.Where(s => names.ContainsKey(s.ClientId)))
+        {
+            var reference = clients.First(c => c.Id == signature.ClientId).InventoryAtUtc ?? now;
+            if (reference - signature.Last > Rollouts.DefinitionUpdates.MaxSignatureAge)
+            {
+                events.Add(new NotificationEvent(
+                    $"server.signatures:{signature.ClientId}",
+                    NotificationKind.DefenderSignaturesOutdated,
+                    $"{names[signature.ClientId]} has installed no antivirus definition update since {Format(signature.Last)}.",
+                    $"servers/{signature.ClientId}#windows-history",
+                    names[signature.ClientId],
+                    "The antivirus works with old signatures and may miss new threats; check Defender and the Windows Update history on the server."));
+            }
+        }
     }
 
     /// <summary>Things that happened in the last day: trust resets, administration changes, pauses and blackouts, rollouts reaching a ring.</summary>
@@ -278,6 +310,7 @@ internal sealed class NotificationEvents(
                 where state.ReleasedAtUtc >= since && state.State == RingRolloutState.Released
                 join ring in db.Rings on state.RingId equals ring.Id
                 join update in db.Updates on new { state.UpdateId, state.Revision } equals new { update.UpdateId, update.Revision }
+                where update.Classification == null || update.Classification != Rollouts.DefinitionUpdates.Classification
                 select new { state.UpdateId, state.Revision, state.RingId, RingName = ring.Name, update.KbArticle, update.Title })
             .Take(200)
             .ToListAsync(cancellationToken).ConfigureAwait(false);

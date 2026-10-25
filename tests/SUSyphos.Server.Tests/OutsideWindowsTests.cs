@@ -87,7 +87,7 @@ public sealed class OutsideWindowsTests
         var administration = scope.ServiceProvider.GetRequiredService<RolloutAdministration>();
         Assert.True(await administration.EnsureDefinitionRuleAsync(CancellationToken.None));
 
-        var rule = await factory.WithDbAsync(db => db.StartRules.AsNoTracking().SingleAsync(r => r.Classification == RolloutAdministration.DefinitionUpdates, TestContext.Current.CancellationToken));
+        var rule = await factory.WithDbAsync(db => db.StartRules.AsNoTracking().SingleAsync(r => r.Classification == DefinitionUpdates.Classification, TestContext.Current.CancellationToken));
         Assert.True(rule.OutsideWindows);
         Assert.Equal((int)RebootBehavior.NeverReboots, rule.RebootBehavior);
         Assert.Equal(StartMode.Automatic, rule.Mode);
@@ -97,6 +97,6 @@ public sealed class OutsideWindowsTests
 
         Assert.True((await administration.DeleteStartRuleAsync(rule.Id, "admin", CancellationToken.None)).Succeeded);
         Assert.False(await administration.EnsureDefinitionRuleAsync(CancellationToken.None));
-        Assert.False(await factory.WithDbAsync(db => db.StartRules.AnyAsync(r => r.Classification == RolloutAdministration.DefinitionUpdates, TestContext.Current.CancellationToken)));
+        Assert.False(await factory.WithDbAsync(db => db.StartRules.AnyAsync(r => r.Classification == DefinitionUpdates.Classification, TestContext.Current.CancellationToken)));
     }
 }

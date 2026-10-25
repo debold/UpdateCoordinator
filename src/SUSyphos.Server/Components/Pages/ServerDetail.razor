@@ -309,7 +309,7 @@ else
                             <td class="wrap">@entry.Title</td>
                             <td><StatusTag Text="@entry.Operation.ToString()" /></td>
                             <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel(entry.ResultCode, entry.HResult)" Kind="@UpdateHistoryText.ResultClass(entry.ResultCode, entry.HResult)" Detail="@UpdateHistoryText.ResultDetail(entry.ResultCode, entry.HResult)" /></td>
-                            <td>@if (UpdateHistoryText.IsAgent(entry.ClientApplicationId)) { <StatusTag Text="SUSyphos" Kind="ok" /> } else { <StatusTag Text="outside SUSyphos" Kind="queue" Detail="@UpdateHistoryText.Source(entry.ClientApplicationId)" /> }</td>
+                            <td>@{ var started = StartedBy(entry); }<StatusTag Text="@started.Text" Kind="@started.Kind" Detail="@started.Detail" /></td>
                         </tr>
             </Row>
         </ListTable>
@@ -953,6 +953,7 @@ else
             .OrderByDescending(i => i.FinishedAtUtc).ThenByDescending(i => i.Id)
             .Take(MaxHistory)
             .ToListAsync();
+        _definitionIds = await DefinitionUpdates.CatalogIdsAsync(Db, _windowsHistory.Select(h => h.UpdateId), CancellationToken.None);
         var available = await Db.ClientAvailableUpdates.AsNoTracking().Where(a => a.ClientId == Id).Select(a => new { a.UpdateId, a.Revision }).ToListAsync();
         var now = Time.GetUtcNow().UtcDateTime;
         _livePhase = LiveStatus.CurrentPhase(_client, now);
@@ -995,7 +996,7 @@ else
         _windowsPage = TablePaging.Apply(_windowsHistory, _windowsTable, WindowsColumns, h => h.Title);
         _activityTable = TableQuery.From(Navigation, "time", defaultDescending: true, prefix: "act.", defaultPageSize: 10);
         _activityPage = TablePaging.Apply(_activities, _activityTable, ActivityColumns, a => $"{ClientActivityLog.Label(a.Kind)} {a.Detail}");
-        _externalInstalls = _windowsHistory.Count(h => h.Operation == SUSyphos.Contracts.Agents.UpdateOperation.Installation && !UpdateHistoryText.IsAgent(h.ClientApplicationId));
+        _externalInstalls = _windowsHistory.Count(h => h.Operation == SUSyphos.Contracts.Agents.UpdateOperation.Installation && StartedBy(h).Kind == "queue");
     }
 
     /// <summary>Rows loaded per list; the lists page through them in memory.</summary>
@@ -1035,17 +1036,21 @@ else
         new("reboot", "Restart", h => RebootKind(h.Installation), h => [RebootKind(h.Installation)]),
     ];
 
-    private static readonly IReadOnlyList<TableColumn<ClientUpdateHistoryEntity>> WindowsColumns =
+    private IReadOnlyList<TableColumn<ClientUpdateHistoryEntity>>? _windowsColumns;
+
+    private IReadOnlyList<TableColumn<ClientUpdateHistoryEntity>> WindowsColumns => _windowsColumns ??=
     [
         new("date", "Date", h => h.DateUtc),
         new("update", "Update", h => h.Title),
         new("operation", "Operation", h => h.Operation.ToString(), h => [h.Operation.ToString()]),
         new("result", "Result", h => UpdateHistoryText.Result(h.ResultCode, h.HResult), h => [UpdateHistoryText.ResultLabel(h.ResultCode, h.HResult)]),
-        new("started", "Started by", h => StartedBy(h), h => [StartedBy(h)]),
+        new("started", "Started by", h => StartedBy(h).Text, h => [StartedBy(h).Text]),
     ];
 
-    private static string StartedBy(ClientUpdateHistoryEntity entry) =>
-        UpdateHistoryText.IsAgent(entry.ClientApplicationId) ? "SUSyphos" : UpdateHistoryText.Source(entry.ClientApplicationId);
+    private (string Text, string Kind, string? Detail) StartedBy(ClientUpdateHistoryEntity entry) =>
+        UpdateHistoryText.StartedByTag(entry.ClientApplicationId, DefinitionUpdates.Is(entry.UpdateId, entry.Title, _definitionIds));
+
+    private HashSet<Guid> _definitionIds = [];
 
     private static readonly IReadOnlyList<TableColumn<ClientActivityEntity>> ActivityColumns =
     [
