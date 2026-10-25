@@ -65,7 +65,7 @@ public sealed class UninstallActionTests
 
         using (var operatorBrowser = await LoginAsync(scenario, AdminRoles.Operator, "operator"))
         {
-            Assert.DoesNotContain("Uninstall update", await (await operatorBrowser.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            Assert.DoesNotContain("dialog=uninstall", await (await operatorBrowser.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
             using (await operatorBrowser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:Uninstall" }))
             {
             }

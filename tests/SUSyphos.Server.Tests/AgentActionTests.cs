@@ -88,7 +88,7 @@ public sealed class AgentActionTests
         var stored = await scenario.Factory.WithDbAsync(db => db.AgentActions.SingleAsync(TestContext.Current.CancellationToken));
         Assert.Equal(AgentActionState.Succeeded, stored.State);
         Assert.Equal("Search started", stored.Detail);
-        Assert.Contains("Search started", await GetHtmlAsync(browser, $"/servers/{client.ClientId}"), StringComparison.Ordinal);
+        Assert.Contains("Search started", await GetHtmlAsync(browser, $"/servers/{client.ClientId}?tab=activity"), StringComparison.Ordinal);
         Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "Action.Queued", TestContext.Current.CancellationToken)));
     }
 
@@ -219,7 +219,7 @@ public sealed class AgentActionTests
         var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
-        var html = await GetHtmlAsync(browser, $"/servers/{client.ClientId}");
+        var html = await GetHtmlAsync(browser, $"/servers/{client.ClientId}?tab=activity");
         using (await browser.PostFormAsync($"/servers/{client.ClientId}", new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:RestartService" }, pageToRead: "/"))
         {
         }
@@ -241,7 +241,7 @@ public sealed class AgentActionTests
         Assert.Equal(archive.Length, await scenario.Factory.WithDbAsync(db => db.AgentActions.Select(a => a.LogFileSize).SingleAsync(TestContext.Current.CancellationToken)));
 
         using var browser = await LoginAsync(scenario, AdminRoles.Operator);
-        Assert.Contains(AgentLogEndpoints.DownloadPath(action.Id), await GetHtmlAsync(browser, $"/servers/{client.ClientId}"), StringComparison.Ordinal);
+        Assert.Contains(AgentLogEndpoints.DownloadPath(action.Id), await GetHtmlAsync(browser, $"/servers/{client.ClientId}?tab=activity"), StringComparison.Ordinal);
         using (var download = await browser.GetAsync(AgentLogEndpoints.DownloadPath(action.Id)))
         {
             Assert.Equal(HttpStatusCode.OK, download.StatusCode);

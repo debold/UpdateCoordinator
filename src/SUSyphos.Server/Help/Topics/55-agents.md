@@ -4,13 +4,19 @@ Install the SUSyphos agent on new servers and keep the agents up to date. New ag
 
 ## Check for new versions {#check}
 
-**Check for new versions now** (administrators) asks GitHub for newer releases right away; otherwise the central server checks once a day. New agent packages are downloaded and verified against the checksums published with the release; a newer central server is only noted (see [Central server](#server)). "Last check" shows when it ran and what it found.
+**Check for new versions now** (administrators) asks GitHub for newer releases right away; otherwise the central server checks once a day. New agent packages are downloaded and verified against the checksums published with the release; a newer central server is only noted (see [Central server](#server)). The footer of the tile **Newest agent version** shows when it ran and what it found.
+
+## Key figures {#figures}
+
+- **Agents on the servers**: approved servers by the state of their agent as a donut: Current, Update available (a newer version is released for their ring), Update failed (see [Failed agent updates](#failed)) and Other (version unknown).
+- **Newest agent version**: the newest agent package the central server has and how far it is released; **Show ›** opens the list of versions.
+- **Central server**: Up to date or Update available, with the version this central server runs; **Show ›** jumps to the box below.
 
 ## Central server {#server}
 
-Two tiles side by side: the version this central server runs (**Running**, the full version with commit as tooltip) and the **Newest release** found by the check: "up to date", or the newer version with "update available" and the time it was found. A newer version also appears on the overview under "Needs attention", next to the version at the bottom of the navigation, and in a notification.
+The tile **Central server** at the top shows whether this central server runs the newest release found by the check ("Up to date") or a newer one exists ("Update available"), with the running version. A newer version also appears on the overview under "Needs attention", next to the version at the bottom of the navigation, and in a notification.
 
-The central server does not install itself. When a newer version is available, the box shows the steps under **How to upgrade** and the buttons at its foot:
+The central server does not install itself. When a newer version is available, the box shows the steps under **How to upgrade** and the buttons below them:
 
 - **Release notes** opens the release on GitHub.
 - **Download SUSyphos.Server-X.Y.Z.msi** downloads the installer. Check it against SHA256SUMS.txt of the release, then run it as administrator on the central server.

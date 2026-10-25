@@ -1,0 +1,13 @@
+@* The central server tile of the overview and the Agents page: up to date or update available, with the running version. *@
+<Tile Title="Central server" Href="@Href" Edge="@(Update is null ? null : "queue")" Footer="@(Update is { } available ? $"{DisplayNumber.Version(available.Version)} is available" : "no newer release found")">
+    <TileValue Caption="@DisplayNumber.Version(SUSyphos.Server.Administration.ServerVersion.Display)"><StatusTag Text="@(Update is null ? "Up to date" : "Update available")" Kind="@(Update is null ? "ok" : "queue")" /></TileValue>
+</Tile>
+
+@code {
+    /// <summary>The newer release found by the check; null when this central server runs the newest one.</summary>
+    [Parameter]
+    public SUSyphos.Server.AgentPackages.ServerUpdate? Update { get; set; }
+
+    [Parameter]
+    public string Href { get; set; } = "/agents#server";
+}

@@ -622,3 +622,4 @@ a.ring-tag:hover { text-decoration: none; background: var(--surface-2); }
 .tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.2rem; height: 1.2rem; margin-left: 0.4rem; padding: 0 0.35rem; border-radius: 999px; background: var(--line); color: var(--muted); font-size: 0.72rem; font-weight: 700; }
 .tab-badge.queue { background: var(--queue-soft); color: var(--queue); }
 .tab-badge.fail { background: var(--fail-soft); color: var(--fail); }
+.box-actions { margin-top: 0.9rem; justify-content: flex-end; }

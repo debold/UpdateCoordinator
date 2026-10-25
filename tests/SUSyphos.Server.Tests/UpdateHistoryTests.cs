@@ -44,14 +44,18 @@ public sealed class UpdateHistoryTests
         {
         }
 
-        using (var page = await reader.GetAsync($"/servers/{client.ClientId}"))
+        using (var page = await reader.GetAsync($"/servers/{client.ClientId}?tab=history"))
         {
             var html = await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.Contains("Windows Update history", html, StringComparison.Ordinal);
             Assert.Contains("Windows Automatic Updates (AutomaticUpdates)", html, StringComparison.Ordinal);
             Assert.Contains("outside SUSyphos", html, StringComparison.Ordinal);
-            Assert.Contains("installations in the last 90 days were started by Windows or an administrator", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Entry from the future", html, StringComparison.Ordinal);
+        }
+
+        using (var page = await reader.GetAsync($"/servers/{client.ClientId}?tab=system"))
+        {
+            Assert.Contains("installations in the last 90 days were started by Windows or an administrator", await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
         // An inventory without history (could not be read) keeps the stored one.

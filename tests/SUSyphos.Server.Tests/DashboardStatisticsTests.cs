@@ -87,7 +87,7 @@ public sealed class DashboardStatisticsTests
 
         var html = await (await browser.GetAsync("/?stat=new-updates&days=30")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        Assert.Contains("Fully patched", html, StringComparison.Ordinal);
+        Assert.Contains("fully patched", html, StringComparison.Ordinal);
         Assert.Contains("<option value=\"new-updates\" selected", html, StringComparison.Ordinal);
         Assert.Contains("Security Updates: 1", System.Net.WebUtility.HtmlDecode(html), StringComparison.Ordinal);
         Assert.Contains("Show as table", html, StringComparison.Ordinal);

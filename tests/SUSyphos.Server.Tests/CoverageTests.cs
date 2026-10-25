@@ -109,7 +109,7 @@ public sealed class CoverageTests
         Assert.Contains("SRV-NOAGENT", page, StringComparison.Ordinal);
         Assert.DoesNotContain("<b>Standard</b>", page, StringComparison.Ordinal);
         Assert.Contains("AD coverage", overview, StringComparison.Ordinal);
-        Assert.Contains("1 without agent", overview, StringComparison.Ordinal);
+        Assert.Contains("; 1 without", overview, StringComparison.Ordinal);
     }
 
     private sealed class CoverageFactory(FakeDirectory directory) : ServerFactory

@@ -225,7 +225,7 @@ internal sealed class NotificationEvents(
                     $"installation.failed:{entry.ClientId}:{entry.UpdateId}/{entry.Revision}",
                     NotificationKind.InstallationFailed,
                     string.Create(CultureInfo.InvariantCulture, $"{name} failed on {names[entry.ClientId]}: 0x{code:X8} {Agents.HResultCatalog.Describe(code)}"),
-                    $"servers/{entry.ClientId}#history",
+                    Components.ServerPage.Path(entry.ClientId, "history"),
                     $"{names[entry.ClientId]}, {name}",
                     "The server still misses the update; the agent tries again after the retry delay."));
             }
@@ -243,7 +243,7 @@ internal sealed class NotificationEvents(
             $"installation.outside:{h.Id}",
             NotificationKind.InstalledOutside,
             $"{h.Title} was installed on {names[h.ClientId]} outside SUSyphos by {Agents.UpdateHistoryText.Source(h.ClientApplicationId)}.",
-            $"servers/{h.ClientId}#windows-history",
+            Components.ServerPage.Path(h.ClientId, "windows-history"),
             names[h.ClientId],
             "The installation bypassed rings and maintenance windows.")));
 
@@ -266,7 +266,7 @@ internal sealed class NotificationEvents(
                     $"server.signatures:{signature.ClientId}",
                     NotificationKind.DefenderSignaturesOutdated,
                     $"{names[signature.ClientId]} has installed no antivirus definition update since {Format(signature.Last)}.",
-                    $"servers/{signature.ClientId}#windows-history",
+                    Components.ServerPage.Path(signature.ClientId, "windows-history"),
                     names[signature.ClientId],
                     "The antivirus works with old signatures and may miss new threats; check Defender and the Windows Update history on the server."));
             }

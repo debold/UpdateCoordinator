@@ -10,30 +10,42 @@ A red banner at the top appears when a restart of the server is queued or planne
 
 ## Actions for this server {#actions}
 
-Operators and administrators can send these actions. The agent picks each one up with its next heartbeat; the central server never connects to the server itself. The result appears under [Remote actions](#remote-actions).
+The band below the title groups the actions by topic in drop-down buttons. Operators and administrators can send them; an entry only administrators may use is greyed out for operators, with the reason as tooltip. The agent picks each action up with its next heartbeat; the central server never connects to the server itself. The result appears under [Remote actions](#remote-actions) in the Activity tab.
+
+**Updates** (the main group, blue):
 
 - **Search for updates**: search Windows Update now and report the result.
-- **Sync inventory**: send the complete inventory again (operating system, roles, installed updates, Windows Update history).
-- **Request logs**: the agent uploads its log files compressed; when they arrived, a **Download** link appears in the remote action.
+- **Sync inventory and history**: send the complete inventory again (operating system, roles, installed updates, Windows Update history) and search.
+- **Install updates now…** (administrators): opens the [install dialog](#install-now); greyed out while no released update is missing.
+- **Uninstall update…** (administrators): opens the [uninstall dialog](#uninstall).
+
+**Server**:
+
+- **Restart server…** (administrators): opens the [restart dialog](#restart).
 - **Restart agent service**: the SUSyphos agent service restarts itself; the server keeps running.
+- **Request logs**: the agent uploads its log files compressed; when they arrived, a **Download** link appears in the remote action.
 
-Everyone can use:
+**Refresh** loads the page again with the latest state. While the agent works or an action waits to be picked up or for its result, the page also refreshes itself every 10 seconds (the hint of the Tasks box says so) and keeps its scroll position. After an action the page is loaded anew, so F5 never sends the action a second time.
 
-- **Refresh**: loads the page again with the latest state. While the agent works or an action waits to be picked up or for its result, the page also refreshes itself every 10 seconds (the note next to the button says so) and keeps its scroll position. After an action the page is loaded anew, so F5 never sends the action a second time.
-
-Administrators also have:
-
-- **Install updates now…**: opens the [install dialog](#install-now).
-- **Uninstall update…**: opens the [uninstall dialog](#uninstall).
-- **Restart server…**: opens the [restart dialog](#restart).
-- **Remove server…** and **Delete with history…**: open the [remove dialog](#remove).
+**Remove** (red, on the right; administrators): **Remove server…** and **Delete with history…** open the [remove dialog](#remove).
 
 ## Status tiles {#tiles}
 
-- **Status**: the server status as in the [server list](help/servers#status), with the registration state and the agent version. Opens the pre-flight checks.
-- **Pending updates**: released updates the server still has to install. Opens the list of missing updates.
-- **Next maintenance window**: when the next window opens. Windows are in the time zone of the server; if it differs from the central server, both times are shown. "open now" means a window is open; "no window" means the server has none and installs nothing; "unknown" until the agent reports its time zone.
-- **Last heartbeat**: time of the last heartbeat, with the last boot and whether a reboot is pending.
+- **Status**: the server status as in the [server list](help/servers#status), with the agent version below. **Show ›** opens the pre-flight checks.
+- **Updates**: released updates the server still has to install, and all updates it misses (also those the rings still hold back). **Show ›** opens the Updates tab.
+- **Next maintenance window**: when the next window opens, with the number of updates it installs below. Windows are in the time zone of the server. "Open" means a window is open now (until the time shown); "no window" means the server has none and installs nothing; "unknown" until the agent reports its time zone.
+- **Last heartbeat**: time of the last heartbeat, with the last boot below; a red edge when the server is offline.
+
+## Tabs {#tabs}
+
+The boxes are split into tabs below the tiles; the tab is part of the address, so a link or a reload opens the same tab. A badge shows where something waits:
+
+- **Overview**: Tasks and pre-flight checks; "!" when a check failed.
+- **Updates**: the missing updates, with their count (red when one failed).
+- **History**: the update history of SUSyphos and the Windows Update history.
+- **Configuration**: the assignment (ring, reboots, Automatic Updates, update source, groups, maintenance windows, agent settings).
+- **System**: the facts the agent reports; "!" when Windows installs on its own, the agent update failed or a move did not work.
+- **Activity**: recent activity and remote actions, with the number of actions that wait for the agent.
 
 ## Tasks {#tasks}
 

@@ -4,9 +4,8 @@ Compares the server accounts in Active Directory with the registered agents, so 
 
 ## Figures {#figures}
 
-- **Supported servers with an agent**: share of the enabled server accounts with Windows Server 2016 or newer that have a registered agent, with the numbers.
-- **Without agent**: supported server accounts for which no agent reports.
-- **Not supported**: accounts with older Windows Server versions; SUSyphos does not support them and does not count them.
+- **Supported servers with an agent**: enabled server accounts with Windows Server 2016 or newer that have a registered agent, of all such accounts, and the share as percentage.
+- **Server accounts**: all server accounts read from Active Directory as a donut: with agent, **Without agent** (supported, but no agent reports for them) and **Not supported** (older Windows Server versions; SUSyphos does not support them and does not count them). The entries open the lists below. The footer says when the directory was last read.
 
 ## Supported servers without agent {#missing}
 

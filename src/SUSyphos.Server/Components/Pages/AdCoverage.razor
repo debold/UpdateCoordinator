@@ -8,41 +8,31 @@
 
 <PageHeader Title="AD coverage" Icon="@PageIcons.Coverage" Subtitle="@CoverageSubtitle" Help="coverage" Crumbs="@([("Overview", "/"), ("AD coverage", null)])" />
 
-<section class="figures" aria-label="Coverage">
-    <div class="tile">
-        <div class="label">Supported servers with an agent</div>
-        <div class="value">@(_report.Percent is { } percent ? $"{percent} %" : "–")</div>
-        <div class="detail">@_report.Covered of @_report.Supported enabled server accounts (Windows Server 2016 or newer)</div>
-    </div>
-    <div class="tile">
-        <div class="label">Without agent</div>
-        <div class="value">@_report.Missing.Count</div>
-        <div class="detail">supported servers no registered agent reports for</div>
-    </div>
-    <div class="tile">
-        <div class="label">Not supported</div>
-        <div class="value">@_report.Unsupported.Count</div>
-        <div class="detail">older Windows Server versions, not counted</div>
-    </div>
+<section class="tiles" aria-label="Coverage">
+    <Tile Title="Supported servers with an agent" Edge="@(_report.Missing.Count > 0 ? "queue" : null)" Footer="enabled server accounts with Windows Server 2016 or newer">
+        <TileValue>@DisplayNumber.Format(_report.Covered) <small>/ @DisplayNumber.Format(_report.Supported)</small></TileValue>
+        <TileValue Value="@DisplayNumber.Percent(_report.Percent)" Caption="covered" />
+    </Tile>
+    <Tile Title="Server accounts" Footer="@(_report.ReadAtUtc is { } read ? $"read from Active Directory at {DisplayTime.Format(read)}" : "not read yet")">
+        <TileDonut Parts="@Parts" ShowEmpty="true" />
+    </Tile>
 </section>
 
-<section class="card flush" aria-labelledby="missing-h">
-    <h2 id="missing-h">Supported servers without agent<HelpLink To="coverage#missing" Label="Supported servers without agent" /></h2>
+<Box Title="Supported servers without agent" Anchor="missing" Help="coverage#missing" Hint="enabled server accounts no registered agent reports for" Flush="true">
     <ListTable Table="_missingTable" Page="_missingPage" Columns="Columns" Search="Search account or DNS name" Noun="accounts" Empty="Every supported server account has an agent.">
         <Row Context="computer">
             <tr><td>@computer.Name</td><td>@computer.DnsHostName</td><td>@computer.OperatingSystem</td><td>@computer.Build</td></tr>
         </Row>
     </ListTable>
-</section>
+</Box>
 
-<section class="card flush" aria-labelledby="unsupported-h">
-    <h2 id="unsupported-h">Not supported (older than Windows Server 2016)<HelpLink To="coverage#unsupported" Label="Not supported" /></h2>
+<Box Title="Not supported" Anchor="unsupported" Help="coverage#unsupported" Hint="older than Windows Server 2016, not counted" Flush="true">
     <ListTable Table="_unsupportedTable" Page="_unsupportedPage" Columns="Columns" Search="Search account or DNS name" Noun="accounts" Empty="None.">
         <Row Context="computer">
             <tr><td>@computer.Name</td><td>@computer.DnsHostName</td><td>@computer.OperatingSystem</td><td>@(computer.Build?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown")</td></tr>
         </Row>
     </ListTable>
-</section>
+</Box>
 
 @code {
     private static readonly IReadOnlyList<TableColumn<DirectoryComputerEntity>> Columns =
@@ -54,6 +44,13 @@
     ];
 
     private CoverageReport _report = new(null, 0, 0, [], []);
+
+    private IReadOnlyList<SUSyphos.Server.Rollouts.DonutPart> Parts =>
+    [
+        new("ok", "With agent", _report.Covered),
+        new("queue", "Without agent", _report.Missing.Count, "#missing"),
+        new("neutral", "Not supported", _report.Unsupported.Count, "#unsupported"),
+    ];
     private TableQuery _missingTable = default!;
     private TablePage<DirectoryComputerEntity> _missingPage = default!;
     private TableQuery _unsupportedTable = default!;

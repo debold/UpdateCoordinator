@@ -18,7 +18,7 @@ internal sealed record AgentPackageCheck(DateTime AtUtc, string? AddedVersion, s
 }
 
 /// <summary>A central server release newer than the running one: version, release page and MSI on GitHub.</summary>
-internal sealed record ServerUpdate(string Version, string? Page, string? Package, DateTime FoundAtUtc);
+public sealed record ServerUpdate(string Version, string? Page, string? Package, DateTime FoundAtUtc);
 
 /// <summary>The version of this central server; replaced in tests.</summary>
 internal interface IRunningServerVersion

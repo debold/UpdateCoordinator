@@ -134,7 +134,7 @@ public sealed class RebootPolicyTests
             Assert.Contains("The reboot policy is invalid.", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
-        using (await browser.PostFormAsync($"/servers/{client.ClientId}", new Dictionary<string, string> { ["_handler"] = "assignment", ["Ring"] = "", ["Reboot"] = "Never" }))
+        using (await browser.PostFormAsync($"/servers/{client.ClientId}?tab=configuration", new Dictionary<string, string> { ["_handler"] = "assignment", ["Ring"] = "", ["Reboot"] = "Never" }))
         {
         }
 
@@ -154,8 +154,8 @@ public sealed class RebootPolicyTests
         await HeartbeatAsync(scenario, client, rebootPending: false, DateTimeOffset.UtcNow);
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
-        using var page = await browser.GetAsync($"/servers/{client.ClientId}");
-        using (await browser.PostFormAsync($"/servers/{client.ClientId}", new Dictionary<string, string> { ["_handler"] = "assignment", ["Reboot"] = "InsideMaintenanceWindow" }, pageToRead: "/"))
+        using var page = await browser.GetAsync($"/servers/{client.ClientId}?tab=history");
+        using (await browser.PostFormAsync($"/servers/{client.ClientId}?tab=configuration", new Dictionary<string, string> { ["_handler"] = "assignment", ["Reboot"] = "InsideMaintenanceWindow" }, pageToRead: "/"))
         {
         }
 

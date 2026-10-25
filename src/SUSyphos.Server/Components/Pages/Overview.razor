@@ -54,7 +54,7 @@
         <TileValue Value="@DisplayNumber.Format(_pendingServers)" Caption="servers" />
     </Tile>
     <Tile Title="Server status" Href="/servers" Edge="@(_failedServers > 0 || _offlineServers > 0 ? "fail" : _warningServers > 0 ? "queue" : null)" Footer="@WarningFooter">
-        <TileDonut Parts="@_statusParts" />
+        <TileDonut Parts="@_statusParts" ShowEmpty="true" />
     </Tile>
     <Tile Title="Compliance" Href="@Servers.Link("pending", Servers.PendingNo)" Footer="share of approved servers">
         <TileValue Value="@DisplayNumber.Percent(_compliancePercent)" Caption="released installed" />
@@ -66,9 +66,7 @@
             <TileValue>@DisplayNumber.Format(_coverage.Covered) <small>/ @DisplayNumber.Format(_coverage.Supported)</small></TileValue>
         </Tile>
     }
-    <Tile Title="Central server" Href="/agents#server" Edge="@(_serverUpdate is null ? null : "queue")" Footer="@(_serverUpdate is { } available ? $"{DisplayNumber.Version(available.Version)} is available" : "the newest release on GitHub")">
-        <TileValue Caption="@DisplayNumber.Version(SUSyphos.Server.Administration.ServerVersion.Display)"><StatusTag Text="@(_serverUpdate is null ? "Up to date" : "Update available")" Kind="@(_serverUpdate is null ? "ok" : "queue")" /></TileValue>
-    </Tile>
+    <CentralServerTile Update="@_serverUpdate" />
 </section>
 
 <div class="grid-side">

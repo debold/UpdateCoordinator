@@ -143,7 +143,7 @@ public sealed class LiveStatusTests
         {
         }
 
-        var page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var page = await (await reader.GetAsync($"/servers/{client.ClientId}?tab=system")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("the reboot policy is &quot;Never&quot;", page, StringComparison.Ordinal);
 
         await HeartbeatAsync(scenario, client, new HeartbeatRequest { AgentVersion = "0.7.0", RebootPending = false, RebootWait = RebootWait.OutsideWindow });

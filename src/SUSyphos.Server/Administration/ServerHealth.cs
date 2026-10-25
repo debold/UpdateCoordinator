@@ -84,6 +84,9 @@ internal static class ServerHealth
         _ => "ok",
     };
 
+    /// <summary>Coloured edge of a tile for a state that needs attention: red for failed or offline, amber for warnings; null otherwise.</summary>
+    public static string? Edge(ServerHealthState state) => PillClass(state) is "fail" or "queue" ? PillClass(state) : null;
+
     /// <summary>States of approved servers in the order the donuts and legends show them, best first.</summary>
     public static readonly IReadOnlyList<ServerHealthState> DonutOrder =
         [ServerHealthState.Ok, ServerHealthState.Updating, ServerHealthState.RebootPending, ServerHealthState.Warning, ServerHealthState.Failed, ServerHealthState.Offline];

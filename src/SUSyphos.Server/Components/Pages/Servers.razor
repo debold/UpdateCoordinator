@@ -252,14 +252,13 @@
         var failed = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
         var pending = entries.Where(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful).GroupBy(e => e.ClientId).ToDictionary(g => g.Key, g => g.Count());
         var now = Time.GetUtcNow().UtcDateTime;
-        var packages = await AgentUpdates.GetOfferablePackagesAsync(CancellationToken.None);
+        var agents = await AgentUpdates.StatesAsync(clients, rings.ToDictionary(r => r.Key, r => r.Value.Order), CancellationToken.None);
         var counts = entries.ToLookup(e => e.ClientId);
 
         List<Row> rows = [.. clients.Select(c =>
         {
             var ring = c.RingId is { } id && rings.TryGetValue(id, out var r) ? r : null;
-            var known = AgentVersion.TryParse(c.AgentVersion, out var version);
-            var target = known && packages.Count > 0 ? SUSyphos.Server.AgentPackages.AgentUpdateService.TargetFor(packages, ring?.Order ?? SUSyphos.Server.AgentPackages.AgentPackageEntity.AllRings, version!, AgentUpdates.Minimum)?.Version : null;
+            var (agent, target) = agents[c.Id];
             return new Row(
                 c.Id,
                 c.HostName,
@@ -275,7 +274,7 @@
                 ServerHealth.Evaluate(c, failed.Contains(c.Id), now),
                 pending.GetValueOrDefault(c.Id),
                 c.LastHeartbeatAtUtc,
-                ServerIndicators.Agent(c.AgentUpdateError, known, target),
+                agent,
                 target,
                 c.AgentUpdateError,
                 DeploymentCounts.Of(counts[c.Id]),

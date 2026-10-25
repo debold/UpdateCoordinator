@@ -85,7 +85,7 @@ public sealed class ServerDetailPageTests
         {
         }
 
-        var path = $"/servers/{client.ClientId}";
+        var path = $"/servers/{client.ClientId}?tab=configuration";
         using (var saved = await admin.PostFormAndFollowAsync(path, new Dictionary<string, string> { ["_handler"] = "assignment", ["Windows.0.days"] = "3", ["Windows.0.from"] = "22:00", ["Windows.0.to"] = "02:00" }))
         {
             Assert.Contains("The assignment was saved.", await saved.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
@@ -122,9 +122,11 @@ public sealed class ServerDetailPageTests
             }
 
             var page = await (await operatorBrowser.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            // Operators see the actions of administrators greyed out, without the link to the dialog.
             Assert.Contains("Search for updates", page, StringComparison.Ordinal);
-            Assert.DoesNotContain("Restart server", page, StringComparison.Ordinal);
-            Assert.DoesNotContain("Delete with history", page, StringComparison.Ordinal);
+            Assert.Contains("Only administrators can do this", page, StringComparison.Ordinal);
+            Assert.DoesNotContain("dialog=restart", page, StringComparison.Ordinal);
+            Assert.DoesNotContain("dialog=purge", page, StringComparison.Ordinal);
 
             using (await operatorBrowser.PostFormAsync(path + "?dialog=restart", new Dictionary<string, string> { ["_handler"] = "restart" }, pageToRead: "/"))
             {
@@ -185,7 +187,7 @@ public sealed class ServerDetailPageTests
             {
             }
 
-            Assert.DoesNotContain("Install updates now", await (await operatorBrowser.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            Assert.DoesNotContain("dialog=install", await (await operatorBrowser.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
             using (await operatorBrowser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:InstallNow" }))
             {
             }
@@ -306,7 +308,7 @@ public sealed class ServerDetailPageTests
 
         await scenario.Factory.WithDbAsync(db => db.Clients.ExecuteUpdateAsync(s => s.SetProperty(c => c.TimeZoneId, "UTC"), TestContext.Current.CancellationToken));
         var page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var tasks = page[page.IndexOf(">Tasks<", StringComparison.Ordinal)..page.IndexOf("Missing updates", StringComparison.Ordinal)];
+        var tasks = page[page.IndexOf(">Tasks<", StringComparison.Ordinal)..page.IndexOf("Pre-flight checks", StringComparison.Ordinal)];
 
         Assert.Contains($"/updates/{update.UpdateId}/1", tasks, StringComparison.Ordinal);
         Assert.Contains("pill ok\">Installation", tasks, StringComparison.Ordinal);
@@ -335,7 +337,7 @@ public sealed class ServerDetailPageTests
         }
 
         var page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var tasks = page[page.IndexOf(">Tasks<", StringComparison.Ordinal)..page.IndexOf("Missing updates", StringComparison.Ordinal)];
+        var tasks = page[page.IndexOf(">Tasks<", StringComparison.Ordinal)..page.IndexOf("Pre-flight checks", StringComparison.Ordinal)];
         var action = tasks.IndexOf("pill queue\">Remote action", StringComparison.Ordinal);
         var next = tasks.IndexOf("pill pend\">Update search", StringComparison.Ordinal);
         var collect = tasks.IndexOf("pill neutral\">Inventory", StringComparison.Ordinal);
@@ -378,7 +380,7 @@ public sealed class ServerDetailPageTests
         {
         }
 
-        var page = await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var page = await (await reader.GetAsync($"/servers/{client.ClientId}?tab=system")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Contains(expected, page, StringComparison.Ordinal);
         Assert.DoesNotContain("bypasses rings", page, StringComparison.Ordinal);

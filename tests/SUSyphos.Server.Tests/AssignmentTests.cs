@@ -463,7 +463,7 @@ public sealed class AssignmentPageTests
         }
 
         // Registered by the agent, but the setting (system default: Windows Update only) says otherwise.
-        var html = await (await browser.GetAsync($"/servers/{credentials.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var html = await (await browser.GetAsync($"/servers/{credentials.ClientId}?tab=system")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Microsoft Update (Windows and other Microsoft products)", html, StringComparison.Ordinal);
         Assert.Contains("set: Windows Update only", html, StringComparison.Ordinal);
         Assert.True(await factory.WithDbAsync(db => db.Clients.Where(c => c.Id == credentials.ClientId).Select(c => c.MicrosoftUpdateRegistered == true).SingleAsync(TestContext.Current.CancellationToken)));
@@ -501,7 +501,7 @@ public sealed class AssignmentPageTests
         {
         }
 
-        using var response = await browser.PostFormAndFollowAsync($"/servers/{credentials.ClientId}", new Dictionary<string, string>
+        using var response = await browser.PostFormAndFollowAsync($"/servers/{credentials.ClientId}?tab=configuration", new Dictionary<string, string>
         {
             ["_handler"] = "assignment",
             ["Ring"] = RingEntity.PilotId.ToString(System.Globalization.CultureInfo.InvariantCulture),

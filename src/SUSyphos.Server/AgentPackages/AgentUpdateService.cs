@@ -72,6 +72,24 @@ internal sealed class AgentUpdateService(ServerDbContext db, IOptions<AgentPacka
             .Where(p => p.ReleasedThroughRingOrder != null || p.Source == AgentPackageSource.Bundled)
             .ToListAsync(cancellationToken);
 
+    /// <summary>
+    /// Agent state and update target of each server, as the server list and the Agents page show them; servers without a
+    /// ring get only packages released for all rings.
+    /// </summary>
+    public async Task<Dictionary<Guid, (Administration.AgentState State, string? Target)>> StatesAsync(IReadOnlyCollection<ClientEntity> clients, IReadOnlyDictionary<int, int> ringOrders, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(clients);
+        ArgumentNullException.ThrowIfNull(ringOrders);
+        var packages = await GetOfferablePackagesAsync(cancellationToken).ConfigureAwait(false);
+        return clients.ToDictionary(c => c.Id, c =>
+        {
+            var known = AgentVersion.TryParse(c.AgentVersion, out var version);
+            var order = c.RingId is { } ring && ringOrders.TryGetValue(ring, out var o) ? o : AgentPackageEntity.AllRings;
+            var target = known && packages.Count > 0 ? TargetFor(packages, order, version!, Minimum)?.Version : null;
+            return (Administration.ServerIndicators.Agent(c.AgentUpdateError, known, target), target);
+        });
+    }
+
     public async Task<AgentUpdate?> GetUpdateAsync(Guid clientId, string agentVersion, CancellationToken cancellationToken) =>
         await GetTargetAsync(clientId, agentVersion, cancellationToken).ConfigureAwait(false) is { } target
             ? new AgentUpdate(target.Version, target.Sha256, target.Size)

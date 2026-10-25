@@ -18,15 +18,23 @@
     <ActionBand>
         <form method="post" @formname="agents-check" @onsubmit="CheckAsync">
             <AntiforgeryToken />
-            <button type="submit" class="primary">Check for new versions now</button>
+            <button type="submit" class="primary"><Icon Name="refresh-cw" Size="16" />Check for new versions now</button>
         </form>
-        <div class="spacer"></div>
-        <span class="note">Last check: @(_lastCheck is { } check ? $"{Format(check.AtUtc)}, {check.Describe()}" : "not yet")</span>
     </ActionBand>
 </AuthorizeView>
 
+<section class="tiles" aria-label="Agent versions">
+    <Tile Title="Agents on the servers" Href="/servers" Edge="@(_agentParts.Any(p => p.Class == "fail" && p.Value > 0) ? "fail" : null)" Footer="approved servers by agent version state">
+        <TileDonut Parts="@_agentParts" />
+    </Tile>
+    <Tile Title="Newest agent version" Href="#versions" Footer="@(_lastCheck is { } check ? $"last check {Format(check.AtUtc)}, {check.Describe()}" : "not checked yet")">
+        <TileValue Value="@DisplayNumber.Version(_newest?.Version)" Caption="@ReleaseCaption" />
+    </Tile>
+    <CentralServerTile Update="@_serverUpdate" Href="#server" />
+</section>
+
 <div class="grid-side">
-    <Box Title="Agent versions" Help="agents#versions" Hint="Agents update to the newest version released for their ring" Flush="true">
+    <Box Title="Agent versions" Anchor="versions" Help="agents#versions" Hint="Agents update to the newest version released for their ring" Flush="true">
         <form method="post" @formname="agents-release" @onsubmit="ReleaseAsync" class="scroll">
             <AntiforgeryToken />
             <table>
@@ -107,25 +115,6 @@
 
 <Box Title="Central server" Anchor="server" Help="agents#server" Hint="The central server never updates itself; an administrator installs a new version">
     <ChildContent>
-        <div class="version-row">
-            <div class="version-tile">
-                <span class="label">Running</span>
-                <span class="value mono" title="@SUSyphos.Server.Administration.ServerVersion.Full">@SUSyphos.Server.Administration.ServerVersion.Display</span>
-            </div>
-            <div class="version-tile">
-                <span class="label">Newest release</span>
-                @if (_serverUpdate is { } update)
-                {
-                    <span class="value mono">@update.Version</span>
-                    <span><span class="pill queue">update available</span> <span class="note">found @Format(update.FoundAtUtc)</span></span>
-                }
-                else
-                {
-                    <span class="value"><span class="pill ok">up to date</span></span>
-                    <span class="note">@(_lastCheck is null ? "not checked yet" : $"as of the last check, {Format(_lastCheck.AtUtc)}")</span>
-                }
-            </div>
-        </div>
         @if (_serverUpdate is not null)
         {
             <div class="upgrade-steps">
@@ -136,25 +125,22 @@
                     <li>The dashboard is unavailable for about a minute while the service restarts. Database, trust anchor, settings, port and certificate stay; the agents keep working and report again afterwards.</li>
                 </ol>
             </div>
-        }
-    </ChildContent>
-    <Footer>
-        @if (_serverUpdate is { } available)
-        {
-            @if (available.Page is { } releasePage)
-            {
-                <a class="btn" href="@releasePage" target="_blank" rel="noopener noreferrer">Release notes</a>
-            }
-            @if (available.Package is { } serverMsi)
-            {
-                <a class="btn primary" href="@serverMsi" target="_blank" rel="noopener noreferrer">Download SUSyphos.Server-@(available.Version).msi</a>
-            }
+            <div class="actions box-actions">
+                @if (_serverUpdate.Page is { } releasePage)
+                {
+                    <a class="btn" href="@releasePage" target="_blank" rel="noopener noreferrer">Release notes</a>
+                }
+                @if (_serverUpdate.Package is { } serverMsi)
+                {
+                    <a class="btn primary" href="@serverMsi" target="_blank" rel="noopener noreferrer">Download SUSyphos.Server-@(_serverUpdate.Version).msi</a>
+                }
+            </div>
         }
         else
         {
-            <span class="note">New versions are found by the daily check of the GitHub releases (or "Check for new versions now").</span>
+            <p class="note">This central server runs the newest release. New versions are found by the daily check of the GitHub releases (or "Check for new versions now").</p>
         }
-    </Footer>
+    </ChildContent>
 </Box>
 
 @if (_failed.Count > 0)
@@ -235,6 +221,15 @@
     private ServerUpdate? _serverUpdate;
     private AgentPackageEntity? _newestReleased;
     private AgentPackageCheck? _lastCheck;
+    private IReadOnlyList<SUSyphos.Server.Rollouts.DonutPart> _agentParts = [];
+
+    /// <summary>How far the newest package is released.</summary>
+    private string ReleaseCaption => _newest?.ReleasedThroughRingOrder switch
+    {
+        null => "not released",
+        AgentPackageEntity.AllRings => "released to all rings",
+        { } order => $"released up to ring {_rings.FirstOrDefault(r => r.Order == order)?.Name ?? order.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
+    };
     private string _address = string.Empty;
     private List<ClientEntity> _failed = [];
     private TableQuery _failedTable = default!;
@@ -295,7 +290,11 @@
         _failed = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved && c.AgentUpdateError != null).OrderBy(c => c.HostName).Take(1000).ToListAsync();
         _failedTable = TableQuery.From(Navigation, "name", prefix: "fail.", defaultPageSize: 10);
         _failedPage = TablePaging.Apply(_failed, _failedTable, FailedColumns, c => $"{c.HostName} {c.AgentUpdateError}");
-        var versions = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).Select(c => c.AgentVersion).ToListAsync();
+        var approved = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).ToListAsync();
+        var states = await Updates.StatesAsync(approved, _rings.ToDictionary(r => r.Id, r => r.Order), CancellationToken.None);
+        _agentParts = [.. new[] { SUSyphos.Server.Administration.AgentState.Current, SUSyphos.Server.Administration.AgentState.UpdateAvailable, SUSyphos.Server.Administration.AgentState.Failed, SUSyphos.Server.Administration.AgentState.Other }
+            .Select(s => new SUSyphos.Server.Rollouts.DonutPart(SUSyphos.Server.Administration.ServerIndicators.Class(s), SUSyphos.Server.Administration.ServerIndicators.Label(s), states.Values.Count(v => v.State == s)))];
+        var versions = approved.Select(c => c.AgentVersion).ToList();
         _serversByVersion = versions
             .GroupBy(v => AgentVersion.TryParse(v, out var parsed) ? parsed.ToString() : v)
             .ToDictionary(g => g.Key, g => g.Count());

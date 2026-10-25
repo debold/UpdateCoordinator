@@ -49,14 +49,17 @@ public sealed class ClientActivityTests
         {
         }
 
-        using var page = await reader.GetAsync($"/servers/{client.ClientId}");
+        using var page = await reader.GetAsync($"/servers/{client.ClientId}?tab=activity");
         var html = await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Recent activity", html, StringComparison.Ordinal);
         Assert.Contains("Update search succeeded: 1 updates available.", html, StringComparison.Ordinal);
         Assert.Contains("Installation finished: 0 succeeded, 1 not successful.", html, StringComparison.Ordinal);
         Assert.Contains("to 1.3.0.", html, StringComparison.Ordinal);
-        Assert.Contains("0 h 5 min (since", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Last update search</dt><dd><span class=\"pill ok\">OK</span>", html, StringComparison.Ordinal);
+
+        using var system = await reader.GetAsync($"/servers/{client.ClientId}?tab=system");
+        var facts = await system.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("0 h 5 min (since", facts, StringComparison.Ordinal);
+        Assert.Contains("<dt>Last update search</dt><dd><span class=\"pill ok\">OK</span>", facts, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -119,7 +122,7 @@ public sealed class ClientActivityTests
         }
 
         // Newest first (the registration, then entry 30), ten rows by default; the list states what it shows.
-        var first = await PageAsync(reader, $"/servers/{client.ClientId}");
+        var first = await PageAsync(reader, $"/servers/{client.ClientId}?tab=activity");
         Assert.Contains("entry 30", first, StringComparison.Ordinal);
         Assert.Contains("entry 22", first, StringComparison.Ordinal);
         Assert.DoesNotContain("entry 21", first, StringComparison.Ordinal);
@@ -127,23 +130,23 @@ public sealed class ClientActivityTests
         Assert.Contains("name=\"act.size\"", first, StringComparison.Ordinal);
 
         // Page, size, search and filter of the activity list do not touch the other lists.
-        var second = await PageAsync(reader, $"/servers/{client.ClientId}?act.page=2&hist.page=5");
+        var second = await PageAsync(reader, $"/servers/{client.ClientId}?tab=activity&act.page=2&hist.page=5");
         Assert.Contains("entry 21", second, StringComparison.Ordinal);
         Assert.DoesNotContain("entry 22", second, StringComparison.Ordinal);
         Assert.Contains("hist.page=5", second, StringComparison.Ordinal);
 
-        var all = await PageAsync(reader, $"/servers/{client.ClientId}?act.size=50");
+        var all = await PageAsync(reader, $"/servers/{client.ClientId}?tab=activity&act.size=50");
         Assert.Contains("entry 01", all, StringComparison.Ordinal);
         Assert.Contains("1–31 of 31 entries", all, StringComparison.Ordinal);
 
-        var searched = await PageAsync(reader, $"/servers/{client.ClientId}?act.q=entry+0&act.f.activity={Uri.EscapeDataString(ClientActivityLog.Label(ClientActivityKind.Search))}");
+        var searched = await PageAsync(reader, $"/servers/{client.ClientId}?tab=activity&act.q=entry+0&act.f.activity={Uri.EscapeDataString(ClientActivityLog.Label(ClientActivityKind.Search))}");
         Assert.Contains("entry 08", searched, StringComparison.Ordinal);
         Assert.DoesNotContain("entry 07", searched, StringComparison.Ordinal);
         Assert.DoesNotContain("entry 12", searched, StringComparison.Ordinal);
         Assert.Contains("(filtered from 31)", searched, StringComparison.Ordinal);
 
         // Values outside the offered page sizes fall back to the default.
-        var invalid = await PageAsync(reader, $"/servers/{client.ClientId}?act.size=100000&act.page=-1");
+        var invalid = await PageAsync(reader, $"/servers/{client.ClientId}?tab=activity&act.size=100000&act.page=-1");
         Assert.Contains("1–10 of 31 entries", invalid, StringComparison.Ordinal);
     }
 

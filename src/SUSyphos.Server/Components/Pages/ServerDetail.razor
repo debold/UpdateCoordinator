@@ -25,68 +25,91 @@ else
     <PageHeader Title="@_client.HostName" Icon="@PageIcons.Servers" Subtitle="@Subtitle" Help="server-detail" Crumbs="@([("Servers", "/servers"), (_client.HostName, null)])" />
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
+    <form id="actions" method="post" @formname="action" @onsubmit="HandleActionAsync" class="detached"><AntiforgeryToken /></form>
+    <form id="cancel-restart" method="post" @formname="cancel-restart" @onsubmit="CancelRestartAsync" class="detached"><AntiforgeryToken /></form>
     @if (RestartQueuedText is { } restartText)
     {
-        <form method="post" @formname="cancel-restart" @onsubmit="CancelRestartAsync" class="restart-banner help-scope" role="status">
-            <AntiforgeryToken />
-            <span class="pill fail">@(_client.RestartAnnouncedAtUtc is null ? "Restart queued" : "Restart announced")</span>
-            <span>@restartText</span><HelpLink To="server-detail#restart-queued" Label="Queued restart" />
-            <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="cancelRestart">
-                <button type="submit" class="danger">Cancel restart</button>
-            </AuthorizeView>
-        </form>
+        <Banner Label="@(_client.RestartAnnouncedAtUtc is null ? "Restart queued" : "Restart announced")" Severity="fail" Help="server-detail#restart-queued">
+            <ChildContent>@restartText</ChildContent>
+            <Action>
+                <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="cancelRestart">
+                    <button type="submit" form="cancel-restart" class="danger">Cancel restart</button>
+                </AuthorizeView>
+            </Action>
+        </Banner>
     }
 
     <ActionBand>
-        <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
-            <form id="actions" method="post" @formname="action" @onsubmit="HandleActionAsync">
-                <AntiforgeryToken />
-                <button type="submit" name="RemoteAction" value="queue:SearchNow" class="primary">Search for updates</button>
-                <button type="submit" name="RemoteAction" value="queue:FullResync">Sync inventory</button>
-                <button type="submit" name="RemoteAction" value="queue:UploadLogs">Request logs</button>
-                <button type="submit" name="RemoteAction" value="queue:RestartService">Restart agent service</button>
-            </form>
-        </AuthorizeView>
-        <a class="btn" href="@AddressWithoutMessage" title="Load the page again with the latest state">Refresh</a>
-        <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="administer">
-            <a class="btn" href="@DialogLink("install")">Install updates now…</a>
-            <a class="btn" href="@DialogLink("uninstall")">Uninstall update…</a>
-            <a class="btn" href="@DialogLink("restart")">Restart server…</a>
+        @if (_canOperate)
+        {
+            <ActionMenu Label="Updates" Icon="scan-search" Kind="primary">
+                <MenuItem Form="actions" Name="RemoteAction" Value="queue:SearchNow" Icon="search">Search for updates</MenuItem>
+                <MenuItem Form="actions" Name="RemoteAction" Value="queue:FullResync" Icon="refresh-cw" Reason="Collect the inventory and the Windows Update history again and search">Sync inventory and history</MenuItem>
+                <MenuSeparator />
+                <MenuItem Href="@DialogLink("install")" Icon="download" Disabled="@(!_canAdminister || ReleasedPending.Count == 0)" Reason="@(!_canAdminister ? AdministratorsOnly : ReleasedPending.Count == 0 ? "No released update is missing on this server" : null)">Install updates now…</MenuItem>
+                <MenuItem Href="@DialogLink("uninstall")" Icon="undo-2" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? null : AdministratorsOnly)">Uninstall update…</MenuItem>
+            </ActionMenu>
+            <ActionMenu Label="Server" Icon="server">
+                <MenuItem Href="@DialogLink("restart")" Icon="power" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? null : AdministratorsOnly)">Restart server…</MenuItem>
+                <MenuSeparator />
+                <MenuItem Form="actions" Name="RemoteAction" Value="queue:RestartService" Icon="rotate-cw">Restart agent service</MenuItem>
+                <MenuItem Form="actions" Name="RemoteAction" Value="queue:UploadLogs" Icon="file-down">Request logs</MenuItem>
+            </ActionMenu>
+        }
+        <a class="btn" href="@AddressWithoutMessage" title="Load the page again with the latest state"><Icon Name="refresh-cw" Size="16" />Refresh</a>
+        @if (_canOperate)
+        {
             <div class="spacer"></div>
-            <a class="btn danger" href="@DialogLink("remove")">Remove server…</a>
-            <a class="btn danger" href="@DialogLink("purge")">Delete with history…</a>
-        </AuthorizeView>
+            <ActionMenu Label="Remove" Icon="trash-2" Kind="danger" Align="right">
+                <MenuItem Href="@DialogLink("remove")" Icon="ban" Danger="true" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? "Remove the server; it can register again" : AdministratorsOnly)">Remove server…</MenuItem>
+                <MenuItem Href="@DialogLink("purge")" Icon="trash-2" Danger="true" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? "Delete the server with its whole history" : AdministratorsOnly)">Delete with history…</MenuItem>
+            </ActionMenu>
+        }
     </ActionBand>
 
-    <section class="figures" aria-label="Status">
-        <a class="tile @(_health == ServerHealthState.Failed ? "attention-tile" : null)" href="/servers/@Id#checks">
-            <span class="go">Show ›</span>
-            <div class="label">Status</div>
-            <div class="value"><span class="pill @ServerHealth.PillClass(_health)">@ServerHealth.Label(_health)</span></div>
-            <div class="detail" title="agent @_client.AgentVersion">@_client.State · agent @AgentVersion.ShortForm(_client.AgentVersion)</div>
-        </a>
-        <a class="tile" href="/servers/@Id#missing">
-            <span class="go">Show ›</span>
-            <div class="label">Pending updates</div>
-            <div class="value">@_open.Count(o => o.Entry.EarliestInstallAtUtc is not null && o.Entry.State != DeploymentState.Successful)</div>
-            <div class="detail">released for this server, not installed yet</div>
-        </a>
-        <div class="tile">
-            <div class="label">Next maintenance window</div>
-            <div class="value small-value">@NextWindowText</div>
-        </div>
-        <div class="tile">
-            <div class="label">Last heartbeat</div>
-            <div class="value small-value">@Format(_client.LastHeartbeatAtUtc)</div>
-            <div class="detail">last boot @Format(_client.LastBootAtUtc)@(_client.RebootPending ? " · reboot pending" : string.Empty)</div>
-        </div>
+    <section class="tiles" aria-label="Status">
+        <Tile Title="Status" Href="@ServerPage.Link(Id, "checks")" Edge="@ServerHealth.Edge(_health)" Footer="@($"agent {DisplayNumber.Version(AgentVersion.ShortForm(_client.AgentVersion))}")">
+            <TileValue><StatusTag Text="@ServerHealth.Label(_health)" Kind="@ServerHealth.PillClass(_health)" /></TileValue>
+        </Tile>
+        <Tile Title="Updates" Href="@ServerPage.Link(Id, "missing")" Edge="@(_open.Any(o => o.Entry.State == DeploymentState.Failed) ? "fail" : null)" Footer="released for this server and not installed yet, and all it misses">
+            <TileValue Value="@DisplayNumber.Format(ReleasedPending.Count)" Caption="released" />
+            <TileValue Value="@DisplayNumber.Format(_open.Count)" Caption="missing" />
+        </Tile>
+        <Tile Title="Next maintenance window" Href="@ServerPage.Link(Id, "tasks")" Footer="@NextWindowFooter">
+            @if (_window is { } window && window.Start <= _now)
+            {
+                <TileValue Caption="@($"until {DisplayTime.ToLocal(window.End):HH:mm}")"><StatusTag Text="Open" Kind="ok" /></TileValue>
+            }
+            else if (_window is { } next)
+            {
+                <TileValue Value="@DisplayTime.ToLocal(next.Start).ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)" Caption="@DisplayTime.ToLocal(next.Start).ToString("ddd yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
+            }
+            else
+            {
+                <TileValue Value="–" Caption="@NextWindowText" />
+            }
+        </Tile>
+        <Tile Title="Last heartbeat" Edge="@(_health == ServerHealthState.Offline ? "fail" : null)" Footer="@($"last boot {Format(_client.LastBootAtUtc)}")">
+            @if (_client.LastHeartbeatAtUtc is { } heartbeat)
+            {
+                <TileValue Value="@DisplayTime.ToLocal(heartbeat).ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)" Caption="@DisplayTime.ToLocal(heartbeat).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
+            }
+            else
+            {
+                <TileValue Value="–" Caption="none yet" />
+            }
+        </Tile>
     </section>
+
+    <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => "/" + ServerPage.TabPath(Id, tab))" />
 
     @if (IsBusy && Dialog is null && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
     {
         @* Reload while the agent works or an action waits for it; not after a form post, so unsaved input is never lost. *@
         <HeadContent><meta http-equiv="refresh" content="@($"{LiveRefreshSeconds}; url={AddressWithoutMessage}")" /></HeadContent>
     }
+    @if (_tab == ServerPage.Overview)
+    {
     <Box Title="Tasks" Anchor="tasks" Help="server-detail#tasks" Hint="@(IsBusy ? $"the page updates every {LiveRefreshSeconds} seconds while the agent works or an action waits" : "what the agent does next, in order; heartbeats are not listed")" Flush="true">
         @if (_livePhase is { } livePhase)
         {
@@ -143,120 +166,6 @@ else
             </table>
         </div>
     </Box>
-    <div class="grid-side">
-        <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="assign">
-            <Authorized>
-                <form method="post" @formname="assignment" @onsubmit="SaveAsync" class="box" id="assignment">
-                    <AntiforgeryToken />
-                    <header class="box-head"><h2>Assignment<HelpLink To="server-detail#assignment" Label="Assignment" /></h2><span class="hint">Saved configuration of this server; empty values inherit</span></header>
-                    <div class="box-body form">
-                        <div class="form-row">
-                            <label class="field"><span>Ring</span>
-                                <select name="Ring">
-                                    <option value="" selected="@(_client.ManualRingId is null)">Automatic: assignment rules, else @_fallbackRing (now @RingName(_client.RingId))</option>
-                                    @foreach (var ring in _rings)
-                                    {
-                                        <option value="@ring.Id" selected="@(_client.ManualRingId == ring.Id)">@ring.Name</option>
-                                    }
-                                </select>
-                            </label>
-                            <label class="field"><span>Reboots</span>
-                                <select name="Reboot">
-                                    <option value="" selected="@(_client.RebootPolicy is null)">Inherit from groups or system (now @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</option>
-                                    @foreach (var policy in Enum.GetValues<SUSyphos.Contracts.Agents.RebootPolicy>())
-                                    {
-                                        <option value="@policy" selected="@(_client.RebootPolicy == policy)">@RebootPolicyText.Label(policy)</option>
-                                    }
-                                </select>
-                            </label>
-                        </div>
-                        <div class="form-row">
-                            <label class="field"><span>Windows Automatic Updates</span>
-                                <select name="AutomaticUpdates">
-                                    <option value="" selected="@(_client.ManageAutomaticUpdates is null)">Inherit from groups or system (now @(_client.EffectiveManageAutomaticUpdates ? "keep Windows from installing" : "leave unchanged"))</option>
-                                    <option value="leave" selected="@(_client.ManageAutomaticUpdates == false)">Leave unchanged, only warn</option>
-                                    <option value="prevent" selected="@(_client.ManageAutomaticUpdates == true)">Keep Windows from installing on its own</option>
-                                </select>
-                            </label>
-                            <label class="field"><span>Other Microsoft products</span>
-                                <select name="MicrosoftUpdate">
-                                    <option value="" selected="@(_client.UseMicrosoftUpdate is null)">Inherit from groups or system (now @(_client.EffectiveUseMicrosoftUpdate ? "Microsoft Update" : "Windows Update only"))</option>
-                                    <option value="windows" selected="@(_client.UseMicrosoftUpdate == false)">Windows Update only</option>
-                                    <option value="microsoft" selected="@(_client.UseMicrosoftUpdate == true)">Microsoft Update</option>
-                                </select>
-                            </label>
-                        </div>
-                        <div class="field">
-                            <span class="field-label">Groups</span>
-                            <MultiSelect Name="Groups" Placeholder="No group"
-                                         Options="@([.. _groups.Take(MultiSelect.MaxOptions).Select(g => (g.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), g.Name))])"
-                                         Selected="@([.. _memberships.Where(m => m.Manual).Select(m => m.GroupId.ToString(System.Globalization.CultureInfo.InvariantCulture))])"
-                                         Fixed="@([.. _memberships.Where(m => !m.Manual).Select(m => $"{GroupName(m.GroupId)} (rule)")])">
-                                <Empty><span class="note">No group exists yet. <a href="/administration/groups">Create groups</a></span></Empty>
-                            </MultiSelect>
-                            <span class="help">Groups from assignment rules are added automatically.</span>
-                        </div>
-                        <div class="field">
-                            <span class="field-label">Maintenance windows</span>
-                            <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
-                        </div>
-                        <AgentSettingOverrides Explained="@_agentSettings" Own="@_ownAgentSettings" EditHref="@(key => SettingHref(key))" Help="server-detail#agent-settings" />
-                    </div>
-                    <footer class="box-foot">
-                        <span class="note">Applies with the server's next heartbeat.</span>
-                        <span class="actions"><a class="btn" href="/servers/@Id">Discard changes</a><button type="submit" class="primary">Save assignment</button></span>
-                    </footer>
-                </form>
-            </Authorized>
-            <NotAuthorized>
-                <Box Title="Assignment" Help="server-detail#assignment">
-                    <dl class="facts">
-                        <dt>Ring</dt><dd>@RingName(_client.RingId) @(_client.ManualRingId is null ? "(automatic)" : "(manual)")</dd>
-                        <dt>Groups</dt><dd>@(_memberships.Count > 0 ? string.Join(", ", _memberships.Select(m => GroupName(m.GroupId))) : "–")</dd>
-                        <dt>Maintenance windows</dt><dd>@(_effectiveWindows.Count > 0 ? WindowPickerForm.Describe(_effectiveWindows) : "none")</dd>
-                        <dt>Reboots</dt><dd>@RebootPolicyText.Label(_client.EffectiveRebootPolicy)</dd>
-                        <dt>Update source</dt><dd>@(_client.EffectiveUseMicrosoftUpdate ? "Microsoft Update" : "Windows Update only")</dd>
-                    </dl>
-                </Box>
-            </NotAuthorized>
-        </AuthorizeView>
-
-        <Box Title="System" Help="server-detail#system" Anchor="system">
-            <dl class="facts">
-                <dt>Operating system</dt><dd>@OperatingSystems.Name(_client.OsProductName, _client.OsVersion)@(_client.OsEditionId is { Length: > 0 } edition ? $" ({edition})" : string.Empty)</dd>
-                <dt>Build</dt><dd class="mono">@OperatingSystems.Build(_client.OsVersion)</dd>
-                <dt>Domain</dt><dd>@(_client.DomainName ?? "–")</dd>
-                <dt>Roles</dt><dd>@(_client.Roles.Count > 0 ? string.Join(", ", _client.Roles) : "–")</dd>
-                <dt>Update source</dt><dd>@UpdateSourceText@if (_client.MicrosoftUpdateRegistered is { } registered && registered != _client.EffectiveUseMicrosoftUpdate) { <span class="pill queue" title="The agent applies the setting with its next heartbeat and reports it with the next inventory">@(_client.EffectiveUseMicrosoftUpdate ? "set: Microsoft Update" : "set: Windows Update only")</span> }</dd>
-                <dt>Agent update</dt><dd>@if (_client.AgentUpdateError is { } agentError) { <span class="pill fail">failed</span> <span>@agentError</span> } else { <a href="@Servers.Link("agent", AgentVersion.ShortForm(_client.AgentVersion))" title="@_client.AgentVersion: show all servers with this agent version" class="mono">@AgentVersion.ShortForm(_client.AgentVersion)</a> }@if (AgentUpdates.IsBelowMinimum(_client.AgentVersion)) { <span class="pill fail">below minimum @AgentUpdates.Minimum</span> }</dd>
-                <dt>Agent settings</dt><dd>@{ var applied = AppliedSummary; }<StatusTag Text="@applied.Text" Kind="@applied.Kind" /> <a href="/servers/@Id?dialog=agent-settings" data-help-term="Show agent settings">Show</a></dd>
-                @if (_client.ServerMoveError is { } moveError)
-                {
-                    <dt>Move</dt><dd><span class="pill fail">not moved</span> <span>@moveError</span> <a href="/administration/backup#move" title="The announced move to a new central server">Move to a new server</a></dd>
-                }
-                <dt>Automatic updates</dt><dd>@if (_client.AutoUpdateMode is null) { <span class="note">reported by agents from version 0.3</span> } else if (_client.AutomaticUpdatesBypass) { <span class="pill fail">problem</span> <span>Windows may install or restart on its own, outside rings and windows (<a href="/servers/@Id#checks">details</a>); setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> } else { <span class="pill ok">OK</span> <span>Windows does not install on its own; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> }</dd>
-                <dt>Restart</dt><dd>@if (_client.RestartAnnouncedAtUtc is { } restartAt) { <span class="pill pend">restarting</span> <span>at @Format(restartAt), announced to Windows by the agent</span> } else if (!_client.RebootPending) { <span class="pill ok">not pending</span> } else if (_client.RebootWait is { } wait) { <span class="pill queue">pending</span> <span>@LiveStatus.RebootWaitText(wait) (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> } else { <span class="pill queue">pending</span> <span>the agent reports why it waits from version 0.7 (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> }</dd>
-                <dt>Outside SUSyphos</dt><dd>@if (_externalInstalls > 0) { <span class="pill queue">@_externalInstalls</span> <span>installations in the last @SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays days were started by Windows or an administrator, not by SUSyphos (<a href="/servers/@Id#windows-history">history</a>)</span> } else { <span>none in the reported history</span> }</dd>
-                <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
-                <dt>Uptime</dt><dd>@UptimeText</dd>
-                <dt>Last update search</dt><dd>@if (_client.LastSearchAtUtc is null) { <span>none reported yet</span> } else if (_client.LastSearchSucceeded == true) { <span class="pill ok">OK</span> <span>@Format(_client.LastSearchAtUtc)</span> } else { <span class="pill fail">failed</span> <span>@Format(_client.LastSearchAtUtc) (<a href="/servers/@Id#missing">details</a>)</span> }</dd>
-                <dt>Registered</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
-            </dl>
-        </Box>
-    </div>
-
-    <Box Title="Missing updates" Anchor="missing" Help="server-detail#missing" Flush="true">
-        <ListTable Table="_openTable" Page="_openPage" Columns="OpenColumns" Search="Search update" Noun="updates" Empty="The last search reported no missing update.">
-            <Row Context="row">
-                <tr>
-                    <td class="wrap"><a href="/updates/@row.Entry.UpdateId/@row.Entry.Revision">@row.Title</a></td>
-                    <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@OpenStatus(row.Entry)</span></td>
-                    <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
-                    <td>@(row.Entry.HResult is { } hresult ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{hresult:X8}: {SUSyphos.Server.Agents.HResultCatalog.Describe(hresult)}") : null)</td>
-                </tr>
-            </Row>
-        </ListTable>
-    </Box>
 
     <Box Title="Pre-flight checks" Anchor="checks" Help="server-detail#checks" Hint="@(_client.LastSearchAtUtc is { } searched ? $"{Format(searched)}" : null)" Flush="true">
         @if (_client.HealthChecks.Count == 0)
@@ -286,7 +195,24 @@ else
             <div class="box-body"><p class="error">Last update search failed: @string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{_client.LastSearchHResult ?? 0:X8}") @SUSyphos.Server.Agents.HResultCatalog.Describe(_client.LastSearchHResult ?? 0)</p></div>
         }
     </Box>
-
+    }
+    else if (_tab == ServerPage.Updates)
+    {
+    <Box Title="Missing updates" Anchor="missing" Help="server-detail#missing" Flush="true">
+        <ListTable Table="_openTable" Page="_openPage" Columns="OpenColumns" Search="Search update" Noun="updates" Empty="The last search reported no missing update.">
+            <Row Context="row">
+                <tr>
+                    <td class="wrap"><a href="/updates/@row.Entry.UpdateId/@row.Entry.Revision">@row.Title</a></td>
+                    <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@OpenStatus(row.Entry)</span></td>
+                    <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
+                    <td>@(row.Entry.HResult is { } hresult ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{hresult:X8}: {SUSyphos.Server.Agents.HResultCatalog.Describe(hresult)}") : null)</td>
+                </tr>
+            </Row>
+        </ListTable>
+    </Box>
+    }
+    else if (_tab == ServerPage.History)
+    {
     <Box Title="Update history" Anchor="history" Help="server-detail#history" Flush="true">
         <ListTable Table="_historyTable" Page="_historyPage" Columns="HistoryColumns" Search="Search update" Noun="installations" Empty="No installation reported yet.">
             <Row Context="row">
@@ -314,7 +240,113 @@ else
             </Row>
         </ListTable>
     </Box>
-
+    }
+    else if (_tab == ServerPage.Configuration)
+    {
+    <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="assign">
+        <Authorized>
+            <form method="post" @formname="assignment" @onsubmit="SaveAsync" class="box" id="assignment">
+                <AntiforgeryToken />
+                <header class="box-head"><h2>Assignment<HelpLink To="server-detail#assignment" Label="Assignment" /></h2><span class="hint">Saved configuration of this server; empty values inherit</span></header>
+                <div class="box-body form">
+                    <div class="form-row">
+                        <label class="field"><span>Ring</span>
+                            <select name="Ring">
+                                <option value="" selected="@(_client.ManualRingId is null)">Automatic: assignment rules, else @_fallbackRing (now @RingName(_client.RingId))</option>
+                                @foreach (var ring in _rings)
+                                {
+                                    <option value="@ring.Id" selected="@(_client.ManualRingId == ring.Id)">@ring.Name</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="field"><span>Reboots</span>
+                            <select name="Reboot">
+                                <option value="" selected="@(_client.RebootPolicy is null)">Inherit from groups or system (now @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</option>
+                                @foreach (var policy in Enum.GetValues<SUSyphos.Contracts.Agents.RebootPolicy>())
+                                {
+                                    <option value="@policy" selected="@(_client.RebootPolicy == policy)">@RebootPolicyText.Label(policy)</option>
+                                }
+                            </select>
+                        </label>
+                    </div>
+                    <div class="form-row">
+                        <label class="field"><span>Windows Automatic Updates</span>
+                            <select name="AutomaticUpdates">
+                                <option value="" selected="@(_client.ManageAutomaticUpdates is null)">Inherit from groups or system (now @(_client.EffectiveManageAutomaticUpdates ? "keep Windows from installing" : "leave unchanged"))</option>
+                                <option value="leave" selected="@(_client.ManageAutomaticUpdates == false)">Leave unchanged, only warn</option>
+                                <option value="prevent" selected="@(_client.ManageAutomaticUpdates == true)">Keep Windows from installing on its own</option>
+                            </select>
+                        </label>
+                        <label class="field"><span>Other Microsoft products</span>
+                            <select name="MicrosoftUpdate">
+                                <option value="" selected="@(_client.UseMicrosoftUpdate is null)">Inherit from groups or system (now @(_client.EffectiveUseMicrosoftUpdate ? "Microsoft Update" : "Windows Update only"))</option>
+                                <option value="windows" selected="@(_client.UseMicrosoftUpdate == false)">Windows Update only</option>
+                                <option value="microsoft" selected="@(_client.UseMicrosoftUpdate == true)">Microsoft Update</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="field">
+                        <span class="field-label">Groups</span>
+                        <MultiSelect Name="Groups" Placeholder="No group"
+                                     Options="@([.. _groups.Take(MultiSelect.MaxOptions).Select(g => (g.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), g.Name))])"
+                                     Selected="@([.. _memberships.Where(m => m.Manual).Select(m => m.GroupId.ToString(System.Globalization.CultureInfo.InvariantCulture))])"
+                                     Fixed="@([.. _memberships.Where(m => !m.Manual).Select(m => $"{GroupName(m.GroupId)} (rule)")])">
+                            <Empty><span class="note">No group exists yet. <a href="/administration/groups">Create groups</a></span></Empty>
+                        </MultiSelect>
+                        <span class="help">Groups from assignment rules are added automatically.</span>
+                    </div>
+                    <div class="field">
+                        <span class="field-label">Maintenance windows</span>
+                        <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
+                    </div>
+                    <AgentSettingOverrides Explained="@_agentSettings" Own="@_ownAgentSettings" EditHref="@(key => SettingHref(key))" Help="server-detail#agent-settings" />
+                </div>
+                <footer class="box-foot">
+                    <span class="note">Applies with the server's next heartbeat.</span>
+                    <span class="actions"><a class="btn" href="@ServerPage.Link(Id, "assignment")">Discard changes</a><button type="submit" class="primary">Save assignment</button></span>
+                </footer>
+            </form>
+        </Authorized>
+        <NotAuthorized>
+            <Box Title="Assignment" Help="server-detail#assignment">
+                <dl class="facts">
+                    <dt>Ring</dt><dd>@RingName(_client.RingId) @(_client.ManualRingId is null ? "(automatic)" : "(manual)")</dd>
+                    <dt>Groups</dt><dd>@(_memberships.Count > 0 ? string.Join(", ", _memberships.Select(m => GroupName(m.GroupId))) : "–")</dd>
+                    <dt>Maintenance windows</dt><dd>@(_effectiveWindows.Count > 0 ? WindowPickerForm.Describe(_effectiveWindows) : "none")</dd>
+                    <dt>Reboots</dt><dd>@RebootPolicyText.Label(_client.EffectiveRebootPolicy)</dd>
+                    <dt>Update source</dt><dd>@(_client.EffectiveUseMicrosoftUpdate ? "Microsoft Update" : "Windows Update only")</dd>
+                </dl>
+            </Box>
+        </NotAuthorized>
+    </AuthorizeView>
+    }
+    else if (_tab == ServerPage.System)
+    {
+    <Box Title="System" Help="server-detail#system" Anchor="system">
+        <dl class="facts">
+            <dt>Operating system</dt><dd>@OperatingSystems.Name(_client.OsProductName, _client.OsVersion)@(_client.OsEditionId is { Length: > 0 } edition ? $" ({edition})" : string.Empty)</dd>
+            <dt>Build</dt><dd class="mono">@OperatingSystems.Build(_client.OsVersion)</dd>
+            <dt>Domain</dt><dd>@(_client.DomainName ?? "–")</dd>
+            <dt>Roles</dt><dd>@(_client.Roles.Count > 0 ? string.Join(", ", _client.Roles) : "–")</dd>
+            <dt>Update source</dt><dd>@UpdateSourceText@if (_client.MicrosoftUpdateRegistered is { } registered && registered != _client.EffectiveUseMicrosoftUpdate) { <span class="pill queue" title="The agent applies the setting with its next heartbeat and reports it with the next inventory">@(_client.EffectiveUseMicrosoftUpdate ? "set: Microsoft Update" : "set: Windows Update only")</span> }</dd>
+            <dt>Agent update</dt><dd>@if (_client.AgentUpdateError is { } agentError) { <span class="pill fail">failed</span> <span>@agentError</span> } else { <a href="@Servers.Link("agent", AgentVersion.ShortForm(_client.AgentVersion))" title="@_client.AgentVersion: show all servers with this agent version" class="mono">@AgentVersion.ShortForm(_client.AgentVersion)</a> }@if (AgentUpdates.IsBelowMinimum(_client.AgentVersion)) { <span class="pill fail">below minimum @AgentUpdates.Minimum</span> }</dd>
+            <dt>Agent settings</dt><dd>@{ var applied = AppliedSummary; }<StatusTag Text="@applied.Text" Kind="@applied.Kind" /> <a href="/servers/@Id?dialog=agent-settings" data-help-term="Show agent settings">Show</a></dd>
+            @if (_client.ServerMoveError is { } moveError)
+            {
+                <dt>Move</dt><dd><span class="pill fail">not moved</span> <span>@moveError</span> <a href="/administration/backup#move" title="The announced move to a new central server">Move to a new server</a></dd>
+            }
+            <dt>Automatic updates</dt><dd>@if (_client.AutoUpdateMode is null) { <span class="note">reported by agents from version 0.3</span> } else if (_client.AutomaticUpdatesBypass) { <span class="pill fail">problem</span> <span>Windows may install or restart on its own, outside rings and windows (<a href="@ServerPage.Link(Id, "checks")">details</a>); setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> } else { <span class="pill ok">OK</span> <span>Windows does not install on its own; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> }</dd>
+            <dt>Restart</dt><dd>@if (_client.RestartAnnouncedAtUtc is { } restartAt) { <span class="pill pend">restarting</span> <span>at @Format(restartAt), announced to Windows by the agent</span> } else if (!_client.RebootPending) { <span class="pill ok">not pending</span> } else if (_client.RebootWait is { } wait) { <span class="pill queue">pending</span> <span>@LiveStatus.RebootWaitText(wait) (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> } else { <span class="pill queue">pending</span> <span>the agent reports why it waits from version 0.7 (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> }</dd>
+            <dt>Outside SUSyphos</dt><dd>@if (_externalInstalls > 0) { <span class="pill queue">@_externalInstalls</span> <span>installations in the last @SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays days were started by Windows or an administrator, not by SUSyphos (<a href="@ServerPage.Link(Id, "windows-history")">history</a>)</span> } else { <span>none in the reported history</span> }</dd>
+            <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
+            <dt>Uptime</dt><dd>@UptimeText</dd>
+            <dt>Last update search</dt><dd>@if (_client.LastSearchAtUtc is null) { <span>none reported yet</span> } else if (_client.LastSearchSucceeded == true) { <span class="pill ok">OK</span> <span>@Format(_client.LastSearchAtUtc)</span> } else { <span class="pill fail">failed</span> <span>@Format(_client.LastSearchAtUtc) (<a href="@ServerPage.Link(Id, "missing")">details</a>)</span> }</dd>
+            <dt>Registered</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
+        </dl>
+    </Box>
+    }
+    else if (_tab == ServerPage.Activity)
+    {
     <Box Title="Recent activity" Anchor="activity" Help="server-detail#activity" Hint="@($"what the agent did and reported, newest first; kept for {ClientActivityLog.Retention.TotalDays:0} days, heartbeats are not listed")" Flush="true">
         <ListTable Table="_activityTable" Page="_activityPage" Columns="ActivityColumns" Search="Search activity or detail" Noun="entries" Empty="No activity recorded yet.">
             <Row Context="entry">
@@ -327,7 +359,7 @@ else
         </ListTable>
     </Box>
 
-    <Box Title="Remote actions" Help="server-detail#remote-actions" Hint="The agent picks actions up with its next heartbeat; the central server never connects to the agent." Flush="true">
+    <Box Title="Remote actions" Anchor="remote-actions" Help="server-detail#remote-actions" Hint="The agent picks actions up with its next heartbeat; the central server never connects to the agent." Flush="true">
         <ListTable Table="_actionTable" Page="_actionPage" Columns="ActionColumns" Search="Search action, user or detail" Noun="actions" Empty="No action requested yet." ExtraColumns="1">
             <ExtraHeader><th></th></ExtraHeader>
             <Row Context="action">
@@ -353,10 +385,11 @@ else
             </Row>
         </ListTable>
     </Box>
+    }
 
     @if (Dialog == "uninstall")
     {
-        <Dialog Title="@($"Uninstall an update on {_client.HostName}?")" CloseHref="@($"/servers/{Id}")" Help="server-detail#uninstall">
+        <Dialog Title="@($"Uninstall an update on {_client.HostName}?")" CloseHref="@Here" Help="server-detail#uninstall">
             <form method="post" @formname="uninstall" @onsubmit="UninstallAsync">
                 <AntiforgeryToken />
                 <div class="dialog-body">
@@ -378,14 +411,14 @@ else
                     <p>The agent uninstalls it with its next heartbeat, also outside the maintenance window: through Windows Update, or with DISM by the KB number where Windows Update cannot. Some packages cannot be removed; the remote action then reports why. To keep the update from coming back on all servers, block it on its update page.</p>
                     <p>If Windows needs a restart afterwards, the server restarts <b>right after</b> (five minute warning) or in the <b>next maintenance window</b> (next window: @NextWindowText). The local veto (AllowReboot) prevents the restart.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="/servers/@Id">Cancel</a><button type="submit" name="UninstallRestart" value="window" disabled="@(_installed.Count == 0)">Uninstall, restart in the next window</button><button type="submit" name="UninstallRestart" value="now" class="danger" disabled="@(_installed.Count == 0)">Uninstall and restart right after</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" name="UninstallRestart" value="window" disabled="@(_installed.Count == 0)">Uninstall, restart in the next window</button><button type="submit" name="UninstallRestart" value="now" class="danger" disabled="@(_installed.Count == 0)">Uninstall and restart right after</button></div>
             </form>
         </Dialog>
     }
     else if (Dialog == "install")
     {
         var released = ReleasedPending;
-        <Dialog Title="@($"Install the released updates on {_client.HostName} now?")" CloseHref="@($"/servers/{Id}")" Help="server-detail#install-now">
+        <Dialog Title="@($"Install the released updates on {_client.HostName} now?")" CloseHref="@Here" Help="server-detail#install-now">
             <form method="post" @formname="install" @onsubmit="InstallNowAsync">
                 <AntiforgeryToken />
                 <div class="dialog-body">
@@ -410,13 +443,13 @@ else
                     <p>Only updates released for the ring of the server are installed. If Windows then needs a restart, the server restarts <b>right after</b> (five minute warning) or in the <b>next maintenance window</b> (next window: @NextWindowText).</p>
                     <p class="note">A global pause holds the installation until it ends; in a coordinated group the agent waits for a free slot. A local veto (registry value AllowReboot) prevents the restart.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="/servers/@Id">Cancel</a><button type="submit" name="InstallRestart" value="window" disabled="@(released.Count == 0)">Install, restart in the next window</button><button type="submit" name="InstallRestart" value="now" class="danger" disabled="@(released.Count == 0)">Install and restart right after</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" name="InstallRestart" value="window" disabled="@(released.Count == 0)">Install, restart in the next window</button><button type="submit" name="InstallRestart" value="now" class="danger" disabled="@(released.Count == 0)">Install and restart right after</button></div>
             </form>
         </Dialog>
     }
     else if (Dialog == "restart")
     {
-        <Dialog Title="@($"Restart {_client.HostName}?")" CloseHref="@($"/servers/{Id}")" Help="server-detail#restart">
+        <Dialog Title="@($"Restart {_client.HostName}?")" CloseHref="@Here" Help="server-detail#restart">
             <form method="post" @formname="restart" @onsubmit="RestartAsync">
                 <AntiforgeryToken />
                 <div class="dialog-body">
@@ -424,7 +457,7 @@ else
                     <p><b>In the next maintenance window:</b> the agent restarts the server once a window is open for at least 30 more minutes (next window: @NextWindowText), also if its reboot policy is "Never"; in a coordinated group it waits for a free slot. It reports the planned time.</p>
                     <p class="note">A local veto on the server (registry value AllowReboot) applies to both. A queued restart can be cancelled until it happens.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="/servers/@Id">Cancel</a><button type="submit" name="When" value="window">Restart in the next maintenance window</button><button type="submit" name="When" value="now" class="danger">Restart now</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" name="When" value="window">Restart in the next maintenance window</button><button type="submit" name="When" value="now" class="danger">Restart now</button></div>
             </form>
         </Dialog>
     }
@@ -432,11 +465,11 @@ else
     {
         var inherited = SUSyphos.Server.Assignment.AgentSettingValues.Explain(_systemAgentSettings, _memberGroupSettings, new Dictionary<string, string>(), "this server").First(e => e.Definition.Key == settingDefinition.Key);
         <AgentSettingDialog Definition="settingDefinition" Scope="@($"server {_client.HostName}")" Own="@_ownAgentSettings.GetValueOrDefault(settingDefinition.Key)"
-                            InheritedValue="@inherited.Value" InheritedSource="@inherited.Source" CancelHref="@($"/servers/{Id}#assignment")" Error="@_settingError" Help="server-detail#agent-settings" OnSave="SaveSettingAsync" />
+                            InheritedValue="@inherited.Value" InheritedSource="@inherited.Source" CancelHref="@(ServerPage.Link(Id, "assignment"))" Error="@_settingError" Help="server-detail#agent-settings" OnSave="SaveSettingAsync" />
     }
     else if (Dialog == "agent-settings")
     {
-        <Dialog Title="@($"Agent settings on {_client.HostName}")" CloseHref="@($"/servers/{Id}#system")" Wide="true" Help="server-detail#applied-settings">
+        <Dialog Title="@($"Agent settings on {_client.HostName}")" CloseHref="@(ServerPage.Link(Id, "system"))" Wide="true" Help="server-detail#applied-settings">
             <div class="dialog-body">
                 @if (_appliedSettings.Count == 0)
                 {
@@ -459,12 +492,12 @@ else
                     </tbody>
                 </table>
             </div>
-            <div class="dialog-foot"><a class="btn" href="/servers/@Id#system">Close</a></div>
+            <div class="dialog-foot"><a class="btn" href="@ServerPage.Link(Id, "system")">Close</a></div>
         </Dialog>
     }
     else if (Dialog is "remove" or "purge")
     {
-        <Dialog Title="@(Dialog == "purge" ? $"Delete {_client.HostName} with its history?" : $"Remove {_client.HostName}?")" CloseHref="@($"/servers/{Id}")" Help="server-detail#remove">
+        <Dialog Title="@(Dialog == "purge" ? $"Delete {_client.HostName} with its history?" : $"Remove {_client.HostName}?")" CloseHref="@Here" Help="server-detail#remove">
             <form method="post" @formname="remove" @onsubmit="RemoveAsync">
                 <AntiforgeryToken />
                 <input type="hidden" name="ConfirmRemove" value="yes" />
@@ -478,7 +511,7 @@ else
                         <p>The history is kept, open releases, actions and leases are cancelled and the credentials end. If the agent still runs, it registers again as a new pending server.</p>
                     }
                 </div>
-                <div class="dialog-foot"><a class="btn" href="/servers/@Id">Cancel</a><button type="submit" name="Remove" value="@(Dialog == "purge" ? "hard" : "soft")" class="danger">@(Dialog == "purge" ? "Delete with history" : "Remove server")</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" name="Remove" value="@(Dialog == "purge" ? "hard" : "soft")" class="danger">@(Dialog == "purge" ? "Delete with history" : "Remove server")</button></div>
             </form>
         </Dialog>
     }
@@ -520,11 +553,35 @@ else
     [SupplyParameterFromQuery(Name = "key")]
     private string? SettingKey { get; set; }
 
-    private string SettingHref(string key) => $"/servers/{Id}?dialog=agent-setting&key={Uri.EscapeDataString(key)}";
+    private string SettingHref(string key) => $"/servers/{Id}?tab={ServerPage.Configuration}&dialog=agent-setting&key={Uri.EscapeDataString(key)}";
     private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _effectiveWindows = [];
     private string _fallbackRing = "Production";
 
-    private string DialogLink(string dialog) => $"/servers/{Id}?dialog={dialog}";
+    private string DialogLink(string dialog) => $"/servers/{Id}?{(_tab == ServerPage.Overview ? string.Empty : $"tab={_tab}&")}dialog={dialog}";
+
+    /// <summary>The current tab of this server, where dialogs return to.</summary>
+    private string Here => "/" + ServerPage.TabPath(Id, _tab);
+
+    [SupplyParameterFromQuery(Name = "tab")]
+    private string? Tab { get; set; }
+
+    private string _tab = ServerPage.Overview;
+    private bool _canAdminister;
+    private DateTime _now;
+    private const string AdministratorsOnly = "Only administrators can do this";
+
+    /// <summary>The tabs with a badge where something waits: missing updates, a failed check, open remote actions.</summary>
+    private IReadOnlyList<TabItem> TabItems => [.. ServerPage.Tabs.Select(t => t.Key switch
+    {
+        ServerPage.Overview when _client?.HealthChecks.Any(c => c.Status == (int)SUSyphos.Contracts.Agents.HealthStatus.Failed) == true => new TabItem(t.Key, t.Label, "!", "fail"),
+        ServerPage.Updates when _open.Count > 0 => new TabItem(t.Key, t.Label, DisplayNumber.Format(_open.Count), _open.Any(o => o.Entry.State == DeploymentState.Failed) ? "fail" : "neutral"),
+        ServerPage.System when _client is { } c && (c.AutomaticUpdatesBypass || c.AgentUpdateError is not null || c.ServerMoveError is not null) => new TabItem(t.Key, t.Label, "!", "queue"),
+        ServerPage.Activity when _actions.Count(a => a.State is AgentActionState.Queued or AgentActionState.Delivered) is > 0 and var open => new TabItem(t.Key, t.Label, DisplayNumber.Format(open), "neutral"),
+        _ => new TabItem(t.Key, t.Label),
+    })];
+
+    /// <summary>Below the next window: how many updates it installs.</summary>
+    private string NextWindowFooter => _window is null ? "no installation planned" : _planned.Count == 0 ? "nothing to install" : $"{DisplayNumber.Format(_planned.Count)} {(_planned.Count == 1 ? "update" : "updates")} to install";
 
     private string Subtitle => _client is null
         ? string.Empty
@@ -697,6 +754,8 @@ else
     protected override async Task OnInitializedAsync()
     {
         _canOperate = await IsAuthorizedAsync(AdminRoles.Policies.Operate);
+        _canAdminister = await IsAuthorizedAsync(AdminRoles.Policies.Administer);
+        _tab = ServerPage.Normalize(Tab);
         await LoadAsync();
     }
 
@@ -730,7 +789,7 @@ else
         var outcome = await Administration.SetClientAgentSettingAsync(Id, key, value, await GetActorAsync(), CancellationToken.None);
         if (outcome.Succeeded)
         {
-            Navigation.NavigateTo($"/servers/{Id}#assignment");
+            Navigation.NavigateTo(ServerPage.Link(Id, "assignment"));
             return;
         }
 
@@ -980,6 +1039,7 @@ else
         _liveUpdates = [.. liveIds.Select(id => updates.Where(u => u.UpdateId == id).MaxBy(u => u.Revision) is { } update ? (id, update.Revision, UpdateText.Title(update, id)) : (id, 0, UpdateText.Title(null, id)))];
 
         // Preview: what the agent installs in the next window (released, not installed, due before the window closes).
+        _now = Time.GetUtcNow().UtcDateTime;
         _window = NextWindowUtc();
         _planned = _window is { } window
             ? [.. _open.Where(o => o.Entry.EarliestInstallAtUtc is { } earliest && earliest <= window.End && o.Entry.State is DeploymentState.Pending or DeploymentState.Failed)]

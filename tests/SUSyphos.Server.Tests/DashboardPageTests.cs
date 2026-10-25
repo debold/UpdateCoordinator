@@ -305,7 +305,7 @@ public sealed class DashboardViewTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("stopped before ring Test", html, StringComparison.Ordinal);
         Assert.Contains("servers with a failed installation", html, StringComparison.Ordinal);
-        Assert.Contains("1 · Pilot", html, StringComparison.Ordinal);
+        Assert.Contains("1 Pilot", html, StringComparison.Ordinal);
         Assert.Contains("1 failed", html, StringComparison.Ordinal);
     }
 
@@ -347,7 +347,7 @@ public sealed class DashboardViewTests
         await scenario.Factory.WithDbAsync(db => db.Clients.Where(c => c.Id == current.ClientId).ExecuteUpdateAsync(s => s.SetProperty(c => c.AgentVersion, "0.6.0"), TestContext.Current.CancellationToken));
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
-        var detail = await (await browser.GetAsync($"/servers/{old.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var detail = await (await browser.GetAsync($"/servers/{old.ClientId}?tab=system")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var link = SUSyphos.Server.Components.Pages.Servers.Link("agent", "0.5.0");
         Assert.Contains($"href=\"{link}\"", detail, StringComparison.Ordinal);
         Assert.Contains(">0.5.0</a>", detail, StringComparison.Ordinal);
@@ -499,11 +499,13 @@ public sealed class DashboardViewTests
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
         var html = await GetHtmlAsync(browser, $"/servers/{client.ClientId}");
+        var updates = await GetHtmlAsync(browser, $"/servers/{client.ClientId}?tab=updates");
+        var history = await GetHtmlAsync(browser, $"/servers/{client.ClientId}?tab=history");
 
         Assert.Contains("Disk space", html, StringComparison.Ordinal);
-        Assert.Contains("Missing updates", html, StringComparison.Ordinal);
-        Assert.Contains("KB5040000", html, StringComparison.Ordinal);
-        Assert.Contains("<span class=\"pill fail\">Failed</span><span class=\"tag-detail\">0x80070005", html, StringComparison.Ordinal);
+        Assert.Contains("Missing updates", updates, StringComparison.Ordinal);
+        Assert.Contains("KB5040000", updates, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"pill fail\">Failed</span><span class=\"tag-detail\">0x80070005", history, StringComparison.Ordinal);
     }
 
     private static async Task<DashboardClient> LoginAsync(RolloutScenario scenario, string role)
