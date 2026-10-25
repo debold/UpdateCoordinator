@@ -1,0 +1,20 @@
+@* One value of a tile, large and bold, with a small caption below; two of them sit side by side split by a line. *@
+<div class="tile-value">
+    <span class="tile-number">@(ChildContent ?? (RenderFragment)(b => b.AddContent(0, Value)))</span>
+    @if (Caption is not null)
+    {
+        <span class="tile-caption">@Caption</span>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public string? Caption { get; set; }
+
+    /// <summary>Instead of <see cref="Value"/>: a pill or other markup.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

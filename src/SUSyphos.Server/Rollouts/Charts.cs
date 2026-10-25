@@ -52,3 +52,14 @@ internal static class Charts
     /// <summary>Number for an SVG attribute: invariant culture, two decimals at most.</summary>
     public static string Number(double value) => Math.Round(value, 2).ToString(CultureInfo.InvariantCulture);
 }
+
+/// <summary>Size of a donut: 40 px in table cells, 64 px in tiles, 120 px in boxes (docs/06-dashboard.md, section 8 "Charts").</summary>
+public enum DonutSize
+{
+    Cell,
+    Tile,
+    Box,
+}
+
+/// <summary>One part of a donut with legend: status class, label, count and an optional link (e.g. the filtered list).</summary>
+public sealed record DonutPart(string Class, string Label, int Value, string? Href = null);

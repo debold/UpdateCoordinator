@@ -1,0 +1,24 @@
+@using SUSyphos.Server.Rollouts
+@* A distribution of states in a tile: a 64 px donut with the total in the middle and a legend with the counts. *@
+<div class="tile-donut">
+    <Donut Parts="@(Parts.Select(p => (p.Class, p.Value)).ToList())" Size="DonutSize.Tile" Caption="@Caption" />
+    <ul class="tile-legend">
+        @foreach (var part in Parts.Where(p => p.Value > 0 || ShowEmpty))
+        {
+            <li>@if (part.Href is not null) { <a href="@part.Href"><span class="swatch-dot @part.Class"></span>@part.Label <b>@DisplayNumber.Format(part.Value)</b></a> } else { <span class="swatch-dot @part.Class"></span>@part.Label <b>@DisplayNumber.Format(part.Value)</b> }</li>
+        }
+    </ul>
+</div>
+
+@code {
+    /// <summary>The parts as status class (ok, pend, queue, fail, neutral), label, count and an optional link.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DonutPart> Parts { get; set; } = [];
+
+    [Parameter]
+    public string? Caption { get; set; }
+
+    /// <summary>True to list parts with a count of zero too.</summary>
+    [Parameter]
+    public bool ShowEmpty { get; set; }
+}

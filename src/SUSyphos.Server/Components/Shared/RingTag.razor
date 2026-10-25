@@ -1,0 +1,30 @@
+@* A ring as tag (docs/06-dashboard.md, section 8 "Status indicators"): outlined in the ring's colour with its number.
+   One fixed colour per ring position from the categorical palette, never a status colour. *@
+@if (Href is not null)
+{
+    <a class="ring-tag r@(Palette(Order))" href="@Href" title="@Title">@Text</a>
+}
+else
+{
+    <span class="ring-tag r@(Palette(Order))" title="@Title">@Text</span>
+}
+
+@code {
+    private string Text => Order is > 0 and < int.MaxValue ? $"{Order} {Name}" : Name;
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Position of the ring (1 for the first); decides the colour.</summary>
+    [Parameter]
+    public int Order { get; set; }
+
+    [Parameter]
+    public string? Href { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    /// <summary>Colour slot 1–8 of the categorical palette for a ring position; 0 for none.</summary>
+    public static int Palette(int order) => order <= 0 || order == int.MaxValue ? 0 : ((order - 1) % 8) + 1;
+}

@@ -1,0 +1,21 @@
+@* Adding to a list (docs/06-dashboard.md, section 8 "Forms and fields"): a lightly tinted block below the list with all
+   fields of the new entry and "+ Add" in one row, the button aligned with the fields; help and warnings right below. *@
+<div class="add-entry @Class">
+    <div class="add-row">@ChildContent</div>
+    @if (Note is not null)
+    {
+        <div class="add-note">@Note</div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Help or a warning about the new entry, right below the fields.</summary>
+    [Parameter]
+    public RenderFragment? Note { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+}

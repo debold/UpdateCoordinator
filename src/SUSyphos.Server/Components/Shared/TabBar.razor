@@ -1,0 +1,24 @@
+@* The tabs of a page (docs/06-dashboard.md, section 8 "Tabs"): plain links with the tab in the address (?tab=…), so they
+   work without script, survive a reload and can be linked to. A badge shows a count or that something waits there. *@
+<nav class="tabs" aria-label="@Label">
+    @foreach (var tab in Tabs)
+    {
+        var current = tab.Key == Current;
+        <a class="@(current ? "current" : null)" href="@Link(tab.Key)" aria-current="@(current ? "page" : null)">@tab.Label@if (tab.Badge is { } badge) { <span class="tab-badge @tab.BadgeKind">@badge</span> }</a>
+    }
+</nav>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<TabItem> Tabs { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public string Current { get; set; } = string.Empty;
+
+    /// <summary>Builds the address of a tab.</summary>
+    [Parameter, EditorRequired]
+    public Func<string, string> Link { get; set; } = key => key;
+
+    [Parameter]
+    public string Label { get; set; } = "Sections of this page";
+}

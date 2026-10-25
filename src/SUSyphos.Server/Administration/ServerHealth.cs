@@ -83,4 +83,15 @@ internal static class ServerHealth
         ServerHealthState.NotApproved => "neutral",
         _ => "ok",
     };
+
+    /// <summary>States of approved servers in the order the donuts and legends show them, best first.</summary>
+    public static readonly IReadOnlyList<ServerHealthState> DonutOrder =
+        [ServerHealthState.Ok, ServerHealthState.Updating, ServerHealthState.RebootPending, ServerHealthState.Warning, ServerHealthState.Failed, ServerHealthState.Offline];
+
+    /// <summary>Servers by status for a donut with legend; <paramref name="link"/> gives the filtered server list per state.</summary>
+    public static IReadOnlyList<Rollouts.DonutPart> Parts(IEnumerable<ServerHealthState> states, Func<ServerHealthState, string?>? link = null)
+    {
+        var counts = states.GroupBy(s => s).ToDictionary(g => g.Key, g => g.Count());
+        return [.. DonutOrder.Select(s => new Rollouts.DonutPart(PillClass(s), Label(s), counts.GetValueOrDefault(s), link?.Invoke(s)))];
+    }
 }

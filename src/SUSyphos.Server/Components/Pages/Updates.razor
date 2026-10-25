@@ -74,7 +74,7 @@
                         <td class="nowrap">@row.Restart</td>
                         <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
                         <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }@if (row.Newer is { } newer) { <div class="note">superseded by <a href="/updates/@newer.UpdateId/@newer.Revision">@newer.Name</a></div> }</td>
-                        <td class="nowrap"><span class="donut-cell" title="@($"{row.Missing} servers still miss it; {row.Counts.Successful} of {row.Counts.Total} installed, {row.Counts.Failed} failed")"><Donut Counts="@row.Counts" Small="true" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
+                        <td class="nowrap"><span class="donut-cell" title="@($"{row.Missing} servers still miss it; {row.Counts.Successful} of {row.Counts.Total} installed, {row.Counts.Failed} failed")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
                     </tr>
                 }
             </tbody>

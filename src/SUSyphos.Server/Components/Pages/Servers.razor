@@ -86,7 +86,7 @@
                             <td>@string.Join(", ", row.Groups)</td>
                             <td class="mono nowrap" title="@row.AgentVersion"><span class="mark @ServerIndicators.Class(row.Agent)" title="@AgentTitle(row)">@ServerIndicators.Symbol(row.Agent)</span> @AgentVersion.ShortForm(row.AgentVersion)</td>
                             <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span>@if (row.RestartAt is { } restartAt) { <div class="note nowrap">restart @DisplayTime.Format(restartAt)</div> }</td>
-                            <td class="nowrap"><span class="donut-cell" title="@($"{row.Pending} pending, {row.Counts.Failed} failed, {row.Counts.Successful} installed")"><Donut Counts="@row.Counts" Small="true" /><span class="note num">@row.Pending</span></span></td>
+                            <td class="nowrap"><span class="donut-cell" title="@($"{row.Pending} pending, {row.Counts.Failed} failed, {row.Counts.Successful} installed")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Pending</span></span></td>
                             <td class="nowrap"><span class="dot @ServerIndicators.Class(row.Freshness)" title="@ServerIndicators.Label(row.Freshness)"></span>@DisplayTime.Format(row.LastHeartbeat)</td>
                         </tr>
                     }

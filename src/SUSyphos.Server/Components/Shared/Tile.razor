@@ -1,0 +1,37 @@
+@* A key figure tile (docs/06-dashboard.md, section 8 "Tiles"): a short title with an optional "Show ›" link, one or two
+   values (TileValue), a pill or a TileDonut centred in the middle, and one line of footer text below a separator. A
+   coloured left edge marks a state that needs attention; the text always says it too. *@
+<section class="tile @(Edge is null ? null : "edge-" + Edge)" aria-label="@Title">
+    <header class="tile-head">
+        <span class="tile-title">@Title</span>
+        @if (Href is not null)
+        {
+            <a class="tile-show" href="@Href">Show ›</a>
+        }
+    </header>
+    <div class="tile-main">@ChildContent</div>
+    @if (Footer is { Length: > 0 })
+    {
+        <footer class="tile-foot" title="@Footer">@Footer</footer>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Page or tab the "Show ›" link opens; null for no link.</summary>
+    [Parameter]
+    public string? Href { get; set; }
+
+    /// <summary>"fail" (red) or "queue" (amber) for a state that needs attention; null for none.</summary>
+    [Parameter]
+    public string? Edge { get; set; }
+
+    /// <summary>One line of context below the separator; cut with "…" and shown in full as tooltip.</summary>
+    [Parameter]
+    public string? Footer { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

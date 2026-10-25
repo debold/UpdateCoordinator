@@ -3,7 +3,7 @@
     var parts = Parts ?? Charts.Parts(Counts);
     var total = parts.Sum(p => p.Value);
 }
-<svg class="donut @(Small ? "small" : null)" viewBox="0 0 140 140" role="img" aria-label="@(Parts is null ? Charts.Describe(Counts) : Charts.Describe(Parts))">
+<svg class="donut @SizeClass" viewBox="0 0 140 140" role="img" aria-label="@(Parts is null ? Charts.Describe(Counts) : Charts.Describe(Parts))">
     <g transform="rotate(-90 70 70)" fill="none" stroke-width="18">
         <circle class="track" cx="70" cy="70" r="@Radius"></circle>
         @foreach (var (cls, offset, length) in Charts.Segments(parts, Circumference))
@@ -11,11 +11,11 @@
             <circle class="@cls" cx="70" cy="70" r="@Radius" stroke-dasharray="@($"{Charts.Number(length)} {Charts.Number(Circumference)}")" stroke-dashoffset="@Charts.Number(-offset)"></circle>
         }
     </g>
-    @if (!Small)
+    @if (Size != DonutSize.Cell)
     {
         <g>
-            <text x="70" y="68" text-anchor="middle" font-size="22" font-weight="600">@total</text>
-            <text class="caption" x="70" y="86" text-anchor="middle" font-size="10">@Caption</text>
+            <text x="70" y="@(Size == DonutSize.Tile ? 80 : 68)" text-anchor="middle" font-size="@(Size == DonutSize.Tile ? 34 : 22)" font-weight="600">@DisplayNumber.Format(total)</text>
+            <text class="caption" x="70" y="86" text-anchor="middle" font-size="10">@(Size == DonutSize.Box ? Caption : null)</text>
         </g>
     }
 </svg>
@@ -24,9 +24,16 @@
     private const double Radius = 54;
     private static readonly double Circumference = 2 * Math.PI * Radius;
 
-    /// <summary>A small donut for table cells, without the total in the middle.</summary>
+    private string? SizeClass => Size switch
+    {
+        DonutSize.Cell => "small",
+        DonutSize.Tile => "tile-size",
+        _ => null,
+    };
+
+    /// <summary>40 px in table cells (no total), 64 px in tiles (total only), 120 px in boxes (total and caption).</summary>
     [Parameter]
-    public bool Small { get; set; }
+    public DonutSize Size { get; set; } = DonutSize.Box;
 
     /// <summary>Deployment states (server × update); ignored when <see cref="Parts"/> is given.</summary>
     [Parameter]

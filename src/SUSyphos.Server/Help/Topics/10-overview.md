@@ -4,33 +4,30 @@ The start page shows at a glance whether updates reach the servers, what is goin
 
 The time under the title ("As of …") is when the page was built, in the time zone of the central server. The page does not refresh by itself: reload it to see new numbers.
 
-## Installation status and global pause {#pause}
+## Global pause and blackouts {#pause}
 
-The band below the title shows whether agents may install:
+**Refresh** in the band loads the page again with the latest numbers.
 
-- **Installations allowed within maintenance windows**: normal operation. Each server installs released updates in its own maintenance window.
-- **Global pause: no new installations**: an operator stopped all installations. Agents finish nothing new: an installation that is already running ends, but no new one starts, and no server is restarted for updates. Searches, inventory and heartbeats continue.
-- **Blackout until …**: a blackout period from [Maintenance windows](help/maintenance-windows#blackouts) is active, with its reason. Like the pause, it stops new installations until it ends.
+**Pause all installations** (operators and administrators, red on the right of the band) starts the global pause at once for every server. Agents start nothing new: an installation that is already running ends, but no new one starts, and no server is restarted for updates. Searches, inventory and heartbeats continue. While the pause lasts, a red banner **Paused** below the title says so, with **Resume installations** on the right; agents continue in their next maintenance window. Both are recorded in the [audit log](help/audit-log). Use the pause when a released update turns out to be harmful and you need time to stop its rollout.
 
-**Pause all installations** (operators and administrators) starts the global pause at once for every server. **Resume installations** ends it; agents continue in their next maintenance window. Both are recorded in the [audit log](help/audit-log). Use the pause when a released update turns out to be harmful and you need time to stop its rollout.
+An amber banner **Blackout** appears while a blackout period from [Maintenance windows](help/maintenance-windows#blackouts) is active, with its end and reason; like the pause, it stops new installations until it ends. **Show blackouts** opens the list.
 
 ## Key figures {#figures}
 
-Each tile opens the server list filtered to the servers it counts.
+Each tile has a title, the values in the middle and one line of context at the bottom; **Show ›** opens the list behind it (for most tiles the server list filtered to the servers it counts). A coloured left edge marks a tile that needs attention: red for failures or offline servers, amber for warnings.
 
-| Tile | What it counts |
+| Tile | What it shows |
 |---|---|
 | **Servers reporting** | Approved servers that sent a heartbeat within the last hour, of all approved servers. A server that stays silent longer is "Offline". |
-| **Servers with pending updates** | Servers that still miss at least one update released for their ring. The detail line gives the number of missing installations; they install in the next maintenance window of each server. |
-| **Servers with failures** | Servers whose last installation or pre-flight check failed (for example not enough disk space or a stopped Windows Update service). |
-| **Servers with warnings** | Servers with a warning: update source WSUS, Windows installs updates on its own (Automatic Updates), low disk space, or a reboot that is pending. |
-| **Patch compliance** | Share of approved servers that have every update released for their ring installed. |
-| **Fully patched** | Share of approved servers whose update search reports no missing update at all, also none the rings still hold back. The difference to patch compliance is what the rings deliberately hold back. |
-| **AD coverage** | Only when the directory was read: share of the supported server accounts in Active Directory that run an agent. Opens the [AD coverage](help/coverage) list. |
+| **Pending updates** | Released installations not done yet (server × update) and the servers that still miss at least one update released for their ring; they install in the next maintenance window of each server. |
+| **Server status** | Approved servers by status as a donut (OK, Updating, Reboot pending, Warning, Failed, Offline); each entry of the legend opens the server list filtered to that status. Failed means the last installation or a pre-flight check failed (for example not enough disk space or a stopped Windows Update service). The footer counts the warnings: update source WSUS, Windows installs updates on its own (Automatic Updates), low disk space, reboot pending. |
+| **Compliance** | Released installed (patch compliance): share of approved servers that have every update released for their ring installed. Fully patched: share whose update search reports no missing update at all, also none the rings still hold back. The difference is what the rings deliberately hold back. |
+| **AD coverage** | Only when the directory was read: supported server accounts in Active Directory that run an agent, of all supported accounts. Opens the [AD coverage](help/coverage) list. |
+| **Central server** | Up to date or Update available, with the version this central server runs; **Show ›** opens it on the [Agents](help/agents#server) page with the download. |
 
 ## Deployment by ring {#rings}
 
-One row per ring, in rollout order. Click a ring to open it ([Rings](help/rings)).
+One row per ring, in rollout order. The ring tag (number and name, outlined in the colour of the ring) opens the server list filtered to that ring.
 
 - **Servers**: approved servers in the ring.
 - **Active updates**: updates whose rollout currently includes this ring.

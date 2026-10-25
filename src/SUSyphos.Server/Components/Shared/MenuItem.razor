@@ -1,0 +1,46 @@
+@* One entry of an ActionMenu: a link (opens a dialog or page) or a submit button of a form on the page. An entry that
+   does not fit the current state stays visible, greyed, with the reason as tooltip. *@
+@if (Disabled)
+{
+    <span class="menu-item disabled" role="menuitem" aria-disabled="true" title="@Reason">@if (Icon is not null) { <Icon Name="@Icon" Size="16" /> }<span>@ChildContent</span></span>
+}
+else if (Href is not null)
+{
+    <a class="menu-item @(Danger ? "danger" : null)" role="menuitem" href="@Href" title="@Reason">@if (Icon is not null) { <Icon Name="@Icon" Size="16" /> }<span>@ChildContent</span></a>
+}
+else
+{
+    <button type="submit" class="menu-item @(Danger ? "danger" : null)" role="menuitem" form="@Form" name="@Name" value="@Value" title="@Reason">@if (Icon is not null) { <Icon Name="@Icon" Size="16" /> }<span>@ChildContent</span></button>
+}
+
+@code {
+    /// <summary>Address to open; null for a submit button.</summary>
+    [Parameter]
+    public string? Href { get; set; }
+
+    /// <summary>Id of the form the button submits.</summary>
+    [Parameter]
+    public string? Form { get; set; }
+
+    [Parameter]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public string? Icon { get; set; }
+
+    [Parameter]
+    public bool Danger { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>Why the entry is greyed out, or a longer explanation as tooltip.</summary>
+    [Parameter]
+    public string? Reason { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

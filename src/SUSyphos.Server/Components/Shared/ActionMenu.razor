@@ -1,0 +1,42 @@
+@* A drop-down button in an action band, a selection bar or a row (docs/06-dashboard.md, section 8 "Action bands"): the
+   actions of one topic, related ones split by MenuSeparator. A disclosure, so it opens without script; app.js closes it
+   on a click elsewhere or Esc. *@
+<details class="menu @Kind @(Align == "right" ? "align-right" : null)" data-menu>
+    <summary class="btn @Kind @(Compact ? "compact" : null)" aria-haspopup="menu" title="@Title" aria-label="@(Compact ? Title ?? Label : null)" data-help-term="@Label">
+        @if (Icon is not null)
+        {
+            <Icon Name="@Icon" Size="16" />
+        }
+        @if (!Compact)
+        {
+            <span>@Label</span><Icon Name="chevron-down" Size="14" Class="caret" />
+        }
+    </summary>
+    <div class="menu-pop" role="menu">@ChildContent</div>
+</details>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Icon { get; set; }
+
+    /// <summary>"primary" for the main group of the page, "danger" for dangerous actions, null for the rest.</summary>
+    [Parameter]
+    public string? Kind { get; set; }
+
+    /// <summary>"right" opens the menu towards the left, for menus at the right edge.</summary>
+    [Parameter]
+    public string? Align { get; set; }
+
+    /// <summary>Only the icon (row menus with "⋯"); the label becomes the accessible name.</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

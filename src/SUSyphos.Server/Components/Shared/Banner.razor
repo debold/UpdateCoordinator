@@ -1,0 +1,35 @@
+@* A lasting state of the page's object (docs/06-dashboard.md, section 8 "Messages"): restart planned, installations
+   paused, blackout, update blocked or withdrawn. One sentence in its severity colour, the action that ends it on the
+   right; at most two per page, the more severe first. *@
+<div class="banner @Severity help-scope" role="status">
+    <span class="pill @Severity">@Label</span>
+    <span class="banner-text">@ChildContent</span>
+    @if (Help is not null)
+    {
+        <HelpLink To="@Help" Label="@Label" />
+    }
+    @if (Action is not null)
+    {
+        <span class="banner-action">@Action</span>
+    }
+</div>
+
+@code {
+    /// <summary>The state in a word or two, as pill.</summary>
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>"fail" (critical), "queue" (warning) or "pend" (info).</summary>
+    [Parameter]
+    public string Severity { get; set; } = "pend";
+
+    [Parameter]
+    public string? Help { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The button or form that ends the state.</summary>
+    [Parameter]
+    public RenderFragment? Action { get; set; }
+}

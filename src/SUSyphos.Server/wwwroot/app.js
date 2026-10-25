@@ -282,6 +282,27 @@
         });
     }
 
+    // Drop-down buttons open without script (a disclosure); with it, only one is open at a time and a click elsewhere or
+    // Esc closes them.
+    const closeMenus = (except) => {
+        for (const menu of document.querySelectorAll('details[data-menu][open]')) {
+            if (menu !== except) {
+                menu.open = false;
+            }
+        }
+    };
+    document.addEventListener('click', (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        closeMenus(target?.closest('details[data-menu]') ?? null);
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            const open = document.querySelector('details[data-menu][open]');
+            closeMenus(null);
+            open?.querySelector('summary')?.focus();
+        }
+    });
+
     // Expandable rows: the button opens the detail row below in place instead of loading the page with it open.
     for (const button of document.querySelectorAll('a[data-expand]')) {
         button.addEventListener('click', (event) => {

@@ -19,69 +19,56 @@
 <PageHeader Title="Overview" Icon="@PageIcons.Overview" Subtitle="@($"As of {Format(_now)}")" Help="overview" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
+@* The form is always rendered (the handler checks the role again); only operators see the buttons. *@
+<form id="pause" method="post" @formname="pause" @onsubmit="TogglePauseAsync"><AntiforgeryToken /></form>
+@if (_paused)
+{
+    <Banner Label="Paused" Severity="fail" Help="overview#pause">
+        <ChildContent>Agents start no new installations until an operator resumes them.</ChildContent>
+        <Action>@if (_canOperate) { <button type="submit" form="pause" name="Pause" value="off" class="primary">Resume installations</button> }</Action>
+    </Banner>
+}
+@if (_blackout is { } blackout)
+{
+    <Banner Label="Blackout" Severity="queue" Help="overview#pause">
+        <ChildContent>No installations until @Format(blackout.EndUtc): @blackout.Reason</ChildContent>
+        <Action><a class="btn" href="/administration/maintenance">Show blackouts</a></Action>
+    </Banner>
+}
+
 <ActionBand>
-    <span class="pill @(_paused ? "fail" : "ok")">@(_paused ? "Global pause: no new installations" : "Installations allowed within maintenance windows")</span>
-    @if (_blackout is { } blackout)
+    <a class="btn" href="/" title="Load the page again with the latest state"><Icon Name="refresh-cw" Size="16" />Refresh</a>
+    @if (_canOperate && !_paused)
     {
-        <span class="pill fail">Blackout until @Format(blackout.EndUtc): @blackout.Reason</span>
+        <div class="spacer"></div>
+        <button type="submit" form="pause" name="Pause" value="on" class="danger"><Icon Name="pause" Size="16" />Pause all installations</button>
     }
-    <div class="spacer"></div>
-    @* The form is always rendered (the handler checks the role again); only operators see the button. *@
-    <form method="post" @formname="pause" @onsubmit="TogglePauseAsync">
-        <AntiforgeryToken />
-        @if (_canOperate)
-        {
-            <button type="submit" name="Pause" value="@(_paused ? "off" : "on")" class="@(_paused ? "primary" : "danger")">@(_paused ? "Resume installations" : "Pause all installations")</button>
-        }
-    </form>
 </ActionBand>
 
-<section class="figures" aria-label="Key figures">
-    <a class="tile" href="@Servers.Link("status", ReportingStates)">
-        <span class="go">Open ›</span>
-        <div class="label">Servers reporting</div>
-        <div class="value">@_reporting <small>/ @_approved</small></div>
-        <div class="detail">approved servers with a heartbeat within the last hour</div>
-    </a>
-    <a class="tile" href="@Servers.Link("pending", Servers.PendingYes)">
-        <span class="go">Open ›</span>
-        <div class="label">Servers with pending updates</div>
-        <div class="value">@_pendingServers</div>
-        <div class="detail">@_pendingUpdates released updates not installed yet; they install in the next maintenance window</div>
-    </a>
-    <a class="tile @(_failedServers > 0 ? "attention-tile" : null)" href="@Servers.Link("status", ServerHealth.Label(ServerHealthState.Failed))">
-        <span class="go">Open ›</span>
-        <div class="label">Servers with failures</div>
-        <div class="value">@_failedServers</div>
-        <div class="detail">failed installation or pre-flight check</div>
-    </a>
-    <a class="tile" href="@Servers.Link("status", ServerHealth.Label(ServerHealthState.Warning), ServerHealth.Label(ServerHealthState.RebootPending))">
-        <span class="go">Open ›</span>
-        <div class="label">Servers with warnings</div>
-        <div class="value">@_warningServers</div>
-        <div class="detail">@_wsus WSUS source · @_selfInstalling Windows installs itself · @_diskWarnings low disk · @_rebootPending reboot pending</div>
-    </a>
-    <a class="tile" href="@Servers.Link("pending", Servers.PendingNo)">
-        <span class="go">Open ›</span>
-        <div class="label">Patch compliance</div>
-        <div class="value">@_compliancePercent %</div>
-        <div class="detail">servers with every released update installed</div>
-    </a>
-    <a class="tile" href="/updates">
-        <span class="go">Open ›</span>
-        <div class="label">Fully patched</div>
-        <div class="value">@_fullyPatchedPercent %</div>
-        <div class="detail">servers missing no update at all, released or held back by the rings</div>
-    </a>
+<section class="tiles" aria-label="Key figures">
+    <Tile Title="Servers reporting" Href="@Servers.Link("status", ReportingStates)" Edge="@(_reporting < _approved ? "queue" : null)" Footer="approved servers with a heartbeat within the last hour">
+        <TileValue>@DisplayNumber.Format(_reporting) <small>/ @DisplayNumber.Format(_approved)</small></TileValue>
+    </Tile>
+    <Tile Title="Pending updates" Href="@Servers.Link("pending", Servers.PendingYes)" Footer="released, not installed yet; installed in the next maintenance window">
+        <TileValue Value="@DisplayNumber.Format(_pendingUpdates)" Caption="installations" />
+        <TileValue Value="@DisplayNumber.Format(_pendingServers)" Caption="servers" />
+    </Tile>
+    <Tile Title="Server status" Href="/servers" Edge="@(_failedServers > 0 || _offlineServers > 0 ? "fail" : _warningServers > 0 ? "queue" : null)" Footer="@WarningFooter">
+        <TileDonut Parts="@_statusParts" />
+    </Tile>
+    <Tile Title="Compliance" Href="@Servers.Link("pending", Servers.PendingNo)" Footer="share of approved servers">
+        <TileValue Value="@DisplayNumber.Percent(_compliancePercent)" Caption="released installed" />
+        <TileValue Value="@DisplayNumber.Percent(_fullyPatchedPercent)" Caption="fully patched" />
+    </Tile>
     @if (_coverage.ReadAtUtc is not null)
     {
-        <a class="tile" href="/coverage">
-            <span class="go">Open ›</span>
-            <div class="label">AD coverage</div>
-            <div class="value">@(_coverage.Percent is { } percent ? $"{percent} %" : "–")</div>
-            <div class="detail">@_coverage.Covered of @_coverage.Supported supported server accounts run an agent · @_coverage.Missing.Count without agent</div>
-        </a>
+        <Tile Title="AD coverage" Href="/coverage" Edge="@(_coverage.Missing.Count > 0 ? "queue" : null)" Footer="@($"server accounts running an agent; {DisplayNumber.Format(_coverage.Missing.Count)} without")">
+            <TileValue>@DisplayNumber.Format(_coverage.Covered) <small>/ @DisplayNumber.Format(_coverage.Supported)</small></TileValue>
+        </Tile>
     }
+    <Tile Title="Central server" Href="/agents#server" Edge="@(_serverUpdate is null ? null : "queue")" Footer="@(_serverUpdate is { } available ? $"{DisplayNumber.Version(available.Version)} is available" : "the newest release on GitHub")">
+        <TileValue Caption="@DisplayNumber.Version(SUSyphos.Server.Administration.ServerVersion.Display)"><StatusTag Text="@(_serverUpdate is null ? "Up to date" : "Update available")" Kind="@(_serverUpdate is null ? "ok" : "queue")" /></TileValue>
+    </Tile>
 </section>
 
 <div class="grid-side">
@@ -93,7 +80,7 @@
                     @foreach (var ring in _rings)
                     {
                         <tr>
-                            <td class="nowrap"><a href="/rings/@ring.Id">@ring.Order · @ring.Name</a></td>
+                            <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@Servers.Link("ring", ring.Name)" Title="Show the servers of this ring" /></td>
                             <td class="n">@ring.Servers</td>
                             <td class="n">@ring.ActiveUpdates</td>
                             <td><StackedBar Counts="@ring.Counts" /></td>
@@ -137,7 +124,7 @@
                 <td class="wrap"><a href="/updates/@next.UpdateId/@next.Revision">@next.Title</a></td>
                 <td class="nowrap">@(next.EarliestUtc <= _now ? "due now" : Format(next.EarliestUtc))</td>
                 <td class="n">@next.Servers</td>
-                <td>@foreach (var ring in next.Rings) { <span class="tag">@ring</span> }</td>
+                <td>@foreach (var ring in next.Rings) { <RingTag Name="@ring.Name" Order="@ring.Order" /> }</td>
             </tr>
         </Row>
     </ListTable>
@@ -181,14 +168,14 @@
     private BlackoutPeriod? _blackout;
     private List<NextInstallation> _next = [];
 
-    private sealed record NextInstallation(Guid UpdateId, int Revision, string Title, DateTime EarliestUtc, int Servers, IReadOnlyList<string> Rings);
+    private sealed record NextInstallation(Guid UpdateId, int Revision, string Title, DateTime EarliestUtc, int Servers, IReadOnlyList<(int Order, string Name)> Rings);
 
     private static readonly IReadOnlyList<TableColumn<NextInstallation>> NextColumns =
     [
         new("update", "Update", n => n.Title),
         new("earliest", "Earliest installation", n => n.EarliestUtc),
         new("servers", "Servers", n => n.Servers, Class: "n"),
-        new("rings", "Rings", n => string.Join(", ", n.Rings), n => n.Rings.Count == 0 ? [string.Empty] : n.Rings, Sortable: false),
+        new("rings", "Rings", n => string.Join(", ", n.Rings.Select(r => r.Name)), n => n.Rings.Count == 0 ? [string.Empty] : [.. n.Rings.Select(r => r.Name)], Sortable: false),
     ];
 
     private TableQuery _nextTable = default!;
@@ -216,6 +203,12 @@
     private int _compliancePercent;
     private int _failedServers;
     private int _warningServers;
+    private int _offlineServers;
+    private IReadOnlyList<DonutPart> _statusParts = [];
+    private SUSyphos.Server.AgentPackages.ServerUpdate? _serverUpdate;
+
+    /// <summary>What the warnings are, below the status donut.</summary>
+    private string WarningFooter => $"{DisplayNumber.Format(_wsus)} WSUS source · {DisplayNumber.Format(_selfInstalling)} Windows installs itself · {DisplayNumber.Format(_diskWarnings)} low disk · {DisplayNumber.Format(_rebootPending)} reboot pending";
 
     /// <summary>Health states of approved servers that sent a heartbeat within the last hour.</summary>
     private static readonly string[] ReportingStates = [.. Enum.GetValues<ServerHealthState>().Where(s => s is not (ServerHealthState.Offline or ServerHealthState.NotApproved)).Select(ServerHealth.Label)];
@@ -272,7 +265,7 @@
             .Where(e => e.State == DeploymentState.Pending)
             .GroupBy(e => (e.UpdateId, e.Revision))
             .Select(g => (Key: g.Key, Earliest: g.Min(e => e.EarliestInstallAtUtc!.Value), Servers: g.Select(e => e.ClientId).Distinct().Count(),
-                Rings: g.Where(e => e.RingId is not null && ringNames.ContainsKey(e.RingId.Value)).Select(e => ringNames[e.RingId!.Value]).Distinct().OrderBy(r => r.Order).Select(r => r.Name).ToList()))
+                Rings: g.Where(e => e.RingId is not null && ringNames.ContainsKey(e.RingId.Value)).Select(e => ringNames[e.RingId!.Value]).Distinct().OrderBy(r => r.Order).ToList()))
             .OrderBy(n => n.Earliest)
             .Take(1000)
             .ToList();
@@ -289,6 +282,9 @@
         _rebootPending = clients.Count(c => c.RebootPending);
         _failedServers = health.Values.Count(h => h == ServerHealthState.Failed);
         _warningServers = health.Values.Count(h => h is ServerHealthState.Warning or ServerHealthState.RebootPending);
+        _offlineServers = health.Values.Count(h => h == ServerHealthState.Offline);
+        _statusParts = ServerHealth.Parts(health.Values, s => Servers.Link("status", ServerHealth.Label(s)));
+        _serverUpdate = await ServerUpdates.GetServerUpdateAsync(CancellationToken.None);
         _compliancePercent = _approved == 0 ? 100 : (int)Math.Floor(100.0 * clients.Count(c => !released.Any(e => e.ClientId == c.Id)) / _approved);
 
         await LoadAttentionAsync(health);
@@ -328,7 +324,7 @@
             _attention.Add(new AttentionItem("Clone", "fail", $"{blocked} servers blocked on clone suspicion", "The same credentials were used by two hosts in turn.", "/approvals", "Review"));
         }
 
-        if (await ServerUpdates.GetServerUpdateAsync(CancellationToken.None) is { } serverUpdate)
+        if (_serverUpdate is { } serverUpdate)
         {
             _attention.Add(new AttentionItem("Update", "queue", $"Central server {serverUpdate.Version} is available", $"This central server runs {SUSyphos.Server.Administration.ServerVersion.Display}.", "/agents#server", "Show"));
         }
