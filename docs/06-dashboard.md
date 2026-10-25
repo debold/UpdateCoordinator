@@ -152,3 +152,18 @@ Pages with much content are split into tabs (Marc, 2026-10-25): server details (
 - Tabs are plain links with the tab in the address (`?tab=…`): they work without script, survive a reload and can be linked to; "Show ›" on a tile opens the matching tab.
 - A tab shows a count or a coloured badge when something waits there (e.g. missing updates, a failed check), so nobody has to open every tab.
 - One shared tab bar component (the one of the former ring page) for every page.
+
+### Tables
+
+Every list (Marc, 2026-10-25), built on the shared list components.
+
+- **Box:** the table sits in a box with title, "?" and a short hint on the right.
+- **Toolbar** above the header: search field, optional "Group by", active filters as chips with × and "Clear all"; on the right the "Show:" switches for hidden entries (an active switch is outlined in blue). The toolbar stays visible when everything is hidden, so the switches can be turned off again.
+- **Header:** sortable columns show ▲/▼ on the sorted column; filterable columns have a filter symbol, blue while the filter is active. A column filter opens below its header with a search in the values, the count per value, Clear and Apply.
+- **Columns:** fixed widths per list (no jumping while paging or filtering); numbers right-aligned; long text cut with "…" and shown in full as tooltip; tags (ring) and pills (state) follow the status pattern.
+- **Selection:** a checkbox per row and "Select all" in the header (all, none or some). While rows are selected a bar appears above the header with the count, the actions for the selection (action band pattern) and "Clear selection"; selected rows are tinted.
+- **Row actions:** last column, fixed width: at most one icon for the most common action plus "⋯" for the rest; the menu shows an icon per entry, dangerous entries red at the bottom behind a separator. A row that expands shows ▾ there instead.
+- **Expanded row:** the details open right below the row, indented and lightly shaded, the row stays tinted. A table inside works like every table, compact: sorting, filters (as chips), and above 10 rows a search and pages of 10, with a note how many the filter hides. Outer and inner state both live in the address.
+- **Grouping:** a group row with the value and the count above each group; columns stay aligned.
+- **Footer:** count ("1–10 of 48 servers"), rows per page (10, 25, 50, 100) and pages.
+- **Empty states:** "nothing there yet" explains what belongs here and offers the action to add it; "nothing matches" says how many entries search and filters hide and offers to clear them.
