@@ -2,8 +2,12 @@
 
 How updates enter the rings (start rules) and when they move on to the next ring (transitions). Administrators only. See [How SUSyphos works](help/concepts#transitions) for the idea behind it.
 
-- **New start rule**: opens the [start rule dialog](#start-rule-dialog).
-- **New ring**: opens the [ring dialog](#ring-dialog) to add a ring.
+The page has two tabs: **Start rules** (with the setting for updates withdrawn by Microsoft) and **Rings** (rings and transitions); each shows its number of entries.
+
+The drop-down button **New** in the band:
+
+- **New start rule…**: opens the [start rule dialog](#start-rule-dialog).
+- **New ring…**: opens the [ring dialog](#ring-dialog) to add a ring.
 
 ## Rings and transitions {#transitions}
 
@@ -11,8 +15,8 @@ All rings in order with their number of servers and the transition rule to the n
 
 The next ring gets an update after the minimum wait when enough servers reported (feedback) and enough of them succeeded (success). At the maximum wait a good success rate is enough, even if feedback is missing. A poor success rate, or no report at all at the maximum wait, raises an alarm that an operator decides. When no server of a ring needs the update ("no server needs it" instead of the rates), it moves on once the minimum wait has passed; a manual gate still waits for an operator. The days count for each update separately, from its release in the ring it is in (in the first ring: after the delay of its start rule), not from the start of the rollout.
 
-- **Edit**: opens the ring dialog.
-- **Delete**: opens a confirmation; **Delete ring** removes the ring (not the final ring). Only a ring without servers and without assignment rules can be deleted; running rollouts skip it from then on.
+- **Edit** (the pencil at the end of the row): opens the ring dialog.
+- **More** (⋯): **Delete ring…** opens a confirmation (greyed out for the final ring); **Delete ring** there removes the ring (not the final ring). Only a ring without servers and without assignment rules can be deleted; running rollouts skip it from then on.
 
 ## Ring dialog {#ring-dialog}
 
@@ -33,7 +37,7 @@ When an approved server reports an update for the first time, the matching start
 
 Rules are applied when a server reports an update, when a rule is saved and every minute to all waiting updates. A rule decides only once per update; changing it later does not change running rollouts.
 
-- **Edit** opens the start rule dialog; **Delete** opens a confirmation, and **Delete start rule** removes the rule (updates it would start are handled by the next matching rule, or stay queued).
+- **Edit** (the pencil at the end of the row) opens the start rule dialog; **More** (⋯) has **Delete start rule…**, which opens a confirmation, and **Delete start rule** there removes the rule (updates it would start are handled by the next matching rule, or stay queued).
 
 ## Updates withdrawn by Microsoft {#withdrawn}
 

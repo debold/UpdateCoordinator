@@ -20,7 +20,7 @@ public sealed class HelpScreenshotTests(UiFixture ui)
         { "users-new-dialog", "/administration/users?dialog=new", null, "[role='dialog']" },
         { "groups-dialog", "/administration/groups", "main a[href*='dialog=edit']", "[role='dialog']" },
         { "assignment-rule-dialog", "/administration/rules?dialog=new", null, "[role='dialog']" },
-        { "release-rules-ring-dialog", "/administration/release-rules", "main a[href*='dialog=ring&']", "[role='dialog']" },
+        { "release-rules-ring-dialog", "/administration/release-rules?tab=rings", "main a[href*='dialog=ring&']", "[role='dialog']" },
         { "release-rules-start-dialog", "/administration/release-rules?dialog=rule-new", null, "[role='dialog']" },
         { "week-choice", "/administration/maintenance", "details.week-choice > summary", "details.week-choice[open]" },
     };
