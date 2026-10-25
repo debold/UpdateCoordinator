@@ -143,3 +143,12 @@ The band of actions below the page title.
 - Views are not actions: switches that show or hide list entries belong to the list's "Show:" switches, not to the band.
 - Menus open without script (like the column filters); with script they close on a click elsewhere or Esc.
 
+### Tabs
+
+Pages with much content are split into tabs (Marc, 2026-10-25): server details (Overview, Updates, History, Configuration, System, Activity), update details (Overview, Servers, Timeline), Notifications (Channels, Events) and Release rules (Start rules, Rings).
+
+- Title, action band and tiles stay above the tabs on every tab; the tabs hold the boxes below.
+- The first tab is an overview of what matters now and links to the details in the other tabs.
+- Tabs are plain links with the tab in the address (`?tab=…`): they work without script, survive a reload and can be linked to; "Show ›" on a tile opens the matching tab.
+- A tab shows a count or a coloured badge when something waits there (e.g. missing updates, a failed check), so nobody has to open every tab.
+- One shared tab bar component (the one of the former ring page) for every page.
