@@ -12,7 +12,7 @@
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <ActionBand>
-    <a class="btn primary" href="@Path?dialog=new">New rule</a>
+    <a class="btn primary" href="@Path?dialog=new"><Icon Name="plus" Size="16" />New rule…</a>
 </ActionBand>
 
 <Box Title="Rules" Help="assignment-rules#list" Flush="true" Hint="All conditions of a rule must match; a rule with several roles matches servers with any of them">
@@ -27,8 +27,12 @@
                         <td class="mono">@rule.HostNamePattern</td>
                         <td class="n"><a href="/servers?rule=@rule.Id" title="Approved servers whose role, domain and host name match this rule">@_matches.GetValueOrDefault(rule.Id)</a></td>
                         <td class="n"><span class="row-actions">
-                            <a class="btn" href="@Path?dialog=edit&id=@rule.Id">Edit</a>
-                            <a class="btn danger" href="@Path?dialog=delete&id=@rule.Id">Delete</a>
+                            <a class="btn icon-button" href="@Path?dialog=edit&id=@rule.Id" title="Edit rule @rule.Priority" aria-label="Edit rule @rule.Priority" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
+                            <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for rule {rule.Priority}")">
+                                <MenuItem Href="@($"/servers?rule={rule.Id}")" Icon="server">Show matching servers</MenuItem>
+                                <MenuSeparator />
+                                <MenuItem Href="@($"{Path}?dialog=delete&id={rule.Id}")" Icon="trash-2" Danger="true">Delete rule…</MenuItem>
+                            </ActionMenu>
                         </span></td>
                     </tr>
         </Row>
@@ -40,7 +44,7 @@
     var rule = Editing;
     var selectedRoles = Roles ?? (AssignmentAdministration.RuleRoles(rule?.Role).ToArray());
     var target = Target ?? (rule is null ? PrefillTarget : $"{(rule.Target == AssignmentTarget.Ring ? "ring" : "group")}:{rule.TargetId}");
-    <Dialog Title="@(rule is null ? "New assignment rule" : "Edit assignment rule")" CloseHref="@Path" Help="assignment-rules#dialog">
+    <Dialog Title="@(rule is null ? "New assignment rule" : "Edit assignment rule")" CloseHref="@Path" Wide="true" Help="assignment-rules#dialog">
         <form method="post" @formname="rule-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="@(rule is null ? "create" : "edit")" />
@@ -81,8 +85,36 @@
                     <label class="field"><span>Domain</span><input name="Domain" maxlength="253" value="@(Domain ?? rule?.Domain)" placeholder="e.g. lab.local" /></label>
                     <label class="field"><span>Host name pattern</span><input name="HostNamePattern" maxlength="63" value="@(HostNamePattern ?? rule?.HostNamePattern)" placeholder="e.g. SQL* or WEB0?" /></label>
                 </div>
+                @{
+                    var changes = PreviewChanges(rule, target);
+                }
+                <fieldset class="preview">
+                    <legend>What changes (@changes.Count(c => c.Class != "neutral") of @_approved.Count approved servers)</legend>
+                    @if (changes.Count == 0)
+                    {
+                        <p class="help">No approved server matches these conditions. Every condition must match; a rule needs at least one.</p>
+                    }
+                    <ul class="plain">
+                        @foreach (var change in changes.Take(15))
+                        {
+                            <li>
+                                <a href="/servers/@change.Client.Id">@change.Client.HostName</a>
+                                @if (change.From is { } from && change.To is { } to)
+                                {
+                                    <RingTag Name="@from.Name" Order="@from.Order" /><span aria-hidden="true"> → </span><RingTag Name="@to.Name" Order="@to.Order" />
+                                }
+                                <span class="pill @change.Class">@change.Change</span>
+                            </li>
+                        }
+                    </ul>
+                    @if (changes.Count > 15)
+                    {
+                        <p class="help">and @(changes.Count - 15) more.</p>
+                    }
+                    <p class="help">Saving applies the rule to every approved server at once; a ring set by hand on a server always wins.</p>
+                </fieldset>
             </div>
-            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(rule is null ? "Create rule" : "Save")</button></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" name="Preview" value="yes">Preview</button><button type="submit" class="primary">@(rule is null ? "Create rule" : "Save")</button></div>
         </form>
     </Dialog>
 }
@@ -125,6 +157,9 @@ else if (_dialog == "delete" && Editing is { } doomed)
 
     [SupplyParameterFromForm(FormName = "rule-dialog")]
     private string? HostNamePattern { get; set; }
+
+    [SupplyParameterFromForm(FormName = "rule-dialog")]
+    private string? Preview { get; set; }
 
     [SupplyParameterFromQuery(Name = "dialog")]
     private string? DialogName { get; set; }
@@ -169,6 +204,14 @@ else if (_dialog == "delete" && Editing is { } doomed)
 
     private async Task SaveAsync()
     {
+        if (Preview == "yes" && Mode is "create" or "edit")
+        {
+            // Show what the rule would change, without saving; the dialog keeps everything typed.
+            _dialog = DialogName;
+            await LoadAsync();
+            return;
+        }
+
         var actor = await GetActorAsync();
         var invariant = System.Globalization.CultureInfo.InvariantCulture;
         Outcome outcome;
@@ -220,6 +263,8 @@ else if (_dialog == "delete" && Editing is { } doomed)
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         var approved = await Db.Clients.AsNoTracking().Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).ToListAsync();
         _matches = _rules.ToDictionary(r => r.Id, r => approved.Count(c => SUSyphos.Server.Assignment.AssignmentService.Matches(r, c)));
+        _approved = approved;
+        _memberships = (await Db.ClientGroups.AsNoTracking().ToListAsync()).Select(m => (m.ClientId, m.GroupId)).ToHashSet();
         _table = TableQuery.From(Navigation, "priority");
         _page = TablePaging.Apply(_rules, _table, Columns, r => $"{r.Domain} {r.HostNamePattern} {r.Role}");
         var inventoryRoles = (await Db.Clients.AsNoTracking().Select(c => c.Roles).ToListAsync()).SelectMany(r => r);
@@ -228,6 +273,68 @@ else if (_dialog == "delete" && Editing is { } doomed)
             .Concat(_rules.SelectMany(r => AssignmentAdministration.RuleRoles(r.Role)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)];
+    }
+
+    private const string Unchanged = "no change";
+
+    private List<ClientEntity> _approved = [];
+    private HashSet<(Guid ClientId, int GroupId)> _memberships = [];
+
+    private sealed record ServerChange(ClientEntity Client, string Change, string Class, RingEntity? From = null, RingEntity? To = null);
+
+    /// <summary>
+    /// What the rule as typed would change if saved: for a ring rule each server whose ring moves (or that the rule matches
+    /// but a manual ring or a rule with a lower number keeps), for a group rule who joins or leaves. Changes first.
+    /// </summary>
+    private List<ServerChange> PreviewChanges(AssignmentRuleEntity? editing, string? target)
+    {
+        var parts = target?.Split(':', 2) ?? [];
+        if (parts is not [("ring" or "group"), var idText] || !int.TryParse(idText, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var targetId) || _rings.Count == 0)
+        {
+            return [];
+        }
+
+        var candidate = new AssignmentRuleEntity
+        {
+            Id = editing?.Id ?? int.MaxValue,
+            Priority = int.TryParse(Priority, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var priority) ? priority : editing?.Priority ?? _nextPriority,
+            Target = parts[0] == "ring" ? AssignmentTarget.Ring : AssignmentTarget.Group,
+            TargetId = targetId,
+            Role = Mode is null ? editing?.Role : string.Join(',', Roles ?? []) is { Length: > 0 } roles ? roles : null,
+            Domain = string.IsNullOrWhiteSpace(Domain) ? (Mode is null ? editing?.Domain : null) : Domain.Trim(),
+            HostNamePattern = string.IsNullOrWhiteSpace(HostNamePattern) ? (Mode is null ? editing?.HostNamePattern : null) : HostNamePattern.Trim(),
+        };
+        var rules = _rules.Where(r => r.Id != candidate.Id).Append(candidate).OrderBy(r => r.Priority).ThenBy(r => r.Id).ToList();
+        var fallback = _rings[^1].Id;
+        var changes = new List<ServerChange>();
+        foreach (var client in _approved)
+        {
+            var matches = AssignmentService.Matches(candidate, client);
+            var before = editing is not null && AssignmentService.Matches(editing, client);
+            if (!matches && !before)
+            {
+                continue;
+            }
+
+            if (candidate.Target == AssignmentTarget.Ring || editing?.Target == AssignmentTarget.Ring)
+            {
+                var to = AssignmentService.RingFor(client, rules, fallback);
+                var from = _rings.FirstOrDefault(r => r.Id == client.RingId);
+                var toRing = _rings.FirstOrDefault(r => r.Id == to);
+                changes.Add(to != client.RingId
+                    ? new ServerChange(client, "moves", "pend", from, toRing)
+                    : new ServerChange(client, client.ManualRingId is not null ? "ring set by hand stays" : matches && to != targetId ? "a rule with a lower number decides" : Unchanged, "neutral", from, toRing));
+            }
+            else
+            {
+                var member = _memberships.Contains((client.Id, targetId));
+                changes.Add(matches && !member ? new ServerChange(client, "joins the group", "pend")
+                    : !matches && before ? new ServerChange(client, "leaves the group unless added by hand", "queue")
+                    : new ServerChange(client, Unchanged, "neutral"));
+            }
+        }
+
+        return [.. changes.OrderBy(c => c.Class == "neutral").ThenBy(c => c.Client.HostName, StringComparer.OrdinalIgnoreCase)];
     }
 
     private string TargetLink(AssignmentRuleEntity rule) => rule.Target == AssignmentTarget.Ring

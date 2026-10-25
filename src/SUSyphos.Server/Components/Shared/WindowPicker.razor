@@ -66,7 +66,7 @@
     <div class="actions">
         @if (_rows.Count < MaintenanceWindow.MaxWindows)
         {
-            <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="add" formnovalidate>Add window</button>
+            <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="add" formnovalidate><Icon Name="plus" Size="16" />Add window</button>
         }
         <button type="submit" name="@WindowPickerForm.ActionField(Prefix)" value="preview" formnovalidate class="js-hide">Refresh preview</button>
         @if (Draft is not null)

@@ -622,3 +622,4 @@ a.ring-tag:hover { text-decoration: none; background: var(--surface-2); }
 .ring-stage.pend { background: var(--pend-soft); color: var(--pend); }
 .ring-stage.queue { background: var(--queue-soft); color: var(--queue); }
 .ring-stage.fail { background: var(--fail-soft); color: var(--fail); }
+fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0.15rem 0; }

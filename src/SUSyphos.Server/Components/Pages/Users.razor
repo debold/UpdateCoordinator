@@ -94,8 +94,9 @@
                 </tbody>
             </table>
         </div>
-        <div class="form-row">
-            <label class="field"><span>AD group</span><input name="WindowsGroup" maxlength="256" placeholder="LAB\SUSyphos-Admins or S-1-5-21-…" autocomplete="off" data-ad-group-search="@WindowsSignInEndpoints.GroupSearchRoute" /><span class="help">Name as DOMAIN\Group or its SID</span></label>
+        <AddEntry>
+            <ChildContent>
+                <label class="field"><span>AD group</span><input name="WindowsGroup" maxlength="256" placeholder="LAB\SUSyphos-Admins or S-1-5-21-…" autocomplete="off" data-ad-group-search="@WindowsSignInEndpoints.GroupSearchRoute" /><span class="help">Name as DOMAIN\Group or its SID</span></label>
             <label class="field"><span>Role</span>
                 <select name="WindowsRole">
                     @foreach (var role in AdminRoles.All)
@@ -104,9 +105,10 @@
                     }
                 </select>
             </label>
-            <div class="field field-button"><button type="submit" name="WindowsAction" value="add">Add</button></div>
-        </div>
-        <p class="warning field-warning" data-privileged-warning hidden>Windows filters this group by User Account Control ("deny only") in a logon without elevation, so its members usually get no role. Map a dedicated group instead.</p>
+                <button type="submit" name="WindowsAction" value="add"><Icon Name="plus" Size="16" />Add</button>
+            </ChildContent>
+            <Note><p class="warning field-warning" data-privileged-warning hidden>Windows filters this group by User Account Control ("deny only") in a logon without elevation, so its members usually get no role. Map a dedicated group instead.</p></Note>
+        </AddEntry>
     </div>
     <footer class="box-foot">
         <span class="actions">

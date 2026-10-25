@@ -44,6 +44,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/administration/groups",
         "/administration/groups?dialog=new",
         "/administration/rules",
+        "/administration/rules?dialog=new",
         "/administration/release-rules",
         "/administration/release-rules?tab=rings",
         "/administration/agent-settings",
@@ -51,6 +52,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/administration/maintenance",
         "/administration/certificate",
         "/administration/notifications",
+        "/administration/notifications?tab=events",
         "/administration/backup",
         "/administration/audit",
     ];

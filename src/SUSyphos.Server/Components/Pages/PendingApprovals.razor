@@ -24,10 +24,10 @@
 }
 
 <ActionBand>
-    <button type="submit" form="decision" name="Action" value="approve-selected" class="primary">Approve selected servers</button>
+    <button type="submit" form="decision" name="Action" value="approve-selected" class="primary"><Icon Name="check" Size="16" />Approve selected servers</button>
     <div class="spacer"></div>
     <span class="note">Approve only servers you expect</span>
-    <button type="submit" form="decision" name="Action" value="reject-selected" class="danger">Reject selected servers</button>
+    <button type="submit" form="decision" name="Action" value="reject-selected" class="danger"><Icon Name="x" Size="16" />Reject selected servers</button>
 </ActionBand>
 
 @* One form that is always rendered, so a decision posted after the list changed still reaches the handler. The list
@@ -59,8 +59,8 @@
                             <td class="nowrap">@DisplayTime.FormatDate(client.RegisteredAtUtc)</td>
                             <td class="nowrap">@Format(client.LastHeartbeatAtUtc)</td>
                             <td class="n"><span class="row-actions">
-                                <button type="submit" form="decision" name="Action" value="approve:@client.Id">Approve</button>
-                                <button type="submit" form="decision" name="Action" value="reject:@client.Id" class="danger">Reject</button>
+                                <button type="submit" form="decision" name="Action" value="approve:@client.Id"><Icon Name="check" Size="16" />Approve</button>
+                                <button type="submit" form="decision" name="Action" value="reject:@client.Id" class="danger"><Icon Name="x" Size="16" />Reject</button>
                             </span></td>
                         </tr>
             </Row>
@@ -187,14 +187,15 @@
             }
         </div>
         <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
-            <div class="form-row">
-                <label class="field"><span>Add domain</span><input name="Domain" maxlength="253" placeholder="corp.example.com" /></label>
-            </div>
+            <AddEntry>
+                <ChildContent>
+                    <label class="field"><span>Add domain</span><input name="Domain" maxlength="253" placeholder="corp.example.com" /></label>
+                    <button type="submit" name="DomainAction" value="add"><Icon Name="plus" Size="16" />Add domain</button>
+                </ChildContent>
+                <Note>Changes are audited; the central server must reach the domain controllers (LDAP with signing) and DNS.</Note>
+            </AddEntry>
         </AuthorizeView>
     </div>
-    <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
-        <footer class="box-foot"><span class="note">Changes are audited; the central server must reach the domain controllers (LDAP with signing) and DNS.</span><button type="submit" name="DomainAction" value="add" class="primary">Add domain</button></footer>
-    </AuthorizeView>
 </form>
 
 @code {

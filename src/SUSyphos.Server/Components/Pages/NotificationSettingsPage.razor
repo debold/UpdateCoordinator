@@ -21,6 +21,10 @@
         <span class="note">The test uses the saved settings.</span>
     </ActionBand>
 
+    <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => tab == "events" ? "/administration/notifications?tab=events" : "/administration/notifications")" />
+
+    @* One form for both tabs: the other tab stays in the page, hidden, so saving keeps its values. *@
+    <div class="stack" hidden="@(_tab != "channels")">
     <div class="grid-2">
         <Box Title="E-mail" Help="notifications#email">
             <Header><span class="pill @(_settings.EmailEnabled ? "ok" : "neutral")">@(_settings.EmailEnabled ? "on" : "off")</span></Header>
@@ -83,6 +87,9 @@
         </div>
     </div>
 
+    </div>
+
+    <div class="stack" hidden="@(_tab != "events")">
     <Box Title="Events" Anchor="events" Help="notifications#events" Hint="Which events go to which channel; critical and recommended events are on by default" Flush="true">
         <input type="hidden" name="EventsShown" value="yes" />
         <div class="scroll">
@@ -106,9 +113,21 @@
             </table>
         </div>
     </Box>
+    </div>
 </form>
 
 @code {
+    [SupplyParameterFromQuery(Name = "tab")] private string? Tab { get; set; }
+
+    private string _tab => Tab == "events" ? "events" : "channels";
+
+    /// <summary>Channels with how many are on; events with how many are sent at all.</summary>
+    private IReadOnlyList<TabItem> TabItems =>
+    [
+        new("channels", "Channels", $"{(_settings.EmailEnabled ? 1 : 0) + (_settings.WebhookEnabled ? 1 : 0)} on", _settings.EmailEnabled || _settings.WebhookEnabled ? "neutral" : "queue"),
+        new("events", "Events", DisplayNumber.Format(NotificationCatalog.All.Count(k => _settings.EmailKinds.Contains(k.Kind) || _settings.WebhookKinds.Contains(k.Kind)))),
+    ];
+
     [SupplyParameterFromForm(FormName = "notifications")] private string? Action { get; set; }
     [SupplyParameterFromForm(FormName = "notifications")] private string? EmailEnabled { get; set; }
     [SupplyParameterFromForm(FormName = "notifications")] private string? SmtpHost { get; set; }

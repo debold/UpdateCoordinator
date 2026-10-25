@@ -38,9 +38,7 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
 
         foreach (var client in clients)
         {
-            client.RingId = client.ManualRingId
-                ?? rules.FirstOrDefault(r => r.Target == AssignmentTarget.Ring && Matches(r, client))?.TargetId
-                ?? fallback;
+            client.RingId = RingFor(client, rules, fallback);
 
             // Rule-based memberships are recalculated; manual memberships stay untouched.
             var mine = memberships.Where(m => m.ClientId == client.Id).ToList();
@@ -145,6 +143,10 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
             .ConfigureAwait(false);
         return Enum.TryParse<RebootPolicy>(stored, out var policy) && Enum.IsDefined(policy) ? policy : RebootPolicy.Never;
     }
+
+    /// <summary>The ring of a server: its manual ring, else the first matching ring rule in <paramref name="orderedRules"/> (by priority), else the final ring.</summary>
+    internal static int RingFor(ClientEntity client, IEnumerable<AssignmentRuleEntity> orderedRules, int fallback) =>
+        client.ManualRingId ?? orderedRules.FirstOrDefault(r => r.Target == AssignmentTarget.Ring && Matches(r, client))?.TargetId ?? fallback;
 
     internal static bool Matches(AssignmentRuleEntity rule, ClientEntity client)
     {

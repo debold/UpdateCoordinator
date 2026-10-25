@@ -4,6 +4,8 @@ The central server tells you about events that need attention, by e-mail and/or 
 
 Passwords and secrets are stored encrypted on this server (Windows data protection) and are not part of the backup; enter them again after a restore on another machine.
 
+The settings are split into two tabs of one form: **Channels** (e-mail, webhook, messages and links; the tab says how many channels are on, amber when none) and **Events** (the event table, with the number of events sent at all). **Save** stores both tabs at once.
+
 ## Save and test {#actions}
 
 - **Save** stores all settings on the page. Settings that are incomplete for an enabled channel are refused with a message, and nothing typed is lost.

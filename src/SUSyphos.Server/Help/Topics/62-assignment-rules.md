@@ -9,12 +9,12 @@ Assignments are recalculated when a server registers, after every inventory, aft
 
 ## Rule list {#list}
 
-- **New rule**: opens the [rule dialog](#dialog).
+- **New rule…**: opens the [rule dialog](#dialog).
 
 The table shows each rule with **Priority**, what it **Assigns** (a ring or a group; the link opens the server list filtered by that ring or group), its **Roles**, **Domain** and **Host name pattern**, and **Servers**: how many approved servers the conditions of the rule match, linked to the server list with exactly these servers. A matched server can still be in another ring: a manual ring on the server or a ring rule with a lower number decides first. All conditions of a rule must match; empty conditions match every server; a rule with several roles matches servers with any of them.
 
-- **Edit**: opens the rule dialog.
-- **Delete**: opens a confirmation; after **Delete rule**, servers assigned by the rule are recalculated at once and may move to another ring or leave the group.
+- **Edit** (the pencil at the end of the row): opens the rule dialog.
+- **More** (⋯): **Show matching servers** opens the server list with the servers the conditions match; **Delete rule…** opens a confirmation, and after **Delete rule** servers assigned by the rule are recalculated at once and may move to another ring or leave the group.
 
 ## New rule and edit {#dialog}
 
@@ -25,5 +25,7 @@ The table shows each rule with **Priority**, what it **Assigns** (a ring or a gr
 - **Roles (any of them)**: roles the agent detected on the server: the built-in ones (DomainController, Exchange, SqlServer, ClusterNode, HyperVHost) and every role a server has reported. Further roles can be defined on the agents (`Inventory:RoleRules`). "Any role" leaves the condition out.
 - **Domain**: the DNS domain of the server, for example lab.local.
 - **Host name pattern**: the host name with `*` for any number of characters and `?` for exactly one, for example SQL* or WEB0?. Upper and lower case do not matter.
+
+The dialog is wide: on the right, **What changes** lists the approved servers the rule as typed would affect: for a ring rule the servers that move (current ring → new ring), and those it matches but that keep their ring because it was set by hand or a rule with a lower number decides; for a group rule the servers that join the group, or leave it when an edited rule no longer matches them. **Preview** updates the list after a change without saving. Changes come first; at most 15 are listed.
 
 **Create rule** or **Save** stores the rule and recalculates the assignments; **Cancel** closes the dialog.

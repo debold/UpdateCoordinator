@@ -530,6 +530,39 @@ public sealed class AssignmentPageTests
     }
 
     [Fact]
+    public async Task RuleDialog_PreviewsWhichServersMove_WithoutSaving()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await scenario.AddClientAsync("SQL01", RingEntity.ProductionId);
+        await scenario.AddClientAsync("WEB01", RingEntity.ProductionId);
+        // The scenario sets every ring by hand; SQL01 is left to the rules, WEB01 keeps its manual ring.
+        await scenario.Factory.WithDbAsync(db => db.Clients.Where(c => c.HostName == "SQL01").ExecuteUpdateAsync(s => s.SetProperty(c => c.ManualRingId, (int?)null), TestContext.Current.CancellationToken));
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        using var preview = await browser.PostFormAsync("/administration/rules?dialog=new", new Dictionary<string, string>
+        {
+            ["_handler"] = "rule-dialog",
+            ["Mode"] = "create",
+            ["Priority"] = "5",
+            ["Target"] = $"ring:{RingEntity.PilotId}",
+            ["HostNamePattern"] = "*01",
+            ["Preview"] = "yes",
+        });
+        var html = await preview.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("What changes (1 of 2 approved servers)", html, StringComparison.Ordinal);
+        Assert.Contains("SQL01</a>", html, StringComparison.Ordinal);
+        Assert.Contains(">moves</span>", html, StringComparison.Ordinal);
+        Assert.Contains("ring set by hand stays", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"*01\"", html, StringComparison.Ordinal);
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.AssignmentRules.AnyAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
     public async Task Admin_CreatesGroupAndRuleThroughForms()
     {
         await using var factory = new ServerFactory();
