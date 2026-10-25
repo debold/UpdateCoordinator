@@ -42,7 +42,7 @@ Snapshots before the first installation make it easy to repeat updates.
 ## 6. Updates and rollout
 
 1. Server detail → Remote actions → "Search for updates now" on both servers; the action turns Succeeded, and Missing updates fills.
-2. Updates page: updates start in Pilot automatically (default start rule). SRV01 installs inside the window; the history shows the result, the ring page the rates.
+2. Updates page: updates start in Pilot automatically (default start rule). SRV01 installs inside the window; the history shows the result, the update page the rates per ring.
 3. Release rules: set Pilot → Test to 0 days minimum wait to speed up; after the next evaluation (1 minute) Test is released, SRV02 installs.
 4. With the default manual gate Test → Production: the update waits under Pending approvals; approve it there or on the update page.
 5. Force a failure (e.g. stop the Windows Update service on SRV02 during installation or fill the disk) and check that the alarm appears and nothing rolls on.

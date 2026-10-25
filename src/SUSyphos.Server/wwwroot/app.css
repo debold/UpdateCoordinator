@@ -273,28 +273,10 @@ details.col-filter[open] > summary { color: var(--accent); background: var(--acc
 .swatch.warn { background: var(--queue); opacity: 0.55; }
 .legend a { color: var(--text); text-decoration: none; }
 .legend a:hover { color: var(--accent); }
-
-/* Expandable rows: the servers of one update below its row (ring page). */
-tr.expanded > td { background: var(--accent-soft); }
-tr.row-detail > td { background: var(--surface-2); padding: 0.4rem 0.8rem 0.8rem 1.6rem; }
-table.detail-table { width: 100%; font-size: 0.85rem; }
-table.detail-table th, table.detail-table td { padding: 0.3rem 0.5rem; }
-a.icon-button.expand .icon { transition: transform 0.15s; }
-tr.expanded a.icon-button.expand .icon { transform: rotate(180deg); }
-td.bar-cell { min-width: 5rem; }
-td.bar-cell .bar { min-width: 4.5rem; }
 dl.facts .pill { white-space: normal; }
 .swatch.none { background: var(--idle); opacity: 0.45; }
 .ring-status, .donut-row { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; }
 .donut-cell { display: inline-flex; align-items: center; gap: 0.5rem; }
-
-/* Ring steps. */
-.steps { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
-.steps a, .steps .step { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.1rem; padding: 0 0.85rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
-.steps a:hover { text-decoration: none; border-color: var(--accent); }
-.steps a.current, .steps .step.current { background: var(--accent); border-color: var(--accent); color: #FFFFFF; font-weight: 600; }
-.steps .arrow { color: var(--idle); font-size: 0.82rem; }
-.steps .gate { color: var(--queue); font-size: 0.82rem; font-weight: 600; }
 
 /* Tabs (links). */
 .tabs { display: flex; flex-wrap: wrap; gap: 0.15rem; }
@@ -623,3 +605,20 @@ a.ring-tag:hover { text-decoration: none; background: var(--surface-2); }
 .tab-badge.queue { background: var(--queue-soft); color: var(--queue); }
 .tab-badge.fail { background: var(--fail-soft); color: var(--fail); }
 .box-actions { margin-top: 0.9rem; justify-content: flex-end; }
+
+/* Ring strip above the server list: rings as toggles in rollout order, with the wait between them. */
+.ring-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; padding: 0.65rem 1.15rem; border-bottom: 1px solid var(--line); }
+.ring-strip .ring-tag.toggle { height: 26px; padding: 0 0.6rem; }
+.ring-strip .ring-tag.toggle b { margin-left: 0.4rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+.ring-strip .ring-tag.toggle.on { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.ring-step { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--idle); font-size: 0.78rem; }
+.ring-step .gate { color: var(--queue); font-weight: 600; }
+
+/* Stage of an update per ring in the update list: the ring number outlined in the ring colour, filled by the stage. */
+.ring-stage { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; margin-right: 3px; padding: 0 4px; border: 1px solid var(--idle); border-radius: 4px; background: var(--surface); color: var(--muted); font-size: 0.75rem; font-weight: 700; }
+.ring-stage.r1 { border-color: var(--series-1); } .ring-stage.r2 { border-color: var(--series-2); } .ring-stage.r3 { border-color: var(--series-3); } .ring-stage.r4 { border-color: var(--series-4); }
+.ring-stage.r5 { border-color: var(--series-5); } .ring-stage.r6 { border-color: var(--series-6); } .ring-stage.r7 { border-color: var(--series-7); } .ring-stage.r8 { border-color: var(--series-8); }
+.ring-stage.ok { background: var(--ok-soft); color: var(--ok); }
+.ring-stage.pend { background: var(--pend-soft); color: var(--pend); }
+.ring-stage.queue { background: var(--queue-soft); color: var(--queue); }
+.ring-stage.fail { background: var(--fail-soft); color: var(--fail); }

@@ -1,0 +1,45 @@
+@* The rings in rollout order above the server list (replaces the former ring pages, Marc 2026-10-25): each ring a tag
+   with its server count that switches it on or off in the ring filter of the list (several at once), and between two
+   rings the time the rollout waits and whether a manual gate follows. *@
+<nav class="ring-strip help-scope" aria-label="Rings">
+    <span class="note">Rings:</span>
+    @for (var i = 0; i < Rings.Count; i++)
+    {
+        var ring = Rings[i];
+        var on = Selected.Contains(ring.Name);
+        <a class="ring-tag r@(RingTag.Palette(ring.Order)) toggle @(on ? "on" : null)" href="@Toggle(ring.Name)" aria-pressed="@(on ? "true" : "false")" title="@(on ? "Remove this ring from the filter" : "Add this ring to the filter")">@ring.Order @ring.Name <b>@DisplayNumber.Format(ring.Servers)</b></a>
+        @if (i < Rings.Count - 1)
+        {
+            <span class="ring-step" aria-hidden="true">
+                @if (Transitions.GetValueOrDefault(ring.Id) is { } transition)
+                {
+                    <span>@string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{transition.MinimumWait.TotalDays:0}–{transition.MaximumWait.TotalDays:0} days")</span>
+                    @if (transition.ManualGate)
+                    {
+                        <span class="gate">manual gate</span>
+                    }
+                }
+                <span>→</span>
+            </span>
+        }
+    }
+    <HelpLink To="servers#rings" Label="Rings" />
+</nav>
+
+@code {
+    /// <summary>The rings in rollout order with their number of servers.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<(int Id, int Order, string Name, int Servers)> Rings { get; set; } = [];
+
+    /// <summary>Wait and gate after each ring, by the ring the rollout leaves.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<int, (TimeSpan MinimumWait, TimeSpan MaximumWait, bool ManualGate)> Transitions { get; set; } = new Dictionary<int, (TimeSpan, TimeSpan, bool)>();
+
+    [Parameter, EditorRequired]
+    public TableQuery Table { get; set; } = default!;
+
+    private IReadOnlyList<string> Selected => Table.Filter("ring");
+
+    private string Toggle(string name) =>
+        Selected.Contains(name) ? Table.WithoutFilter("ring", name) : Table.WithFilter("ring", [.. Selected, name]);
+}

@@ -14,34 +14,31 @@
 <PageHeader Icon="@PageIcons.Updates" Title="@(ShowArchived ? "Archived updates" : "Updates")" Subtitle="@(ShowArchived ? "Updates no server has needed for a while. They return to the list when a server reports them as missing again." : "Updates reported as missing by approved servers or in a rollout. Each update runs through the rings on its own.")" Help="updates" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
+<form id="bulk" method="post" @formname="updates-bulk" @onsubmit="BulkAsync" class="detached"><AntiforgeryToken /></form>
 <AuthorizeView Policy="@AdminRoles.Policies.Operate">
     <ActionBand>
-        <form id="bulk" method="post" @formname="updates-bulk" @onsubmit="BulkAsync">
-            <AntiforgeryToken />
-            <button type="submit" name="Bulk" value="start" class="primary">Start rollout</button>
-            <button type="submit" name="Bulk" value="override">Release to all rings</button>
-        </form>
+        <ActionMenu Label="Rollout" Icon="git-branch" Kind="primary">
+            <MenuItem Form="bulk" Name="Bulk" Value="start" Icon="play">Start rollout</MenuItem>
+            <MenuItem Form="bulk" Name="Bulk" Value="override" Icon="send" Reason="Release the selected updates to every ring at once, without waiting for the transitions">Release to all rings</MenuItem>
+        </ActionMenu>
         <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
-            <a class="btn" href="/administration/release-rules">Release rules</a>
+            <a class="btn" href="/administration/release-rules"><Icon Name="list-checks" Size="16" />Release rules</a>
         </AuthorizeView>
-        <a class="btn" href="@(ShowArchived ? "/updates" : "/updates?archived=1")">@(ShowArchived ? "Show current updates" : "Show archived updates")</a>
         <div class="spacer"></div>
-        <button type="submit" form="bulk" name="Bulk" value="stop" class="danger">Stop rollout</button>
+        <span class="note">Applies to the updates selected in the list</span>
+        <button type="submit" form="bulk" name="Bulk" value="stop" class="danger"><Icon Name="circle-stop" Size="16" />Stop rollout</button>
     </ActionBand>
 </AuthorizeView>
 
 <Box Flush="true">
     <TableTools Table="_table" Placeholder="Search KB or title" Labels="Labels" GroupOptions="GroupOptions">
-        @if (!ShowArchived)
-        {
-            <span class="view-toggles" data-help="updates#toggles">
+        <span class="view-toggles" data-help="updates#toggles">
                 <span class="note">Show:</span>
-                @foreach (var (name, label, on, count) in Toggles)
+                @foreach (var (name, label, on, count) in Toggles.Where(t => !ShowArchived || t.Name == "archived"))
                 {
                     <a class="btn ghost toggle @(on ? "on" : null)" href="@Navigation.GetUriWithQueryParameter(name, on ? null : "1")" aria-pressed="@(on ? "true" : "false")" data-help-term="@label" title="@(on ? $"Hide {label} updates" : $"Show {label} updates")">@label (@count)</a>
                 }
             </span>
-        }
     </TableTools>
     <div class="scroll">
         <table>
@@ -55,13 +52,14 @@
                     <SortHeader Table="_table" Column="restart" Label="Restart" Options="@Options("restart")" />
                     <SortHeader Table="_table" Column="seen" Label="First reported" />
                     <SortHeader Table="_table" Column="rollout" Label="Rollout" Options="@Options("rollout")" />
+                    <SortHeader Table="_table" Column="rings" Label="Rings" Sortable="false" Options="@Options("rings")" />
                     <SortHeader Table="_table" Column="installed" Label="Status" />
                 </tr>
             </thead>
             <tbody>
                 @if (_page.Rows.Count == 0)
                 {
-                    <tr><td colspan="9" class="note">No update matches the search and filters.</td></tr>
+                    <tr><td colspan="10" class="note">No update matches the search and filters.</td></tr>
                 }
                 @foreach (var row in _page.Rows)
                 {
@@ -74,6 +72,7 @@
                         <td class="nowrap">@row.Restart</td>
                         <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
                         <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }@if (row.Newer is { } newer) { <div class="note">superseded by <a href="/updates/@newer.UpdateId/@newer.Revision">@newer.Name</a></div> }</td>
+                        <td class="nowrap">@foreach (var stage in row.Stages ?? []) { <span class="ring-stage r@(RingTag.Palette(stage.Order)) @stage.Class" title="@($"{stage.Order} {stage.Name}: {stage.Label}")">@stage.Order</span> }</td>
                         <td class="nowrap"><span class="donut-cell" title="@($"{row.Missing} servers still miss it; {row.Counts.Successful} of {row.Counts.Total} installed, {row.Counts.Failed} failed")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
                     </tr>
                 }
@@ -87,7 +86,7 @@
 @code {
     private const int MaxRows = 5000;
 
-    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts, string Restart, NewerUpdate? Newer = null, bool Completed = false, bool Outside = false, bool Linked = true);
+    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts, string Restart, NewerUpdate? Newer = null, bool Completed = false, bool Outside = false, bool Linked = true, IReadOnlyList<(int Order, string Name, string Label, string Class)>? Stages = null);
 
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["classification"] = "Classification", ["severity"] = "Severity", ["rollout"] = "Rollout", ["restart"] = "Restart" };
     private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("classification", "Classification"), ("severity", "Severity"), ("restart", "Restart"), ("rollout", "Rollout")];
@@ -101,6 +100,7 @@
         new("severity", "Severity", r => SeverityRank(r.Severity), r => [r.Severity]),
         new("restart", "Restart", r => r.Restart, r => [r.Restart]),
         new("rollout", "Rollout", r => r.Rollout, r => [r.Rollout]),
+        new("rings", "Rings", r => null, r => r.Stages is { Count: > 0 } stages ? [.. stages.Select(s => $"{s.Name}: {s.Label}")] : [string.Empty], Sortable: false),
         new("installed", "Installed", r => r.Counts.Total == 0 ? 0 : (double)r.Counts.Successful / r.Counts.Total),
     ];
 
@@ -138,6 +138,7 @@
     private int _hiddenCompleted;
     private int _hiddenWithdrawn;
     private int _hiddenOutside;
+    private int _archived;
 
     private IEnumerable<(string Name, string Label, bool On, int Count)> Toggles =>
     [
@@ -145,6 +146,7 @@
         ("completed", "completed", ShowCompleted, _hiddenCompleted),
         ("withdrawn", "withdrawn", ShowWithdrawn, _hiddenWithdrawn),
         ("outside", "installed outside SUSyphos", ShowOutside, _hiddenOutside),
+        ("archived", "archived", ShowArchived, _archived),
     ];
 
     [SupplyParameterFromForm(FormName = "updates-bulk")]
@@ -228,6 +230,7 @@
             : await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId) && u.ArchivedAtUtc == null).ToListAsync();
         var counts = (await Deployment.GetAsync(null, null, null, CancellationToken.None)).ToLookup(e => (e.UpdateId, e.Revision));
         var listedIds = updates.Select(u => u.UpdateId).ToList();
+        _archived = await Db.Updates.CountAsync(u => u.ArchivedAtUtc != null);
         var supersededBy = await Supersedence.NewerAsync(Db, listedIds);
 
         List<Row> rows = [.. updates
@@ -280,7 +283,8 @@
                     deployment,
                     UpdateText.Restart(u.RebootBehavior),
                     newerUpdate,
-                    completed);
+                    completed,
+                    Stages: Stages(rollouts.GetValueOrDefault(key), ringStates[key], rings, counts[key]));
             })];
 
         // Superseded, completed, withdrawn and outside updates are out of the way unless asked for; the toggles say how many.
@@ -345,6 +349,15 @@
                 Linked: known is not null);
         })];
     }
+
+    /// <summary>The stage of the update in each ring (released, rolling out, awaiting approval, alarm, waiting, not started).</summary>
+    private static IReadOnlyList<(int Order, string Name, string Label, string Class)> Stages(RolloutEntity? rollout, IEnumerable<RolloutRingEntity> states, List<RingEntity> rings, IEnumerable<DeploymentEntry> entries) =>
+        [.. rings.Select(ring =>
+        {
+            var state = rollout is null ? (RingRolloutState?)null : rollout.Override ? RingRolloutState.Released : states.FirstOrDefault(s => s.RingId == ring.Id)?.State;
+            var (label, cls) = RingStage.Of(state, DeploymentCounts.Of(entries.Where(e => e.RingId == ring.Id)));
+            return (ring.Order, ring.Name, label, cls);
+        })];
 
     /// <summary>Rollout state for the list: queued, alarm or gate first, else the furthest released ring.</summary>
     private static (string Label, string Class, string? Detail) Describe(RolloutEntity? rollout, List<RolloutRingEntity> states, List<RingEntity> rings)

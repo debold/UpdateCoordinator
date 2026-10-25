@@ -321,7 +321,7 @@ public sealed class DashboardViewTests
         await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Succeeded);
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
-        var html = await (await browser.GetAsync($"/rings/{RingEntity.PilotId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var html = await (await browser.GetAsync($"/updates/{update.UpdateId}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Contains("1 successful, 0 pending, 0 queued, 0 failed, 2 not needed", html, StringComparison.Ordinal);
         Assert.Contains("Not needed <b>2</b>", html, StringComparison.Ordinal);
@@ -356,68 +356,6 @@ public sealed class DashboardViewTests
         Assert.Contains("OLD01", list, StringComparison.Ordinal);
         Assert.DoesNotContain("NEW01", list, StringComparison.Ordinal);
         Assert.Contains("title=\"0.5.0-alpha.0.7", list, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task RingPage_ShowsActiveUpdateAndItsServers()
-    {
-        await using var scenario = await RolloutScenario.CreateAsync();
-        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
-        var update = RolloutScenario.Update("Security Updates");
-        await scenario.ReportAsync(pilot, update);
-        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Failed);
-        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
-
-        using var response = await browser.GetAsync($"/rings/{RingEntity.PilotId}?expand={update.UpdateId:D}:1");
-        var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var members = await (await browser.GetAsync($"/rings/{RingEntity.PilotId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-
-        Assert.Contains("Pilot<a class=\"help-link\" href=\"help/rings\"", html, StringComparison.Ordinal);
-        Assert.Contains("KB5040000", html, StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Status of KB5040000 per server\"", html, StringComparison.Ordinal);
-        Assert.Contains($"id=\"servers-{update.UpdateId:D}-1\">", html, StringComparison.Ordinal);
-        Assert.Contains("PILOT01", html, StringComparison.Ordinal);
-        Assert.Contains("0x80070005", html, StringComparison.Ordinal);
-
-        // Without "expand" the servers of the update are there for the script but closed; the members of the ring are listed below.
-        Assert.Contains($"id=\"servers-{update.UpdateId:D}-1\" hidden", members, StringComparison.Ordinal);
-        Assert.DoesNotContain($"id=\"servers-{update.UpdateId:D}-1\" hidden", html, StringComparison.Ordinal);
-        Assert.Contains("Servers in this ring (1)", members, StringComparison.Ordinal);
-        Assert.Contains("PILOT01", members, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task RingPage_ListsUpdatesNotReleasedThereYet_LikeTheRingStatusCountsThem()
-    {
-        await using var scenario = await RolloutScenario.CreateAsync();
-        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
-        var production = await scenario.AddClientAsync("PROD01", RingEntity.ProductionId);
-        var update = RolloutScenario.Update("Security Updates");
-        await scenario.ReportAsync(pilot, update);
-        await scenario.ReportAsync(production, update);
-        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
-
-        var html = await (await browser.GetAsync($"/rings/{RingEntity.ProductionId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-
-        Assert.Contains("KB5040000", html, StringComparison.Ordinal);
-        Assert.Contains("Waiting for the ring before", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("No update is released for this ring or waiting before it.", html, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("/rings/99")]
-    [InlineData("/rings/1?update=not-an-update")]
-    [InlineData("/rings/1?update=%3Cscript%3E")]
-    public async Task RingPage_UnknownRingOrUpdate_RendersSafely(string path)
-    {
-        await using var scenario = await RolloutScenario.CreateAsync();
-        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
-
-        using var response = await browser.GetAsync(path);
-        var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.DoesNotContain("<script>", html, StringComparison.Ordinal);
     }
 
     [Fact]

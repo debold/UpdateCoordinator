@@ -24,13 +24,19 @@ The overview of pending manual approvals and overrides is deliberately a separat
 - Visibility of updates installed outside our own maintenance.
 Implemented (2026-10-18): "Needs attention" (alarms, release gates, servers waiting for approval, servers with a failed installation or pre-flight check, servers without heartbeat for over an hour), key figures (agents reporting, pending client updates, warnings for WSUS source, disk space and reboot pending, patch compliance), deployment by ring as a stacked bar, the global pause switch (Operator) and the patch compliance trend from a daily snapshot. AD coverage and stopped coordinated groups were added on 2026-10-19. Not yet: installations outside our own maintenance and agent update failures.
 
-## 3. Ring detail view
+## 3. Rings
 
-- **Per-update view:** several updates (monthly, out-of-band) can be at different stages in the same ring at the same time. For each active update, the planned installation period and its own progress are shown. Since servers in the same ring have different maintenance windows, an update can already be installed on some servers and still pending on others.
-- Feedback and success rate, wait and release status per update (the release logic applies per update).
-- **Overall ring status as a donut chart** across all updates in the ring: successful (green), pending (blue), queued (yellow), failed (red), and not needed (grey: every server of the ring that needs no installation of a released update, 2026-10-20).
-Implemented (2026-10-18): page per ring with the ring sequence and gates, transition rule, donut of all server × update states, active updates with progress, feedback and success rate and wait day, and the server table of the selected update (maintenance windows, earliest installation, status, result with HResult text). States: successful and failed by the last installation result, pending = released without result, queued = reported as missing but not released for the ring.
-### Update detail viewImplemented (2026-10-18): one page per update (reached from the update list, ring pages, server details and "Needs attention") with the rollout state, a donut over all servers, progress per ring (state, release time, feedback and success rate, server states), a timeline from the ring states and the audit log, and the servers with ring, status, earliest installation and result, filterable by status. Operators start, stop, resume, override and approve gates there.
+- **No ring pages** (Marc, 2026-10-25): rings appear as ring tags (number and name, outlined in one colour per ring) wherever they are named. The former ring pages are removed; what they showed lives where it is used:
+  - **Server list:** a strip above the list with the rings in rollout order, their number of servers, the wait between two rings and manual gates; each ring tag switches that ring on or off in the ring filter of the list (several at once). "Assign ▼" moves the selected servers to a ring by hand (the former "Add servers" dialog).
+  - **Update list:** a "Rings" column with the stage of the update in each ring and a filter by stage.
+  - **Update page:** progress per ring (state, release time, feedback and success rate, server states); a ring tag opens the servers of the update filtered to that ring.
+  - **Overview:** deployment by ring as a stacked bar; a ring tag opens the server list filtered to that ring.
+- **Per-update view:** several updates (monthly, out-of-band) can be at different stages in the same ring at the same time; each has its own progress, feedback and success rate, wait and release status (the release logic applies per update). Since servers in the same ring have different maintenance windows, an update can already be installed on some servers and still pending on others.
+- States of server × update: successful (green), pending (blue), queued (amber), failed (red), and not needed (grey: every server that needs no installation of a released update, 2026-10-20).
+
+### Update detail view
+
+Implemented (2026-10-18): one page per update (reached from the update list, server details and "Needs attention") with the rollout state, a donut over all servers, progress per ring (state, release time, feedback and success rate, server states), a timeline from the ring states and the audit log, and the servers with ring, status, earliest installation and result, filterable by status. Operators start, stop, resume, override and approve gates there.
 
 ## 4. Server detail view
 
@@ -151,7 +157,7 @@ Pages with much content are split into tabs (Marc, 2026-10-25): server details (
 - The first tab is an overview of what matters now and links to the details in the other tabs.
 - Tabs are plain links with the tab in the address (`?tab=…`): they work without script, survive a reload and can be linked to; "Show ›" on a tile opens the matching tab.
 - A tab shows a count or a coloured badge when something waits there (e.g. missing updates, a failed check), so nobody has to open every tab.
-- One shared tab bar component (the one of the former ring page) for every page.
+- One shared tab bar component for every page.
 
 ### Tables
 

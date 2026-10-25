@@ -9,7 +9,7 @@
             <nav class="nav" aria-label="Main">
                 <span class="brand"><img src="susyphos-mark-white.svg" alt="" width="28" height="28" />SUSyphos</span>
                 <NavLink href="/" Match="NavLinkMatch.All"><span class="nav-label"><Icon Name="@PageIcons.Overview" />Overview</span></NavLink>
-                <NavLink href="@($"/rings/{RingEntity.PilotId}")" Match="NavLinkMatch.Prefix"><span class="nav-label"><Icon Name="@PageIcons.Rings" />Rings</span></NavLink>
+
                 <NavLink href="/servers"><span class="nav-label"><Icon Name="@PageIcons.Servers" />Servers</span></NavLink>
                 <NavLink href="/updates"><span class="nav-label"><Icon Name="@PageIcons.Updates" />Updates</span></NavLink>
                 <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">

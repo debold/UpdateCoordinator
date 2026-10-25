@@ -37,7 +37,9 @@ internal static class LayoutAudit
                 }
 
                 const s = getComputedStyle(el);
-                if ((s.overflowX === 'hidden' || s.overflowX === 'clip' || s.textOverflow === 'ellipsis') && el.scrollWidth > el.clientWidth + 1) {
+                // Text cut with "…" is allowed only where the full text is the tooltip (tile footers, long cells).
+                const tooltip = s.textOverflow === 'ellipsis' && (el.getAttribute('title') || '').trim() === el.textContent.trim();
+                if ((s.overflowX === 'hidden' || s.overflowX === 'clip' || s.textOverflow === 'ellipsis') && el.scrollWidth > el.clientWidth + 1 && !tooltip) {
                     issues.push(`text cut off: ${describe(el)}`);
                 }
 

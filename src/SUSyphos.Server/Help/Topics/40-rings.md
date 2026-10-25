@@ -1,42 +1,13 @@
 # Rings {#top}
 
-A ring is a set of servers that get updates at the same stage of a rollout, for example Pilot, Test and Production ([How SUSyphos works](help/concepts#transitions)). The band at the top shows all rings in order with their number of servers and, between them, the wait time of the transition ("2–7 days", counted per update from its release in the ring before) and whether a manual gate is in place. Click a ring to open it.
+A ring is a set of servers that get updates at the same stage of a rollout, for example Pilot, Test and Production ([How SUSyphos works](help/concepts#transitions)). An update reaches the first ring, waits there for the time and the feedback and success rates the transition rule asks for, and moves on to the next ring.
 
-The line under the title summarises the transition rule of this ring: after how many days, with which feedback and success rate the update moves on to the next ring.
+Rings have no page of their own. Everywhere a ring appears it is a ring tag: its number and name, outlined in one fixed colour per ring.
 
-## Actions {#actions}
+## Where to find rings {#where}
 
-- **Open servers of this ring**: the [server list](help/servers) filtered to this ring.
-- **Add servers…** (administrators): opens the [dialog](#add-servers) to move servers into this ring by hand.
-- **Edit ring rules**: the transition rules under [Release rules](help/release-rules#transitions).
-- **Edit assignment rules**: the rules that put servers into rings, see [Assignment rules](help/assignment-rules).
-
-## Updates in this ring {#updates}
-
-Updates released to this ring, and updates its servers report as missing that are not released here yet. A title opens the update page; **Status per server** (the arrow at the end of the row) opens the servers of the ring below the row: each with its maintenance windows (server time), earliest installation, state and result. Select the arrow again to close it.
-
-- **superseded and stopped** (after **Show:** next to the search): updates a newer known update replaces and updates whose rollout was stopped are hidden by default (often they were installed long ago); the switch shows how many and is highlighted while they are shown.
-
-- **State**: *Rolling out* (servers still have to install it), *Released* (done in this ring), *Waiting for manual release*, *Alarm* with the reason, *Waiting for the ring before* (the rollout has not reached this ring yet) or *Queued: no rollout yet* (servers here report it as missing, but no rollout runs), *Superseded* (a newer update replaces it) or *Stopped* (its rollout was stopped). The list holds every update the ring status counts.
-- **Installs from**: when the ring's servers may install it at the earliest.
-- **Day**: how long the update has been in the ring, compared with the minimum and maximum wait.
-- **Feedback** and **Success**: the rates the transition rule looks at (reported / targeted servers); "no server needs it" when no server of the ring needs the update.
-- **Servers**: the servers of the ring by state.
-
-## Ring status {#status}
-
-Every server of the ring for every update released here: successful, pending (released, waiting for the window or installing), queued (reported as missing, not released for this ring yet), failed, not needed (installed otherwise or not applicable).
-
-## Servers in this ring by status {#server-status}
-
-The tile next to the ring status counts the servers of the ring by their status, as in the [server list](help/servers#status): OK, updating, reboot pending, warning, failed, offline. Select a status to open the server list filtered to this ring and that status.
-
-## Servers in this ring {#servers}
-
-The list of the members of the ring with operating system, build, **Assigned by** (manual, an assignment rule, or the fallback to the last ring), status and pending updates. Search, sorting and filters work as described in [Working with lists](help/tables).
-
-## Add servers {#add-servers}
-
-![The dialog to add servers to a ring](help-images/ring-add-servers.png)
-
-Tick the servers to move (**Move**) and confirm with **Move to** the ring. They are assigned to this ring by hand: assignment rules no longer move them. Their groups and maintenance windows stay. **Cancel** closes the dialog. To give a server back to the rules, set its ring to "Automatic" on its [details page](help/server-detail#ring).
+- **Servers**: the strip above the [server list](help/servers#rings) shows all rings in order with their number of servers and, between them, the wait of the transition and whether a manual gate is in place. A ring tag there filters the list to that ring; several can be on at once. **Assign** in the band moves the selected servers to a ring by hand.
+- **Updates**: the **Rings** column of the [update list](help/updates) shows for each update how far its rollout came in each ring; the [update page](help/update-detail#progress) has the progress per ring with feedback and success rates.
+- **Overview**: [Deployment by ring](help/overview#rings) shows the state of each ring.
+- **Release rules**: the [Rings tab](help/release-rules#transitions) holds the transition rules (wait, feedback, success, manual gate).
+- **Assignment rules**: the [rules](help/assignment-rules) put servers into rings; a server set to a ring by hand on its [details page](help/server-detail#ring) or with **Assign** stays there.

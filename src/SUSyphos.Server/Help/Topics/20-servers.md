@@ -4,14 +4,27 @@ All servers that registered with the central server, approved or not (deleted se
 
 ## Actions for selected servers {#actions}
 
-Operators and administrators see a band above the list. Tick the servers in the list (**Select**), then:
+Operators and administrators see a band above the list. Tick the servers in the list (**Select**), then choose in a drop-down button:
 
-- **Search for updates now**: the agents search Windows Update right away instead of waiting for their next scheduled search (every 4 hours by default) and report the result.
-- **Sync inventory**: the agents collect and send their complete inventory again (operating system, roles, installed updates, Windows Update history), for example after a change on the server that the dashboard does not show yet.
+**Updates** (blue):
 
-Administrators can also put the selected servers into a server group: choose the group next to **Add to group** and press the button. They become members by hand (also if a rule added them before); their other groups stay. See [Server groups](help/groups).
+- **Search for updates**: the agents search Windows Update right away instead of waiting for their next scheduled search (every 4 hours by default) and report the result.
+- **Sync inventory and history**: the agents collect and send their complete inventory again (operating system, roles, installed updates, Windows Update history) and search, for example after a change on the server that the dashboard does not show yet.
 
-The action is queued and each agent runs it with its next heartbeat (every 10 seconds while the agent is running). Agents that are offline run it when they come back. Servers that are not approved get no actions. At most 500 servers are taken per click. Every action is recorded in the [audit log](help/audit-log) and shown on the server's detail page.
+**Assign** (administrators; greyed out for operators):
+
+- **Move to ring** with the ring: the selected servers are assigned to that ring by hand; assignment rules no longer move them, their groups and maintenance windows stay. To give a server back to the rules, set its ring to "Automatic" on its [details page](help/server-detail#ring).
+- **Add to group** with the group: the selected servers become members of that server group by hand (also if a rule added them before); their other groups stay. See [Server groups](help/groups).
+
+**Refresh** loads the list again.
+
+Actions for the agents are queued and each agent runs them with its next heartbeat (every 10 seconds while the agent is running). Agents that are offline run them when they come back. Servers that are not approved get no actions. At most 500 servers are taken per click. Every action is recorded in the [audit log](help/audit-log) and shown on the server's detail page.
+
+## Rings {#rings}
+
+The strip above the list shows the [rings](help/rings) in rollout order, each as a ring tag with its number of approved servers. Between two rings it shows the wait of the transition ("2–7 days", counted per update from its release in the ring before) and "manual gate" when a person must release the update to the next ring.
+
+A ring tag switches that ring on or off in the **Ring** filter of the list: several rings can be on at once, and the tags of the rings in the filter are highlighted. The column filter of **Ring** and the chips above the list show the same filter.
 
 ## Servers of an assignment rule {#rule}
 
@@ -23,7 +36,7 @@ Opened from the **Servers** number of an assignment rule, the list shows only th
 |---|---|
 | **Server** | Host name, with the DNS domain below it. The filter of this column filters by domain. |
 | **Operating system** | Windows version and edition, with the build number including the update revision (UBR) below it, for example 10.0.20348.4294. Sorted by build. |
-| **Ring** | The ring the server belongs to. "manual" below it: the ring was set by hand on the server's page and no assignment rule changes it. "–": no ring yet. |
+| **Ring** | The ring the server belongs to, as ring tag. "manual" below it: the ring was set by hand on the server's page and no assignment rule changes it. "–": no ring yet. |
 | **Groups** | The groups the server belongs to (coordination of installations, see [Server groups](help/groups)). |
 | **Agent** | Version of the SUSyphos agent on the server (full version in the tooltip) with a mark before it: a green check means current (no newer version released for its ring), a blue arrow up means an update is available (it installs itself), a red dash means the last update failed, and grey dots mean the version is unknown or too old to update itself. The tooltip of the mark explains it; the filter offers the versions and these states. |
 | **Status** | See below. |

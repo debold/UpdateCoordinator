@@ -14,7 +14,6 @@ public sealed class InteractionTests(UiFixture ui)
     [InlineData("/administration/users")]
     [InlineData("/administration/groups")]
     [InlineData("/administration/release-rules")]
-    [InlineData("/rings/1")]
     public async Task DialogLinks_OpenAVisibleDialog_ThatFitsTheWindow_AndCloses(string path)
     {
         await using var context = await ui.NewContextAsync(1280, 800);
@@ -163,7 +162,7 @@ public sealed class InteractionTests(UiFixture ui)
         var page = await context.NewPageAsync();
 
         // A button that posts the form: "Add window" in the server's maintenance windows (no save).
-        await page.GotoAsync($"/servers/{ui.MainServerId}");
+        await page.GotoAsync($"/servers/{ui.MainServerId}?tab=configuration");
         var inherit = page.Locator(".window-picker input[name$='inherit']").First;
         if (await inherit.IsCheckedAsync())
         {
@@ -179,26 +178,16 @@ public sealed class InteractionTests(UiFixture ui)
         var after = await page.EvaluateAsync<double>("window.scrollY");
         Assert.True(Math.Abs(after - before) < 150, $"The page jumped from {before} to {after}.");
 
-        // A sort link only changes the address: the ring page keeps its position.
-        await page.GotoAsync("/rings/1");
-        var sort = page.Locator("#updates table thead a.sort").First;
+        // A sort link only changes the address: the update list keeps its position.
+        await page.GotoAsync("/updates");
+        var sort = page.Locator("main table thead a.sort").First;
         await sort.ScrollIntoViewIfNeededAsync();
         await page.EvaluateAsync("window.scrollBy(0, 120)");
-        var ringBefore = await page.EvaluateAsync<double>("window.scrollY");
+        var listBefore = await page.EvaluateAsync<double>("window.scrollY");
         await sort.ClickAsync();
-        await page.WaitForURLAsync(url => url.Contains("up.sort=", StringComparison.Ordinal));
-        var ringAfter = await page.EvaluateAsync<double>("window.scrollY");
-        Assert.True(ringBefore > 0 && Math.Abs(ringAfter - ringBefore) < 150, $"The ring page jumped from {ringBefore} to {ringAfter}.");
-
-        // The expand button opens the servers of the update below its row, in place, and closes them again.
-        var expand = page.Locator("#updates a[data-expand]").First;
-        var detail = page.Locator("#" + await expand.GetAttributeAsync("data-expand"));
-        await Assertions.Expect(detail).ToBeHiddenAsync();
-        await expand.ClickAsync();
-        await Assertions.Expect(detail).ToBeVisibleAsync();
-        Assert.Equal("true", await expand.GetAttributeAsync("aria-expanded"));
-        await expand.ClickAsync();
-        await Assertions.Expect(detail).ToBeHiddenAsync();
+        await page.WaitForURLAsync(url => url.Contains("sort=", StringComparison.Ordinal));
+        var listAfter = await page.EvaluateAsync<double>("window.scrollY");
+        Assert.True(listBefore > 0 && Math.Abs(listAfter - listBefore) < 150, $"The update list jumped from {listBefore} to {listAfter}.");
     }
 
     [Fact]
@@ -208,7 +197,7 @@ public sealed class InteractionTests(UiFixture ui)
         var page = await context.NewPageAsync();
 
         // The activity list of the main server has more than ten entries; another list keeps its own page meanwhile.
-        await page.GotoAsync($"/servers/{ui.MainServerId}?hist.page=2");
+        await page.GotoAsync($"/servers/{ui.MainServerId}?tab=activity&hist.page=2");
         var size = page.Locator("#act-page-size");
         await Assertions.Expect(size).ToHaveValueAsync("10");
 

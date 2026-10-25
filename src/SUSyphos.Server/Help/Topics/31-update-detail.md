@@ -49,7 +49,7 @@ One row per ring:
 
 ## All servers {#all-servers}
 
-All servers that reported the update, by state: successful, pending (released, waiting for the window or installing), queued (not released to their ring yet), failed and not needed.
+All approved servers by their state for this update: successful, pending (released, waiting for the window or installing), queued (not released to their ring yet), failed, and not needed (the server never reported it as missing: installed otherwise or not applicable).
 
 ## Servers {#servers}
 

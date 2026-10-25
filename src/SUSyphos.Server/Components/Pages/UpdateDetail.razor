@@ -131,7 +131,7 @@ else
                         @foreach (var ring in _ringRows)
                         {
                             <tr>
-                                <td class="nowrap"><a href="/rings/@ring.RingId?update=@Key&tab=update">@ring.Order · @ring.Name</a></td>
+                                <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@($"{_table.WithFilter("ring", ring.Name)}#servers")" Title="Show the servers of this ring for this update" /></td>
                                 <td><span class="pill @RingStateClass(ring.State)">@RingStateLabel(ring)</span></td>
                                 <td class="nowrap">
                                     @if (ring.ReleasedAtUtc is not null || ring.Forecast is null)
@@ -414,7 +414,8 @@ else
         var states = await Db.RolloutRings.AsNoTracking().Where(r => r.UpdateId == UpdateId && r.Revision == Revision).ToDictionaryAsync(r => r.RingId);
         var entries = await Deployment.GetAsync(null, null, [UpdateId], CancellationToken.None);
         entries = [.. entries.Where(e => e.Revision == Revision)];
-        _total = DeploymentCounts.Of(entries);
+        // Every approved server: those that need no installation (installed otherwise or not applicable) count as not needed.
+        _total = DeploymentCounts.Of(entries, await Db.Clients.CountAsync(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved));
 
         var transitions = await Db.RingTransitions.AsNoTracking().ToDictionaryAsync(t => t.FromRingId);
         var forecasts = _rollout?.State == RolloutState.Active ? RolloutForecast.Estimate(rings, transitions, states) : new Dictionary<int, RingForecast>();
@@ -515,22 +516,9 @@ else
         _ => entry.Action,
     };
 
-    private static string RingStateLabel(RingRow ring) => ring.State switch
-    {
-        RingRolloutState.Released => "Released",
-        RingRolloutState.AwaitingApproval => "Awaiting approval",
-        RingRolloutState.Alarm => $"Alarm: {ring.Reason}",
-        RingRolloutState.Waiting => "Waiting",
-        _ => "Not started",
-    };
+    private static string RingStateLabel(RingRow ring) => ring.State == RingRolloutState.Alarm ? $"Alarm: {ring.Reason}" : RingStage.Of(ring.State).Label;
 
-    private static string RingStateClass(RingRolloutState? state) => state switch
-    {
-        RingRolloutState.Released => "ok",
-        RingRolloutState.AwaitingApproval => "queue",
-        RingRolloutState.Alarm => "fail",
-        _ => "neutral",
-    };
+    private static string RingStateClass(RingRolloutState? state) => RingStage.Of(state).Class;
 
     private static string Percent(int? value) => value is null ? "n/a" : $"{value} %";
 

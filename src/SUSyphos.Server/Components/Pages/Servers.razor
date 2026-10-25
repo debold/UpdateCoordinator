@@ -16,34 +16,35 @@
 <PageHeader Title="Servers" Icon="@PageIcons.Servers" Subtitle="@($"{_page.Total} registered servers")" Help="servers" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
+<form id="bulk" method="post" @formname="servers-bulk" @onsubmit="BulkAsync" class="detached"><AntiforgeryToken /></form>
 <AuthorizeView Policy="@AdminRoles.Policies.Operate">
     <ActionBand>
-        <form id="bulk" method="post" @formname="servers-bulk" @onsubmit="BulkAsync">
-            <AntiforgeryToken />
-            <button type="submit" name="Bulk" value="search" class="primary">Search for updates now</button>
-            <button type="submit" name="Bulk" value="resync">Sync inventory</button>
-            <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
-                @if (_groups.Count > 0)
+        <ActionMenu Label="Updates" Icon="scan-search" Kind="primary">
+            <MenuItem Form="bulk" Name="Bulk" Value="search" Icon="search">Search for updates</MenuItem>
+            <MenuItem Form="bulk" Name="Bulk" Value="resync" Icon="refresh-cw" Reason="Collect the inventory and the Windows Update history again and search">Sync inventory and history</MenuItem>
+        </ActionMenu>
+        <ActionMenu Label="Assign" Icon="git-branch">
+            @foreach (var ring in _rings)
+            {
+                <MenuItem Form="bulk" Name="Bulk" Value="@($"ring:{ring.Id}")" Icon="target" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? "Assign the selected servers to this ring by hand" : "Only administrators can do this")">Move to ring @ring.Order @ring.Name</MenuItem>
+            }
+            @if (_groups.Count > 0)
+            {
+                <MenuSeparator />
+                @foreach (var group in _groups.Take(MultiSelect.MaxOptions))
                 {
-                    <span class="add-to-group">
-                        <label class="visually-hidden" for="bulk-group">Group</label>
-                        <select id="bulk-group" name="BulkGroup" data-help-term="Add to group">
-                            @foreach (var group in _groups)
-                            {
-                                <option value="@group.Key">@group.Value</option>
-                            }
-                        </select>
-                        <button type="submit" name="Bulk" value="group">Add to group</button>
-                    </span>
+                    <MenuItem Form="bulk" Name="Bulk" Value="@($"group:{group.Key}")" Icon="boxes" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? null : "Only administrators can do this")">Add to group @group.Value</MenuItem>
                 }
-            </AuthorizeView>
-        </form>
+            }
+        </ActionMenu>
+        <a class="btn" href="@Navigation.Uri" title="Load the list again with the latest state"><Icon Name="refresh-cw" Size="16" />Refresh</a>
         <div class="spacer"></div>
         <span class="note">Applies to the servers selected in the list</span>
     </ActionBand>
 </AuthorizeView>
 
 <Box Flush="true">
+    <RingStrip Rings="@_ringCounts" Transitions="@_transitions" Table="_table" />
     <TableTools Table="_table" Placeholder="Search name or domain" GroupOptions="GroupOptions" Labels="Labels">
         @if (_rule is not null)
         {
@@ -82,7 +83,7 @@
                             <td class="select"><input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Id" aria-label="Select @row.HostName" /></td>
                             <td class="nowrap"><a href="/servers/@row.Id">@row.HostName</a>@if (row.Domain.Length > 0) { <div class="note break">@row.Domain</div> }</td>
                             <td>@row.Os<div class="note mono">@row.Build</div></td>
-                            <td class="nowrap">@row.Ring@if (row.ManualRing) { <div class="note">manual</div> }</td>
+                            <td class="nowrap"><RingTag Name="@row.Ring" Order="@row.RingOrder" />@if (row.ManualRing) { <div class="note">manual</div> }</td>
                             <td>@string.Join(", ", row.Groups)</td>
                             <td class="mono nowrap" title="@row.AgentVersion"><span class="mark @ServerIndicators.Class(row.Agent)" title="@AgentTitle(row)">@ServerIndicators.Symbol(row.Agent)</span> @AgentVersion.ShortForm(row.AgentVersion)</td>
                             <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span>@if (row.RestartAt is { } restartAt) { <div class="note nowrap">restart @DisplayTime.Format(restartAt)</div> }</td>
@@ -145,8 +146,10 @@
     [SupplyParameterFromForm(FormName = "servers-bulk")]
     private Guid[]? Selected { get; set; }
 
-    [SupplyParameterFromForm(FormName = "servers-bulk")]
-    private int? BulkGroup { get; set; }
+    private bool _canAdminister;
+    private List<RingEntity> _rings = [];
+    private IReadOnlyList<(int Id, int Order, string Name, int Servers)> _ringCounts = [];
+    private IReadOnlyDictionary<int, (TimeSpan MinimumWait, TimeSpan MaximumWait, bool ManualGate)> _transitions = new Dictionary<int, (TimeSpan, TimeSpan, bool)>();
 
     private IReadOnlyDictionary<int, string> _groups = new Dictionary<int, string>();
 
@@ -181,9 +184,9 @@
             return;
         }
 
-        if (Bulk == "group")
+        if (Bulk?.Split(':', 2) is [var target and ("ring" or "group"), var idText] && int.TryParse(idText, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var targetId))
         {
-            await AddToGroupAsync();
+            await AssignAsync(target, targetId);
             return;
         }
 
@@ -216,19 +219,26 @@
         await LoadAsync();
     }
 
-    private async Task AddToGroupAsync()
+    /// <summary>Moves the selected servers to a ring by hand, or adds them to a group (administrators).</summary>
+    private async Task AssignAsync(string target, int id)
     {
+        var selected = (Selected ?? []).Distinct().Take(1000).ToList();
         if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
         {
-            ShowResult("Only administrators can change group memberships.", string.Empty);
+            ShowResult(target == "ring" ? "Only administrators can move servers between rings." : "Only administrators can change group memberships.", string.Empty);
         }
-        else if (BulkGroup is not { } groupId)
+        else if (selected.Count == 0)
         {
-            ShowResult("Choose a group.", string.Empty);
+            ShowResult("Select at least one server in the list first.", string.Empty);
+        }
+        else if (target == "ring")
+        {
+            var outcome = await Administration.MoveClientsToRingAsync(selected, id, await GetActorAsync(), CancellationToken.None);
+            ShowResult(outcome.Error, $"Moved {selected.Count} servers to ring {_rings.FirstOrDefault(r => r.Id == id)?.Name}; assignment rules no longer move them.");
         }
         else
         {
-            var (outcome, added) = await Administration.AddClientsToGroupAsync(Selected ?? [], groupId, await GetActorAsync(), CancellationToken.None);
+            var (outcome, added) = await Administration.AddClientsToGroupAsync(selected, id, await GetActorAsync(), CancellationToken.None);
             ShowResult(outcome.Error, $"Added {added} servers to the group; the others were members already.");
         }
 
@@ -239,6 +249,9 @@
     {
         _table = TableQuery.From(Navigation, "name");
         var rings = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id);
+        _canAdminister = await IsAuthorizedAsync(AdminRoles.Policies.Administer);
+        _rings = [.. rings.Values.OrderBy(r => r.Order)];
+        _transitions = (await Db.RingTransitions.AsNoTracking().ToListAsync()).ToDictionary(t => t.FromRingId, t => (t.MinimumWait, t.MaximumWait, t.ManualGate));
         var groups = await Db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, g => g.Name);
         _groups = groups.OrderBy(g => g.Value, StringComparer.CurrentCulture).ToDictionary(g => g.Key, g => g.Value);
         var memberships = (await Db.ClientGroups.AsNoTracking().ToListAsync()).ToLookup(m => m.ClientId, m => m.GroupId);
@@ -282,6 +295,7 @@
                 c.RestartAnnouncedAtUtc ?? (c.RestartRequested ? c.PlannedRestartAtUtc : null));
         })];
 
+        _ringCounts = [.. _rings.Select(r => (r.Id, r.Order, r.Name, clients.Count(c => c.State == RegistrationState.Approved && c.RingId == r.Id)))];
         _page = TablePaging.Apply(rows, _table, Columns, r => $"{r.HostName} {r.Domain}");
     }
 }

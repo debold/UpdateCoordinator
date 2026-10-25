@@ -28,7 +28,7 @@
                     var ring = _rings[i];
                     var final = i == _rings.Count - 1;
                     <tr>
-                        <td class="nowrap"><a href="/rings/@ring.Id">@ring.Order · @ring.Name</a></td>
+                        <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@Servers.Link("ring", ring.Name)" Title="Show the servers of this ring" /></td>
                         <td class="n">@_servers.GetValueOrDefault(ring.Id)</td>
                         <td>
                             @if (final)
