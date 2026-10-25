@@ -116,3 +116,30 @@ Implemented (2026-10-21): help pages under `/help` (index) and `/help/<page>`, w
 - Exact permission assignment per function
 - Escalation of notifications (reminders, further recipients) when nobody reacts; the channels themselves (e-mail, webhook) are implemented (decided by Marc on 2026-10-19, `docs/admin/README.md` section 20)
 - Visualization details beyond the ideas listed
+
+## 8. Design patterns (binding for every page)
+
+Decided by Marc on 2026-10-25. New and changed pages use these patterns; existing pages are brought in line. Each pattern is one shared component, not markup repeated per page.
+
+### Tiles
+
+Key figures at the top of a page (overview, server details, AD coverage, agents, and wherever a page leads with numbers).
+
+- **Header:** a short title in small type; optionally a link on the right, always named "Show ›".
+- **Main part:** exactly one or two values, large and bold, centred horizontally and vertically. Two values sit side by side, split by a thin vertical line, each with a small caption below. A state is a pill (e.g. "Failed", "up to date"), not plain text. A distribution of states is a small donut with a legend (e.g. servers by status, AD coverage). Never more than two values; anything else goes to the footer.
+- **Footer:** one line of small text below a thin separator, always at the bottom (unit, context, time reference); longer text is cut with "…" and shown in full as tooltip.
+- **Edge:** a tile whose state needs attention gets a coloured left edge (red failure, amber warning); the edge never carries information the text does not say.
+- All tiles of a row have the same height. Version numbers carry a "v" prefix (v0.7.7).
+
+### Action bands
+
+The band of actions below the page title.
+
+- One row of the regular dashboard buttons (bordered, icon from the Lucide set plus text).
+- Actions of one topic with more than one entry form a drop-down button with ▼ (e.g. "Updates ▼", "Server ▼", "Rollout ▼", "Assign ▼", "New ▼"). A topic with a single action stays a plain button. Inside a drop-down, related actions are separated by a thin line; there are no sub-headings.
+- The main group or action of the page is blue and first. Plain page actions (Refresh) are single buttons.
+- Dangerous actions are red and stand on the right, grouped the same way (e.g. "Remove ▼" with Remove and Delete, "Block ▼"). Opposite actions (approve / reject) stay separate buttons.
+- An action that does not fit the current state is greyed out with the reason as tooltip, not hidden.
+- Views are not actions: switches that show or hide list entries belong to the list's "Show:" switches, not to the band.
+- Menus open without script (like the column filters); with script they close on a click elsewhere or Esc.
+
