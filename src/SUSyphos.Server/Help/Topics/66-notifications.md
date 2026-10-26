@@ -9,7 +9,8 @@ The settings are split into two tabs of one form: **Channels** (e-mail, webhook,
 ## Save and test {#actions}
 
 - **Save** stores all settings on the page. Settings that are incomplete for an enabled channel are refused with a message, and nothing typed is lost.
-- **Send a test notification** sends a test message through every enabled channel, using the saved settings (save first). Errors from the mail server or webhook are shown.
+- **Send a test notification** sends a test message through every enabled channel, using the saved settings (save first). The message at the top shows what each receiver answered, or its error.
+- **Send test e-mail** (below the E-mail box) and **Send test webhook** (below the Webhook box) test one channel alone, with the saved settings, also while the channel is still switched off, so it can be tried before it goes live. The answer of the mail server or the HTTP status of the webhook (for example "HTTP 202 Accepted") is shown; every test is recorded in the audit log.
 
 Changes are recorded in the [audit log](help/audit-log).
 
@@ -33,7 +34,53 @@ E-mails are HTML in the look of the dashboard, with a plain text part for mail p
 - **Address (https://)**: the address that receives the notifications; only HTTPS is accepted.
 - **Signature secret**: optional. With a secret, every call carries the header `X-SUSyphos-Signature` with `sha256=` and the HMAC-SHA256 of the body, so the receiver can check that the call came from this central server. Empty keeps the stored secret; **Remove the stored secret** deletes it.
 
-The webhook receives a JSON document with subject, time, severity, central server and version, and the events (kind, category, severity, title, key, text, affected, impact and link).
+The webhook receives a JSON document with subject, time, severity, central server and version, and the events (kind, category, severity, title, key, text, affected, impact and link). Any 2xx answer counts as delivered; anything else is retried on the next run.
+
+### Example and use in Microsoft 365 {#webhook-example}
+
+A call looks like this (POST, `Content-Type: application/json; charset=utf-8`; times in UTC):
+
+```json
+{
+  "subject": "[SUSyphos] Critical: Coordinated group stopped",
+  "createdAtUtc": "2026-10-27T08:15:00Z",
+  "severity": "Critical",
+  "server": "uc01.lab.local",
+  "version": "0.7.9",
+  "events": [
+    {
+      "kind": "LeasesHalted",
+      "category": "Critical",
+      "severity": "Critical",
+      "title": "Coordinated group stopped",
+      "key": "group.halted:1",
+      "text": "Installations in the group SQL cluster stopped after a failed installation.",
+      "affected": "SQL01, SQL02",
+      "impact": "No server of the group installs until the group is released again.",
+      "link": "https://uc01.lab.local:8443/administration/groups"
+    }
+  ]
+}
+```
+
+With a signature secret the receiver can check the sender. In PowerShell, with `$body` the raw body as received (bytes) and `$header` the value of `X-SUSyphos-Signature`:
+
+```powershell
+$hmac = [System.Security.Cryptography.HMACSHA256]::new([Text.Encoding]::UTF8.GetBytes('your secret'))
+$expected = 'sha256=' + [Convert]::ToHexString($hmac.ComputeHash($body)).ToLowerInvariant()
+$valid = [System.Security.Cryptography.CryptographicOperations]::FixedTimeEquals([Text.Encoding]::ASCII.GetBytes($expected), [Text.Encoding]::ASCII.GetBytes($header))
+```
+
+**Messages in a Microsoft Teams channel** (the most common use): Teams receives webhooks through Workflows (Power Automate); the older "Incoming Webhook" connectors are being retired by Microsoft.
+
+1. In Power Automate (or in Teams: **Workflows**), create a flow with the trigger **When a Teams webhook request is received** and set who may trigger it to "Anyone". Saving the flow shows its address (HTTP URL).
+2. Add **Parse JSON** with the body of the trigger as content and generate the schema from the example above.
+3. Add **Post message in a chat or channel** (post as Flow bot, choose team and channel) with, for example, the subject, then an "Apply to each" over `events` with title, text, affected and the link.
+4. Paste the address of the flow into **Address (https://)**, save and use **Send test webhook**: the test message appears in the channel.
+
+The address of the flow carries its own signature and works like a password: keep it secret. A flow can also check the `X-SUSyphos-Signature` header, but a Teams channel usually relies on the secret address.
+
+Other uses in Microsoft 365, built the same way: a flow that creates a Planner task or a ticket (ServiceNow, Jira and similar) only for events with severity "Critical" (a condition on `severity`), or an Azure Logic App that writes the events to Log Analytics for Microsoft Sentinel.
 
 ## Messages and links {#links}
 

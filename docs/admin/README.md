@@ -452,7 +452,7 @@ Accounts that signed in with Windows appear in the user list as `DOMAIN\name` wi
 
 ## 19. Backup and restore
 
-**Backup** (Administration → Backup, role `Admin`): enter a backup password (at least 16 characters, twice) and download the archive. It contains:
+**Backup** (Administration → Backup, role `Admin`): enter a backup password (at least 12 characters, twice) and download the archive. It contains:
 
 | Entry | Content |
 |---|---|

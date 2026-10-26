@@ -95,14 +95,20 @@ internal sealed partial class NotificationService(
         return fresh.Count;
     }
 
-    /// <summary>Sends a test message through every enabled channel; returns an error text per failed channel.</summary>
-    public async Task<Outcome> SendTestAsync(string actor, CancellationToken cancellationToken)
+    /// <summary>
+    /// Sends a test message with the saved settings through every enabled channel, or through the one named (also while
+    /// it is switched off, so it can be tried before it goes live). Returns an error text per failed channel and what the
+    /// receivers answered.
+    /// </summary>
+    public async Task<(Outcome Outcome, string Delivered)> SendTestAsync(string actor, string? channelName, CancellationToken cancellationToken)
     {
         var settings = await store.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var enabled = channels.Where(c => c.IsEnabled(settings)).ToList();
+        var enabled = channelName is null
+            ? channels.Where(c => c.IsEnabled(settings)).ToList()
+            : channels.Where(c => string.Equals(c.Name, channelName, StringComparison.OrdinalIgnoreCase)).ToList();
         if (enabled.Count == 0)
         {
-            return new Outcome("Enable e-mail or the webhook first.");
+            return (new Outcome(channelName is null ? "Enable e-mail or the webhook first." : "Unknown channel."), string.Empty);
         }
 
         var message = NotificationMessage.Create(
@@ -112,11 +118,12 @@ internal sealed partial class NotificationService(
             DashboardUrl(settings));
         var secrets = store.LoadSecrets();
         var errors = new List<string>();
+        var delivered = new List<string>();
         foreach (var channel in enabled)
         {
             try
             {
-                await channel.SendAsync(message, settings, secrets, cancellationToken).ConfigureAwait(false);
+                delivered.Add($"{channel.Name}: {Truncate(await channel.SendAsync(message, settings, secrets, cancellationToken).ConfigureAwait(false), 300)}");
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
@@ -125,8 +132,8 @@ internal sealed partial class NotificationService(
             }
         }
 
-        await audit.WriteAsync(actor, "Notifications.Tested", null, errors.Count == 0 ? "delivered" : string.Join("; ", errors), cancellationToken).ConfigureAwait(false);
-        return errors.Count == 0 ? Outcome.Ok : new Outcome(string.Join(" ", errors));
+        await audit.WriteAsync(actor, "Notifications.Tested", channelName, string.Join("; ", errors.Concat(delivered)), cancellationToken).ConfigureAwait(false);
+        return (errors.Count == 0 ? Outcome.Ok : new Outcome(string.Join(" ", errors.Concat(delivered))), string.Join("; ", delivered));
     }
 
     /// <summary>The address for links: the one set on the Notifications page, else this server's own name and port.</summary>

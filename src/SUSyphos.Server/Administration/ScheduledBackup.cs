@@ -90,6 +90,11 @@ internal sealed partial class ScheduledBackup(
             {
                 return new Outcome(@"Enter an absolute folder, e.g. D:\Backup\SUSyphos or \\fileserver\backup\susyphos.");
             }
+
+            if (settings.Enabled && CheckWritable(folder!) is { } writeError)
+            {
+                return new Outcome(writeError);
+            }
         }
 
         if (password is not null && BackupService.CheckPassword(password) is { } passwordError)
@@ -189,6 +194,26 @@ internal sealed partial class ScheduledBackup(
         && folder.IndexOfAny(Path.GetInvalidPathChars()) < 0
         && folder.IndexOfAny(['<', '>', '"', '|', '?', '*'], 2) < 0
         && folder.IndexOf(':', 2) < 0;
+
+    /// <summary>
+    /// Whether the service account can write to the folder (created if missing): a small test file is written and removed
+    /// right away, so a wrong path or missing share permission shows when saving, not at the first run. Null when it works.
+    /// </summary>
+    internal static string? CheckWritable(string folder)
+    {
+        var probe = Path.Combine(folder, $".susyphos-write-test-{Guid.NewGuid():N}.tmp");
+        try
+        {
+            Directory.CreateDirectory(folder);
+            File.WriteAllBytes(probe, []);
+            File.Delete(probe);
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or NotSupportedException)
+        {
+            return $"The central server cannot write to {folder}: {ex.Message} The service account (LocalSystem) needs write access; for a share grant it to the computer account of the central server.";
+        }
+    }
 
     /// <summary>Deletes the oldest scheduled archives beyond <paramref name="keep"/>; only files this backup wrote.</summary>
     internal static void Prune(string folder, int keep)

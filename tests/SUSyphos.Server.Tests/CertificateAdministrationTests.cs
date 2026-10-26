@@ -56,11 +56,17 @@ public sealed class CertificateAdministrationTests
         {
         }
 
+        // Hidden by default, behind the "Show: not usable" switch; the reason is in the details of the row.
         var html = await (await browser.GetAsync("/administration/certificate")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.Contains(expired.Thumbprint, html, StringComparison.Ordinal);
-        Assert.Contains("Not usable", html, StringComparison.Ordinal);
-        Assert.Contains("Expired", html, StringComparison.Ordinal);
-        Assert.True(html.IndexOf(usable.Thumbprint, StringComparison.Ordinal) < html.IndexOf(expired.Thumbprint, StringComparison.Ordinal), "Usable certificates come first.");
+        Assert.Contains("uc01.lab.local", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("old.lab.local", html, StringComparison.Ordinal);
+        Assert.Contains("not usable (1)", html, StringComparison.Ordinal);
+
+        var all = await (await browser.GetAsync($"/administration/certificate?unusable=1&cert.open={expired.Thumbprint}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Not usable", all, StringComparison.Ordinal);
+        Assert.Contains("Expired", all, StringComparison.Ordinal);
+        Assert.Contains(expired.Thumbprint, all, StringComparison.Ordinal);
+        Assert.True(all.IndexOf("uc01.lab.local", StringComparison.Ordinal) < all.IndexOf("old.lab.local", StringComparison.Ordinal), "Usable certificates come first.");
 
         // The switch dialog does not open for it, and the switch itself is refused.
         Assert.DoesNotContain("role=\"dialog\"", await (await browser.GetAsync($"/administration/certificate?dialog=use&thumbprint={expired.Thumbprint}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);

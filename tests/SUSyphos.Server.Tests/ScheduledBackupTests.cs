@@ -42,6 +42,23 @@ public sealed class ScheduledBackupTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task FolderThatCannotBeWritten_IsRefusedWhenSaving_AndAWritableOneKeepsNoTestFile()
+    {
+        // A file where the folder should be: Windows cannot create the folder below it.
+        Directory.CreateDirectory(Path.GetDirectoryName(_folder)!);
+        var blocker = _folder + ".file";
+        await File.WriteAllTextAsync(blocker, "not a folder", TestContext.Current.CancellationToken);
+
+        var refused = await WithAsync(s => s.SaveAsync(new ScheduledBackupSettings { Enabled = true, Folder = Path.Combine(blocker, "Backups") }, Password, "admin", CancellationToken.None));
+        var saved = await WithAsync(s => s.SaveAsync(new ScheduledBackupSettings { Enabled = true, Folder = _folder }, Password, "admin", CancellationToken.None));
+
+        Assert.False(refused.Succeeded);
+        Assert.Contains("cannot write to", refused.Error, StringComparison.Ordinal);
+        Assert.True(saved.Succeeded, saved.Error);
+        Assert.Empty(Directory.GetFiles(_folder));
+    }
+
+    [Fact]
     public async Task Enabling_WithoutAnyPassword_IsRefused()
     {
         var outcome = await WithAsync(s => s.SaveAsync(new ScheduledBackupSettings { Enabled = true, Folder = _folder }, null, "admin", CancellationToken.None));
@@ -74,8 +91,8 @@ public sealed class ScheduledBackupTests : IAsyncDisposable
     public async Task Failure_IsRecordedAndNotified()
     {
         Assert.True((await WithAsync(s => s.SaveAsync(new ScheduledBackupSettings { Enabled = true, Folder = _folder }, Password, "admin", CancellationToken.None))).Succeeded);
-        // A file where the folder should be makes the run fail.
-        Directory.CreateDirectory(Path.GetDirectoryName(_folder)!);
+        // A file where the folder should be makes the run fail (saving created the folder, so it goes first).
+        Directory.Delete(_folder, recursive: true);
         await File.WriteAllTextAsync(_folder, "not a folder", TestContext.Current.CancellationToken);
 
         var run = await WithAsync(async s => await s.RunAsync(await s.GetSettingsAsync(CancellationToken.None), CancellationToken.None));

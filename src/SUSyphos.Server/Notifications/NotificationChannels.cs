@@ -90,19 +90,21 @@ internal interface INotificationChannel
     /// <summary>The event kinds this channel sends.</summary>
     IReadOnlyCollection<NotificationKind> Kinds(NotificationSettings settings);
 
-    Task SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken);
+    /// <summary>Delivers the message; returns what the receiver answered, e.g. "HTTP 202 Accepted", for the test.</summary>
+    Task<string> SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken);
 }
 
 /// <summary>Sends a built e-mail; separate so tests never contact a mail server.</summary>
 internal interface IMailTransport
 {
-    Task SendAsync(MimeMessage message, NotificationSettings settings, string? password, CancellationToken cancellationToken);
+    /// <summary>Sends the e-mail; returns the answer of the mail server.</summary>
+    Task<string> SendAsync(MimeMessage message, NotificationSettings settings, string? password, CancellationToken cancellationToken);
 }
 
 /// <summary>SMTP through MailKit; the certificate of the mail server is validated as usual.</summary>
 internal sealed class SmtpMailTransport : IMailTransport
 {
-    public async Task SendAsync(MimeMessage message, NotificationSettings settings, string? password, CancellationToken cancellationToken)
+    public async Task<string> SendAsync(MimeMessage message, NotificationSettings settings, string? password, CancellationToken cancellationToken)
     {
         using var client = new MailKit.Net.Smtp.SmtpClient { Timeout = 30_000 };
         var security = settings.SmtpSecurity switch
@@ -117,8 +119,9 @@ internal sealed class SmtpMailTransport : IMailTransport
             await client.AuthenticateAsync(settings.SmtpUser, password ?? string.Empty, cancellationToken).ConfigureAwait(false);
         }
 
-        await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
+        var answer = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
         await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
+        return answer;
     }
 }
 
@@ -130,7 +133,7 @@ internal sealed class EmailChannel(IMailTransport transport) : INotificationChan
 
     public IReadOnlyCollection<NotificationKind> Kinds(NotificationSettings settings) => settings.EmailKinds;
 
-    public Task SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken)
+    public async Task<string> SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken)
     {
         var mail = new MimeMessage { Subject = message.Subject };
         mail.From.Add(MailboxAddress.Parse(settings.From ?? throw new InvalidOperationException("No sender address is configured.")));
@@ -140,7 +143,8 @@ internal sealed class EmailChannel(IMailTransport transport) : INotificationChan
         }
 
         mail.Body = new BodyBuilder { TextBody = message.FormatText(), HtmlBody = NotificationEmail.Html(message) }.ToMessageBody();
-        return transport.SendAsync(mail, settings, secrets.SmtpPassword, cancellationToken);
+        var answer = await transport.SendAsync(mail, settings, secrets.SmtpPassword, cancellationToken).ConfigureAwait(false);
+        return $"accepted by {settings.SmtpHost} for {settings.RecipientList.Count} recipients{(string.IsNullOrWhiteSpace(answer) ? string.Empty : $" ({answer.Trim()})")}";
     }
 }
 
@@ -160,8 +164,13 @@ internal sealed class WebhookChannel(HttpClient http) : INotificationChannel
 
     public IReadOnlyCollection<NotificationKind> Kinds(NotificationSettings settings) => settings.WebhookKinds;
 
-    public async Task SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken)
+    public async Task<string> SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrEmpty(settings.WebhookUrl))
+        {
+            throw new InvalidOperationException("No webhook address is saved.");
+        }
+
         var body = JsonSerializer.SerializeToUtf8Bytes(
             new
             {
@@ -194,5 +203,6 @@ internal sealed class WebhookChannel(HttpClient http) : INotificationChannel
 
         using var response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
+        return $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
     }
 }

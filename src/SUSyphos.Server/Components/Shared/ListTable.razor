@@ -28,6 +28,10 @@
                 @foreach (var row in rows)
                 {
                     @Row(row)
+                    @if (Details is not null && RowKey is not null && Table.Open == RowKey(row))
+                    {
+                        <tr class="details-row"><td colspan="@(Columns.Count + ExtraColumns)">@Details(row)</td></tr>
+                    }
                 }
             }
         </tbody>
@@ -80,4 +84,12 @@
 
     [Parameter]
     public int ExtraColumns { get; set; }
+
+    /// <summary>Details shown in an expanded row right below the row whose key is open (TableQuery.Open).</summary>
+    [Parameter]
+    public RenderFragment<TRow>? Details { get; set; }
+
+    /// <summary>Key of a row in the address, for expanded rows.</summary>
+    [Parameter]
+    public Func<TRow, string>? RowKey { get; set; }
 }

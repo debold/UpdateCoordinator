@@ -47,7 +47,7 @@ public sealed class BackupTests : IDisposable
     [InlineData(null)]
     [InlineData("")]
     [InlineData("short")]
-    [InlineData("fifteen chars!!")]
+    [InlineData("eleven char")]
     public async Task Backup_WithShortPassword_IsRefused(string? password)
     {
         await using var factory = new ServerFactory();
@@ -59,6 +59,20 @@ public sealed class BackupTests : IDisposable
 
         Assert.False(outcome.Succeeded);
         Assert.Equal(0, target.Length);
+    }
+
+    [Fact]
+    public async Task Backup_WithTwelveCharacters_IsAccepted()
+    {
+        await using var factory = new ServerFactory();
+        factory.StartServer();
+        await using var scope = factory.Services.CreateAsyncScope();
+        using var target = new MemoryStream();
+
+        var outcome = await scope.ServiceProvider.GetRequiredService<BackupService>().CreateAsync(target, "twelve chars", "admin", CancellationToken.None);
+
+        Assert.True(outcome.Succeeded, outcome.Error);
+        Assert.True(target.Length > 0);
     }
 
     [Fact]

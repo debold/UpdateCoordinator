@@ -72,6 +72,22 @@ public sealed class TableQuery
 
     public string? Group { get; }
 
+    /// <summary>Key of the row whose details are open (expanded row); null when none is.</summary>
+    public string? Open => Get(Key("open")) is { Length: > 0 } open ? open : null;
+
+    /// <summary>Opens the details of a row, or closes them when they are open; the rest of the view stays.</summary>
+    public string ToggleLink(string rowKey) => With(values =>
+    {
+        if (Open == rowKey)
+        {
+            values.Remove(Key("open"));
+        }
+        else
+        {
+            values[Key("open")] = rowKey;
+        }
+    });
+
     /// <param name="navigation">Current address.</param>
     /// <param name="defaultSort">Column sorted by when the address names none.</param>
     /// <param name="defaultDescending">True to list the default column newest or largest first.</param>

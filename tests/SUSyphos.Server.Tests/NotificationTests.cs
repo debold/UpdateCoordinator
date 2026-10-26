@@ -293,7 +293,9 @@ public sealed class NotificationTests
         settings.WebhookUrl = "https://hooks.lab.local/uc";
         var message = NotificationMessage.Create([new NotificationEvent("group.halted:1", NotificationKind.LeasesHalted, "Installations stopped", "administration/groups")], DateTime.UtcNow, null, settings.DashboardUrl);
 
-        await new WebhookChannel(http).SendAsync(message, settings, new NotificationSecrets(null, "hook-secret"), CancellationToken.None);
+        var answer = await new WebhookChannel(http).SendAsync(message, settings, new NotificationSecrets(null, "hook-secret"), CancellationToken.None);
+
+        Assert.Equal("HTTP 200 OK", answer);
 
         using var json = JsonDocument.Parse(handler.Body!);
         Assert.Equal("LeasesHalted", json.RootElement.GetProperty("events")[0].GetProperty("kind").GetString());
@@ -417,6 +419,17 @@ public sealed class NotificationTests
             Assert.Contains("Enable e-mail or the webhook first.", await test.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
+        // The test of one channel also runs while it is off; without a saved address it says what is missing.
+        using (var webhook = await PostAsync(admin, new() { ["Action"] = "test:Webhook" }))
+        {
+            Assert.Contains("Webhook: No webhook address is saved.", await webhook.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        using (var unknown = await PostAsync(admin, new() { ["Action"] = "test:Pager" }))
+        {
+            Assert.Contains("Unknown channel.", await unknown.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
         using (var saved = await PostAsync(admin, new() { ["Action"] = "save", ["EmailEnabled"] = "yes", ["SmtpHost"] = "mail.lab.local", ["SmtpPort"] = "25", ["SecurityMode"] = "None", ["From"] = "uc01@lab.local", ["Recipients"] = "ops@lab.local", ["SmtpPassword"] = "relay-password" }))
         {
             Assert.Contains("Notification settings saved.", await saved.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
@@ -533,7 +546,7 @@ public sealed class NotificationTests
 
         public IReadOnlyCollection<NotificationKind> Kinds(NotificationSettings settings) => Webhook ? settings.WebhookKinds : settings.EmailKinds;
 
-        public Task SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken)
+        public Task<string> SendAsync(NotificationMessage message, NotificationSettings settings, NotificationSecrets secrets, CancellationToken cancellationToken)
         {
             Attempts++;
             if (Fail)
@@ -542,7 +555,7 @@ public sealed class NotificationTests
             }
 
             Messages.Add(message);
-            return Task.CompletedTask;
+            return Task.FromResult("recorded");
         }
     }
 
@@ -552,11 +565,11 @@ public sealed class NotificationTests
 
         public string? Password { get; private set; }
 
-        public Task SendAsync(MimeMessage message, NotificationSettings settings, string? password, CancellationToken cancellationToken)
+        public Task<string> SendAsync(MimeMessage message, NotificationSettings settings, string? password, CancellationToken cancellationToken)
         {
             Sent.Add(message);
             Password = password;
-            return Task.CompletedTask;
+            return Task.FromResult("2.0.0 Ok: queued");
         }
     }
 

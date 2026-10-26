@@ -54,6 +54,7 @@
                     </div>
                 </div>
             </ChildContent>
+            <Footer><button type="submit" name="Action" value="test:E-mail" data-help-term="Send test e-mail"><Icon Name="send" Size="16" />Send test e-mail</button><span class="note">uses the saved settings, also while e-mail is off</span></Footer>
         </Box>
 
         <div class="stack">
@@ -73,6 +74,7 @@
                         </p>
                     </div>
                 </ChildContent>
+                <Footer><button type="submit" name="Action" value="test:Webhook" data-help-term="Send test webhook"><Icon Name="send" Size="16" />Send test webhook</button><span class="note">uses the saved settings, also while the webhook is off; <a href="help/notifications#webhook-example" target="_blank" rel="noopener">example and Teams</a></span></Footer>
             </Box>
             <Box Title="Messages and links" Help="notifications#links">
                 <div class="form">
@@ -184,10 +186,11 @@
         }
 
         var actor = await GetActorAsync();
-        if (Action == "test")
+        if (Action is not null && (Action == "test" || Action.StartsWith("test:", StringComparison.Ordinal)))
         {
-            var outcome = await Notifications.SendTestAsync(actor, CancellationToken.None);
-            ShowResult(outcome.Error, "Test notification sent through every enabled channel.");
+            var channel = Action == "test" ? null : Action[5..];
+            var (outcome, delivered) = await Notifications.SendTestAsync(actor, channel, CancellationToken.None);
+            ShowResult(outcome.Error, $"Test notification sent. {delivered}.");
             return;
         }
 

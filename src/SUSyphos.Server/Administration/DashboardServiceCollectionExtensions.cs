@@ -27,7 +27,7 @@ internal static class DashboardServiceCollectionExtensions
 
         services.AddIdentityCore<IdentityUser>(options =>
             {
-                options.Password.RequiredLength = 12;
+                options.Password.RequiredLength = PasswordRules.MinimumLength;
                 // Length over composition rules (NIST SP 800-63B): long passphrases are allowed and encouraged.
                 options.Password.RequireNonAlphanumeric = false;
                 options.Password.RequireDigit = false;

@@ -22,7 +22,7 @@ internal sealed record BackupManifest(int Format, DateTime CreatedAtUtc, string 
 internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions> database, AuditLog audit, TimeProvider timeProvider)
 {
     public const int FormatVersion = 1;
-    public const int MinimumPasswordLength = 16;
+    public const int MinimumPasswordLength = PasswordRules.MinimumLength;
     public const string ManifestEntry = "manifest.json";
     public const string DatabaseEntry = "server.db";
     public const string AnchorEntry = "trust-anchor.p8";

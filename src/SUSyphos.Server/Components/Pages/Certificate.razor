@@ -5,6 +5,7 @@
 @inject CertificateAdministration Administration
 @inject TrustBindingService Bindings
 @inject TimeProvider Time
+@inject NavigationManager Navigation
 
 <PageTitle>TLS certificate</PageTitle>
 
@@ -24,42 +25,47 @@
     </ChildContent>
 </Box>
 
-<Box Title="Certificates" Help="certificate#available" Hint="LocalMachine\My: usable certificates first, the others with the reason they cannot be used" Flush="true">
-    <div class="scroll">
-        <table>
-            <thead><tr><th>Subject</th><th>DNS names</th><th>Issuer</th><th>Valid until</th><th>Thumbprint</th><th class="num">Actions</th></tr></thead>
-            <tbody>
-                @if (_candidates.Count == 0)
+<Box Title="Certificates" Help="certificate#available" Hint="LocalMachine\My: usable certificates first; ▾ shows the details" Flush="true">
+    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search certificate" Noun="certificates" ExtraColumns="1" RowKey="@(c => c.Thumbprint)" Empty="No suitable certificate found.">
+        <Tools>
+            @if (_unusableCount > 0)
+            {
+                <span class="view-toggles" data-help="certificate#available">
+                    <span class="note">Show:</span>
+                    <a class="btn ghost toggle @(ShowUnusable ? "on" : null)" href="@Navigation.GetUriWithQueryParameter("unusable", ShowUnusable ? null : "1")" aria-pressed="@(ShowUnusable ? "true" : "false")" data-help-term="not usable" title="@(ShowUnusable ? "Hide certificates that cannot be used" : "Show certificates that cannot be used")">not usable (@_unusableCount)</a>
+                </span>
+            }
+        </Tools>
+        <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+        <Row Context="candidate">
+            <tr class="@(candidate.Unusable is null ? null : "unusable") @(_table.Open == candidate.Thumbprint ? "expanded" : null)">
+                <td class="wrap">@Name(candidate)@if (candidate.SelfGenerated) { <div class="note">created by SUSyphos</div> }</td>
+                <td class="nowrap">@DisplayTime.FormatDate(candidate.NotAfterUtc)</td>
+                <td>@{ var state = State(candidate); }<span class="pill @state.Kind">@state.Text</span></td>
+                <td class="n">
+                    <span class="row-actions">
+                        <ExpandToggle Table="_table" Key="@candidate.Thumbprint" Label="@Name(candidate)" />
+                        <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {Name(candidate)}")">
+                            <MenuItem Href="@DialogLink(candidate)" Icon="shield-check" Disabled="@(IsInUse(candidate) || candidate.Unusable is not null)" Reason="@(IsInUse(candidate) ? "The central server presents this certificate already" : candidate.Unusable)">Use this certificate…</MenuItem>
+                        </ActionMenu>
+                    </span>
+                </td>
+            </tr>
+        </Row>
+        <Details Context="candidate">
+            <dl class="facts">
+                <dt>Subject</dt><dd>@candidate.Subject</dd>
+                <dt>DNS names</dt><dd>@if (candidate.DnsNames.Count == 0) { <span class="note">none</span> }@foreach (var name in candidate.DnsNames) { <span class="tag">@name</span> }</dd>
+                <dt>Issuer</dt><dd>@candidate.Issuer</dd>
+                <dt>Valid</dt><dd>@DisplayTime.FormatDate(candidate.NotBeforeUtc) to @DisplayTime.FormatDate(candidate.NotAfterUtc)</dd>
+                <dt>Thumbprint</dt><dd class="mono">@candidate.Thumbprint</dd>
+                @if (candidate.Unusable is { } reason)
                 {
-                    <tr><td colspan="6" class="note">No suitable certificate found.</td></tr>
+                    <dt>Not usable</dt><dd>@reason</dd>
                 }
-                @foreach (var candidate in _candidates)
-                {
-                    <tr class="@(candidate.Unusable is null ? null : "unusable")">
-                        <td>@candidate.Subject</td>
-                        <td>@foreach (var name in candidate.DnsNames) { <span class="tag">@name</span> }</td>
-                        <td>@candidate.Issuer</td>
-                        <td>@DisplayTime.FormatDate(candidate.NotAfterUtc)</td>
-                        <td class="mono">@candidate.Thumbprint</td>
-                        <td class="num">
-                            @if (IsInUse(candidate))
-                            {
-                                <span class="pill ok">In use</span>
-                            }
-                            else if (candidate.Unusable is { } reason)
-                            {
-                                <span class="pill neutral">Not usable</span><div class="note">@reason</div>
-                            }
-                            else
-                            {
-                                <a class="btn" href="@DialogLink(candidate)">Use…</a>
-                            }
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+            </dl>
+        </Details>
+    </ListTable>
 </Box>
 
 @if (DialogName == "use" && !_switched && _candidates.FirstOrDefault(c => c.Unusable is null && string.Equals(c.Thumbprint, DialogThumbprint, StringComparison.OrdinalIgnoreCase)) is { } selected)
@@ -86,6 +92,22 @@
 
     private System.Security.Cryptography.X509Certificates.X509Certificate2 _current = default!;
     private IReadOnlyList<CertificateCandidate> _candidates = [];
+    private TableQuery _table = default!;
+    private TablePage<CertificateCandidate> _page = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
+    private int _unusableCount;
+
+    private static readonly IReadOnlyList<TableColumn<CertificateCandidate>> Columns =
+    [
+        new("name", "Certificate", c => Name(c)),
+        new("until", "Valid until", c => c.NotAfterUtc),
+        new("state", "State", c => c.Unusable is null ? 0 : 1, c => [c.Unusable is null ? "Usable" : "Not usable"]),
+    ];
+
+    /// <summary>Certificates that cannot be used are hidden unless "1".</summary>
+    [SupplyParameterFromQuery(Name = "unusable")]
+    public string? Unusable { get; set; }
+
+    private bool ShowUnusable => Unusable == "1";
     private long? _serial;
     private int _daysLeft;
     private bool _switched;
@@ -112,9 +134,20 @@
     {
         _current = Administration.Current;
         _candidates = Administration.ListAll();
+        _unusableCount = _candidates.Count(c => c.Unusable is not null);
+        _table = TableQuery.From(Navigation, "state", prefix: "cert.");
+        // Usable first (the store lists them so), the in-use one always shown.
+        _page = TablePaging.Apply([.. _candidates.Where(c => ShowUnusable || c.Unusable is null || IsInUse(c))], _table, Columns, c => $"{c.Subject} {string.Join(' ', c.DnsNames)} {c.Thumbprint}");
         _daysLeft = (int)Math.Floor((_current.NotAfter.ToUniversalTime() - Time.GetUtcNow().UtcDateTime).TotalDays);
         _serial = (await Bindings.GetCurrentAsync(CancellationToken.None))?.Serial;
     }
+
+    /// <summary>The first DNS name, else the common name from the subject.</summary>
+    private static string Name(CertificateCandidate candidate) =>
+        candidate.DnsNames.FirstOrDefault() ?? (candidate.Subject.StartsWith("CN=", StringComparison.OrdinalIgnoreCase) ? candidate.Subject[3..].Split(',')[0] : candidate.Subject);
+
+    private (string Text, string Kind) State(CertificateCandidate candidate) =>
+        IsInUse(candidate) ? ("In use", "ok") : candidate.Unusable is null ? ("Usable", "pend") : ("Not usable", "neutral");
 
     private bool IsInUse(CertificateCandidate candidate) => string.Equals(candidate.Thumbprint, _current.Thumbprint, StringComparison.OrdinalIgnoreCase);
 

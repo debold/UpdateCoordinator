@@ -1,0 +1,18 @@
+@* The ▾ of a row that expands (docs/06-dashboard.md, section 8 "Tables"): a link that opens or closes the details below
+   the row, so it works without script and the open row survives a reload. *@
+<a class="btn icon-button expand @(Open ? "open" : null)" href="@Table.ToggleLink(Key)" aria-expanded="@(Open ? "true" : "false")" title="@(Open ? $"Hide details of {Label}" : $"Show details of {Label}")" aria-label="@(Open ? $"Hide details of {Label}" : $"Show details of {Label}")" data-help-term="Details"><Icon Name="chevron-down" Size="16" /></a>
+
+@code {
+    [Parameter, EditorRequired]
+    public TableQuery Table { get; set; } = default!;
+
+    /// <summary>Key of the row in the address.</summary>
+    [Parameter, EditorRequired]
+    public string Key { get; set; } = string.Empty;
+
+    /// <summary>Name of the row for the tooltip.</summary>
+    [Parameter]
+    public string Label { get; set; } = string.Empty;
+
+    private bool Open => Table.Open == Key;
+}

@@ -482,6 +482,8 @@ h1 .help-link { vertical-align: 0.3em; }
 .help-article li + li { margin-top: 0.2rem; }
 .help-article table { border-collapse: collapse; margin: 0.6rem 0; width: 100%; }
 .help-article th, .help-article td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+.help-article pre { margin: 0.6rem 0; padding: 0.7rem 0.9rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 0.8rem; line-height: 1.45; overflow-x: auto; white-space: pre; }
+.help-article pre code { background: none; padding: 0; }
 .help-article img { display: block; max-width: 100%; height: auto; margin: 0.7rem 0; border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: 0 1px 3px rgb(20 26 34 / 0.12); }
 .nav .account .version .update { display: block; margin-top: 0.15rem; color: var(--queue); }
 
@@ -663,3 +665,10 @@ fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: cent
 /* Category tags tell kinds apart with a tint of the categorical palette (not a status colour). */
 .cat-tag { --cat: var(--series-1); display: inline-flex; align-items: center; height: 20px; padding: 0 0.5rem; border: 1px solid color-mix(in srgb, var(--cat) 45%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--cat) 14%, var(--surface)); color: var(--text); font-size: 0.78rem; white-space: nowrap; vertical-align: middle; }
 .cat-tag.c1 { --cat: var(--series-5); } .cat-tag.c2 { --cat: var(--series-7); } .cat-tag.c3 { --cat: var(--series-3); } .cat-tag.c4 { --cat: var(--series-8); }
+
+/* Expanded rows (ListTable Details): the row stays tinted, the details open right below it, indented and shaded. */
+tr.expanded > td { background: var(--accent-soft); }
+tr.details-row > td { padding: 0.75rem 1rem 0.9rem 2.2rem; background: var(--surface-2); border-top: 0; }
+tr.details-row .facts { margin: 0; }
+.icon-button.expand svg { transition: transform 0.12s; }
+.icon-button.expand.open svg { transform: rotate(180deg); }
