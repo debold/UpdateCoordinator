@@ -28,7 +28,6 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/servers/{main}?dialog=install",
         "/servers/{main}?dialog=uninstall",
         "/servers/{main}?dialog=remove",
-        "/servers/{main}?dialog=agent-settings",
         "/servers/{main}?dialog=agent-setting&key=heartbeat-interval",
         "/servers/{main}?dialog=agent-setting&key=log-level",
         "/operating-systems",

@@ -193,6 +193,36 @@ public sealed class InteractionTests(UiFixture ui)
     }
 
     [Fact]
+    public async Task LiveRefresh_WaitsWhileAMenuIsOpen_AndKeepsOpenedSections()
+    {
+        await using var context = await ui.NewContextAsync(1280, 800);
+        var page = await context.NewPageAsync();
+        var path = $"/servers/{ui.MainServerId}?tab=configuration";
+
+        // The demo agent is idle, so the page gets a two-second live refresh the way a working agent would give it one.
+        await page.RouteAsync(url => url.Contains("tab=configuration", StringComparison.Ordinal), async route =>
+        {
+            var response = await route.FetchAsync();
+            var html = (await response.TextAsync()).Replace("<head>", "<head><meta name=\"susyphos-refresh\" content=\"2\" />", StringComparison.Ordinal);
+            await route.FulfillAsync(new RouteFulfillOptions { Response = response, Body = html });
+        });
+        await page.GotoAsync(path);
+        var section = page.Locator("main details.agent-settings").First;
+        // Toggled against its default, so only the restore can bring this state back.
+        var opened = await section.EvaluateAsync<bool>("d => (d.open = !d.open)");
+        await page.Locator("main details[data-menu] > summary").First.ClickAsync();
+        await page.EvaluateAsync("window.__beforeRefresh = true");
+
+        await page.WaitForTimeoutAsync(3500);
+        Assert.True(await page.EvaluateAsync<bool>("window.__beforeRefresh === true"), "The page reloaded while a menu was open.");
+
+        await page.Keyboard.PressAsync("Escape");
+        await page.WaitForFunctionAsync("() => window.__beforeRefresh === undefined", null, new PageWaitForFunctionOptions { Timeout = 5000 });
+        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        Assert.Equal(opened, await page.Locator("main details.agent-settings").First.EvaluateAsync<bool>("d => d.open"));
+    }
+
+    [Fact]
     public async Task PageSize_AppliesOnChange_AndKeepsTheOtherLists()
     {
         await using var context = await ui.NewContextAsync(1280, 900);

@@ -635,3 +635,26 @@ fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: cent
 .share-bar .track { fill: var(--line); }
 .share-bar .ok { fill: var(--ok); }
 .share-bar .queue { fill: var(--queue); }
+
+/* Agent settings (page, group dialog, server configuration): sections with a small heading and a line, one row per
+   setting with the label left, a field of fixed width with the unit inside and the range or source right. A value that
+   is inherited (the agent's own or from a higher level) has a dashed, greyed field; a value set here a solid one. */
+.settings-section { margin: 1rem 0 0.15rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 0.72rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
+.settings-section:first-child { margin-top: 0.1rem; }
+.setting-rows { display: grid; grid-template-columns: minmax(10rem, 24rem) 13rem minmax(7rem, 1fr); gap: 0.45rem 1rem; align-items: center; padding: 0.4rem 0 0.2rem; }
+.setting-rows > label, .setting-rows > .setting-label { min-width: 0; }
+.setting-value { display: flex; align-items: center; gap: 0.4rem; min-width: 0; min-height: 2.1rem; padding: 0 0.55rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
+.setting-value input, .setting-value select { flex: 1 1 auto; min-width: 0; width: auto; border: 0; padding: 0.3rem 0; background: transparent; box-shadow: none; }
+.setting-value input:focus, .setting-value select:focus { outline: none; }
+.setting-value:focus-within { border-style: solid; border-color: var(--accent); }
+.setting-value .unit { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
+.setting-value.inherited, .setting-value:has(input:placeholder-shown), .setting-value:has(select > option[value=""]:checked) { border-style: dashed; background: transparent; color: var(--muted); }
+.setting-value.wide { grid-column: 2 / -1; }
+.setting-value .text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0.3rem 0; }
+.setting-aside { min-width: 0; color: var(--muted); font-size: 0.78rem; }
+.setting-aside .icon-actions { margin-left: 0.4rem; vertical-align: middle; }
+
+/* A choice of one row in a dialog (uninstall an update): radio buttons in a short scrolling table. */
+.radio-list { max-height: 20rem; overflow-y: auto; margin-bottom: 0.8rem; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.radio-list label { cursor: pointer; }
+.radio-list tr:has(input:checked) { background: var(--accent-soft); }

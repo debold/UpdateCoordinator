@@ -144,6 +144,46 @@ public sealed class AgentSettingsTests
         Assert.Contains(entries, e => e.Contains("Heartbeat 60 seconds (central)", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("60", SUSyphos.Contracts.Agents.AgentSettingSource.Central, null)]
+    [InlineData("30", SUSyphos.Contracts.Agents.AgentSettingSource.Central, "not applied yet")]
+    [InlineData("10", SUSyphos.Contracts.Agents.AgentSettingSource.AgentDefault, "not applied yet")]
+    [InlineData("15", SUSyphos.Contracts.Agents.AgentSettingSource.Local, "server: 15 seconds")]
+    public void AppliedValue_IsComparedWithTheCentralOne(string applied, SUSyphos.Contracts.Agents.AgentSettingSource source, string? expected)
+    {
+        var heartbeat = SUSyphos.Contracts.Agents.AgentSettings.Find("heartbeat-interval")!;
+
+        var mark = AppliedAgentSettings.Compare(heartbeat, "60", new SUSyphos.Contracts.Agents.AppliedAgentSetting(applied, source));
+
+        Assert.Equal(expected, mark?.Text);
+        Assert.Null(AppliedAgentSettings.Compare(heartbeat, "60", null));
+    }
+
+    [Fact]
+    public async Task ServerPage_MarksSettingsTheAgentAppliesDifferently_WithoutTheOldDialog()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        await HeartbeatAsync(scenario, client, new Dictionary<string, SUSyphos.Contracts.Agents.AppliedAgentSetting>
+        {
+            ["log-level"] = new("Debug", SUSyphos.Contracts.Agents.AgentSettingSource.Local),
+        });
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        var configuration = await (await browser.GetAsync($"/servers/{client.ClientId}?tab=configuration")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var system = await (await browser.GetAsync($"/servers/{client.ClientId}?tab=system")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var dialog = await (await browser.GetAsync($"/servers/{client.ClientId}?dialog=agent-settings")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("server: Debug", configuration, StringComparison.Ordinal);
+        Assert.Contains("1 applied differently", configuration, StringComparison.Ordinal);
+        Assert.Contains("1 set differently on the server", system, StringComparison.Ordinal);
+        Assert.DoesNotContain("Agent settings on SRV01", dialog, StringComparison.Ordinal);
+    }
+
     private static Task<string?> GroupSettingsAsync(SUSyphos.TestSupport.ServerFactory factory, int groupId) =>
         factory.WithDbAsync(db => db.Groups.Where(g => g.Id == groupId).Select(g => g.AgentSettingsJson).SingleAsync(TestContext.Current.CancellationToken));
 

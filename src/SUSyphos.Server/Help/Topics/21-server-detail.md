@@ -43,7 +43,7 @@ The boxes are split into tabs below the tiles; the tab is part of the address, s
 - **Overview**: Tasks and pre-flight checks; "!" when a check failed.
 - **Updates**: the missing updates, with their count (red when one failed).
 - **Security**: the security baseline and the open vulnerabilities of the server, with their count (red when one is exploited).
-- **History**: the update history of SUSyphos and the Windows Update history.
+- **History**: what SUSyphos installed ("Installed by SUSyphos") and every installation on the server from the Windows Update history ("All installations on the server").
 - **Configuration**: the assignment (ring, reboots, Automatic Updates, update source, groups, maintenance windows, agent settings).
 - **System**: the facts the agent reports; "!" when Windows installs on its own, the agent update failed or a move did not work.
 - **Activity**: recent activity and remote actions, with the number of actions that wait for the agent.
@@ -82,12 +82,14 @@ Which ring the server belongs to, and so when it gets updates ([Rings](help/ring
 
 ### Agent settings {#agent-settings}
 
-The **Agent settings** section (collapsed while the server sets none) lists every [agent setting](help/agent-settings) with the value the agent of this server gets and where it comes from ("this server", a group, the system default or the agent default).
+The **Agent settings** section (collapsed while the server sets none and the agent applies everything as set) lists every [agent setting](help/agent-settings) by section, in the layout of the agent settings page: the value the agent of this server gets, in a dashed field while it is inherited and a solid one when set on this server, and where it comes from ("this server", a group, the system default or the agent default).
+
+What the agent actually applies is compared with it; agents report it with the first heartbeat after a start and whenever it changes. A grey tag **not applied yet** marks a value the agent has not received yet (it follows with the next heartbeat), an amber tag **server: …** a value the server sets itself (the registry, group policy or the agent's own configuration file wins over the central value), with the value in use; the tooltip explains it. The line after the title counts these; "not reported by the agent yet" means the agent has not reported its settings yet.
 
 - **Edit** (pencil) opens a small dialog for that one setting: **Value** with the allowed range, and **Inherit**, which takes the value from the groups or the system default again (the field is then locked). **Save** stores just this setting at once.
 - **Reset** (arrow) appears for settings set on this server and takes the inherited value again at once.
 
-The agent applies a change with its next heartbeat; what it actually applies shows under [System](#applied-settings).
+The agent applies a change with its next heartbeat; each change also appears in [Recent activity](#activity).
 
 ### Windows Automatic Updates and other Microsoft products {#update-source}
 
@@ -125,16 +127,12 @@ What the agent reported about the server:
 - **Support**: the support phase of the Windows version with its end (last day of updates) and the days left, and the end of mainstream support where Microsoft names one: "Supported" (mainstream) and "Security only" (extended support) in green, "Ending soon" in amber from 180 days before the end, after the end "ESU (key)", "ESU (Azure)", "ESU, inferred from updates" or "Support ended" in amber, and "No ESU" in red once the first patch day after the end passed without its updates. "Unknown" when the shipped table does not know the version.
 - **Update source**: what the agent reports: Microsoft Update (Windows and other Microsoft products, when the agent registered the Microsoft Update service), Windows Update, or WSUS with its address (a warning: the server should not depend on WSUS). A tag "set: …" next to it means the setting differs from what the agent reported last; it applies with the next heartbeat and shows after the next inventory.
 - **Agent update**: installed agent version (opens all servers with this version), a failed agent update with its error, or "below minimum" when the agent is older than the minimum version.
-- **Agent settings**: whether the agent applies the central agent settings as set, or how many differ (usually because the server sets them itself in the registry or by group policy). **Show** opens the [agent settings on the server](#applied-settings).
+- **Agent settings**: whether the agent applies the central agent settings as set, how many it has not received yet, or how many the server sets differently itself (registry or group policy). **Show** opens the [agent settings](#agent-settings) in the Configuration tab, where each one is marked.
 - **Move**: shown while a [move to a new server](help/backup#move) is announced and this agent could not move, with the reason; the link opens the move box.
 - **Automatic updates**: whether Windows could install or restart on its own, outside rings and windows (problem), or not (OK), with the current setting.
 - **Restart**: whether a restart is pending and why the agent waits.
 - **Outside SUSyphos**: installations of the last 90 days that Windows or an administrator started, not SUSyphos (see the Windows Update history).
 - **Time zone** (maintenance windows are local to the server), **Uptime**, **Last update search** (OK or failed with the error), **Registered**.
-
-## Agent settings on the server {#applied-settings}
-
-Opened with **Show** next to "Agent settings" in the System box. For every agent setting: the **Central value** (from this server, a group, the system default, or the agent default when nothing is set), what the **Agent applies** and the **Source on the agent**: "central" (the central value arrived), "set on the server" (the registry, group policy or the agent's own configuration file wins over the central value) or "agent default". A tag **differs** marks a value that is not the central one. Agents report this with the first heartbeat after a start and whenever it changes; "not reported" means the agent is older than 0.7.7 or has not reported yet. Each change also appears in [Recent activity](#activity). **Close** returns to the page.
 
 ## Missing updates {#missing}
 
@@ -144,13 +142,13 @@ Where the title carries a KB number, the KB links to Microsoft's release notes a
 
 Before each update run the agent checks: **Disk space**, **Windows Update service**, **Update source** (WSUS) and **Windows Automatic Updates**. Each is OK, Warning or Failed, with details. A failed check stops installations on this server until it is fixed. If the last update search failed, its error code and explanation are shown below the table.
 
-## Update history {#history}
+## Installed by SUSyphos {#history}
 
 Installations done by SUSyphos: when they finished, which update, **Started by** (always SUSyphos here), the **Result** and the **Restart**. Results and restarts are coloured tags, the same on every page: green for Succeeded, Already installed (0x80070103, nothing to do), No restart and Restarted (with the time); yellow for Succeeded with errors and Restart pending; red for Failed (with the error code and a plain explanation next to it); grey for Aborted.
 
-## Windows Update history {#windows-history}
+## All installations on the server {#windows-history}
 
-The history Windows itself keeps for the last 90 days, sent with the inventory. **Operation** (Installation or Uninstallation) and **Result** are tags as in the update history; **Started by** tells installations by SUSyphos (green) from those started outside SUSyphos (yellow) (Windows Automatic Updates, Settings, Defender, wusa or another tool, named where Windows records it). Antivirus definition updates are grey **expected**: Defender or Windows often installs them before SUSyphos does, which is normal; they do not count as outside installations. Installations outside SUSyphos bypass rings and maintenance windows; they are a reason to check the Automatic Updates setting.
+The Windows Update history Windows itself keeps for the last 90 days, sent with the inventory: every installation on the server, whoever started it. **Operation** (Installation or Uninstallation) and **Result** are tags as in "Installed by SUSyphos"; **Started by** tells installations by SUSyphos (green) from those started outside SUSyphos (yellow) (Windows Automatic Updates, Settings, Defender, wusa or another tool, named where Windows records it). Antivirus definition updates are grey **expected**: Defender or Windows often installs them before SUSyphos does, which is normal; they do not count as outside installations. Installations outside SUSyphos bypass rings and maintenance windows; they are a reason to check the Automatic Updates setting.
 
 ## Recent activity {#activity}
 
@@ -172,7 +170,7 @@ The local veto (registry value AllowReboot) still prevents the restart; the upda
 
 ## Uninstall an update {#uninstall}
 
-Removes one update from this server, for example a faulty one. **Update** lists the updates the inventory of the server reports as installed. The agent uninstalls it with its next heartbeat, also outside the maintenance window: through Windows Update, or with DISM by the KB number where Windows Update cannot. Some packages cannot be removed at all; the remote action then reports why. To keep the update away from all servers, block it on its update page ("Block and uninstall…" also uninstalls it everywhere).
+Removes one update from this server, for example a faulty one. **Update**: choose one of the updates the inventory of the server reports as installed, the newest installation first (date from the Windows Update history; updates without one at the end). Defender signatures and its platform and the Malicious Software Removal Tool are not offered: they cannot be removed this way and come back with the next update. An update Windows Update reports as not uninstallable is marked **only through DISM, may fail** (agents from version 0.7.9 report it). The agent uninstalls it with its next heartbeat, also outside the maintenance window: through Windows Update, or with DISM by the KB number where Windows Update cannot. Some packages cannot be removed at all; the remote action then reports why. After a restart the update shows as missing again with the next search, which the agent runs right after it starts. To keep the update away from all servers, block it on its update page ("Block and uninstall…" also uninstalls it everywhere).
 
 - **Uninstall and restart right after**: if Windows needs a restart, the server restarts at once after a five minute warning.
 - **Uninstall, restart in the next window**: a needed restart waits for the next maintenance window that stays open long enough.

@@ -111,6 +111,17 @@ public sealed class InventoryCollectorTests
         Assert.Equal(3, update.Revision);
         Assert.Equal("5034129", update.KbArticle);
         Assert.Equal("Security Updates", update.Classification);
+        Assert.Null(update.Uninstallable);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Normalize_KeepsWhetherWindowsUpdateCanUninstall(bool uninstallable)
+    {
+        var update = Assert.Single(WireFormat.ToInstalledUpdates([new WuaUpdate(Guid.NewGuid().ToString(), 1, [], "Servicing Stack Update", null, IsUninstallable: uninstallable)]));
+
+        Assert.Equal(uninstallable, update.Uninstallable);
     }
 
     [Theory]

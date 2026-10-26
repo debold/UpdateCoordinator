@@ -13,7 +13,7 @@
 @inject NavigationManager Navigation
 
 @* New servers appear without script: the page reloads every 30 seconds. *@
-<HeadContent><meta http-equiv="refresh" content="30" /></HeadContent>
+<LiveRefresh Seconds="30" />
 <PageTitle>Approvals</PageTitle>
 
 <PageHeader Title="Approvals" Icon="@PageIcons.Approvals" Subtitle="Decisions that wait for an operator: new servers, ring transitions, stopped groups and clone suspicions" Help="approvals" />

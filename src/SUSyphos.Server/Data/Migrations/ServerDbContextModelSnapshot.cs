@@ -712,6 +712,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<DateTime>("ReportedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool?>("Uninstallable")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("ClientId", "UpdateId", "Revision");
 
                     b.HasIndex("UpdateId", "Revision");

@@ -76,6 +76,26 @@ internal static class AppliedAgentSettings
         return text.Length <= 1000 ? text : text[..999] + "…";
     }
 
+    /// <summary>
+    /// How the value the agent reports compares with the central one: null when it applies the central value (or has not
+    /// reported yet). A report with the old central value or the agent default means the new value has not arrived yet
+    /// (it comes with the next heartbeat); a local source means the server sets its own value (registry, group policy,
+    /// own file), which wins.
+    /// </summary>
+    public static (string Text, string Kind, string Title)? Compare(AgentSettingDefinition definition, string central, AppliedAgentSetting? applied)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        if (applied is null || string.Equals(applied.Value, central, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var value = AgentSettingValues.Display(definition, applied.Value);
+        return applied.Source == AgentSettingSource.Local
+            ? ($"server: {value}", "queue", $"The server sets {value} itself (registry, group policy or the agent's own file); that value wins over the central one.")
+            : ("not applied yet", "neutral", $"The agent still uses {value}; it applies the central value with its next heartbeat.");
+    }
+
     public static string SourceText(AgentSettingSource source) => source switch
     {
         AgentSettingSource.Central => "central",

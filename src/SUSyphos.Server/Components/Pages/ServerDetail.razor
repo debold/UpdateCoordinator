@@ -105,10 +105,11 @@ else
 
     <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => "/" + ServerPage.TabPath(Id, tab))" />
 
-    @if (IsBusy && Dialog is null && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
+    @if (IsBusy && Dialog is null && _tab is ServerPage.Overview or ServerPage.Activity && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
     {
-        @* Reload while the agent works or an action waits for it; not after a form post, so unsaved input is never lost. *@
-        <HeadContent><meta http-equiv="refresh" content="@($"{LiveRefreshSeconds}; url={AddressWithoutMessage}")" /></HeadContent>
+        @* Reload while the agent works or an action waits for it, only on the tabs with live state; not after a form post,
+           so unsaved input is never lost. *@
+        <LiveRefresh Seconds="LiveRefreshSeconds" Url="@AddressWithoutMessage" />
     }
     @if (_tab == ServerPage.Overview)
     {
@@ -256,7 +257,7 @@ else
     }
     else if (_tab == ServerPage.History)
     {
-    <Box Title="Update history" Anchor="history" Help="server-detail#history" Flush="true">
+    <Box Title="Installed by SUSyphos" Anchor="history" Help="server-detail#history" Hint="installations the agent ran, with result and restart" Flush="true">
         <ListTable Table="_historyTable" Page="_historyPage" Columns="HistoryColumns" Search="Search update" Noun="installations" Empty="No installation reported yet.">
             <Row Context="row">
                 <tr>
@@ -270,7 +271,7 @@ else
         </ListTable>
     </Box>
 
-    <Box Title="Windows Update history" Anchor="windows-history" Help="server-detail#windows-history" Hint="@($"last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days as recorded by Windows, including installations outside SUSyphos; updated with the inventory")" Flush="true">
+    <Box Title="All installations on the server" Anchor="windows-history" Help="server-detail#windows-history" Hint="@($"Windows Update history of the last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days, from any source: SUSyphos, Windows, Defender, administrators; updated with the inventory")" Flush="true">
         <ListTable Table="_windowsTable" Page="_windowsPage" Columns="WindowsColumns" Search="Search update" Noun="entries" Empty="Nothing reported yet; agents from version 0.7 send the history with their inventory.">
             <Row Context="entry">
                         <tr>
@@ -342,7 +343,7 @@ else
                         <span class="field-label">Maintenance windows</span>
                         <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
                     </div>
-                    <AgentSettingOverrides Explained="@_agentSettings" Own="@_ownAgentSettings" EditHref="@(key => SettingHref(key))" Help="server-detail#agent-settings" />
+                    <AgentSettingOverrides Explained="@_agentSettings" Own="@_ownAgentSettings" Applied="@_appliedSettings" EditHref="@(key => SettingHref(key))" Help="server-detail#agent-settings" />
                 </div>
                 <footer class="box-foot">
                     <span class="note">Applies with the server's next heartbeat.</span>
@@ -374,7 +375,7 @@ else
             <dt>Roles</dt><dd>@(_client.Roles.Count > 0 ? string.Join(", ", _client.Roles) : "–")</dd>
             <dt>Update source</dt><dd>@UpdateSourceText@if (_client.MicrosoftUpdateRegistered is { } registered && registered != _client.EffectiveUseMicrosoftUpdate) { <span class="pill queue" title="The agent applies the setting with its next heartbeat and reports it with the next inventory">@(_client.EffectiveUseMicrosoftUpdate ? "set: Microsoft Update" : "set: Windows Update only")</span> }</dd>
             <dt>Agent update</dt><dd>@if (_client.AgentUpdateError is { } agentError) { <span class="pill fail">failed</span> <span>@agentError</span> } else { <a href="@Servers.Link("agent", AgentVersion.ShortForm(_client.AgentVersion))" title="@_client.AgentVersion: show all servers with this agent version" class="mono">@AgentVersion.ShortForm(_client.AgentVersion)</a> }@if (AgentUpdates.IsBelowMinimum(_client.AgentVersion)) { <span class="pill fail">below minimum @AgentUpdates.Minimum</span> }</dd>
-            <dt>Agent settings</dt><dd>@{ var applied = AppliedSummary; }<StatusTag Text="@applied.Text" Kind="@applied.Kind" /> <a href="/servers/@Id?dialog=agent-settings" data-help-term="Show agent settings">Show</a></dd>
+            <dt>Agent settings</dt><dd>@{ var applied = AppliedSummary; }<StatusTag Text="@applied.Text" Kind="@applied.Kind" /> <a href="@ServerPage.Link(Id, "assignment")" data-help-term="Show agent settings">Show</a></dd>
             @if (_client.ServerMoveError is { } moveError)
             {
                 <dt>Move</dt><dd><span class="pill fail">not moved</span> <span>@moveError</span> <a href="/administration/backup#move" title="The announced move to a new central server">Move to a new server</a></dd>
@@ -433,24 +434,31 @@ else
 
     @if (Dialog == "uninstall")
     {
-        <Dialog Title="@($"Uninstall an update on {_client.HostName}?")" CloseHref="@Here" Help="server-detail#uninstall">
+        <Dialog Title="@($"Uninstall an update on {_client.HostName}?")" CloseHref="@Here" Help="server-detail#uninstall" Wide="true">
             <form method="post" @formname="uninstall" @onsubmit="UninstallAsync">
                 <AntiforgeryToken />
                 <div class="dialog-body">
                     @if (_installed.Count == 0)
                     {
-                        <p>The inventory of this server lists no installed update yet.</p>
+                        <p>The inventory of this server lists no installed update that can be uninstalled (Defender signatures and its platform and the Malicious Software Removal Tool are not offered).</p>
                     }
                     else
                     {
-                        <label class="field"><span>Update</span>
-                            <select name="UninstallUpdate">
-                                @foreach (var (updateId, title) in _installed)
-                                {
-                                    <option value="@updateId">@title</option>
-                                }
-                            </select>
-                        </label>
+                        <div class="scroll radio-list">
+                            <table class="compact">
+                                <thead><tr><th><span class="visually-hidden">Choose</span></th><th>Update</th><th>Installed</th></tr></thead>
+                                <tbody>
+                                    @foreach (var candidate in _installed)
+                                    {
+                                        <tr>
+                                            <td><input type="radio" id="@($"uninstall-{candidate.UpdateId:N}")" name="UninstallUpdate" value="@candidate.UpdateId" required data-help-term="Update" /></td>
+                                            <td class="wrap"><label for="@($"uninstall-{candidate.UpdateId:N}")">@candidate.Title</label>@if (candidate.Kb is not null) { <div class="note">KB@candidate.Kb</div> }@if (candidate.Uninstallable == false) { <div><span title="Windows Update cannot remove it; the agent tries DISM by the KB number, which some packages refuse"><StatusTag Text="only through DISM, may fail" Kind="queue" /></span></div> }</td>
+                                            <td class="nowrap">@(candidate.InstalledAtUtc is { } at ? DisplayTime.FormatDate(at) : "–")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
                     }
                     <p>The agent uninstalls it with its next heartbeat, also outside the maintenance window: through Windows Update, or with DISM by the KB number where Windows Update cannot. Some packages cannot be removed; the remote action then reports why. To keep the update from coming back on all servers, block it on its update page.</p>
                     <p>If Windows needs a restart afterwards, the server restarts <b>right after</b> (five minute warning) or in the <b>next maintenance window</b> (next window: @NextWindowText). The local veto (AllowReboot) prevents the restart.</p>
@@ -510,34 +518,6 @@ else
         var inherited = SUSyphos.Server.Assignment.AgentSettingValues.Explain(_systemAgentSettings, _memberGroupSettings, new Dictionary<string, string>(), "this server").First(e => e.Definition.Key == settingDefinition.Key);
         <AgentSettingDialog Definition="settingDefinition" Scope="@($"server {_client.HostName}")" Own="@_ownAgentSettings.GetValueOrDefault(settingDefinition.Key)"
                             InheritedValue="@inherited.Value" InheritedSource="@inherited.Source" CancelHref="@(ServerPage.Link(Id, "assignment"))" Error="@_settingError" Help="server-detail#agent-settings" OnSave="SaveSettingAsync" />
-    }
-    else if (Dialog == "agent-settings")
-    {
-        <Dialog Title="@($"Agent settings on {_client.HostName}")" CloseHref="@(ServerPage.Link(Id, "system"))" Wide="true" Help="server-detail#applied-settings">
-            <div class="dialog-body">
-                @if (_appliedSettings.Count == 0)
-                {
-                    <p class="note">The agent has not reported its settings yet; agents from version 0.7.7 report them with the next heartbeat after a start or a change.</p>
-                }
-                <table class="compact">
-                    <thead><tr><th>Setting</th><th>Central value</th><th>Agent applies</th><th>Source on the agent</th></tr></thead>
-                    <tbody>
-                        @foreach (var (definition, value, source) in _agentSettings)
-                        {
-                            var applied = _appliedSettings.GetValueOrDefault(definition.Key);
-                            var differs = applied is not null && !string.Equals(applied.Value, value, StringComparison.OrdinalIgnoreCase);
-                            <tr>
-                                <td>@definition.Label</td>
-                                <td>@SUSyphos.Server.Assignment.AgentSettingValues.Display(definition, value) <span class="note">(@source)</span></td>
-                                <td>@if (applied is null) { <span class="note">not reported</span> } else { <span>@SUSyphos.Server.Assignment.AgentSettingValues.Display(definition, applied.Value)</span> @if (differs) { <span class="pill queue" title="The agent applies another value than the central one, usually because the server sets it itself (registry or group policy)">differs</span> } }</td>
-                                <td>@(applied is null ? "–" : SUSyphos.Server.Assignment.AppliedAgentSettings.SourceText(applied.Source))</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <div class="dialog-foot"><a class="btn" href="@ServerPage.Link(Id, "system")">Close</a></div>
-        </Dialog>
     }
     else if (Dialog is "remove" or "purge")
     {
@@ -659,7 +639,7 @@ else
     private Guid? UninstallUpdate { get; set; }
 
     /// <summary>Updates the inventory lists as installed, for the uninstall dialog.</summary>
-    private List<(Guid UpdateId, string Title)> _installed = [];
+    private List<UninstallCandidate> _installed = [];
 
     private async Task UninstallAsync()
     {
@@ -822,8 +802,11 @@ else
                 return ("not reported", "neutral");
             }
 
-            var differing = _agentSettings.Count(e => _appliedSettings.GetValueOrDefault(e.Definition.Key) is { } applied && !string.Equals(applied.Value, e.Value, StringComparison.OrdinalIgnoreCase));
-            return differing == 0 ? ("applied as set", "ok") : ($"{differing} set differently on the server", "queue");
+            var marks = _agentSettings.Select(e => SUSyphos.Server.Assignment.AppliedAgentSettings.Compare(e.Definition, e.Value, _appliedSettings.GetValueOrDefault(e.Definition.Key))).OfType<(string Text, string Kind, string Title)>().ToList();
+            var local = marks.Count(m => m.Kind == "queue");
+            return local > 0 ? ($"{local} set differently on the server", "queue")
+                : marks.Count > 0 ? ($"{marks.Count} not applied yet", "neutral")
+                : ("applied as set", "ok");
         }
     }
 
@@ -1051,13 +1034,7 @@ else
         _appliedSettings = SUSyphos.Server.Assignment.AppliedAgentSettings.Parse(_client.AppliedAgentSettingsJson);
         if (Dialog == "uninstall")
         {
-            _installed = [.. (await Db.ClientUpdates.AsNoTracking()
-                    .Where(c => c.ClientId == Id)
-                    .Join(Db.Updates, c => new { c.UpdateId, c.Revision }, u => new { u.UpdateId, u.Revision }, (c, u) => new { u.UpdateId, u.KbArticle, u.Title })
-                    .ToListAsync())
-                .DistinctBy(u => u.UpdateId)
-                .Select(u => (u.UpdateId, UpdateText.Title(u.KbArticle, u.Title)))
-                .OrderBy(u => u.Item2, StringComparer.CurrentCultureIgnoreCase)];
+            _installed = await UninstallCandidates.LoadAsync(Db, Id, CancellationToken.None);
         }
         _effectiveWindows = MaintenanceWindowFormat.FromJson(_client.EffectiveWindowsJson) ?? [];
         _fallbackRing = _rings.Count > 0 ? _rings[^1].Name : "the final ring";

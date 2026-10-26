@@ -47,6 +47,11 @@ public sealed class LiveStatusTests
         Assert.Contains("45 %", page, StringComparison.Ordinal);
         Assert.Contains($"/updates/{updateId}", page, StringComparison.Ordinal);
 
+        // Only the tabs with live state reload; settings and other tabs never lose what is opened or typed.
+        var configuration = await (await reader.GetAsync($"/servers/{client.ClientId}?tab=configuration")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("susyphos-refresh", configuration, StringComparison.Ordinal);
+        Assert.Contains("susyphos-refresh", page, StringComparison.Ordinal);
+
         using (var finished = await SendActivityAsync(scenario, client, null))
         {
             Assert.Equal(HttpStatusCode.NoContent, finished.StatusCode);

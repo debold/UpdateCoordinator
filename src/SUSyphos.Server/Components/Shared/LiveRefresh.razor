@@ -1,0 +1,19 @@
+@* Reloads a page that shows live state. With script (app.js) the reload waits while a menu, filter or field is in use and
+   keeps opened sections open; without script a plain refresh does the same job. *@
+<HeadContent>
+    <meta name="susyphos-refresh" content="@Content" />
+    <noscript><meta http-equiv="refresh" content="@Content" /></noscript>
+</HeadContent>
+
+@code {
+    [Parameter, EditorRequired]
+    public int Seconds { get; set; }
+
+    /// <summary>Address to load; null for the same address.</summary>
+    [Parameter]
+    public string? Url { get; set; }
+
+    private string Content => Url is null
+        ? Seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Seconds}; url={Url}");
+}

@@ -39,6 +39,7 @@ internal static partial class WireFormat
             KbArticle = Kb(update),
             Title = Text(update.Title, 512) ?? id.ToString(),
             Classification = Text(update.Classification, 64),
+            Uninstallable = update.IsUninstallable,
         });
 
     public static List<AvailableUpdate> ToAvailableUpdates(IEnumerable<WuaUpdate> raw) =>

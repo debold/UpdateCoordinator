@@ -1,34 +1,41 @@
 @using SUSyphos.Contracts.Agents
 @using SUSyphos.Server.Assignment
-@* Central agent settings of a group or a server inside its form: every setting with the value that applies and where it
-   comes from; "Edit" opens a small dialog for one setting, "Reset" takes the inherited value again. Both act at once,
-   independent of the rest of the form. Collapsed while nothing is set here, so the dialog stays short. *@
-<details class="agent-settings" data-help="@Help" open="@(Own.Count > 0)">
-    <summary data-help-term="Agent settings">Agent settings <span class="note">@(Own.Count == 0 ? "all inherited" : $"{Own.Count} set here")</span></summary>
-    <table class="compact">
-        <thead><tr><th>Setting</th><th>Applies</th><th>From</th><th class="n"><span class="visually-hidden">Actions</span></th></tr></thead>
-        <tbody>
-            @foreach (var (definition, value, source) in Explained)
+@* Central agent settings of a group or a server inside its form, in the layout of the agent settings page: every setting
+   with the value that applies (dashed while inherited) and where it comes from; "Edit" opens a small dialog for one
+   setting, "Reset" takes the inherited value again. Both act at once, independent of the rest of the form. On a server
+   page a setting the agent applies differently is marked. Collapsed while nothing is set here and nothing differs. *@
+<details class="agent-settings" data-help="@Help" open="@(Own.Count > 0 || Differing > 0)">
+    <summary data-help-term="Agent settings">Agent settings <span class="note">@Summary</span></summary>
+    @foreach (var section in Explained.GroupBy(e => e.Definition.Section))
+    {
+        <h3 class="settings-section">@section.Key</h3>
+        <div class="setting-rows">
+            @foreach (var (definition, value, source) in section)
             {
                 var own = Own.ContainsKey(definition.Key);
-                <tr class="@(own ? "set-here" : null)">
-                    <td>@definition.Label</td>
-                    <td>@AgentSettingValues.Display(definition, value)</td>
-                    <td class="note">@source</td>
-                    <td class="n"><span class="icon-actions">
-                        @if (EditHref is not null)
-                        {
+                var compared = Applied is null ? null : AppliedAgentSettings.Compare(definition, value, Applied.GetValueOrDefault(definition.Key));
+                <span class="setting-label">@definition.Label</span>
+                <span class="setting-value @(own ? null : "inherited")" title="@AgentSettingValues.Display(definition, value)">
+                    <span class="text">@ValueText(definition, value)</span>
+                    @if (definition.Unit.Length > 0 && definition.Kind is AgentSettingKind.Duration or AgentSettingKind.Number) { <span class="unit">@definition.Unit</span> }
+                </span>
+                <span class="setting-aside">
+                    @source
+                    @if (compared is { } mark) { <span title="@mark.Title"><StatusTag Text="@mark.Text" Kind="@mark.Kind" /></span> }
+                    @if (EditHref is not null)
+                    {
+                        <span class="icon-actions">
                             <a class="btn icon-button" href="@EditHref(definition.Key)" title="@($"Edit {definition.Label}")" aria-label="@($"Edit {definition.Label}")" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
                             @if (own)
                             {
                                 <button type="submit" class="icon-button" form="@ResetForm" name="ResetKey" value="@definition.Key" title="@($"Reset {definition.Label} to the inherited value")" aria-label="@($"Reset {definition.Label} to the inherited value")" data-help-term="Reset"><Icon Name="rotate-ccw" Size="16" /></button>
                             }
-                        }
-                    </span></td>
-                </tr>
+                        </span>
+                    }
+                </span>
             }
-        </tbody>
-    </table>
+        </div>
+    }
     @if (EditHref is null)
     {
         <p class="help">Save first; then the settings can be changed here.</p>
@@ -43,6 +50,10 @@
     [Parameter, EditorRequired]
     public IReadOnlyDictionary<string, string> Own { get; set; } = new Dictionary<string, string>();
 
+    /// <summary>What the agent reports it applies (server page only); null where there is no single agent.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, AppliedAgentSetting>? Applied { get; set; }
+
     /// <summary>Address of the edit dialog for a setting key; null while the group or server does not exist yet.</summary>
     [Parameter]
     public Func<string, string>? EditHref { get; set; }
@@ -53,4 +64,17 @@
 
     [Parameter, EditorRequired]
     public string Help { get; set; } = string.Empty;
+
+    private int Differing => Applied is null ? 0 : Explained.Count(e => AppliedAgentSettings.Compare(e.Definition, e.Value, Applied.GetValueOrDefault(e.Definition.Key)) is not null);
+
+    private string Summary => string.Join(", ", new[]
+    {
+        Own.Count == 0 ? "all inherited" : $"{Own.Count} set here",
+        Differing > 0 ? $"{Differing} applied differently" : null,
+        Applied is { Count: 0 } ? "not reported by the agent yet" : null,
+    }.OfType<string>());
+
+    /// <summary>The value without its unit, which stands in the field on its own.</summary>
+    private static string ValueText(AgentSettingDefinition definition, string value) =>
+        definition.Kind is AgentSettingKind.Duration or AgentSettingKind.Number ? value : AgentSettingValues.Display(definition, value);
 }

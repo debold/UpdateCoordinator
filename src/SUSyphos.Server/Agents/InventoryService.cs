@@ -83,6 +83,7 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
             UpdateId = u.UpdateId,
             Revision = u.Revision,
             ReportedAtUtc = now,
+            Uninstallable = u.Uninstallable,
         }));
     }
 

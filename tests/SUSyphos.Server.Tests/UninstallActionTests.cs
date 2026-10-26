@@ -93,6 +93,44 @@ public sealed class UninstallActionTests
         Assert.Equal(update.UpdateId, action.UpdateId);
     }
 
+    [Fact]
+    public async Task ServerUninstall_OffersTheNewestFirst_WithoutSignatures_AndMarksDismOnly()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        var older = Guid.NewGuid();
+        var newer = Guid.NewGuid();
+        var signature = Guid.NewGuid();
+        var tool = Guid.NewGuid();
+        await scenario.Factory.WithDbAsync(db =>
+        {
+            var now = DateTime.UtcNow;
+            db.Updates.AddRange(
+                new UpdateEntity { UpdateId = older, Revision = 1, Title = "2026-09 Cumulative Update", KbArticle = "5065432", FirstSeenAtUtc = now },
+                new UpdateEntity { UpdateId = newer, Revision = 1, Title = "2026-10 Servicing Stack Update", KbArticle = "5066999", FirstSeenAtUtc = now },
+                new UpdateEntity { UpdateId = signature, Revision = 1, Title = "Security Intelligence Update for Microsoft Defender Antivirus - KB2267602", Classification = "Definition Updates", FirstSeenAtUtc = now },
+                new UpdateEntity { UpdateId = tool, Revision = 1, Title = "Windows Malicious Software Removal Tool x64 - v5.130", FirstSeenAtUtc = now });
+            db.ClientUpdates.AddRange(
+                new ClientUpdateEntity { ClientId = client.ClientId, UpdateId = older, Revision = 1, ReportedAtUtc = now, Uninstallable = true },
+                new ClientUpdateEntity { ClientId = client.ClientId, UpdateId = newer, Revision = 1, ReportedAtUtc = now, Uninstallable = false },
+                new ClientUpdateEntity { ClientId = client.ClientId, UpdateId = signature, Revision = 1, ReportedAtUtc = now },
+                new ClientUpdateEntity { ClientId = client.ClientId, UpdateId = tool, Revision = 1, ReportedAtUtc = now });
+            db.ClientUpdateHistory.AddRange(
+                new ClientUpdateHistoryEntity { ClientId = client.ClientId, UpdateId = older, Revision = 1, Title = "older", DateUtc = now.AddDays(-30), Operation = UpdateOperation.Installation, ResultCode = InstallResultCode.Succeeded },
+                new ClientUpdateHistoryEntity { ClientId = client.ClientId, UpdateId = newer, Revision = 1, Title = "newer", DateUtc = now.AddDays(-2), Operation = UpdateOperation.Installation, ResultCode = InstallResultCode.Succeeded });
+            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        using var admin = await LoginAsync(scenario, AdminRoles.Admin, "admin");
+
+        var dialog = await (await admin.GetAsync($"/servers/{client.ClientId}?dialog=uninstall")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(dialog.IndexOf($"value=\"{newer}\"", StringComparison.Ordinal) < dialog.IndexOf($"value=\"{older}\"", StringComparison.Ordinal), "The newest installation comes first.");
+        Assert.DoesNotContain($"value=\"{signature}\"", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain($"value=\"{tool}\"", dialog, StringComparison.Ordinal);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(dialog, "only through DISM, may fail"));
+        Assert.Contains("type=\"radio\"", dialog, StringComparison.Ordinal);
+    }
+
     private static Task<int> InstalledAsync(RolloutScenario scenario, RegisterResponse client, Guid updateId) =>
         scenario.Factory.WithDbAsync(async db =>
         {

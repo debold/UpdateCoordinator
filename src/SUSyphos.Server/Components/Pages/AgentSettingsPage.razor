@@ -21,24 +21,26 @@
     <span class="note">Agents apply changes with their next heartbeat; logging and priority restart the agent service.</span>
 </ActionBand>
 
-<div class="grid-2">
+<Box Title="Agent settings" Help="agent-settings" Hint="dashed: the agent's own value applies; solid: set here">
     @foreach (var section in AgentSettings.All.GroupBy(d => d.Section))
     {
-        <section class="box">
-            <header class="box-head"><h2>@section.Key<HelpLink To="@($"agent-settings#{Anchor(section.Key)}")" Label="@section.Key" /></h2></header>
-            <div class="box-body form">
-                @foreach (var definition in section)
+        <h3 class="settings-section" id="@Anchor(section.Key)">@section.Key</h3>
+        <div class="setting-rows">
+            @foreach (var definition in section)
+            {
+                <label for="@($"setting-{definition.Key}")">@definition.Label</label>
+                <span class="setting-value @(definition.Kind == AgentSettingKind.Text ? "wide" : null)">
+                    <AgentSettingField Definition="definition" Name="@AgentSettingValues.FieldName(definition.Key)" Id="@($"setting-{definition.Key}")" Form="agent-settings" Value="@ValueOf(definition.Key)" Placeholder="@(definition.Kind is AgentSettingKind.Duration or AgentSettingKind.Number ? definition.AgentDefault : AgentSettingValues.Display(definition, definition.AgentDefault))" />
+                    @if (definition.Unit.Length > 0) { <span class="unit">@definition.Unit</span> }
+                </span>
+                @if (definition.Kind != AgentSettingKind.Text)
                 {
-                    <label class="field">
-                        <span>@definition.Label @(definition.Unit.Length > 0 ? $"({definition.Unit})" : null)</span>
-                        <AgentSettingField Definition="definition" Name="@AgentSettingValues.FieldName(definition.Key)" Id="@($"setting-{definition.Key}")" Form="agent-settings" Value="@ValueOf(definition.Key)" Placeholder="@($"agent default: {AgentSettingValues.Display(definition, definition.AgentDefault)}")" />
-                        <span class="help">@AgentSettingDialog.Range(definition)</span>
-                    </label>
+                    <span class="setting-aside">@AgentSettingDialog.Range(definition)</span>
                 }
-            </div>
-        </section>
+            }
+        </div>
     }
-</div>
+</Box>
 
 @code {
     private Dictionary<string, string> _values = [];

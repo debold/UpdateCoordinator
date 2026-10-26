@@ -412,9 +412,46 @@
             // Storage blocked: the page simply starts at the top.
         }
     };
-    // The automatic refresh of a page that follows a running task (server detail) keeps the position as well.
-    if (document.querySelector('meta[http-equiv="refresh"]')) {
-        window.addEventListener('pagehide', rememberScroll);
+    // Pages with live state reload themselves (LiveRefresh). The reload waits while a menu, filter or multi-select is open,
+    // a field has the focus or text is selected, and it keeps the scroll position and the sections opened by hand.
+    const openKey = 'susyphos.open';
+    const sections = () => [...document.querySelectorAll('main details:not([data-menu]):not(.multi):not(.col-filter)')];
+    const live = document.querySelector('meta[name="susyphos-refresh"]');
+    if (live) {
+        const [secondsText, ...rest] = live.content.split(';');
+        const seconds = Number(secondsText);
+        const target = rest.join(';').trim().replace(/^url=/i, '') || location.href;
+        const inUse = () => document.querySelector('details[data-menu][open], details.multi[open], details.col-filter[open]')
+            || document.activeElement?.matches('input, select, textarea')
+            || String(window.getSelection() ?? '').length > 0;
+        if (Number.isFinite(seconds) && seconds > 0) {
+            const due = Date.now() + seconds * 1000;
+            window.setInterval(() => {
+                if (Date.now() < due || inUse()) {
+                    return;
+                }
+
+                rememberScroll();
+                try {
+                    sessionStorage.setItem(openKey, JSON.stringify({ path: location.pathname, open: sections().map((s, i) => s.open ? i : -1).filter(i => i >= 0) }));
+                } catch {
+                    // Storage blocked: the sections come back in their default state.
+                }
+
+                location.replace(target);
+            }, 1000);
+        }
+    }
+
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(openKey) || 'null');
+        sessionStorage.removeItem(openKey);
+        if (saved && saved.path === location.pathname && Array.isArray(saved.open)) {
+            const all = sections();
+            all.forEach((section, i) => { section.open = saved.open.includes(i); });
+        }
+    } catch {
+        // Nothing saved or storage blocked.
     }
 
     document.addEventListener('submit', (event) => {

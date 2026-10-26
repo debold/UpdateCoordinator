@@ -215,4 +215,8 @@ public sealed record AutomaticUpdatesInfo
 /// <summary>
 /// An installed update, identified uniquely by update ID and revision (see docs/03-communication-protocol.md, section 6).
 /// </summary>
-public sealed record InstalledUpdate : UpdateInfo;
+public sealed record InstalledUpdate : UpdateInfo
+{
+    /// <summary>Whether Windows Update can uninstall it (WUA IsUninstallable); null from older agents.</summary>
+    public bool? Uninstallable { get; init; }
+}

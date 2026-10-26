@@ -68,6 +68,9 @@ internal sealed class ClientUpdateEntity
     public int Revision { get; set; }
 
     public DateTime ReportedAtUtc { get; set; }
+
+    /// <summary>Whether Windows Update can uninstall it, as the agent reports; null when unknown (older agents).</summary>
+    public bool? Uninstallable { get; set; }
 }
 
 /// <summary>
