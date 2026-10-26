@@ -93,6 +93,25 @@ public sealed class DashboardStatisticsTests
         Assert.Contains("Show as table", html, StringComparison.Ordinal);
     }
     [Fact]
+    public async Task Compliance_CountsInstalledReleasesAsDone_LikeTheOverviewTile()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        await scenario.AddClientAsync("PILOT02", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid() };
+        await scenario.ReportAsync(pilot, update);
+        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Succeeded);
+
+        // The update is released to the server and installed: it counts as compliant, as on the tile.
+        var chart = await scenario.WithServiceAsync<DashboardStatistics, ChartData>(s => s.GetAsync(StatisticKind.Compliance, 30, CancellationToken.None));
+        await scenario.WithServiceAsync<ComplianceHistory, int>(async h => { await h.RecordAsync(CancellationToken.None); return 0; });
+        var stored = Assert.Single(await scenario.WithServiceAsync<ComplianceHistory, List<ComplianceSnapshotEntity>>(h => h.GetAsync(1, CancellationToken.None)));
+
+        Assert.Equal(100, chart.Series[0].Values[^1]);
+        Assert.Equal(2, stored.Compliant);
+    }
+
+    [Fact]
     public async Task TodaysValue_IsLive_EvenWhenTheStoredRecordIsOlder()
     {
         await using var scenario = await RolloutScenario.CreateAsync();

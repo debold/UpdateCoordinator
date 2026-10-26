@@ -293,7 +293,7 @@
         _offlineServers = health.Values.Count(h => h == ServerHealthState.Offline);
         _statusParts = ServerHealth.Parts(health.Values, s => Servers.Link("status", ServerHealth.Label(s)));
         _serverUpdate = await ServerUpdates.GetServerUpdateAsync(CancellationToken.None);
-        _compliancePercent = _approved == 0 ? 100 : (int)Math.Floor(100.0 * clients.Count(c => !released.Any(e => e.ClientId == c.Id)) / _approved);
+        _compliancePercent = _approved == 0 ? 100 : (int)Math.Floor(100.0 * ComplianceHistory.Compliant(clients, entries) / _approved);
 
         _security = await Baseline.LoadAsync(CancellationToken.None);
         var securityStates = clients.Select(_security.Of).ToList();

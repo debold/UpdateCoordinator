@@ -38,6 +38,16 @@ internal sealed class ComplianceHistory(ServerDbContext db, DeploymentStatus dep
     }
 
     /// <summary>
+    /// Servers with every update released for them installed: no released installation pending or failed. One place for
+    /// the overview tile and the recorded statistics, so both agree.
+    /// </summary>
+    internal static int Compliant(IEnumerable<ClientEntity> clients, IEnumerable<DeploymentEntry> entries)
+    {
+        var open = entries.Where(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful).Select(e => e.ClientId).ToHashSet();
+        return clients.Count(c => !open.Contains(c.Id));
+    }
+
+    /// <summary>
     /// The values of today as they are right now, without saving: the overview chart shows them for today, so tile and
     /// chart always agree (the stored record is up to 15 minutes old).
     /// </summary>
@@ -45,7 +55,6 @@ internal sealed class ComplianceHistory(ServerDbContext db, DeploymentStatus dep
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var clients = await db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).ToListAsync(cancellationToken).ConfigureAwait(false);
-        var withRelease = (await db.Releases.AsNoTracking().Select(r => r.ClientId).Distinct().ToListAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
         var missing = (await db.ClientAvailableUpdates.AsNoTracking().Select(a => a.ClientId).Distinct().ToListAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
         var entries = await deployment.GetAsync(null, null, null, cancellationToken).ConfigureAwait(false);
         var failed = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
@@ -59,7 +68,7 @@ internal sealed class ComplianceHistory(ServerDbContext db, DeploymentStatus dep
             Day = DateOnly.FromDateTime(now),
             RecordedAtUtc = now,
             Servers = clients.Count,
-            Compliant = clients.Count(c => !withRelease.Contains(c.Id)),
+            Compliant = Compliant(clients, entries),
             FullyPatched = clients.Count(c => !missing.Contains(c.Id)),
             StatusOk = Count(ServerHealthState.Ok),
             StatusUpdating = Count(ServerHealthState.Updating),
