@@ -1,6 +1,8 @@
 {
   "comment": "End of support per Windows version, shipped with every release. Source: Microsoft release health (windows-server-release-info, windows11-release-information, release-information for Windows 10) and the lifecycle pages, read 2026-10-26. 'end' is the last day of updates (extended support for Windows Server and LTSC, end of servicing for the General Availability Channel); 'mainstream' is the end of mainstream support where Microsoft names one. The first entry that matches build, server or client and edition wins, so entries for some editions come before the general one.",
   "asOf": "2026-10-26",
+  "nextServerReleaseComment": "Expected release of the Windows Server version after 2025, estimated from the three-year cycle of the LTSC versions (2019, 2022, 2025) until Microsoft announces it. A test fails once this date has passed: then add the new version (build, dates) and set the date of the one after it.",
+  "nextServerRelease": "2027-11-09",
   "entries": [
     { "name": "Windows Server 2016", "build": 14393, "server": true, "mainstream": "2022-01-11", "end": "2027-01-12" },
     { "name": "Windows Server 2019", "build": 17763, "server": true, "mainstream": "2024-01-09", "end": "2029-01-09" },

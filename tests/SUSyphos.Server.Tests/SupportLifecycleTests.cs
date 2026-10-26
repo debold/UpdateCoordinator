@@ -63,13 +63,12 @@ public sealed class SupportLifecycleTests
     }
 
     [Theory]
-    [InlineData(true, false, false, "ESU (key)")]
-    [InlineData(false, true, false, "ESU (Azure Arc)")]
-    [InlineData(null, null, true, "ESU (Azure)")]
-    [InlineData(false, false, false, "No ESU")]
-    public void AfterTheEnd_EsuFoundByTheAgentCounts(bool? key, bool? arc, bool? azure, string label)
+    [InlineData(true, false, "ESU (key)")]
+    [InlineData(null, true, "ESU (Azure)")]
+    [InlineData(false, false, "No ESU")]
+    public void AfterTheEnd_EsuFoundByTheAgentCounts(bool? key, bool? azure, string label)
     {
-        var info = Create().Of("10.0.19045.6456", "Professional", null, SupportLifecycle.Detected(key, arc, azure));
+        var info = Create().Of("10.0.19045.6456", "Professional", null, SupportLifecycle.Detected(key, azure));
 
         Assert.Equal(label, info.Label);
         Assert.Equal(label == "No ESU" ? "fail" : "queue", SupportLifecycle.Class(info.State));
@@ -95,6 +94,18 @@ public sealed class SupportLifecycleTests
         Assert.All(SupportLifecycle.Entries, e => Assert.True(e.Mainstream is null || e.Mainstream <= e.End, e.Name));
         Assert.Equal([14393, 17763, 20348, 26100], SupportLifecycle.Entries.Where(e => e.Server).Select(e => e.Build));
         Assert.Equal(new DateOnly(2026, 10, 26), SupportLifecycle.AsOf);
+    }
+
+    [Fact]
+    public void Table_IsReviewedBeforeTheNextWindowsServerIsExpected()
+    {
+        // Runs with every build, so a release after the expected date stops until the table knows the new version
+        // (lifecycle.json: add the version, then move "nextServerRelease" to the one after it).
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        Assert.True(SupportLifecycle.AsOf < SupportLifecycle.NextServerRelease, "The expected next Windows Server release must lie after the review of the table.");
+        Assert.True(today <= SupportLifecycle.NextServerRelease,
+            $"A new Windows Server version was expected on {SupportLifecycle.NextServerRelease:yyyy-MM-dd}: review src/SUSyphos.Server/Lifecycle/lifecycle.json (new version, dates, next expected release).");
     }
 
     [Theory]
@@ -134,7 +145,8 @@ public sealed class SupportLifecycleTests
         Assert.Equal(false, client.EsuKey);
         Assert.Equal(true, client.AzureArc);
         Assert.Null(client.Azure);
-        Assert.Equal(EsuSource.AzureArc, SupportLifecycle.Detected(client.EsuKey, client.AzureArc, client.Azure));
+        // An Azure Arc agent alone is no proof of ESU.
+        Assert.Equal(EsuSource.None, SupportLifecycle.Detected(client.EsuKey, client.Azure));
     }
 
     [Fact]

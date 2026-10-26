@@ -204,7 +204,7 @@ internal sealed class NotificationEvents(
                 events.Add(new NotificationEvent($"server.reboot:{client.Id}", NotificationKind.RebootPendingLong, $"{client.HostName} has been waiting for a restart; it last started on {Format(boot)}.", path, client.HostName, "Installed updates take full effect only after the restart; further updates may wait for it."));
             }
 
-            if (support?.Of(client.OsVersion, client.OsEditionId, client.OsProductName, Lifecycle.SupportLifecycle.Detected(client.EsuKey, client.AzureArc, client.Azure), security.Of(client.OsVersion)) is { } info && Lifecycle.SupportLifecycle.NeedsAttention(info.State))
+            if (support?.Of(client.OsVersion, client.OsEditionId, client.OsProductName, Lifecycle.SupportLifecycle.Detected(client.EsuKey, client.Azure), security.Of(client.OsVersion)) is { } info && Lifecycle.SupportLifecycle.NeedsAttention(info.State))
             {
                 events.Add(new NotificationEvent(
                     $"server.support:{client.Id}:{info.State}",

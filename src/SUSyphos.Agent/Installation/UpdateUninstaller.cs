@@ -100,7 +100,7 @@ internal sealed class WuaUninstall : IWuaUninstall
 
             // 2 = succeeded, 3 = succeeded with errors (OperationResultCode).
             return code is 2 or 3
-                ? new UninstallResult(UninstallStatus.Succeeded, reboot, $"Uninstalled through Windows Update{(reboot ? "; a restart completes it" : string.Empty)}.")
+                ? new UninstallResult(UninstallStatus.Succeeded, reboot, $"Uninstalled through Windows Update{(reboot ? "; a restart completes it, after it the update shows as missing again" : string.Empty)}.")
                 : new UninstallResult(UninstallStatus.Failed, reboot, string.Create(CultureInfo.InvariantCulture, $"Windows Update could not uninstall the update (result {code}, 0x{(int)result.HResult:X8})."));
         }
         catch (Exception ex) when (ex is COMException or InvalidCastException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or UnauthorizedAccessException)
@@ -174,7 +174,7 @@ internal sealed partial class DismUninstall(IProcessRunner runner) : IDismUninst
         return code switch
         {
             0 => new UninstallResult(UninstallStatus.Succeeded, false, $"Uninstalled with DISM ({package})."),
-            RestartRequired => new UninstallResult(UninstallStatus.Succeeded, true, $"Uninstalled with DISM ({package}); a restart completes it."),
+            RestartRequired => new UninstallResult(UninstallStatus.Succeeded, true, $"Uninstalled with DISM ({package}); a restart completes it, after it the update shows as missing again."),
             _ => new UninstallResult(UninstallStatus.Failed, false, string.Create(CultureInfo.InvariantCulture, $"DISM could not remove {package} (exit code {code}); some packages, e.g. servicing stack updates, cannot be removed.")),
         };
     }

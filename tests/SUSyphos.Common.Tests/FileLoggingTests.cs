@@ -39,6 +39,18 @@ public sealed class FileLoggingTests : IDisposable
         Assert.All(files, file => Assert.DoesNotContain("information is filtered", File.ReadAllText(file), StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ResilienceAttempts_AreNotWritten_ButTheirWarningsAre()
+    {
+        // Every heartbeat passes the resilience pipeline, which logs each attempt at Information.
+        WriteLog(new(), "Execution attempt", "Polly");
+        WriteLog(new(), "Circuit breaker opened", "Polly", LogLevel.Warning);
+
+        var text = string.Concat(Directory.GetFiles(_directory).Select(File.ReadAllText));
+        Assert.DoesNotContain("Execution attempt", text, StringComparison.Ordinal);
+        Assert.Contains("Circuit breaker opened", text, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("Logging:File:RetainedFileCountLimit", "0")]
     [InlineData("Logging:File:RetainedFileCountLimit", "100000")]
@@ -60,13 +72,15 @@ public sealed class FileLoggingTests : IDisposable
         Assert.ThrowsAny<InvalidOperationException>(() => new ServiceCollection().AddRollingFileLogging(configuration, _directory, "test"));
     }
 
-    private void WriteLog(Dictionary<string, string?> settings, string message)
+    private void WriteLog(Dictionary<string, string?> settings, string message, string category = "Test", LogLevel level = LogLevel.Information)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         var services = new ServiceCollection().AddRollingFileLogging(configuration, _directory, "test");
         using (var provider = services.BuildServiceProvider())
         {
-            provider.GetRequiredService<ILoggerFactory>().CreateLogger("Test").LogInformation("{Message}", message);
+#pragma warning disable CA2254 // The level is the test parameter.
+            provider.GetRequiredService<ILoggerFactory>().CreateLogger(category).Log(level, "{Message}", message);
+#pragma warning restore CA2254
         }
     }
 

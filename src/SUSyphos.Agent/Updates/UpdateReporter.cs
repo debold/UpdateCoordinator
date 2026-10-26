@@ -38,18 +38,21 @@ internal sealed partial class UpdateReporter(
     /// <summary>Released updates looked up per search at most; the lookup asks for four states per update.</summary>
     internal const int MaxLookups = 100;
 
-    private DateTimeOffset? _lastRun;
+    /// <summary>Wait after a failed search, e.g. one cut off by a shutdown (0x8024001E) right after a restart.</summary>
+    internal static readonly TimeSpan RetryAfterFailure = TimeSpan.FromMinutes(15);
+
+    private DateTimeOffset? _nextRun;
 
     public IReadOnlySet<(Guid UpdateId, int Revision)>? LastMissingUpdates { get; private set; }
 
-    public void RequestRun() => _lastRun = null;
+    public void RequestRun() => _nextRun = null;
 
-    public DateTimeOffset? NextRunAt => _lastRun + options.Value.SearchInterval;
+    public DateTimeOffset? NextRunAt => _nextRun;
 
     public async Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
-        if (_lastRun is not null && now - _lastRun < options.Value.SearchInterval)
+        if (_nextRun is { } next && now < next)
         {
             return true;
         }
@@ -60,8 +63,10 @@ internal sealed partial class UpdateReporter(
             return false;
         }
 
-        // Only a delivered report counts as a run; otherwise the next cycle tries again.
-        _lastRun = now;
+        // Only a delivered report counts as a run; otherwise the next cycle tries again. A failed search is
+        // repeated soon, so updates removed before a restart show as missing again without waiting the interval.
+        var interval = options.Value.SearchInterval;
+        _nextRun = now + (report.SearchSucceeded || interval < RetryAfterFailure ? interval : RetryAfterFailure);
         if (report is { SearchSucceeded: true, AvailableUpdates: { } available })
         {
             LastMissingUpdates = available.Select(u => (u.UpdateId, u.Revision)).ToHashSet();

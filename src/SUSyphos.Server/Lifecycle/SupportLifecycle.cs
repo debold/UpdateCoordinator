@@ -39,7 +39,6 @@ internal enum EsuSource
 {
     None,
     Key,
-    AzureArc,
     Azure,
     Inferred,
 }
@@ -75,18 +74,21 @@ internal sealed class SupportLifecycle(IOptions<LifecycleOptions> options, TimeP
     /// <summary>When the shipped table was compiled.</summary>
     public static DateOnly AsOf { get; private set; }
 
+    /// <summary>Expected release of the next Windows Server version; a test fails once it has passed, so a release reviews the table.</summary>
+    public static DateOnly NextServerRelease { get; private set; }
+
     public LifecycleOptions Options => options.Value;
 
     /// <summary>Support of a server, as of today in the time zone of the central server; <paramref name="security"/> lets updates after the end count as ESU.</summary>
     public SupportInfo Of(ClientEntity client, Security.ServerSecurity? security = null)
     {
         ArgumentNullException.ThrowIfNull(client);
-        return Of(client.OsVersion, client.OsEditionId, client.OsProductName, Detected(client.EsuKey, client.AzureArc, client.Azure), security);
+        return Of(client.OsVersion, client.OsEditionId, client.OsProductName, Detected(client.EsuKey, client.Azure), security);
     }
 
-    /// <summary>The ESU source the agent found: a licensed key first, then Azure Arc, then Azure.</summary>
-    public static EsuSource Detected(bool? key, bool? azureArc, bool? azure) =>
-        key == true ? EsuSource.Key : azureArc == true ? EsuSource.AzureArc : azure == true ? EsuSource.Azure : EsuSource.None;
+    /// <summary>The ESU source the agent found: a licensed key first, then Azure. An Azure Arc agent alone is no proof of ESU (Marc, 2026-10-26); such a server counts as ESU only once it installs updates released after the end.</summary>
+    public static EsuSource Detected(bool? key, bool? azure) =>
+        key == true ? EsuSource.Key : azure == true ? EsuSource.Azure : EsuSource.None;
 
     public SupportInfo Of(string? osVersion, string? editionId, string? productName, EsuSource detected = EsuSource.None, Security.ServerSecurity? security = null)
     {
@@ -155,7 +157,6 @@ internal sealed class SupportLifecycle(IOptions<LifecycleOptions> options, TimeP
         SupportState.Esu => esu switch
         {
             EsuSource.Key => "ESU (key)",
-            EsuSource.AzureArc => "ESU (Azure Arc)",
             EsuSource.Azure => "ESU (Azure)",
             _ => "ESU, inferred from updates",
         },
@@ -200,10 +201,11 @@ internal sealed class SupportLifecycle(IOptions<LifecycleOptions> options, TimeP
             ?? throw new InvalidOperationException("The lifecycle table is missing from the central server.");
         var table = JsonSerializer.Deserialize<LifecycleTable>(stream, JsonOptions) ?? throw new InvalidOperationException("The lifecycle table is empty.");
         AsOf = table.AsOf;
+        NextServerRelease = table.NextServerRelease;
         return table.Entries;
     }
 
-    private sealed record LifecycleTable(DateOnly AsOf, List<LifecycleEntry> Entries);
+    private sealed record LifecycleTable(DateOnly AsOf, DateOnly NextServerRelease, List<LifecycleEntry> Entries);
 }
 
 /// <summary>One Windows version in the lifecycle table.</summary>

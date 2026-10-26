@@ -42,6 +42,8 @@ public static class FileLoggingExtensions
                 .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
                 .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
                 .MinimumLevel.Override("System.Net.Http", LogEventLevel.Warning)
+                // The HTTP resilience pipeline logs every attempt (each heartbeat) at Information.
+                .MinimumLevel.Override("Polly", LogEventLevel.Warning)
                 .Enrich.FromLogContext()
                 .WriteTo.File(
                     path,

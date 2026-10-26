@@ -225,6 +225,26 @@ public sealed class UpdateReporterTests
     }
 
     [Fact]
+    public async Task FailedSearch_IsRepeatedSoon_NotAfterTheWholeInterval()
+    {
+        // A search cut off by a shutdown right after a restart (WU_E_SERVICE_STOP).
+        _search.OnSearch = () => throw new WuaException("shutting down", unchecked((int)0x8024001E));
+        var reporter = Create();
+        await reporter.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        _search.OnSearch = () => [];
+        _time.Advance(UpdateReporter.RetryAfterFailure - TimeSpan.FromMinutes(1));
+        await reporter.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Single(_client.Reports);
+
+        _time.Advance(TimeSpan.FromMinutes(1));
+        await reporter.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal(2, _client.Reports.Count);
+        Assert.True(_client.Reports[^1].SearchSucceeded);
+        Assert.Equal(_time.GetUtcNow() + TimeSpan.FromHours(4), reporter.NextRunAt);
+    }
+
+    [Fact]
     public async Task RejectedCredentials_ReturnFalseAndRunAgainNextCycle()
     {
         _client.AcceptReports = false;
