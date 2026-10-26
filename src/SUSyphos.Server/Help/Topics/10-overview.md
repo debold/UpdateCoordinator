@@ -44,6 +44,7 @@ Everything that waits for a human decision or points to a problem, each with a b
 - **Registration**: new servers wait for approval.
 - **Lease**: the installations of a group failed or expired several times in a row; the central server issues no new installation slots for the group until an operator resumes it.
 - **Failed** and **Offline**: servers with a failed installation or without a heartbeat for over an hour.
+- **Support**: servers whose Windows version is out of support or loses it within 30 days (red), or within 180 days (amber); **Show servers** opens the server list filtered to them.
 - **Update**: a newer version of the central server is available; **Show** opens it on the [Agents](help/agents#server) page with the download.
 
 "Nothing waits for a human decision" means the list is empty.

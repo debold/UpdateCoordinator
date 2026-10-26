@@ -66,7 +66,7 @@
                     <tr>
                         <td>@if (!row.Outside) { <input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /> }</td>
 
-                        <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }@if (row.Kb.Length > 0 && !row.Title.Contains($"KB{row.Kb}", StringComparison.OrdinalIgnoreCase)) { <span class="note mono"> KB@(row.Kb)</span> }</td>
+                        <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }<div class="note"><KbLinks Kb="@row.Kb" /></div></td>
                         <td>@row.Classification</td>
                         <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
                         <td class="nowrap">@row.Restart</td>

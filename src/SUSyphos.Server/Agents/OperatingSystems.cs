@@ -2,17 +2,9 @@ using System.Globalization;
 
 namespace SUSyphos.Server.Agents;
 
-/// <summary>Readable names of the supported Windows Server versions, derived from the build the agent reports.</summary>
+/// <summary>Readable names of the Windows versions, derived from build and edition the agent reports (lifecycle table).</summary>
 internal static class OperatingSystems
 {
-    private static readonly Dictionary<int, string> Names = new()
-    {
-        [14393] = "Windows Server 2016",
-        [17763] = "Windows Server 2019",
-        [20348] = "Windows Server 2022",
-        [26100] = "Windows Server 2025",
-    };
-
     /// <summary>The build number (third part of e.g. 10.0.17763.6414), or null if the version is not a Windows version.</summary>
     public static int? BuildNumber(string? osVersion)
     {
@@ -28,14 +20,14 @@ internal static class OperatingSystems
     }
 
     /// <summary>
-    /// E.g. "Windows Server 2019". Known server builds win over the product name the agent reported, because that name
-    /// carries the edition and may be localized; unknown builds show the reported name or the build.
+    /// E.g. "Windows Server 2019". Versions the lifecycle table knows win over the product name the agent reported, because
+    /// that name carries the edition and may be localized; unknown builds show the reported name or the build.
     /// </summary>
-    public static string Name(string? productName, string? osVersion)
+    public static string Name(string? productName, string? osVersion, string? editionId = null)
     {
-        if (BuildNumber(osVersion) is { } build && Names.TryGetValue(build, out var name))
+        if (Lifecycle.SupportLifecycle.Find(osVersion, editionId, productName) is { } known)
         {
-            return name;
+            return known.Name;
         }
 
         if (!string.IsNullOrWhiteSpace(productName))

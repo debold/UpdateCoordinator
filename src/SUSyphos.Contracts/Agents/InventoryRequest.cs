@@ -49,6 +49,9 @@ public sealed record InventoryRequest
     /// </summary>
     [MaxLength(UpdateHistoryEntry.MaxEntries)]
     public IReadOnlyList<UpdateHistoryEntry>? UpdateHistory { get; init; }
+
+    /// <summary>Signs of Extended Security Updates; null from agents before 0.7.9.</summary>
+    public ExtendedSecurityUpdatesInfo? ExtendedSecurityUpdates { get; init; }
 }
 
 /// <summary>
@@ -127,6 +130,22 @@ public sealed record OperatingSystemInfo
     [StringLength(23, MinimumLength = 3)]
     [RegularExpression(ValidationPatterns.OsVersion)]
     public required string Version { get; init; }
+}
+
+/// <summary>
+/// Signs that the server gets Extended Security Updates after the end of support (Marc, 2026-10-26): a licensed ESU key,
+/// the Azure Arc agent (ESU through Azure), or running in Azure (ESU included). Each is null when it could not be read.
+/// </summary>
+public sealed record ExtendedSecurityUpdatesInfo
+{
+    /// <summary>A Windows license whose name contains "ESU" is installed and licensed (SoftwareLicensingProduct).</summary>
+    public bool? KeyLicensed { get; init; }
+
+    /// <summary>The Azure Connected Machine agent (service himds) runs.</summary>
+    public bool? AzureArc { get; init; }
+
+    /// <summary>The server is an Azure virtual machine (SMBIOS asset tag of Azure).</summary>
+    public bool? Azure { get; init; }
 }
 
 public sealed record UpdateSourceInfo

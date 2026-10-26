@@ -615,3 +615,7 @@ fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: cent
 .dialog-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem); gap: 1rem; align-items: start; }
 .dialog-main { display: grid; gap: 0.85rem; min-width: 0; }
 @media (max-width: 60rem) { .dialog-split { grid-template-columns: 1fr; } }
+/* KB numbers linked to the release notes, with the catalog as a small second link. */
+.kb-links { display: inline-flex; align-items: baseline; gap: 0.4rem; white-space: nowrap; }
+.kb-links .kb-catalog { font-size: 0.78rem; color: var(--muted); }
+.kb-links .kb-catalog:hover { color: var(--accent); }

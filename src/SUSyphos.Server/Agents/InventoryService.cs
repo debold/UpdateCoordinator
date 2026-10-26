@@ -31,6 +31,11 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
         client.TimeZoneId = inventory.TimeZoneId is { } zone && TimeZoneInfo.TryFindSystemTimeZoneById(zone, out _) ? zone : null;
         client.OsProductName = inventory.OperatingSystem.ProductName;
         client.OsEditionId = inventory.OperatingSystem.EditionId;
+        if (inventory.ExtendedSecurityUpdates is { } esu)
+        {
+            // Older agents send nothing; then the last known values stay.
+            (client.EsuKey, client.AzureArc, client.Azure) = (esu.KeyLicensed, esu.AzureArc, esu.Azure);
+        }
         client.OsDisplayVersion = inventory.OperatingSystem.DisplayVersion;
         client.OsVersion = inventory.OperatingSystem.Version;
         client.Roles = [.. inventory.Roles.Distinct(StringComparer.OrdinalIgnoreCase)];

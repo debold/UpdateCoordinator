@@ -46,6 +46,15 @@ internal sealed class ClientEntity
 
     public string? OsDisplayVersion { get; set; }
 
+    /// <summary>An Extended Security Updates key is installed and licensed (SoftwareLicensingProduct); null before agent 0.7.9.</summary>
+    public bool? EsuKey { get; set; }
+
+    /// <summary>The Azure Arc agent (Connected Machine) runs on the server, which delivers ESU licenses through Azure.</summary>
+    public bool? AzureArc { get; set; }
+
+    /// <summary>The server runs in Azure (SMBIOS asset tag of Azure), where ESU are included.</summary>
+    public bool? Azure { get; set; }
+
     /// <summary>Detected roles, e.g. DomainController; stored as a JSON array.</summary>
     public List<string> Roles { get; set; } = [];
 

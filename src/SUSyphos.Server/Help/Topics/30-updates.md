@@ -31,7 +31,7 @@ The choices are part of the address, like search and filters.
 
 | Column | Meaning |
 |---|---|
-| **Title** | Title from Windows Update; the KB number follows when it is not part of the title. |
+| **Title** | Title from Windows Update. Below it the KB number links to Microsoft's release notes, **Catalog** to the Microsoft Update Catalog; both open in a new tab. |
 | **Classification** | Security Updates, Critical Updates, Updates, Update Rollups, Definition Updates, Drivers and so on. |
 | **Severity** | Microsoft's severity (Critical, Important, Moderate, Low) where Microsoft gives one. |
 | **Restart** | Restart behaviour as Windows Update reports it: *No restart*, *May restart*, *Restart required*, or *Unknown* (reported before agents sent it). Start rules can use it as a condition. |

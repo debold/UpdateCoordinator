@@ -48,6 +48,12 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<ComplianceSnapshotEntity> ComplianceSnapshots => Set<ComplianceSnapshotEntity>();
 
+    public DbSet<SecurityBaselineEntity> SecurityBaselines => Set<SecurityBaselineEntity>();
+
+    public DbSet<SecurityVulnerabilityEntity> SecurityVulnerabilities => Set<SecurityVulnerabilityEntity>();
+
+    public DbSet<SecurityFixEntity> SecurityFixes => Set<SecurityFixEntity>();
+
     public DbSet<AgentActionEntity> AgentActions => Set<AgentActionEntity>();
 
     public DbSet<LeaseEntity> Leases => Set<LeaseEntity>();
@@ -166,6 +172,30 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         var compliance = modelBuilder.Entity<ComplianceSnapshotEntity>();
         compliance.ToTable("ComplianceSnapshots");
         compliance.HasKey(s => s.Day);
+
+        var baseline = modelBuilder.Entity<SecurityBaselineEntity>();
+        baseline.ToTable("SecurityBaselines");
+        baseline.HasKey(b => new { b.Build, b.Month });
+        baseline.Property(b => b.Month).HasMaxLength(16);
+        baseline.Property(b => b.Kb).HasMaxLength(16);
+
+        var vulnerability = modelBuilder.Entity<SecurityVulnerabilityEntity>();
+        vulnerability.ToTable("SecurityVulnerabilities");
+        vulnerability.HasKey(v => new { v.Cve, v.Month });
+        vulnerability.Property(v => v.Cve).HasMaxLength(32);
+        vulnerability.Property(v => v.Month).HasMaxLength(16);
+        vulnerability.Property(v => v.Title).HasMaxLength(512);
+        vulnerability.Property(v => v.Severity).HasMaxLength(32);
+        vulnerability.Property(v => v.Impact).HasMaxLength(64);
+
+        var fix = modelBuilder.Entity<SecurityFixEntity>();
+        fix.ToTable("SecurityFixes");
+        fix.HasKey(f => new { f.Cve, f.Build, f.Month });
+        fix.Property(f => f.Month).HasMaxLength(16);
+        fix.Property(f => f.Cve).HasMaxLength(32);
+        fix.Property(f => f.Kb).HasMaxLength(16);
+        fix.HasIndex(f => new { f.Build, f.Revision });
+        fix.HasIndex(f => f.Kb);
 
         var rollout = modelBuilder.Entity<RolloutEntity>();
         rollout.ToTable("Rollouts");

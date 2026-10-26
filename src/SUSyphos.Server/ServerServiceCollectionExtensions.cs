@@ -28,6 +28,12 @@ internal static class ServerServiceCollectionExtensions
         services.AddHealthChecks();
         services.AddOpenApi();
 
+        services.AddOptions<Lifecycle.LifecycleOptions>()
+            .Bind(configuration.GetSection(Lifecycle.LifecycleOptions.Section))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<Lifecycle.SupportLifecycle>();
+
         services.AddOptions<DatabaseOptions>()
             .Bind(configuration.GetSection(DatabaseOptions.SectionName))
             .ValidateDataAnnotations()

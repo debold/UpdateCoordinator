@@ -31,6 +31,8 @@
   <ItemGroup>
     <!-- Help pages of the dashboard (Markdown), compiled into the assembly and rendered by HelpCatalog. -->
     <EmbeddedResource Include="Help\Topics\*.md" LogicalName="Help.%(Filename).md" />
+    <EmbeddedResource Include="Lifecycle\lifecycle.json" LogicalName="SUSyphos.Server.Lifecycle.lifecycle.json" />
+    <Content Remove="Lifecycle\lifecycle.json" />
   </ItemGroup>
 
   <ItemGroup>

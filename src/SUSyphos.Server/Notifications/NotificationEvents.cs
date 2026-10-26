@@ -37,6 +37,7 @@ internal enum NotificationKind
     DailySummary,
     WeeklySummary,
     DefenderSignaturesOutdated,
+    SupportEnding,
 }
 
 /// <summary>
@@ -58,7 +59,9 @@ internal sealed class NotificationEvents(
     IOptions<CertificateOptions> certificateOptions,
     TimeProvider timeProvider,
     NotificationSettingsStore? settingsStore = null,
-    Rollouts.DeploymentStatus? deployment = null)
+    Rollouts.DeploymentStatus? deployment = null,
+    Lifecycle.SupportLifecycle? support = null,
+    Security.SecurityBaseline? baseline = null)
 {
     private static readonly string[] CertificateActions = [CertificateLifecycle.Renewed, CertificateLifecycle.RolledOver, CertificateLifecycle.FallBack];
 
@@ -179,9 +182,10 @@ internal sealed class NotificationEvents(
     {
         var clients = await db.Clients.AsNoTracking()
             .Where(c => c.State == RegistrationState.Approved)
-            .Select(c => new { c.Id, c.HostName, c.LastHeartbeatAtUtc, c.RebootPending, c.LastBootAtUtc, c.HealthChecks, c.AutomaticUpdatesBypass, c.InventoryAtUtc })
+            .Select(c => new { c.Id, c.HostName, c.LastHeartbeatAtUtc, c.RebootPending, c.LastBootAtUtc, c.HealthChecks, c.AutomaticUpdatesBypass, c.InventoryAtUtc, c.OsVersion, c.OsEditionId, c.OsProductName, c.EsuKey, c.AzureArc, c.Azure })
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var names = clients.ToDictionary(c => c.Id, c => c.HostName);
+        var security = baseline is null ? Security.SecuritySnapshot.Empty : await baseline.LoadAsync(cancellationToken).ConfigureAwait(false);
         foreach (var client in clients)
         {
             var path = $"servers/{client.Id}";
@@ -198,6 +202,22 @@ internal sealed class NotificationEvents(
             if (client.RebootPending && client.LastBootAtUtc is { } boot && now - boot > TimeSpan.FromDays(settings.RebootPendingDays))
             {
                 events.Add(new NotificationEvent($"server.reboot:{client.Id}", NotificationKind.RebootPendingLong, $"{client.HostName} has been waiting for a restart; it last started on {Format(boot)}.", path, client.HostName, "Installed updates take full effect only after the restart; further updates may wait for it."));
+            }
+
+            if (support?.Of(client.OsVersion, client.OsEditionId, client.OsProductName, Lifecycle.SupportLifecycle.Detected(client.EsuKey, client.AzureArc, client.Azure), security.Of(client.OsVersion)) is { } info && Lifecycle.SupportLifecycle.NeedsAttention(info.State))
+            {
+                events.Add(new NotificationEvent(
+                    $"server.support:{client.Id}:{info.State}",
+                    NotificationKind.SupportEnding,
+                    $"{info.Name} on {client.HostName} {Lifecycle.SupportLifecycle.Describe(info)}.",
+                    Components.ServerPage.Path(client.Id, "system"),
+                    client.HostName,
+                    info.State switch
+                    {
+                        Lifecycle.SupportState.EndOfSupport => "Windows gets no security updates any more and no Extended Security Updates were found; plan an upgrade or ESU.",
+                        Lifecycle.SupportState.Ended => "Without Extended Security Updates the server gets no security updates any more; ESU were not found yet.",
+                        _ => "Plan the upgrade or Extended Security Updates before Windows stops getting security updates.",
+                    }));
             }
 
             if (client.AutomaticUpdatesBypass)

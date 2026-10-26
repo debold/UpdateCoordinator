@@ -371,6 +371,15 @@ If the central server is a domain member, it reads the enabled server computer a
 | `Coverage:Domain` | own domain | domain to read |
 | `Coverage:Interval` | `06:00:00` | how often AD is read (10 minutes to 7 days) |
 
+### End of support
+
+The central server knows when Microsoft stops updates for each Windows version (Windows Server 2016 to 2025, and Windows 10 and 11 by edition), from a table shipped with every release (`Lifecycle/lifecycle.json`, built in; it needs no internet access). The version is recognised by the build and edition the agent reports. The server list has a **Support** column with filter, the server page shows the date in its System box, the overview lists servers close to or past the end under "Needs attention", and the notification "Support ending" (recommended) is sent when a server enters the warning time, again at the critical time and when support has ended.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Lifecycle:WarningDays` | `180` | amber "Support ending" from this many days before the end (1 to 3650) |
+| `Lifecycle:CriticalDays` | `30` | red "Support ends soon" from this many days before the end (0 to 3650); after the end "Out of support" |
+
 ## 17. Installation (MSI)
 
 Both components ship as MSI packages (WiX Toolset 7) for Windows Server 2016 or newer. They are self-contained: no .NET runtime needs to be installed. They can be distributed by group policy, Configuration Manager or Intune, or installed manually.

@@ -13,6 +13,8 @@
 @inject NavigationManager Navigation
 @inject SUSyphos.Server.Approval.DirectoryCoverage CoverageReader
 @inject SUSyphos.Server.AgentPackages.AgentPackageAdministration ServerUpdates
+@inject SUSyphos.Server.Lifecycle.SupportLifecycle Support
+@inject SUSyphos.Server.Security.SecurityBaseline Baseline
 
 <PageTitle>Overview</PageTitle>
 
@@ -119,7 +121,7 @@
     <ListTable Table="_nextTable" Page="_nextPage" Columns="NextColumns" Search="Search update" Noun="updates" Empty="No released update is waiting for installation.">
         <Row Context="next">
             <tr>
-                <td class="wrap"><a href="/updates/@next.UpdateId/@next.Revision">@next.Title</a></td>
+                <td class="wrap"><a href="/updates/@next.UpdateId/@next.Revision">@next.Title</a> <KbLinks Kb="@UpdateText.KbIn(next.Title)" /></td>
                 <td class="nowrap">@(next.EarliestUtc <= _now ? "due now" : Format(next.EarliestUtc))</td>
                 <td class="n">@next.Servers</td>
                 <td>@foreach (var ring in next.Rings) { <RingTag Name="@ring.Name" Order="@ring.Order" /> }</td>
@@ -202,6 +204,7 @@
     private int _failedServers;
     private int _warningServers;
     private int _offlineServers;
+    private SUSyphos.Server.Security.SecuritySnapshot _security = SUSyphos.Server.Security.SecuritySnapshot.Empty;
     private IReadOnlyList<DonutPart> _statusParts = [];
     private SUSyphos.Server.AgentPackages.ServerUpdate? _serverUpdate;
 
@@ -285,7 +288,8 @@
         _serverUpdate = await ServerUpdates.GetServerUpdateAsync(CancellationToken.None);
         _compliancePercent = _approved == 0 ? 100 : (int)Math.Floor(100.0 * clients.Count(c => !released.Any(e => e.ClientId == c.Id)) / _approved);
 
-        await LoadAttentionAsync(health);
+        _security = await Baseline.LoadAsync(CancellationToken.None);
+        await LoadAttentionAsync(health, clients);
         await LoadRingsAsync(clients, entries);
         _coverage = await CoverageReader.GetReportAsync(CancellationToken.None);
         _days = DashboardStatistics.ParsePeriod(Days);
@@ -294,7 +298,7 @@
         _fullyPatchedPercent = _approved == 0 ? 100 : (int)Math.Floor(100.0 * clients.Count(c => !missingAnything.Contains(c.Id)) / _approved);
     }
 
-    private async Task LoadAttentionAsync(Dictionary<Guid, ServerHealthState> health)
+    private async Task LoadAttentionAsync(Dictionary<Guid, ServerHealthState> health, List<ClientEntity> clients)
     {
         _attention = [];
         var waiting = await Db.RolloutRings.AsNoTracking()
@@ -336,6 +340,24 @@
         foreach (var group in await Db.Groups.AsNoTracking().Where(g => g.LeasesHalted).ToListAsync())
         {
             _attention.Add(new AttentionItem("Lease", "fail", $"Group {group.Name}: {group.ConsecutiveLeaseFailures} leases in a row failed or expired", "The central server issues no leases for this group until an operator resumes it.", "/approvals", "Review"));
+        }
+
+        // End of support (Marc, 2026-10-26): red without ESU after the first missed patch day, amber shortly before the end and
+        // after the end while no ESU is found yet.
+        var support = clients.Select(c => Support.Of(c, _security.Of(c)).State).ToList();
+        if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.EndOfSupport) is > 0 and var unsupported)
+        {
+            _attention.Add(new AttentionItem("Support", "fail", $"{unsupported} servers are out of support without Extended Security Updates", "Windows gets no security updates for them any more; plan an upgrade or ESU.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.EndOfSupport)), "Show servers"));
+        }
+
+        if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.Ended) is > 0 and var ended)
+        {
+            _attention.Add(new AttentionItem("Support", "queue", $"{ended} servers passed the end of support; no ESU found yet", "They count as without ESU once the first patch day after the end passes without their updates.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.Ended)), "Show servers"));
+        }
+
+        if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.EndingSoon) is > 0 and var ending)
+        {
+            _attention.Add(new AttentionItem("Support", "queue", $"{ending} servers reach the end of support within {Support.Options.WarningDays} days", null, Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.EndingSoon)), "Show servers"));
         }
 
         AddServers(health, ServerHealthState.Failed, "Failed", "fail", "servers with a failed installation or pre-flight check");

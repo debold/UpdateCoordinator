@@ -196,6 +196,18 @@ internal sealed class ComplianceSnapshotEntity
 
     /// <summary>Server × update pairs reported missing but not released to the server's ring yet.</summary>
     public int? OpenHeld { get; set; }
+
+    /// <summary>Servers on the security baseline of their Windows version (MSRC); null without MSRC data or before 0.7.9.</summary>
+    public int? BaselineCurrent { get; set; }
+
+    /// <summary>Servers the baseline can be checked for (known Windows Server version and MSRC data).</summary>
+    public int? BaselineKnown { get; set; }
+
+    /// <summary>Open server × vulnerability pairs (the server build is older than the fixing build).</summary>
+    public int? OpenVulnerabilities { get; set; }
+
+    /// <summary>Of those, vulnerabilities Microsoft knows to be exploited.</summary>
+    public int? OpenExploited { get; set; }
 }
 
 internal enum AgentActionState

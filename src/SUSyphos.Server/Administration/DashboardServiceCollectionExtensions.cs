@@ -152,6 +152,25 @@ internal static class DashboardServiceCollectionExtensions
         });
         services.AddHostedService<AgentPackages.AgentPackageWorker>();
 
+        services.AddOptions<Security.MsrcOptions>()
+            .Bind(configuration.GetSection(Security.MsrcOptions.Section))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        // The monthly documents are 20 to 30 MB; they are read as a stream.
+        services.AddHttpClient<Security.IMsrcSource, Security.MsrcApi>(http =>
+        {
+            http.Timeout = TimeSpan.FromMinutes(5);
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("SUSyphos-CentralServer");
+            http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+        });
+        services.AddScoped<Security.MsrcSync>();
+        services.AddOptions<Security.SecurityOptions>()
+            .Bind(configuration.GetSection(Security.SecurityOptions.Section))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddScoped<Security.SecurityBaseline>();
+        services.AddHostedService<Security.MsrcWorker>();
+
         services.AddOptions<ScheduledBackupOptions>()
             .Bind(configuration.GetSection(ScheduledBackupOptions.SectionName))
             .ValidateDataAnnotations()

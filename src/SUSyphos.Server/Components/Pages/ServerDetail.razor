@@ -12,6 +12,7 @@
 @inject TimeProvider Time
 @inject SUSyphos.Server.Agents.GlobalPause Pause
 @inject SUSyphos.Server.AgentPackages.AgentUpdateService AgentUpdates
+@inject SUSyphos.Server.Lifecycle.SupportLifecycle Support
 
 <PageTitle>@(_client?.HostName ?? "Server")</PageTitle>
 
@@ -202,7 +203,7 @@ else
         <ListTable Table="_openTable" Page="_openPage" Columns="OpenColumns" Search="Search update" Noun="updates" Empty="The last search reported no missing update.">
             <Row Context="row">
                 <tr>
-                    <td class="wrap"><a href="/updates/@row.Entry.UpdateId/@row.Entry.Revision">@row.Title</a></td>
+                    <td class="wrap"><a href="/updates/@row.Entry.UpdateId/@row.Entry.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /></td>
                     <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@OpenStatus(row.Entry)</span></td>
                     <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
                     <td>@(row.Entry.HResult is { } hresult ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{hresult:X8}: {SUSyphos.Server.Agents.HResultCatalog.Describe(hresult)}") : null)</td>
@@ -218,7 +219,7 @@ else
             <Row Context="row">
                 <tr>
                     <td class="nowrap">@Format(row.Installation.FinishedAtUtc)</td>
-                    <td class="wrap"><a href="/updates/@row.Installation.UpdateId/@row.Installation.Revision">@row.Title</a></td>
+                    <td class="wrap"><a href="/updates/@row.Installation.UpdateId/@row.Installation.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /></td>
                     <td><StatusTag Text="SUSyphos" Kind="ok" /></td>
                     <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Kind="@UpdateHistoryText.ResultClass((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Detail="@UpdateHistoryText.ResultDetail((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" /></td>
                     <td>@{ var reboot = RebootTag(row.Installation); }<StatusTag Text="@reboot.Text" Kind="@reboot.Kind" Detail="@reboot.Detail" /></td>
@@ -232,7 +233,7 @@ else
             <Row Context="entry">
                         <tr>
                             <td class="nowrap">@Format(entry.DateUtc)</td>
-                            <td class="wrap">@entry.Title</td>
+                            <td class="wrap">@entry.Title <KbLinks Kb="@UpdateText.KbIn(entry.Title)" /></td>
                             <td><StatusTag Text="@entry.Operation.ToString()" /></td>
                             <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel(entry.ResultCode, entry.HResult)" Kind="@UpdateHistoryText.ResultClass(entry.ResultCode, entry.HResult)" Detail="@UpdateHistoryText.ResultDetail(entry.ResultCode, entry.HResult)" /></td>
                             <td>@{ var started = StartedBy(entry); }<StatusTag Text="@started.Text" Kind="@started.Kind" Detail="@started.Detail" /></td>
@@ -324,8 +325,9 @@ else
     {
     <Box Title="System" Help="server-detail#system" Anchor="system">
         <dl class="facts">
-            <dt>Operating system</dt><dd>@OperatingSystems.Name(_client.OsProductName, _client.OsVersion)@(_client.OsEditionId is { Length: > 0 } edition ? $" ({edition})" : string.Empty)</dd>
+            <dt>Operating system</dt><dd>@OperatingSystems.Name(_client.OsProductName, _client.OsVersion, _client.OsEditionId)@(_client.OsEditionId is { Length: > 0 } edition ? $" ({edition})" : string.Empty)</dd>
             <dt>Build</dt><dd class="mono">@OperatingSystems.Build(_client.OsVersion)</dd>
+            <dt>Support</dt><dd>@{ var support = Support.Of(_client); }@if (support.State == SUSyphos.Server.Lifecycle.SupportState.Unknown) { <span class="note">unknown for this Windows version</span> } else { <StatusTag Text="@SUSyphos.Server.Lifecycle.SupportLifecycle.Label(support.State)" Kind="@SUSyphos.Server.Lifecycle.SupportLifecycle.Class(support.State)" /> <span>@SUSyphos.Server.Lifecycle.SupportLifecycle.Describe(support)@(support.MainstreamEnd is { } mainstream ? $"; mainstream support {(support.DaysLeft - (support.End!.Value.DayNumber - mainstream.DayNumber) >= 0 ? "until" : "ended")} {mainstream:yyyy-MM-dd}" : null)</span> }</dd>
             <dt>Domain</dt><dd>@(_client.DomainName ?? "–")</dd>
             <dt>Roles</dt><dd>@(_client.Roles.Count > 0 ? string.Join(", ", _client.Roles) : "–")</dd>
             <dt>Update source</dt><dd>@UpdateSourceText@if (_client.MicrosoftUpdateRegistered is { } registered && registered != _client.EffectiveUseMicrosoftUpdate) { <span class="pill queue" title="The agent applies the setting with its next heartbeat and reports it with the next inventory">@(_client.EffectiveUseMicrosoftUpdate ? "set: Microsoft Update" : "set: Windows Update only")</span> }</dd>
@@ -585,7 +587,7 @@ else
 
     private string Subtitle => _client is null
         ? string.Empty
-        : $"{(_client.DomainName is { Length: > 0 } domain ? $"{_client.HostName.ToLowerInvariant()}.{domain}" : _client.HostName)} · {OperatingSystems.Name(_client.OsProductName, _client.OsVersion)}, build {OperatingSystems.Build(_client.OsVersion)} · ring {RingName(_client.RingId)}";
+        : $"{(_client.DomainName is { Length: > 0 } domain ? $"{_client.HostName.ToLowerInvariant()}.{domain}" : _client.HostName)} · {OperatingSystems.Name(_client.OsProductName, _client.OsVersion, _client.OsEditionId)}, build {OperatingSystems.Build(_client.OsVersion)} · ring {RingName(_client.RingId)}";
 
     [SupplyParameterFromForm(FormName = "restart")]
     private string? When { get; set; }

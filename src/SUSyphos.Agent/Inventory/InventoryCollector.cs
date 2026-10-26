@@ -14,7 +14,8 @@ internal sealed partial class InventoryCollector(
     IInstalledUpdateSource updates,
     RoleDetector roles,
     IAgentEnvironment environment,
-    Updates.IUpdateServiceRegistry? services = null)
+    Updates.IUpdateServiceRegistry? services = null,
+    IEsuProbe? esu = null)
 {
     private const string CurrentVersionPath = AgentEnvironment.CurrentVersionPath;
     private const string WindowsUpdatePolicyPath = AutomaticUpdatesReader.PolicyPath;
@@ -33,6 +34,7 @@ internal sealed partial class InventoryCollector(
             UpdateSource = ReadUpdateSource(probe) with { MicrosoftUpdateRegistered = IsMicrosoftUpdateRegistered() },
             InstalledUpdates = installed is null ? null : WireFormat.ToInstalledUpdates(installed),
             UpdateHistory = history,
+            ExtendedSecurityUpdates = esu?.Read(),
         };
     }
 

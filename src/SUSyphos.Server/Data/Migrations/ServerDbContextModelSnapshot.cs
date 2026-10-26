@@ -504,6 +504,12 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<bool>("AutomaticUpdatesManagedByAgent")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool?>("Azure")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("AzureArc")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("DomainName")
                         .HasMaxLength(253)
                         .HasColumnType("TEXT");
@@ -523,6 +529,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<string>("EffectiveWindowsJson")
                         .HasMaxLength(8192)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool?>("EsuKey")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("HostName")
                         .IsRequired()
@@ -758,16 +767,28 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<DateOnly>("Day")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("BaselineCurrent")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("BaselineKnown")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Compliant")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("FullyPatched")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("OpenExploited")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("OpenHeld")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("OpenReleased")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OpenVulnerabilities")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime?>("RecordedAtUtc")
@@ -1131,6 +1152,96 @@ namespace SUSyphos.Server.Data.Migrations
                     b.HasIndex("State");
 
                     b.ToTable("RolloutRings", (string)null);
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.SecurityBaselineEntity", b =>
+                {
+                    b.Property<int>("Build")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Month")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kb")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ReleasedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Build", "Month");
+
+                    b.ToTable("SecurityBaselines", (string)null);
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.SecurityFixEntity", b =>
+                {
+                    b.Property<string>("Cve")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Build")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Month")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kb")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Cve", "Build", "Month");
+
+                    b.HasIndex("Kb");
+
+                    b.HasIndex("Build", "Revision");
+
+                    b.ToTable("SecurityFixes", (string)null);
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.SecurityVulnerabilityEntity", b =>
+                {
+                    b.Property<string>("Cve")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Month")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("CvssScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("Exploited")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Impact")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("PubliclyDisclosed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Severity")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Cve", "Month");
+
+                    b.ToTable("SecurityVulnerabilities", (string)null);
                 });
 
             modelBuilder.Entity("SUSyphos.Server.Data.SettingEntity", b =>

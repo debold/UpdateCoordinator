@@ -10,6 +10,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Excerpt of a real MSRC document (public data) for the parser tests. -->
+    <None Include="Fixtures\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\SUSyphos.Server\SUSyphos.Server.csproj" />
     <ProjectReference Include="..\SUSyphos.TestSupport\SUSyphos.TestSupport.csproj" />
   </ItemGroup>

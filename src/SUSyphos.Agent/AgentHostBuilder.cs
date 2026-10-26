@@ -69,6 +69,7 @@ internal static class AgentHostBuilder
             .ValidateOnStart();
         services.AddSingleton<IInstalledUpdateSource, WuaInstalledUpdateSource>();
         services.AddSingleton<RoleDetector>();
+        services.AddSingleton<IEsuProbe, WmiEsuProbe>();
         services.AddSingleton<InventoryCollector>();
         services.AddSingleton<InventoryScheduler>();
         services.AddSingleton<IInventoryReporter, InventoryReporter>();

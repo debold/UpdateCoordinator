@@ -54,7 +54,7 @@
                             <td><input type="checkbox" form="decision" data-help-term="Select" name="Selected" value="@client.Id" aria-label="Select @client.HostName" /></td>
                             <td class="nowrap">@client.HostName@if (client.DomainName is { Length: > 0 } domain) { <div class="note">@domain</div> }</td>
                             <td class="mono">@client.RegisteredFromAddress</td>
-                            <td class="nowrap">@OperatingSystems.Name(client.OsProductName, client.OsVersion) <span class="note mono">@OperatingSystems.Build(client.OsVersion)</span></td>
+                            <td class="nowrap">@OperatingSystems.Name(client.OsProductName, client.OsVersion, client.OsEditionId) <span class="note mono">@OperatingSystems.Build(client.OsVersion)</span></td>
                             <td>@string.Join(", ", client.Roles)</td>
                             <td class="nowrap">@DisplayTime.FormatDate(client.RegisteredAtUtc)</td>
                             <td class="nowrap">@Format(client.LastHeartbeatAtUtc)</td>
@@ -221,7 +221,7 @@
     [
         new("name", "Server", c => c.HostName, c => [c.DomainName ?? string.Empty]),
         new("from", "Registered from", c => c.RegisteredFromAddress),
-        new("os", "Operating system", c => OperatingSystems.Name(c.OsProductName, c.OsVersion), c => [OperatingSystems.Name(c.OsProductName, c.OsVersion)]),
+        new("os", "Operating system", c => OperatingSystems.Name(c.OsProductName, c.OsVersion, c.OsEditionId), c => [OperatingSystems.Name(c.OsProductName, c.OsVersion, c.OsEditionId)]),
         new("roles", "Roles", c => string.Join(", ", c.Roles), c => c.Roles.Count == 0 ? [string.Empty] : [.. c.Roles]),
         new("registered", "Registered", c => c.RegisteredAtUtc),
         new("seen", "Last seen", c => c.LastHeartbeatAtUtc),

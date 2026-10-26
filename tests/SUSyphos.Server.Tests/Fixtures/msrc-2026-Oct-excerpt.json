@@ -1,0 +1,2090 @@
+{
+  "DocumentTracking": {
+    "InitialReleaseDate": "2026-10-13T07:00:00"
+  },
+  "ProductTree": {
+    "FullProductName": [
+      {
+        "ProductID": "10816",
+        "Value": "Windows Server 2016"
+      },
+      {
+        "ProductID": "10855",
+        "Value": "Windows Server 2016 (Server Core installation)"
+      },
+      {
+        "ProductID": "11571",
+        "Value": "Windows Server 2019"
+      },
+      {
+        "ProductID": "11572",
+        "Value": "Windows Server 2019 (Server Core installation)"
+      },
+      {
+        "ProductID": "11923",
+        "Value": "Windows Server 2022"
+      },
+      {
+        "ProductID": "11924",
+        "Value": "Windows Server 2022 (Server Core installation)"
+      },
+      {
+        "ProductID": "12436",
+        "Value": "Windows Server 2025"
+      },
+      {
+        "ProductID": "12437",
+        "Value": "Windows Server 2025 (Server Core installation)"
+      },
+      {
+        "ProductID": "99999",
+        "Value": "Microsoft Office 2019"
+      }
+    ]
+  },
+  "Vulnerability": [
+    {
+      "Title": {
+        "Value": "Windows Shell Security Feature Bypass Vulnerability"
+      },
+      "CVE": "CVE-2026-96951",
+      "Threats": [
+        {
+          "Description": {
+            "Value": "Security Feature Bypass"
+          },
+          "ProductID": [
+            "10816"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Security Feature Bypass"
+          },
+          "ProductID": [
+            "10855"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Security Feature Bypass"
+          },
+          "ProductID": [
+            "11571"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Security Feature Bypass"
+          },
+          "ProductID": [
+            "11572"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Security Feature Bypass"
+          },
+          "ProductID": [
+            "11923"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Security Feature Bypass"
+          },
+          "ProductID": [
+            "11924"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Security Feature Bypass"
+          },
+          "ProductID": [
+            "12436"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Security Feature Bypass"
+          },
+          "ProductID": [
+            "12437"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "10816"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "10855"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11571"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11572"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11923"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11924"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "12436"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "12437"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Publicly Disclosed:No;Exploited:Yes;Latest Software Release:Exploitation Detected"
+          },
+          "Type": 1,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        }
+      ],
+      "CVSSScoreSets": [
+        {
+          "BaseScore": 8.8,
+          "TemporalScore": 8.2,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+          "ProductID": [
+            "10816"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 8.8,
+          "TemporalScore": 8.2,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+          "ProductID": [
+            "10855"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 8.8,
+          "TemporalScore": 8.2,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+          "ProductID": [
+            "11571"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 8.8,
+          "TemporalScore": 8.2,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+          "ProductID": [
+            "11572"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 8.8,
+          "TemporalScore": 8.2,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+          "ProductID": [
+            "11923"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 8.8,
+          "TemporalScore": 8.2,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+          "ProductID": [
+            "11924"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 8.8,
+          "TemporalScore": 8.2,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+          "ProductID": [
+            "12436"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 8.8,
+          "TemporalScore": 8.2,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C",
+          "ProductID": [
+            "12437"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        }
+      ],
+      "Remediations": [
+        {
+          "Description": {
+            "Value": "5126836"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126836",
+          "Supercedence": "5123066",
+          "ProductID": [
+            "10483",
+            "10543"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Monthly Rollup",
+          "FixedBuild": "6.3.9600.23470"
+        },
+        {
+          "Description": {
+            "Value": "5126868"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126868",
+          "Supercedence": "5123099",
+          "ProductID": [
+            "10852",
+            "10853",
+            "10816",
+            "10855"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.14393.9612"
+        },
+        {
+          "Description": {
+            "Value": "5126651"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126651",
+          "Supercedence": "5122876",
+          "ProductID": [
+            "11568",
+            "11569",
+            "11571",
+            "11572"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.17763.9376"
+        },
+        {
+          "Description": {
+            "Value": "5126657"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126657",
+          "Supercedence": "5122878",
+          "ProductID": [
+            "11929",
+            "11930",
+            "11931"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.19044.7807"
+        },
+        {
+          "Description": {
+            "Value": "5126657"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126657",
+          "Supercedence": "5122878",
+          "ProductID": [
+            "12099",
+            "12098",
+            "12097"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.19045.7807"
+        },
+        {
+          "Description": {
+            "Value": "5126655"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126655",
+          "Supercedence": "5122882",
+          "ProductID": [
+            "11923",
+            "11924"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.20348.5761"
+        },
+        {
+          "Description": {
+            "Value": "5126653"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126653",
+          "Supercedence": "5122880",
+          "ProductID": [
+            "12242",
+            "12243"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.22631.7652"
+        },
+        {
+          "Description": {
+            "Value": "5127648"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+          "Supercedence": "5124008",
+          "ProductID": [
+            "12389",
+            "12390"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26100.9711"
+        },
+        {
+          "Description": {
+            "Value": "5127648"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+          "Supercedence": "5124008",
+          "ProductID": [
+            "20437",
+            "20438"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26200.9711"
+        },
+        {
+          "Description": {
+            "Value": "5127648"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+          "ProductID": [
+            "21945",
+            "21946"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26300.9711"
+        },
+        {
+          "Description": {
+            "Value": "5126646"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126646",
+          "Supercedence": "5122871",
+          "ProductID": [
+            "12436",
+            "12437"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26100.33650"
+        },
+        {
+          "Description": {
+            "Value": "5127646"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127646",
+          "Supercedence": "5124012",
+          "ProductID": [
+            "20854",
+            "20853"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.28000.3231"
+        },
+        {
+          "Description": {
+            "Value": "Release Notes"
+          },
+          "URL": "",
+          "ProductID": [
+            "11653"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "20260925.100"
+        }
+      ]
+    },
+    {
+      "Title": {
+        "Value": "Windows Client License Service Elevation of Privilege Vulnerability"
+      },
+      "CVE": "CVE-2026-100201",
+      "Threats": [
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "11571"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "11572"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "11923"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "11924"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "12436"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "12437"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11571"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11572"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11923"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11924"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "12436"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "12437"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Publicly Disclosed:No;Exploited:No;Latest Software Release:Exploitation Less Likely"
+          },
+          "Type": 1,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        }
+      ],
+      "CVSSScoreSets": [
+        {
+          "BaseScore": 7.0,
+          "TemporalScore": 6.1,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11571"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.0,
+          "TemporalScore": 6.1,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11572"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.0,
+          "TemporalScore": 6.1,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11923"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.0,
+          "TemporalScore": 6.1,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11924"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.0,
+          "TemporalScore": 6.1,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "12436"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.0,
+          "TemporalScore": 6.1,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "12437"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        }
+      ],
+      "Remediations": [
+        {
+          "Description": {
+            "Value": "5126651"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126651",
+          "Supercedence": "5122876",
+          "ProductID": [
+            "11568",
+            "11569",
+            "11571",
+            "11572"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.17763.9376"
+        },
+        {
+          "Description": {
+            "Value": "5126657"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126657",
+          "Supercedence": "5122878",
+          "ProductID": [
+            "11929",
+            "11930",
+            "11931"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.19044.7807"
+        },
+        {
+          "Description": {
+            "Value": "5126657"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126657",
+          "Supercedence": "5122878",
+          "ProductID": [
+            "12099",
+            "12098",
+            "12097"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.19045.7807"
+        },
+        {
+          "Description": {
+            "Value": "5126655"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126655",
+          "Supercedence": "5122882",
+          "ProductID": [
+            "11923",
+            "11924"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.20348.5761"
+        },
+        {
+          "Description": {
+            "Value": "5126653"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126653",
+          "Supercedence": "5122880",
+          "ProductID": [
+            "12242",
+            "12243"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.22631.7652"
+        },
+        {
+          "Description": {
+            "Value": "5127648"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+          "Supercedence": "5124008",
+          "ProductID": [
+            "12389",
+            "12390"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26100.9711"
+        },
+        {
+          "Description": {
+            "Value": "5127648"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+          "Supercedence": "5124008",
+          "ProductID": [
+            "20437",
+            "20438"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26200.9711"
+        },
+        {
+          "Description": {
+            "Value": "5127648"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+          "ProductID": [
+            "21945",
+            "21946"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26300.9711"
+        },
+        {
+          "Description": {
+            "Value": "5126646"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126646",
+          "Supercedence": "5122871",
+          "ProductID": [
+            "12436",
+            "12437"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26100.33650"
+        },
+        {
+          "Description": {
+            "Value": "5127646"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127646",
+          "Supercedence": "5124012",
+          "ProductID": [
+            "20854",
+            "20853"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.28000.3231"
+        }
+      ]
+    },
+    {
+      "Title": {
+        "Value": "Windows Message Queuing Queue Manager Remote Code Execution Vulnerability"
+      },
+      "CVE": "CVE-2026-100202",
+      "Threats": [
+        {
+          "Description": {
+            "Value": "Remote Code Execution"
+          },
+          "ProductID": [
+            "10816"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Remote Code Execution"
+          },
+          "ProductID": [
+            "10855"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Remote Code Execution"
+          },
+          "ProductID": [
+            "11571"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Remote Code Execution"
+          },
+          "ProductID": [
+            "11572"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Remote Code Execution"
+          },
+          "ProductID": [
+            "11923"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Remote Code Execution"
+          },
+          "ProductID": [
+            "11924"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Remote Code Execution"
+          },
+          "ProductID": [
+            "12436"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Remote Code Execution"
+          },
+          "ProductID": [
+            "12437"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Critical"
+          },
+          "ProductID": [
+            "10816"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Critical"
+          },
+          "ProductID": [
+            "10855"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Critical"
+          },
+          "ProductID": [
+            "11571"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Critical"
+          },
+          "ProductID": [
+            "11572"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Critical"
+          },
+          "ProductID": [
+            "11923"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Critical"
+          },
+          "ProductID": [
+            "11924"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Critical"
+          },
+          "ProductID": [
+            "12436"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Critical"
+          },
+          "ProductID": [
+            "12437"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Publicly Disclosed:No;Exploited:No;Latest Software Release:Exploitation Less Likely"
+          },
+          "Type": 1,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        }
+      ],
+      "CVSSScoreSets": [
+        {
+          "BaseScore": 9.8,
+          "TemporalScore": 8.5,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "10816"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 9.8,
+          "TemporalScore": 8.5,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "10855"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 9.8,
+          "TemporalScore": 8.5,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11571"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 9.8,
+          "TemporalScore": 8.5,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11572"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 9.8,
+          "TemporalScore": 8.5,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11923"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 9.8,
+          "TemporalScore": 8.5,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11924"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 9.8,
+          "TemporalScore": 8.5,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "12436"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 9.8,
+          "TemporalScore": 8.5,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "12437"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        }
+      ],
+      "Remediations": [
+        {
+          "Description": {
+            "Value": "5126835"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126835",
+          "Supercedence": "5123065",
+          "ProductID": [
+            "10378",
+            "10379"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "6.2.9200.26434"
+        },
+        {
+          "Description": {
+            "Value": "5126836"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126836",
+          "Supercedence": "5123066",
+          "ProductID": [
+            "10483",
+            "10543"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "6.3.9600.23470"
+        },
+        {
+          "Description": {
+            "Value": "5126868"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126868",
+          "Supercedence": "5123099",
+          "ProductID": [
+            "10852",
+            "10853",
+            "10816",
+            "10855"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.14393.9612"
+        },
+        {
+          "Description": {
+            "Value": "5126651"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126651",
+          "Supercedence": "5122876",
+          "ProductID": [
+            "11568",
+            "11569",
+            "11571",
+            "11572"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.17763.9376"
+        },
+        {
+          "Description": {
+            "Value": "5126657"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126657",
+          "Supercedence": "5122878",
+          "ProductID": [
+            "11929",
+            "11930",
+            "11931"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.19044.7807"
+        },
+        {
+          "Description": {
+            "Value": "5126657"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126657",
+          "Supercedence": "5122878",
+          "ProductID": [
+            "12099",
+            "12098",
+            "12097"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.19045.7807"
+        },
+        {
+          "Description": {
+            "Value": "5126655"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126655",
+          "Supercedence": "5122882",
+          "ProductID": [
+            "11923",
+            "11924"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.20348.5761"
+        },
+        {
+          "Description": {
+            "Value": "5126653"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126653",
+          "Supercedence": "5122880",
+          "ProductID": [
+            "12242",
+            "12243"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.22631.7652"
+        },
+        {
+          "Description": {
+            "Value": "5127648"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+          "Supercedence": "5124008",
+          "ProductID": [
+            "12389",
+            "12390"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26100.9711"
+        },
+        {
+          "Description": {
+            "Value": "5127648"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+          "Supercedence": "5124008",
+          "ProductID": [
+            "20437",
+            "20438"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26200.9711"
+        },
+        {
+          "Description": {
+            "Value": "5127648"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127648",
+          "ProductID": [
+            "21945",
+            "21946"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26300.9711"
+        },
+        {
+          "Description": {
+            "Value": "5126646"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5126646",
+          "Supercedence": "5122871",
+          "ProductID": [
+            "12436",
+            "12437"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26100.33650"
+        },
+        {
+          "Description": {
+            "Value": "5127646"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5127646",
+          "Supercedence": "5124012",
+          "ProductID": [
+            "20854",
+            "20853"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.28000.3231"
+        }
+      ]
+    },
+    {
+      "Title": {
+        "Value": "Windows Error Reporting Elevation of Privilege Vulnerability"
+      },
+      "CVE": "CVE-2026-69354",
+      "Threats": [
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "11571"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "11572"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "11923"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "11924"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "12437"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "12436"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "10816"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Elevation of Privilege"
+          },
+          "ProductID": [
+            "10855"
+          ],
+          "Type": 0,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11571"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11572"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11923"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "11924"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "12437"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "12436"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "10816"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Important"
+          },
+          "ProductID": [
+            "10855"
+          ],
+          "Type": 3,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        },
+        {
+          "Description": {
+            "Value": "Publicly Disclosed:No;Exploited:No;Latest Software Release:Exploitation Less Likely"
+          },
+          "Type": 1,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false
+        }
+      ],
+      "CVSSScoreSets": [
+        {
+          "BaseScore": 7.8,
+          "TemporalScore": 6.8,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11571"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.8,
+          "TemporalScore": 6.8,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11572"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.8,
+          "TemporalScore": 6.8,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11923"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.8,
+          "TemporalScore": 6.8,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "11924"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.8,
+          "TemporalScore": 6.8,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "12437"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.8,
+          "TemporalScore": 6.8,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "12436"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.8,
+          "TemporalScore": 6.8,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "10816"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        },
+        {
+          "BaseScore": 7.8,
+          "TemporalScore": 6.8,
+          "EnvironmentalScore": 0,
+          "Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/E:U/RL:O/RC:C",
+          "ProductID": [
+            "10855"
+          ],
+          "IsTemporalScoreFieldSpecified": false
+        }
+      ],
+      "Remediations": [
+        {
+          "Description": {
+            "Value": "5122876"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5122876",
+          "Supercedence": "5120238",
+          "ProductID": [
+            "11568",
+            "11569",
+            "11571",
+            "11572"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.17763.9245"
+        },
+        {
+          "Description": {
+            "Value": "5122882"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5122882",
+          "Supercedence": "5120242",
+          "ProductID": [
+            "11923",
+            "11924"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.20348.5622"
+        },
+        {
+          "Description": {
+            "Value": "5122878"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5122878",
+          "Supercedence": "5120249",
+          "ProductID": [
+            "11929",
+            "11930",
+            "11931"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.19044.7725"
+        },
+        {
+          "Description": {
+            "Value": "5122878"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5122878",
+          "Supercedence": "5120249",
+          "ProductID": [
+            "12097",
+            "12098",
+            "12099"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.19045.7725"
+        },
+        {
+          "Description": {
+            "Value": "5122871"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5122871",
+          "Supercedence": "5120233",
+          "ProductID": [
+            "12437",
+            "12436"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26100.33438"
+        },
+        {
+          "Description": {
+            "Value": "5124008"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5124008",
+          "Supercedence": "5121003",
+          "ProductID": [
+            "20437",
+            "20438"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26200.9445"
+        },
+        {
+          "Description": {
+            "Value": "5122880"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5122880",
+          "Supercedence": "5120240",
+          "ProductID": [
+            "12242",
+            "12243"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.22631.7582"
+        },
+        {
+          "Description": {
+            "Value": "5124008"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5124008",
+          "Supercedence": "5121003",
+          "ProductID": [
+            "12389",
+            "12390"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.26100.9445"
+        },
+        {
+          "Description": {
+            "Value": "5124012"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5124012",
+          "Supercedence": "5121000",
+          "ProductID": [
+            "20853",
+            "20854"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.28000.2954"
+        },
+        {
+          "Description": {
+            "Value": "5123099"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5123099",
+          "Supercedence": "5120418",
+          "ProductID": [
+            "10852",
+            "10853",
+            "10816",
+            "10855"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "10.0.14393.9512"
+        },
+        {
+          "Description": {
+            "Value": "5123065"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5123065",
+          "Supercedence": "5120386",
+          "ProductID": [
+            "10378",
+            "10379"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "6.2.9200.26349"
+        },
+        {
+          "Description": {
+            "Value": "5123066"
+          },
+          "URL": "https://catalog.update.microsoft.com/v7/site/Search.aspx?q=KB5123066",
+          "Supercedence": "5120385",
+          "ProductID": [
+            "10483",
+            "10543"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {
+            "Value": "Yes"
+          },
+          "SubType": "Security Update",
+          "FixedBuild": "6.3.9600.23398"
+        }
+      ]
+    },
+    {
+      "Title": {
+        "Value": "Dpdk: dpdk: heap out-of-bounds read/write in gso header copy"
+      },
+      "CVE": "CVE-2026-100236",
+      "Threats": [],
+      "CVSSScoreSets": [],
+      "Remediations": [
+        {
+          "Description": {
+            "Value": "Release Notes"
+          },
+          "URL": "",
+          "ProductID": [
+            "17527-17084"
+          ],
+          "Type": 2,
+          "Date": "0001-01-01T00:00:00",
+          "DateSpecified": false,
+          "AffectedFiles": [],
+          "RestartRequired": {},
+          "SubType": "Security Update",
+          "FixedBuild": "23.11.8-1"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "comment": "End of support per Windows version, shipped with every release. Source: Microsoft release health (windows-server-release-info, windows11-release-information, release-information for Windows 10) and the lifecycle pages, read 2026-10-26. 'end' is the last day of updates (extended support for Windows Server and LTSC, end of servicing for the General Availability Channel); 'mainstream' is the end of mainstream support where Microsoft names one. The first entry that matches build, server or client and edition wins, so entries for some editions come before the general one.",
+  "asOf": "2026-10-26",
+  "entries": [
+    { "name": "Windows Server 2016", "build": 14393, "server": true, "mainstream": "2022-01-11", "end": "2027-01-12" },
+    { "name": "Windows Server 2019", "build": 17763, "server": true, "mainstream": "2024-01-09", "end": "2029-01-09" },
+    { "name": "Windows Server 2022", "build": 20348, "server": true, "mainstream": "2026-10-13", "end": "2031-10-14" },
+    { "name": "Windows Server 2025", "build": 26100, "server": true, "mainstream": "2029-11-13", "end": "2034-11-14" },
+
+    { "name": "Windows 10 Enterprise LTSB 2016", "build": 14393, "server": false, "editions": [ "EnterpriseS", "EnterpriseSN", "IoTEnterpriseS" ], "mainstream": "2021-10-12", "end": "2026-10-13" },
+    { "name": "Windows 10 Enterprise LTSC 2019", "build": 17763, "server": false, "editions": [ "EnterpriseS", "EnterpriseSN", "IoTEnterpriseS" ], "mainstream": "2024-01-09", "end": "2029-01-09" },
+    { "name": "Windows 10 Enterprise LTSC 2021", "build": 19044, "server": false, "editions": [ "EnterpriseS", "EnterpriseSN" ], "end": "2027-01-12" },
+    { "name": "Windows 10 IoT Enterprise LTSC 2021", "build": 19044, "server": false, "editions": [ "IoTEnterpriseS" ], "end": "2032-01-13" },
+    { "name": "Windows 10, version 21H2", "build": 19044, "server": false, "end": "2024-06-11" },
+    { "name": "Windows 10, version 22H2", "build": 19045, "server": false, "end": "2025-10-14" },
+
+    { "name": "Windows 11, version 22H2", "build": 22621, "server": false, "end": "2025-10-14" },
+    { "name": "Windows 11 Enterprise, version 23H2", "build": 22631, "server": false, "editions": [ "Enterprise", "EnterpriseN", "Education", "EducationN", "IoTEnterprise", "ServerRdsh" ], "end": "2026-11-10" },
+    { "name": "Windows 11, version 23H2", "build": 22631, "server": false, "end": "2025-11-11" },
+    { "name": "Windows 11 Enterprise LTSC 2024", "build": 26100, "server": false, "editions": [ "EnterpriseS", "EnterpriseSN", "IoTEnterpriseS" ], "mainstream": "2029-10-09", "end": "2034-10-10" },
+    { "name": "Windows 11 Enterprise, version 24H2", "build": 26100, "server": false, "editions": [ "Enterprise", "EnterpriseN", "Education", "EducationN", "IoTEnterprise", "ServerRdsh" ], "end": "2027-10-12" },
+    { "name": "Windows 11, version 24H2", "build": 26100, "server": false, "end": "2026-10-13" },
+    { "name": "Windows 11 Enterprise, version 25H2", "build": 26200, "server": false, "editions": [ "Enterprise", "EnterpriseN", "Education", "EducationN", "IoTEnterprise", "ServerRdsh" ], "end": "2028-10-10" },
+    { "name": "Windows 11, version 25H2", "build": 26200, "server": false, "end": "2027-10-12" },
+    { "name": "Windows 11 Enterprise, version 26H2", "build": 26300, "server": false, "editions": [ "Enterprise", "EnterpriseN", "Education", "EducationN", "IoTEnterprise", "ServerRdsh" ], "end": "2029-10-09" },
+    { "name": "Windows 11, version 26H2", "build": 26300, "server": false, "end": "2028-10-10" },
+    { "name": "Windows 11 Enterprise, version 26H1", "build": 28000, "server": false, "editions": [ "Enterprise", "EnterpriseN", "Education", "EducationN", "IoTEnterprise", "ServerRdsh" ], "end": "2029-03-13" },
+    { "name": "Windows 11, version 26H1", "build": 28000, "server": false, "end": "2028-03-14" }
+  ]
+}

@@ -10,6 +10,8 @@
 @inject NavigationManager Navigation
 @inject TimeProvider Time
 @inject SUSyphos.Server.AgentPackages.AgentUpdateService AgentUpdates
+@inject SUSyphos.Server.Lifecycle.SupportLifecycle Lifecycle
+@inject SUSyphos.Server.Security.SecurityBaseline Baseline
 
 <PageTitle>Servers</PageTitle>
 
@@ -59,7 +61,7 @@
                     <SortHeader Table="_table" Column="name" Label="Server" FilterColumn="domain" FilterLabel="Domain" Options="@Options("domain")" />
                     <SortHeader Table="_table" Column="os" Label="Operating system" Options="@Options("os")" />
                     <SortHeader Table="_table" Column="ring" Label="Ring" Options="@Options("ring")" />
-                    <SortHeader Table="_table" Column="group" Label="Groups" Options="@Options("group")" />
+                    <SortHeader Table="_table" Column="security" Label="Security" Options="@Options("security")" />
                     <SortHeader Table="_table" Column="agent" Label="Agent" Options="@Options("agent")" />
                     <SortHeader Table="_table" Column="status" Label="Status" Options="@Options("status")" />
                     <SortHeader Table="_table" Column="pending" Label="Updates" Options="@Options("pending")" />
@@ -82,9 +84,9 @@
                         <tr>
                             <td class="select"><input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Id" aria-label="Select @row.HostName" /></td>
                             <td class="nowrap"><a href="/servers/@row.Id">@row.HostName</a>@if (row.Domain.Length > 0) { <div class="note break">@row.Domain</div> }</td>
-                            <td>@row.Os<div class="note mono">@row.Build</div></td>
-                            <td class="nowrap"><RingTag Name="@row.Ring" Order="@row.RingOrder" />@if (row.ManualRing) { <div class="note">manual</div> }</td>
-                            <td>@string.Join(", ", row.Groups)</td>
+                            <td>@row.Os<div class="note mono">@row.Build</div>@if (row.Support.State is not (SUSyphos.Server.Lifecycle.SupportState.Supported or SUSyphos.Server.Lifecycle.SupportState.Unknown)) { <div title="@SUSyphos.Server.Lifecycle.SupportLifecycle.Describe(row.Support)"><StatusTag Text="@SUSyphos.Server.Lifecycle.SupportLifecycle.Label(row.Support.State)" Kind="@SUSyphos.Server.Lifecycle.SupportLifecycle.Class(row.Support.State)" /></div> }</td>
+                            <td class="nowrap"><RingTag Name="@row.Ring" Order="@row.RingOrder" />@if (row.ManualRing) { <div class="note">manual</div> }@if (row.Groups.Count > 0) { <div class="note" title="Server groups">@string.Join(", ", row.Groups)</div> }</td>
+                            <td class="nowrap" title="@SecurityTitle(row.Security)"><StatusTag Text="@SUSyphos.Server.Security.SecuritySnapshot.Label(row.Security.State)" Kind="@SUSyphos.Server.Security.SecuritySnapshot.Class(row.Security.State)" />@if (row.Security.Exploited > 0) { <div><span class="pill fail">Exploited</span></div> }</td>
                             <td class="mono nowrap" title="@row.AgentVersion"><span class="mark @ServerIndicators.Class(row.Agent)" title="@AgentTitle(row)">@ServerIndicators.Symbol(row.Agent)</span> @AgentVersion.ShortForm(row.AgentVersion)</td>
                             <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span>@if (row.RestartAt is { } restartAt) { <div class="note nowrap">restart @DisplayTime.Format(restartAt)</div> }</td>
                             <td class="nowrap"><span class="donut-cell" title="@($"{row.Pending} pending, {row.Counts.Failed} failed, {row.Counts.Successful} installed")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Pending</span></span></td>
@@ -99,8 +101,8 @@
 </Box>
 
 @code {
-    private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("os", "Operating system"), ("ring", "Ring"), ("group", "Group"), ("agent", "Agent version"), ("status", "Status"), ("domain", "Domain")];
-    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["domain"] = "Domain", ["os"] = "Operating system", ["ring"] = "Ring", ["group"] = "Group", ["agent"] = "Agent", ["status"] = "Status", ["pending"] = "Updates" };
+    private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("os", "Operating system"), ("ring", "Ring"), ("group", "Group"), ("agent", "Agent version"), ("status", "Status"), ("security", "Security baseline"), ("domain", "Domain")];
+    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["domain"] = "Domain", ["os"] = "Operating system", ["ring"] = "Ring", ["group"] = "Group", ["agent"] = "Agent", ["status"] = "Status", ["pending"] = "Updates", ["support"] = "Support", ["security"] = "Security" };
 
     /// <summary>Filter values of the pending column; the overview links to them.</summary>
     public const string PendingYes = "Updates pending";
@@ -110,7 +112,12 @@
     public static string Link(string column, params string[] values) =>
         "/servers?" + string.Join("&", values.Select(v => $"{Uri.EscapeDataString("f." + column)}={Uri.EscapeDataString(v)}"));
 
-    private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, string AgentVersion, ServerHealthState Health, int Pending, DateTime? LastHeartbeat, AgentState Agent, string? AgentTarget, string? AgentError, DeploymentCounts Counts, Freshness Freshness, DateTime? RestartAt);
+    private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, string AgentVersion, ServerHealthState Health, int Pending, DateTime? LastHeartbeat, AgentState Agent, string? AgentTarget, string? AgentError, DeploymentCounts Counts, Freshness Freshness, DateTime? RestartAt, SUSyphos.Server.Lifecycle.SupportInfo Support, SUSyphos.Server.Security.ServerSecurity Security);
+
+    /// <summary>Build against baseline and open vulnerabilities, as tooltip of the security cell.</summary>
+    private static string SecurityTitle(SUSyphos.Server.Security.ServerSecurity security) => security.Target is { } target
+        ? $"Build {security.Build}.{security.Revision}, baseline {target.Build}.{target.Revision} ({target.Month}); {security.Open.Count} open vulnerabilities, {security.Critical} critical, {security.Exploited} exploited"
+        : "No security baseline: no MSRC data or a Windows version without one";
 
     private static string AgentTitle(Row row) => row.Agent switch
     {
@@ -126,10 +133,12 @@
         new("domain", "Domain", r => r.Domain, r => [r.Domain]),
         new("os", "Operating system", r => r.BuildNumber, r => [r.Os]),
         new("build", "Build", r => r.Build),
+        new("support", "Support", r => r.Support.DaysLeft ?? int.MaxValue, r => [SUSyphos.Server.Lifecycle.SupportLifecycle.Label(r.Support.State)]),
         new("ring", "Ring", r => r.RingOrder, r => [r.Ring]),
         new("group", "Groups", r => r.Groups.FirstOrDefault(), r => r.Groups.Count == 0 ? [string.Empty] : r.Groups),
         new("agent", "Agent", r => AgentVersion.SortKey(r.AgentVersion), r => [AgentVersion.ShortForm(r.AgentVersion), ServerIndicators.Label(r.Agent)]),
         new("status", "Status", r => (int)r.Health, r => [ServerHealth.Label(r.Health)]),
+        new("security", "Security baseline", r => (int)r.Security.State, r => r.Security.Exploited > 0 ? [SUSyphos.Server.Security.SecuritySnapshot.Label(r.Security.State), "Exploited"] : [SUSyphos.Server.Security.SecuritySnapshot.Label(r.Security.State)]),
         new("pending", "Pending updates", r => r.Pending, r => [r.Pending > 0 ? PendingYes : PendingNo]),
         new("seen", "Last heartbeat", r => r.LastHeartbeat, r => [ServerIndicators.Label(r.Freshness)]),
     ];
@@ -265,6 +274,7 @@
         var failed = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
         var pending = entries.Where(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful).GroupBy(e => e.ClientId).ToDictionary(g => g.Key, g => g.Count());
         var now = Time.GetUtcNow().UtcDateTime;
+        var security = await Baseline.LoadAsync(CancellationToken.None);
         var agents = await AgentUpdates.StatesAsync(clients, rings.ToDictionary(r => r.Key, r => r.Value.Order), CancellationToken.None);
         var counts = entries.ToLookup(e => e.ClientId);
 
@@ -276,7 +286,7 @@
                 c.Id,
                 c.HostName,
                 c.DomainName ?? string.Empty,
-                OperatingSystems.Name(c.OsProductName, c.OsVersion),
+                OperatingSystems.Name(c.OsProductName, c.OsVersion, c.OsEditionId),
                 OperatingSystems.Build(c.OsVersion),
                 OperatingSystems.BuildNumber(c.OsVersion) ?? 0,
                 ring?.Name ?? "–",
@@ -292,7 +302,9 @@
                 c.AgentUpdateError,
                 DeploymentCounts.Of(counts[c.Id]),
                 ServerIndicators.Heartbeat(c.LastHeartbeatAtUtc, now),
-                c.RestartAnnouncedAtUtc ?? (c.RestartRequested ? c.PlannedRestartAtUtc : null));
+                c.RestartAnnouncedAtUtc ?? (c.RestartRequested ? c.PlannedRestartAtUtc : null),
+                Lifecycle.Of(c, security.Of(c)),
+                security.Of(c));
         })];
 
         _ringCounts = [.. _rings.Select(r => (r.Id, r.Order, r.Name, clients.Count(c => c.State == RegistrationState.Approved && c.RingId == r.Id)))];

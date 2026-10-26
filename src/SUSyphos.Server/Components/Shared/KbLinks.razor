@@ -1,0 +1,20 @@
+@using SUSyphos.Server.Rollouts
+@* A KB number as link to Microsoft's release notes, with a second link to the Microsoft Update Catalog; both open in a new
+   tab. Renders nothing for a missing or invalid number. *@
+@if (UpdateText.ReleaseNotesLink(Kb) is { } notes)
+{
+    <span class="kb-links">
+        <a href="@notes" target="_blank" rel="noopener noreferrer" title="Release notes of KB@(Kb) at Microsoft">@(Label ?? $"KB{Kb}")</a>
+        <a class="kb-catalog" href="@UpdateText.CatalogLink(Kb)" target="_blank" rel="noopener noreferrer" title="KB@(Kb) in the Microsoft Update Catalog" aria-label="KB@(Kb) in the Microsoft Update Catalog">Catalog</a>
+    </span>
+}
+
+@code {
+    /// <summary>The KB number without "KB".</summary>
+    [Parameter]
+    public string? Kb { get; set; }
+
+    /// <summary>Text of the release notes link; "KB…" by default.</summary>
+    [Parameter]
+    public string? Label { get; set; }
+}

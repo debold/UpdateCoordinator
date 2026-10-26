@@ -36,6 +36,7 @@ Opened from the **Servers** number of an assignment rule, the list shows only th
 |---|---|
 | **Server** | Host name, with the DNS domain below it. The filter of this column filters by domain. |
 | **Operating system** | Windows version and edition, with the build number including the update revision (UBR) below it, for example 10.0.20348.4294. Sorted by build. |
+| **Support** | When Microsoft stops updates for the Windows version of the server (extended support for Windows Server). The date alone while support lasts; amber "Support ending" from 180 days before the end, red "Support ends soon" from 30 days and "Out of support" after it (both thresholds under `Lifecycle` in the configuration). The tooltip says how many days are left; the filter offers the states. The dates come from a table shipped with every release. |
 | **Ring** | The ring the server belongs to, as ring tag. "manual" below it: the ring was set by hand on the server's page and no assignment rule changes it. "–": no ring yet. |
 | **Groups** | The groups the server belongs to (coordination of installations, see [Server groups](help/groups)). |
 | **Agent** | Version of the SUSyphos agent on the server (full version in the tooltip) with a mark before it: a green check means current (no newer version released for its ring), a blue arrow up means an update is available (it installs itself), a red dash means the last update failed, and grey dots mean the version is unknown or too old to update itself. The tooltip of the mark explains it; the filter offers the versions and these states. |

@@ -113,6 +113,7 @@ When the server may install updates. "Inherit from groups or the system default"
 What the agent reported about the server:
 
 - **Operating system**, **Build**, **Domain**, **Roles** (detected roles such as domain controller, SQL Server, Hyper-V).
+- **Support**: the end of support of the Windows version (last day of updates) with the days left, and the end of mainstream support where Microsoft names one; the pill turns amber "Support ending" from 180 days before the end and red from 30 days ("Support ends soon") and after it ("Out of support"). "Unknown" when the shipped table does not know the version.
 - **Update source**: what the agent reports: Microsoft Update (Windows and other Microsoft products, when the agent registered the Microsoft Update service), Windows Update, or WSUS with its address (a warning: the server should not depend on WSUS). A tag "set: …" next to it means the setting differs from what the agent reported last; it applies with the next heartbeat and shows after the next inventory.
 - **Agent update**: installed agent version (opens all servers with this version), a failed agent update with its error, or "below minimum" when the agent is older than the minimum version.
 - **Agent settings**: whether the agent applies the central agent settings as set, or how many differ (usually because the server sets them itself in the registry or by group policy). **Show** opens the [agent settings on the server](#applied-settings).
@@ -128,7 +129,7 @@ Opened with **Show** next to "Agent settings" in the System box. For every agent
 
 ## Missing updates {#missing}
 
-Updates the last search of the agent found missing. **Status**: *Not released* (not released to the server's ring yet), *Pending* (released, waits for the maintenance window), *Failed* (last installation failed). **Earliest installation** is the next possible time; **Result** shows the error code of a failed installation with a plain explanation.
+Where the title carries a KB number, the KB links to Microsoft's release notes and **Catalog** to the Microsoft Update Catalog (also in both histories). Updates the last search of the agent found missing. **Status**: *Not released* (not released to the server's ring yet), *Pending* (released, waits for the maintenance window), *Failed* (last installation failed). **Earliest installation** is the next possible time; **Result** shows the error code of a failed installation with a plain explanation.
 
 ## Pre-flight checks {#checks}
 
