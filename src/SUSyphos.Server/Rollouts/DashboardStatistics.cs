@@ -19,6 +19,9 @@ public enum StatisticKind
     TimeToInstall,
     Restarts,
     Errors,
+    SecurityBaseline,
+    Vulnerabilities,
+    SecurityDuration,
 }
 
 public enum ChartForm
@@ -54,7 +57,7 @@ public sealed record ChartData(StatisticKind Kind, ChartForm Form, IReadOnlyList
 /// Builds the data of the overview chart from what the central server keeps: the daily snapshots, the update catalog,
 /// installations, the Windows Update history and the activity list. Up to 90 days per day, longer periods per week.
 /// </summary>
-internal sealed class DashboardStatistics(ServerDbContext db, ComplianceHistory history, TimeProvider timeProvider)
+internal sealed class DashboardStatistics(ServerDbContext db, ComplianceHistory history, TimeProvider timeProvider, Security.SecurityBaseline? baseline = null, Lifecycle.SupportLifecycle? lifecycle = null)
 {
     public static readonly IReadOnlyList<int> Periods = [30, 90, 365];
 
@@ -68,6 +71,9 @@ internal sealed class DashboardStatistics(ServerDbContext db, ComplianceHistory 
         (StatisticKind.TimeToInstall, "time-to-install", "Time from release to installation"),
         (StatisticKind.Restarts, "restarts", "Restarts"),
         (StatisticKind.Errors, "errors", "Most frequent error codes"),
+        (StatisticKind.SecurityBaseline, "security-baseline", "Security baseline"),
+        (StatisticKind.Vulnerabilities, "vulnerabilities", "Open vulnerabilities"),
+        (StatisticKind.SecurityDuration, "security-duration", "Patch day to installation by Windows version"),
     ];
 
     /// <summary>Classifications in a fixed colour order, so a classification keeps its colour whatever else is shown.</summary>
@@ -90,6 +96,9 @@ internal sealed class DashboardStatistics(ServerDbContext db, ComplianceHistory 
             StatisticKind.TimeToInstall => await TimeToInstallAsync(buckets, cancellationToken).ConfigureAwait(false),
             StatisticKind.Restarts => await RestartsAsync(buckets, cancellationToken).ConfigureAwait(false),
             StatisticKind.Errors => await ErrorsAsync(buckets[0].From, cancellationToken).ConfigureAwait(false),
+            StatisticKind.SecurityBaseline => await SecurityBaselineAsync(buckets, days, cancellationToken).ConfigureAwait(false),
+            StatisticKind.Vulnerabilities => await VulnerabilitiesAsync(buckets, days, cancellationToken).ConfigureAwait(false),
+            StatisticKind.SecurityDuration => await SecurityDurationAsync(cancellationToken).ConfigureAwait(false),
             _ => await ComplianceAsync(buckets, days, cancellationToken).ConfigureAwait(false),
         };
     }
@@ -302,6 +311,62 @@ internal sealed class DashboardStatistics(ServerDbContext db, ComplianceHistory 
             string.Empty,
             null,
             "Server starts the agents reported (the activity list keeps 90 days). A restart within a day after a SUSyphos installation that needed one, or after a requested restart, counts as SUSyphos'.");
+    }
+
+    private async Task<ChartData> SecurityBaselineAsync(List<(DateOnly From, DateOnly To)> buckets, int days, CancellationToken cancellationToken)
+    {
+        var snapshots = await SnapshotsAsync(buckets, days, cancellationToken).ConfigureAwait(false);
+        return new ChartData(
+            StatisticKind.SecurityBaseline,
+            ChartForm.Lines,
+            Labels(buckets),
+            [new ChartSeries("On the security baseline", "s1", [.. snapshots.Select(s => s is { BaselineCurrent: { } current, BaselineKnown: > 0 and var known } ? Math.Round(100.0 * current / known, 1) : (double?)null)])],
+            "%",
+            100,
+            "Share of the servers on the newest security build of their Windows version (MSRC), of the servers it can be checked for (recorded from version 0.7.9 on).");
+    }
+
+    private async Task<ChartData> VulnerabilitiesAsync(List<(DateOnly From, DateOnly To)> buckets, int days, CancellationToken cancellationToken)
+    {
+        var snapshots = await SnapshotsAsync(buckets, days, cancellationToken).ConfigureAwait(false);
+        return new ChartData(
+            StatisticKind.Vulnerabilities,
+            ChartForm.Lines,
+            Labels(buckets),
+            [
+                new ChartSeries("Open (server × CVE)", "queue", [.. snapshots.Select(s => (double?)s?.OpenVulnerabilities)]),
+                new ChartSeries("Of those exploited", "fail", [.. snapshots.Select(s => (double?)s?.OpenExploited)]),
+            ],
+            string.Empty,
+            null,
+            "Vulnerabilities open on the servers per day, each server counted once per CVE; exploited: Microsoft knows of attacks (recorded from version 0.7.9 on).");
+    }
+
+    private async Task<ChartData> SecurityDurationAsync(CancellationToken cancellationToken)
+    {
+        if (baseline is null || lifecycle is null)
+        {
+            return DurationChart([]);
+        }
+
+        var clients = await db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var snapshot = await baseline.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var medians = await Security.SecurityReport.MedianDaysAsync(db, snapshot, clients, cancellationToken).ConfigureAwait(false);
+        return DurationChart(Security.SecurityReport.Versions(clients, snapshot, lifecycle, medians));
+    }
+
+    /// <summary>Median days from patch day to installation per Windows version, as ranking (also on the page "Operating systems").</summary>
+    internal static ChartData DurationChart(IReadOnlyList<Security.VersionRow> versions)
+    {
+        var known = versions.Where(v => v.MedianDays is not null).OrderByDescending(v => v.MedianDays).ToList();
+        return new ChartData(
+            StatisticKind.SecurityDuration,
+            ChartForm.Ranking,
+            [.. known.Select(v => v.Name)],
+            known.Count == 0 ? [] : [new ChartSeries("Median days", "s1", [.. known.Select(v => (double?)Math.Round(v.MedianDays!.Value, 1))])],
+            "days",
+            null,
+            "Median days from the release of a security baseline (patch day) to its installation on the servers of each Windows version, for the months the central server keeps (MSRC).");
     }
 
     private async Task<ChartData> ErrorsAsync(DateOnly fromDay, CancellationToken cancellationToken)

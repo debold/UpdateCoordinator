@@ -452,7 +452,7 @@ details.multi:has(input[data-i='63']:checked) .tag.pick[data-i='63'] { display: 
 th.select, td.select { width: 1%; }
 .note.break { white-space: normal; overflow-wrap: anywhere; max-width: 14rem; }
 /* Filters of the last columns open to the left, so they stay inside the window. */
-th:nth-last-child(-n+3) .filter-pop { left: auto; right: 0.5rem; }
+th:nth-last-child(-n+5) .filter-pop, details.col-filter.open-left .filter-pop { left: auto; right: 0.5rem; }
 
 /* Help: "?" links next to titles and fields, and the help pages. */
 .help-link { display: inline-flex; align-items: center; justify-content: center; width: 1.05rem; height: 1.05rem; margin-left: 0.4rem; border: 1px solid var(--border); border-radius: 50%; color: var(--muted); background: var(--surface); font-size: 0.68rem; font-weight: 700; line-height: 1; vertical-align: 0.15em; text-decoration: none; flex: none; }
@@ -619,3 +619,8 @@ fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: cent
 .kb-links { display: inline-flex; align-items: baseline; gap: 0.4rem; white-space: nowrap; }
 .kb-links .kb-catalog { font-size: 0.78rem; color: var(--muted); }
 .kb-links .kb-catalog:hover { color: var(--accent); }
+/* Share of servers on the security baseline, a thin bar next to the percentage. */
+.share-bar { width: 5rem; height: 8px; vertical-align: middle; }
+.share-bar .track { fill: var(--line); }
+.share-bar .ok { fill: var(--ok); }
+.share-bar .queue { fill: var(--queue); }

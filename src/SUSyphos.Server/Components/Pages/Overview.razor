@@ -62,6 +62,10 @@
         <TileValue Value="@DisplayNumber.Percent(_compliancePercent)" Caption="released installed" />
         <TileValue Value="@DisplayNumber.Percent(_fullyPatchedPercent)" Caption="fully patched" />
     </Tile>
+    <Tile Title="Security baseline" Href="/operating-systems" Edge="@(_securityExploited > 0 ? "fail" : _securityCurrent < _securityKnown ? "queue" : null)" Footer="@(_securityKnown == 0 ? "no security data from Microsoft (MSRC)" : "servers on the newest security build of their version")">
+        <TileValue>@DisplayNumber.Format(_securityCurrent) <small>/ @DisplayNumber.Format(_securityKnown)</small></TileValue>
+        <TileValue Value="@DisplayNumber.Format(_securityExploited)" Caption="exploited" />
+    </Tile>
     @if (_coverage.ReadAtUtc is not null)
     {
         <Tile Title="AD coverage" Href="/coverage" Edge="@(_coverage.Missing.Count > 0 ? "queue" : null)" Footer="@($"server accounts running an agent; {DisplayNumber.Format(_coverage.Missing.Count)} without")">
@@ -205,6 +209,9 @@
     private int _warningServers;
     private int _offlineServers;
     private SUSyphos.Server.Security.SecuritySnapshot _security = SUSyphos.Server.Security.SecuritySnapshot.Empty;
+    private int _securityCurrent;
+    private int _securityKnown;
+    private int _securityExploited;
     private IReadOnlyList<DonutPart> _statusParts = [];
     private SUSyphos.Server.AgentPackages.ServerUpdate? _serverUpdate;
 
@@ -289,6 +296,10 @@
         _compliancePercent = _approved == 0 ? 100 : (int)Math.Floor(100.0 * clients.Count(c => !released.Any(e => e.ClientId == c.Id)) / _approved);
 
         _security = await Baseline.LoadAsync(CancellationToken.None);
+        var securityStates = clients.Select(_security.Of).ToList();
+        _securityKnown = securityStates.Count(s => s.State != SUSyphos.Server.Security.BaselineState.Unknown);
+        _securityCurrent = securityStates.Count(s => s.State == SUSyphos.Server.Security.BaselineState.Current);
+        _securityExploited = securityStates.Count(s => s.Exploited > 0);
         await LoadAttentionAsync(health, clients);
         await LoadRingsAsync(clients, entries);
         _coverage = await CoverageReader.GetReportAsync(CancellationToken.None);
@@ -340,6 +351,27 @@
         foreach (var group in await Db.Groups.AsNoTracking().Where(g => g.LeasesHalted).ToListAsync())
         {
             _attention.Add(new AttentionItem("Lease", "fail", $"Group {group.Name}: {group.ConsecutiveLeaseFailures} leases in a row failed or expired", "The central server issues no leases for this group until an operator resumes it.", "/approvals", "Review"));
+        }
+
+        // Security baseline (Marc, 2026-10-26): exploited vulnerabilities, servers behind a baseline released longer ago than
+        // the absolute threshold, and a large share of servers behind (relative threshold).
+        var security = clients.Select(_security.Of).ToList();
+        var behindDays = await Baseline.BehindDaysAsync(CancellationToken.None);
+        if (security.Count(s => s.Exploited > 0) is > 0 and var exploited)
+        {
+            _attention.Add(new AttentionItem("Security", "fail", $"{exploited} servers have a vulnerability Microsoft knows to be exploited", "Install the security baseline on them first.", Servers.Link("security", "Exploited"), "Show servers"));
+        }
+
+        if (security.Count(s => s.Missing is { } missing && _now - missing.ReleasedAtUtc > TimeSpan.FromDays(behindDays)) is > 0 and var late)
+        {
+            _attention.Add(new AttentionItem("Security", "queue", $"{late} servers miss a security baseline released more than {behindDays} days ago", "Longer than the way through the rings takes; check their maintenance windows and failures.", Servers.Link("security", SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.OneBehind), SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.TwoBehind)), "Show servers"));
+        }
+
+        var known = security.Count(s => s.State != SUSyphos.Server.Security.BaselineState.Unknown);
+        var behind = security.Count(s => s.State is SUSyphos.Server.Security.BaselineState.OneBehind or SUSyphos.Server.Security.BaselineState.TwoBehind);
+        if (known > 0 && DisplayNumber.Share(behind, known) is { } share && share >= Baseline.BehindPercent)
+        {
+            _attention.Add(new AttentionItem("Security", "queue", $"{share} % of the servers are behind the security baseline", $"{behind} of {known} servers; the threshold is {Baseline.BehindPercent} %.", "/operating-systems", "Show versions"));
         }
 
         // End of support (Marc, 2026-10-26): red without ESU after the first missed patch day, amber shortly before the end and

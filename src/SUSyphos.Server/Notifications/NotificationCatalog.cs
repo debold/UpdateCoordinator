@@ -40,7 +40,7 @@ internal static class NotificationCatalog
         new(NotificationKind.PreFlightFailed, NotificationCategory.Recommended, "Pre-flight check failed", "A pre-flight check failed on a server (for example disk space or the Windows Update service); it installs nothing until fixed."),
         new(NotificationKind.RebootPendingLong, NotificationCategory.Recommended, "Restart pending for long", "A server has been waiting for a restart for longer than the days set below."),
         new(NotificationKind.InstalledOutside, NotificationCategory.Recommended, "Installation outside SUSyphos", "Windows or an administrator installed an update outside SUSyphos, or Windows is set to install on its own."),
-        new(NotificationKind.SupportEnding, NotificationCategory.Recommended, "Support ending", "The Windows version of a server reaches its end of support within the warning days (180 by default), or has passed it; sent again when it gets close (30 days) and when it ends."),
+        new(NotificationKind.SupportEnding, NotificationCategory.Recommended, "Support ending", "The Windows version of a server reaches its end of support within the warning days (180 by default), or has passed it without Extended Security Updates found."),
         new(NotificationKind.CertificateChanged, NotificationCategory.Recommended, "Certificate changed", "The central server switched to another TLS certificate."),
         new(NotificationKind.ServerVersionAvailable, NotificationCategory.Recommended, "New central server version", "A newer central server release is available."),
         new(NotificationKind.AdminChanged, NotificationCategory.Recommended, "Administration changed", "An account was created, deleted or got another role, or an AD group was mapped or removed."),

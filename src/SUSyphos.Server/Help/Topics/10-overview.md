@@ -22,6 +22,7 @@ Each tile has a title, the values in the middle and one line of context at the b
 | **Pending updates** | Released installations not done yet (server × update) and the servers that still miss at least one update released for their ring; they install in the next maintenance window of each server. |
 | **Server status** | Approved servers by status as a donut (OK, Updating, Reboot pending, Warning, Failed, Offline); each entry of the legend opens the server list filtered to that status. Failed means the last installation or a pre-flight check failed (for example not enough disk space or a stopped Windows Update service). The footer counts the warnings: update source WSUS, Windows installs updates on its own (Automatic Updates), low disk space, reboot pending. |
 | **Compliance** | Released installed (patch compliance): share of approved servers that have every update released for their ring installed. Fully patched: share whose update search reports no missing update at all, also none the rings still hold back. The difference is what the rings deliberately hold back. |
+| **Security baseline** | Servers on the newest security build of their Windows version, of all servers it can be checked for, and how many have a vulnerability Microsoft knows to be exploited (red edge then); **Show ›** opens [Operating systems](help/operating-systems). |
 | **AD coverage** | Only when the directory was read: supported server accounts in Active Directory that run an agent, of all supported accounts. Opens the [AD coverage](help/coverage) list. |
 | **Central server** | Up to date or Update available, with the version this central server runs; **Show ›** opens it on the [Agents](help/agents#server) page with the download. |
 
@@ -44,7 +45,8 @@ Everything that waits for a human decision or points to a problem, each with a b
 - **Registration**: new servers wait for approval.
 - **Lease**: the installations of a group failed or expired several times in a row; the central server issues no new installation slots for the group until an operator resumes it.
 - **Failed** and **Offline**: servers with a failed installation or without a heartbeat for over an hour.
-- **Support**: servers whose Windows version is out of support or loses it within 30 days (red), or within 180 days (amber); **Show servers** opens the server list filtered to them.
+- **Support**: servers without Extended Security Updates after the end of support (red, "No ESU"), servers past the end without ESU found yet (amber) and servers whose support ends within 180 days (amber); **Show servers** opens the server list filtered to them.
+- **Security**: servers with a vulnerability Microsoft knows to be exploited (red), servers missing a security baseline released longer ago than the way through the rings takes (amber; the maximum waits of all transitions plus a week, or `Security:BehindDays`), and a share of servers behind the baseline of at least 20 % (amber, `Security:BehindPercent`); see [Operating systems](help/operating-systems).
 - **Update**: a newer version of the central server is available; **Show** opens it on the [Agents](help/agents#server) page with the download.
 
 "Nothing waits for a human decision" means the list is empty.
@@ -65,5 +67,8 @@ Released updates that are not installed everywhere yet, ordered by the earliest 
 - **Time from release to installation**: median days from the release in a ring to the installation by SUSyphos, one line per ring.
 - **Restarts**: server starts per day, those after a SUSyphos installation that needed one or a requested restart apart from the others (the activity list keeps 90 days).
 - **Most frequent error codes**: the ten most frequent error codes of failed installations in the period, with their explanation.
+- **Security baseline**: share of the servers on the newest security build of their Windows version per day.
+- **Open vulnerabilities**: open server × CVE pairs per day, and of those exploited ones.
+- **Patch day to installation by Windows version**: median days from the release of a security baseline to its installation, per version.
 
 The central server records the daily values (status, fully patched, open updates) from version 0.7.7 on, so those charts fill from then.

@@ -7,6 +7,7 @@
 @inject RolloutService Rollouts
 @inject RolloutAdministration Administration
 @inject NavigationManager Navigation
+@inject SUSyphos.Server.Security.SecurityBaseline Baseline
 @inject TimeProvider Time
 @inject SUSyphos.Server.Agents.AgentActionService Actions
 
@@ -123,6 +124,33 @@ else
             <p><span class="pill queue">no start rule matches</span> The update stays queued until an operator starts it or a matching rule is created.</p>
         }
     </Box>
+
+    @if (_fixes.Count > 0)
+    {
+        <Box Title="Fixes vulnerabilities" Anchor="vulnerabilities" Help="update-detail#vulnerabilities" Hint="@($"{_fixes.Count} CVEs on Windows Server, from Microsoft (MSRC)")" Flush="true">
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>CVE</th><th>Title</th><th>Severity</th><th class="n">CVSS</th><th>Exploit</th></tr></thead>
+                    <tbody>
+                        @foreach (var vulnerability in _fixes.Take(100))
+                        {
+                            <tr>
+                                <td class="nowrap"><a href="@($"https://msrc.microsoft.com/update-guide/vulnerability/{Uri.EscapeDataString(vulnerability.Cve)}")" target="_blank" rel="noopener noreferrer">@vulnerability.Cve</a></td>
+                                <td class="wrap">@vulnerability.Title</td>
+                                <td>@if (vulnerability.Severity is { } severity) { <span class="pill @(severity == "Critical" ? "fail" : severity == "Important" ? "queue" : "neutral")">@severity</span> }</td>
+                                <td class="n">@(vulnerability.CvssScore?.ToString("0.0", DisplayNumber.Culture) ?? "–")</td>
+                                <td>@if (vulnerability.Exploited) { <span class="pill fail">Exploited</span> } else if (vulnerability.PubliclyDisclosed) { <span class="pill queue">Disclosed</span> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (_fixes.Count > 100)
+            {
+                <div class="box-body note">and @(_fixes.Count - 100) more.</div>
+            }
+        </Box>
+    }
 
     <div class="grid-side">
         <Box Title="Progress by ring" Help="update-detail#progress" Flush="true">            <div class="scroll">
@@ -316,6 +344,7 @@ else
     private string? Tab { get; set; }
 
     private string _tab = "overview";
+    private IReadOnlyList<SecurityVulnerabilityEntity> _fixes = [];
     private bool _canAdminister;
 
     private static readonly IReadOnlyList<(string Key, string Label)> Tabs = [("overview", "Overview"), ("servers", "Servers"), ("timeline", "Timeline")];
@@ -409,6 +438,7 @@ else
         }
 
         _rollout = await Db.Rollouts.AsNoTracking().SingleOrDefaultAsync(r => r.UpdateId == UpdateId && r.Revision == Revision);
+        _fixes = (await Baseline.LoadAsync(CancellationToken.None)).FixedBy(_update.KbArticle).OrderByDescending(v => v.Exploited).ThenByDescending(v => v.CvssScore ?? 0).ToList();
         _supersededBy = (await Supersedence.NewerAsync(Db, [UpdateId])).GetValueOrDefault(UpdateId);
         var approvedClients = Db.Clients.Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).Select(c => c.Id);
         _installedOn = await Db.ClientUpdates.Where(u => u.UpdateId == UpdateId && approvedClients.Contains(u.ClientId)).Select(u => u.ClientId).Distinct().CountAsync();

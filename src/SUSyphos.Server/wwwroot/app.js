@@ -282,6 +282,33 @@
         });
     }
 
+    // A column filter that would open beyond the right edge of the window opens to the left instead.
+    for (const filter of document.querySelectorAll('details.col-filter')) {
+        filter.addEventListener('toggle', () => {
+            if (!filter.open) {
+                return;
+            }
+
+            filter.classList.remove('open-left');
+            const pop = filter.querySelector('.filter-pop');
+            if (!pop) {
+                return;
+            }
+
+            pop.style.transform = '';
+            const width = document.documentElement.clientWidth;
+            if (pop.getBoundingClientRect().right > width) {
+                filter.classList.add('open-left');
+            }
+
+            // Still beyond the edge (the table scrolls sideways in a narrow window): moved back into view.
+            const overflow = pop.getBoundingClientRect().right - width + 8;
+            if (overflow > 0) {
+                pop.style.transform = `translateX(-${Math.ceil(overflow)}px)`;
+            }
+        });
+    }
+
     // Drop-down buttons open without script (a disclosure); with it, only one is open at a time and a click elsewhere or
     // Esc closes them.
     const closeMenus = (except) => {

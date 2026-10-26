@@ -4,7 +4,7 @@ namespace SUSyphos.Server.Components.Shared;
 public static class PageIcons
 {
     public const string Overview = "layout-dashboard";
-    public const string Rings = "target";
+    public const string OperatingSystems = "shield-alert";
     public const string Servers = "server";
     public const string Updates = "package";
     public const string Approvals = "user-check";

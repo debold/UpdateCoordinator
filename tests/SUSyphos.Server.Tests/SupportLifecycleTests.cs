@@ -115,6 +115,29 @@ public sealed class SupportLifecycleTests
     public void KbNumber_IsFoundInTitles(string title, string? kb) => Assert.Equal(kb, UpdateText.KbIn(title));
 
     [Fact]
+    public async Task Inventory_StoresTheEsuSigns_AndKeepsThemWhenAnOldAgentSendsNone()
+    {
+        await using var factory = new ServerFactory();
+        using var browser = new DashboardClient(factory);
+        var credentials = await RegisterTests.RegisterAsync(browser.Http);
+        var inventory = InventoryTests.ValidInventory() with { ExtendedSecurityUpdates = new SUSyphos.Contracts.Agents.ExtendedSecurityUpdatesInfo { KeyLicensed = false, AzureArc = true, Azure = null } };
+
+        using (await InventoryTests.SendAsync(browser.Http, credentials, inventory))
+        {
+        }
+
+        using (await InventoryTests.SendAsync(browser.Http, credentials, InventoryTests.ValidInventory()))
+        {
+        }
+
+        var client = await factory.WithDbAsync(db => db.Clients.SingleAsync(c => c.Id == credentials.ClientId, TestContext.Current.CancellationToken));
+        Assert.Equal(false, client.EsuKey);
+        Assert.Equal(true, client.AzureArc);
+        Assert.Null(client.Azure);
+        Assert.Equal(EsuSource.AzureArc, SupportLifecycle.Detected(client.EsuKey, client.AzureArc, client.Azure));
+    }
+
+    [Fact]
     public async Task Pages_ShowSupport_AndTheOverviewAndNotificationsWarn()
     {
         await using var scenario = await RolloutScenario.CreateAsync();

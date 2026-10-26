@@ -26,6 +26,7 @@
 | Agent | New central server | HTTPS, `GET /api/v1/trust/binding`, then `GET /api/v1/agents/releases` | while a move is announced, until it succeeds (retried every 15 min) | verifies the same trust anchor and that the new server knows the agent before switching (section 19, move) |
 | Central server | Backup folder (local disk or SMB share) | file system / SMB, as LocalSystem (computer account) | daily at the configured time, if the scheduled backup is on | encrypted backup archives (section 19) |
 | Central server | GitHub (`api.github.com`, `github.com` and its download storage) | HTTPS | daily and on "Check for new versions now" (`AgentPackages:CheckEnabled`) | new agent versions of the project; downloaded and verified, never released automatically |
+| Central server | Microsoft Security Update Guide (`api.msrc.microsoft.com`) | HTTPS | daily, every two hours from the patch day to two days after, and on "Fetch security data now" (`Msrc:Enabled`) | security baselines and vulnerabilities of the Windows Server versions (section 16) |
 | Agent | Windows Update (or WSUS) | HTTPS, via the Windows Update Agent API | during the update search | search for available updates; the agent itself contacts no other internet address |
 | Admin browser | Central server | HTTPS | on demand | dashboard and administration |
 | Central server | SMTP server | SMTP with STARTTLS (587), TLS (465) or plain (internal relay) | when new events occur (checked every minute) | e-mail notifications (section 20) |
@@ -373,12 +374,28 @@ If the central server is a domain member, it reads the enabled server computer a
 
 ### End of support
 
-The central server knows when Microsoft stops updates for each Windows version (Windows Server 2016 to 2025, and Windows 10 and 11 by edition), from a table shipped with every release (`Lifecycle/lifecycle.json`, built in; it needs no internet access). The version is recognised by the build and edition the agent reports. The server list has a **Support** column with filter, the server page shows the date in its System box, the overview lists servers close to or past the end under "Needs attention", and the notification "Support ending" (recommended) is sent when a server enters the warning time, again at the critical time and when support has ended.
+The central server knows when Microsoft stops updates for each Windows version (Windows Server 2016 to 2025, and Windows 10 and 11 by edition), from a table shipped with every release (`Lifecycle/lifecycle.json`, built in; it needs no internet access). The version is recognised by the build and edition the agent reports. Phases (Marc, 2026-10-26): "Supported" (mainstream) and "Security only" (extended support) in green; "Ending soon" in amber from `Lifecycle:WarningDays` before the end; after the end with Extended Security Updates "ESU (key)", "ESU (Azure Arc)", "ESU (Azure)" or "ESU, inferred from updates" in amber; "Support ended" in amber while no ESU is found and the first patch day after the end has not passed; "No ESU" in red after it. The server list shows the phase below the operating system, the server page in its System box and Security tab, the overview lists "Ending soon", "Support ended" and "No ESU" under "Needs attention", and the notification "Support ending" (recommended) goes out for each of them.
+
+The agent (from 0.7.9) reports with its inventory, read only: an installed and licensed ESU key (WMI `SoftwareLicensingProduct` whose name contains "ESU"), a running Azure Connected Machine agent (service `himds`, Azure Arc) and the SMBIOS asset tag of an Azure virtual machine. ESU through Azure Arc is taken from the running agent; whether the ESU license is assigned in Azure cannot be read locally, so a server keeping its security updates after the end ("inferred") is the fallback evidence.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `Lifecycle:WarningDays` | `180` | amber "Support ending" from this many days before the end (1 to 3650) |
-| `Lifecycle:CriticalDays` | `30` | red "Support ends soon" from this many days before the end (0 to 3650); after the end "Out of support" |
+| `Lifecycle:WarningDays` | `180` | "Ending soon" from this many days before the end (1 to 3650) |
+
+### Security baseline (MSRC)
+
+The central server reads the security data of the last months from the Microsoft Security Update Guide (`https://api.msrc.microsoft.com/cvrf/v3.0/`, HTTPS, no key): daily, every two hours from the patch day to two days after. A monthly document (20 to 30 MB) is fetched again only when Microsoft changed it. From it come per Windows Server version the security baseline (the newest build with security fixes) and per vulnerability severity, CVSS, impact, exploited and disclosed, and the fixing build and KB. The agent's build and update revision (`CurrentBuild.UBR`, in the OS version it reports) decide whether a server is current, 1 or 2 or more baselines behind, and which vulnerabilities are open on it. Shown on the page **Operating systems**, as overview tile, in the server list (Security column), on the server page (Security tab), on the update page (Fixes vulnerabilities), in three statistics and under "Needs attention". Without internet access switch it off; the end of support keeps working.
+
+Outgoing connection: central server → `api.msrc.microsoft.com` (TCP 443), through the proxy of the service account if one is set.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Msrc:Enabled` | `true` | `false` for a central server without internet access |
+| `Msrc:Months` | `3` | monthly documents kept (1 to 12) |
+| `Msrc:Interval` | `1.00:00:00` | fetch interval outside the patch days (1 hour to 7 days) |
+| `Msrc:PatchDayInterval` | `02:00:00` | fetch interval from the patch day to two days after (15 minutes to 1 day) |
+| `Security:BehindDays` | (rings) | servers missing a baseline released longer ago need attention; empty: maximum waits of all ring transitions plus 7 days |
+| `Security:BehindPercent` | `20` | the overview also warns when this share of the servers is behind (percent) |
 
 ## 17. Installation (MSI)
 

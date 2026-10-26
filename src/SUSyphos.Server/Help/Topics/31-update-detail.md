@@ -50,6 +50,10 @@ Administrators also have **Create release rule from this update…**, which open
 
 Which start rule started the rollout and when, or, before a rollout, which rule would decide now (with its mode: automatic with delay, or manual start). "No start rule matches" means the update stays queued until an operator starts it. Start rules decide only once; changing a rule later does not change running rollouts.
 
+## Fixes vulnerabilities {#vulnerabilities}
+
+Shown when Microsoft lists Windows Server vulnerabilities this update (by its KB) fixes: **CVE** (opens Microsoft's description), **Title**, **Severity**, **CVSS** and **Exploit** (Exploited, Disclosed), exploited first. The data comes from the Security Update Guide, see [Operating systems](help/operating-systems#data).
+
 ## Progress by ring {#progress}
 
 One row per ring, with the ring tag first; it opens the Servers tab filtered to the servers of that ring.

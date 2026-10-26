@@ -181,6 +181,36 @@ public sealed class InventoryCollectorTests
         Assert.Equal(expected, inventory.UpdateSource.MicrosoftUpdateRegistered);
     }
 
+    [Fact]
+    public async Task Inventory_ReportsTheSignsOfExtendedSecurityUpdates()
+    {
+        var esu = new FakeEsuProbe(new ExtendedSecurityUpdatesInfo { KeyLicensed = true, AzureArc = false, Azure = null });
+        var collector = new InventoryCollector(_probe, _updates, new RoleDetector(_probe, Options.Create(new InventoryOptions())), new FakeEnvironment(), esu: esu);
+
+        var inventory = await collector.CollectAsync(TestContext.Current.CancellationToken);
+        var without = await new InventoryCollector(_probe, _updates, new RoleDetector(_probe, Options.Create(new InventoryOptions())), new FakeEnvironment()).CollectAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(true, inventory.ExtendedSecurityUpdates?.KeyLicensed);
+        Assert.Equal(false, inventory.ExtendedSecurityUpdates?.AzureArc);
+        Assert.Null(inventory.ExtendedSecurityUpdates?.Azure);
+        Assert.Null(without.ExtendedSecurityUpdates);
+    }
+
+    [Fact]
+    public void WmiProbe_ReadsWithoutThrowing()
+    {
+        // Read only: WMI licenses, the himds service and the chassis asset tag of this machine.
+        var info = new WmiEsuProbe(Microsoft.Extensions.Logging.Abstractions.NullLogger<WmiEsuProbe>.Instance).Read();
+
+        Assert.NotNull(info);
+        Assert.NotEqual(true, info.Azure);
+    }
+
+    private sealed class FakeEsuProbe(ExtendedSecurityUpdatesInfo info) : IEsuProbe
+    {
+        public ExtendedSecurityUpdatesInfo Read() => info;
+    }
+
     private Task<InventoryRequest> CollectAsync()
     {
         var environment = new FakeEnvironment();

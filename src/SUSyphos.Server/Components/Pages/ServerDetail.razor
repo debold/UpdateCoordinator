@@ -13,6 +13,7 @@
 @inject SUSyphos.Server.Agents.GlobalPause Pause
 @inject SUSyphos.Server.AgentPackages.AgentUpdateService AgentUpdates
 @inject SUSyphos.Server.Lifecycle.SupportLifecycle Support
+@inject SUSyphos.Server.Security.SecurityBaseline Baseline
 
 <PageTitle>@(_client?.HostName ?? "Server")</PageTitle>
 
@@ -210,6 +211,47 @@ else
                 </tr>
             </Row>
         </ListTable>
+    </Box>
+    }
+    else if (_tab == ServerPage.Security)
+    {
+    <Box Title="Security baseline" Anchor="security" Help="server-detail#security" Hint="the build of the server against the newest security build of its Windows version (MSRC)">
+        <dl class="facts">
+            <dt>State</dt><dd><StatusTag Text="@SUSyphos.Server.Security.SecuritySnapshot.Label(_serverSecurity.State)" Kind="@SUSyphos.Server.Security.SecuritySnapshot.Class(_serverSecurity.State)" />@if (_serverSecurity.State == SUSyphos.Server.Security.BaselineState.Unknown) { <span class="note">@(_securityHasData ? "Microsoft publishes no security builds for this Windows version" : "no security data from Microsoft (MSRC) yet")</span> }</dd>
+            <dt>Build of the server</dt><dd class="mono">@OperatingSystems.Build(_client.OsVersion)</dd>
+            <dt>Baseline</dt><dd>@if (_serverSecurity.Target is { } target) { <span class="mono">@target.Build.@target.Revision</span> <span>from @target.Month, released @Format(target.ReleasedAtUtc)</span> <KbLinks Kb="@target.Kb" /> } else { <span>–</span> }</dd>
+            @if (_serverSecurity.Missing is { } missing)
+            {
+                <dt>Behind since</dt><dd>@Format(missing.ReleasedAtUtc) (@DisplayNumber.Format((int)(_now - missing.ReleasedAtUtc).TotalDays) days): the baseline of @missing.Month is missing; <KbLinks Kb="@missing.Kb" /> closes it</dd>
+            }
+            <dt>Support</dt><dd>@{ var supportInfo = Support.Of(_client, _serverSecurity); }<StatusTag Text="@supportInfo.Label" Kind="@SUSyphos.Server.Lifecycle.SupportLifecycle.Class(supportInfo.State)" /> <span>@SUSyphos.Server.Lifecycle.SupportLifecycle.Describe(supportInfo)</span></dd>
+            <dt>Extended Security Updates</dt><dd>@EsuText</dd>
+        </dl>
+    </Box>
+
+    <Box Title="Open vulnerabilities" Anchor="vulnerabilities" Help="server-detail#vulnerabilities" Hint="fixed in a later build than the server runs; exploited first" Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>CVE</th><th>Title</th><th>Severity</th><th class="n">CVSS</th><th>Exploit</th><th>Fixed by</th></tr></thead>
+                <tbody>
+                    @if (_serverSecurity.Open.Count == 0)
+                    {
+                        <tr><td colspan="6" class="note">@(_serverSecurity.State == SUSyphos.Server.Security.BaselineState.Unknown ? "Unknown without security data for this Windows version." : "No vulnerability is open on this server.")</td></tr>
+                    }
+                    @foreach (var vulnerability in _serverSecurity.Open.Take(200))
+                    {
+                        <tr>
+                            <td class="nowrap"><a href="@($"https://msrc.microsoft.com/update-guide/vulnerability/{Uri.EscapeDataString(vulnerability.Cve)}")" target="_blank" rel="noopener noreferrer">@vulnerability.Cve</a></td>
+                            <td class="wrap">@vulnerability.Title</td>
+                            <td>@if (vulnerability.Severity is { } severity) { <span class="pill @(severity == "Critical" ? "fail" : severity == "Important" ? "queue" : "neutral")">@severity</span> }</td>
+                            <td class="n">@(vulnerability.CvssScore?.ToString("0.0", DisplayNumber.Culture) ?? "–")</td>
+                            <td>@if (vulnerability.Exploited) { <span class="pill fail">Exploited</span> } else if (vulnerability.PubliclyDisclosed) { <span class="pill queue">Disclosed</span> }</td>
+                            <td class="nowrap"><KbLinks Kb="@_securityFixes.GetValueOrDefault(vulnerability.Cve)" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     </Box>
     }
     else if (_tab == ServerPage.History)
@@ -569,6 +611,14 @@ else
 
     private string _tab = ServerPage.Overview;
     private bool _canAdminister;
+    private SUSyphos.Server.Security.ServerSecurity _serverSecurity = SUSyphos.Server.Security.ServerSecurity.Unknown;
+    private Dictionary<string, string?> _securityFixes = [];
+    private bool _securityHasData;
+
+    /// <summary>What the agent found about Extended Security Updates.</summary>
+    private string EsuText => _client is null || (_client.EsuKey is null && _client.AzureArc is null && _client.Azure is null)
+        ? "reported by agents from version 0.7.9"
+        : string.Join("; ", new[] { _client.EsuKey == true ? "ESU key licensed" : null, _client.AzureArc == true ? "Azure Arc agent running" : null, _client.Azure == true ? "runs in Azure" : null }.Where(s => s is not null)) is { Length: > 0 } found ? found : "nothing found (no ESU key, no Azure Arc agent, not in Azure)";
     private DateTime _now;
     private const string AdministratorsOnly = "Only administrators can do this";
 
@@ -577,6 +627,7 @@ else
     {
         ServerPage.Overview when _client?.HealthChecks.Any(c => c.Status == (int)SUSyphos.Contracts.Agents.HealthStatus.Failed) == true => new TabItem(t.Key, t.Label, "!", "fail"),
         ServerPage.Updates when _open.Count > 0 => new TabItem(t.Key, t.Label, DisplayNumber.Format(_open.Count), _open.Any(o => o.Entry.State == DeploymentState.Failed) ? "fail" : "neutral"),
+        ServerPage.Security when _serverSecurity.Open.Count > 0 => new TabItem(t.Key, t.Label, DisplayNumber.Format(_serverSecurity.Open.Count), _serverSecurity.Exploited > 0 ? "fail" : "queue"),
         ServerPage.System when _client is { } c && (c.AutomaticUpdatesBypass || c.AgentUpdateError is not null || c.ServerMoveError is not null) => new TabItem(t.Key, t.Label, "!", "queue"),
         ServerPage.Activity when _actions.Count(a => a.State is AgentActionState.Queued or AgentActionState.Delivered) is > 0 and var open => new TabItem(t.Key, t.Label, DisplayNumber.Format(open), "neutral"),
         _ => new TabItem(t.Key, t.Label),
@@ -1042,6 +1093,10 @@ else
 
         // Preview: what the agent installs in the next window (released, not installed, due before the window closes).
         _now = Time.GetUtcNow().UtcDateTime;
+        var securitySnapshot = await Baseline.LoadAsync(CancellationToken.None);
+        _securityHasData = securitySnapshot.HasData;
+        _serverSecurity = securitySnapshot.Of(_client);
+        _securityFixes = _serverSecurity.Build is { } securityBuild ? _serverSecurity.Open.ToDictionary(v => v.Cve, v => securitySnapshot.FixesOf(v.Cve).Where(f => f.Build == securityBuild).OrderByDescending(f => f.Revision).Select(f => f.Kb).FirstOrDefault()) : [];
         _window = NextWindowUtc();
         _planned = _window is { } window
             ? [.. _open.Where(o => o.Entry.EarliestInstallAtUtc is { } earliest && earliest <= window.End && o.Entry.State is DeploymentState.Pending or DeploymentState.Failed)]

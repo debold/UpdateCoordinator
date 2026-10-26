@@ -177,6 +177,20 @@ public static class DemoData
                 db.ClientActivities.Add(new ClientActivityEntity { ClientId = ids[MainServer], AtUtc = now.AddDays(-day).AddMinutes(5), Kind = ClientActivityKind.Inventory, Detail = "Inventory received." });
             }
 
+            // Security data of two monthly MSRC releases: every demo server is behind, one vulnerability is exploited.
+            foreach (var (build, october, september) in new[] { (14393, 9612, 9339), (17763, 9376, 9245), (20348, 5761, 5622), (26100, 33650, 33438) })
+            {
+                db.SecurityBaselines.Add(new SecurityBaselineEntity { Build = build, Month = "2026-Oct", ReleasedAtUtc = now.AddDays(-13), Revision = october, Kb = "5126655" });
+                db.SecurityBaselines.Add(new SecurityBaselineEntity { Build = build, Month = "2026-Sep", ReleasedAtUtc = now.AddDays(-48), Revision = september, Kb = "5122882" });
+                db.SecurityFixes.Add(new SecurityFixEntity { Cve = "CVE-2026-96951", Month = "2026-Oct", Build = build, Revision = october, Kb = "5126655" });
+                db.SecurityFixes.Add(new SecurityFixEntity { Cve = "CVE-2026-100201", Month = "2026-Oct", Build = build, Revision = october, Kb = "5126655" });
+                db.SecurityFixes.Add(new SecurityFixEntity { Cve = "CVE-2026-69354", Month = "2026-Sep", Build = build, Revision = september, Kb = "5122882" });
+            }
+
+            db.SecurityVulnerabilities.Add(new SecurityVulnerabilityEntity { Cve = "CVE-2026-96951", Month = "2026-Oct", Title = "Windows Common Log File System Driver Elevation of Privilege Vulnerability", Severity = "Important", Impact = "Elevation of Privilege", CvssScore = 7.8, Exploited = true });
+            db.SecurityVulnerabilities.Add(new SecurityVulnerabilityEntity { Cve = "CVE-2026-100201", Month = "2026-Oct", Title = "Windows Client License Service Elevation of Privilege Vulnerability", Severity = "Important", Impact = "Elevation of Privilege", CvssScore = 7.0 });
+            db.SecurityVulnerabilities.Add(new SecurityVulnerabilityEntity { Cve = "CVE-2026-69354", Month = "2026-Sep", Title = "Windows TCP/IP Remote Code Execution Vulnerability", Severity = "Critical", Impact = "Remote Code Execution", CvssScore = 9.8, PubliclyDisclosed = true });
+
             await db.SaveChangesAsync();
         }
 

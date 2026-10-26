@@ -11,7 +11,7 @@ namespace SUSyphos.Server.Rollouts;
 /// (no released update left to install), fully patched (no update missing at all), servers by status and open
 /// server × update pairs. The value of the current day is updated with every run, so the last value of a day remains.
 /// </summary>
-internal sealed class ComplianceHistory(ServerDbContext db, DeploymentStatus deployment, TimeProvider timeProvider)
+internal sealed class ComplianceHistory(ServerDbContext db, DeploymentStatus deployment, TimeProvider timeProvider, Security.SecurityBaseline? baseline = null)
 {
     public const int DaysKept = 400;
 
@@ -51,6 +51,9 @@ internal sealed class ComplianceHistory(ServerDbContext db, DeploymentStatus dep
         var failed = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
         var health = clients.Select(c => ServerHealth.Evaluate(c, failed.Contains(c.Id), now)).ToList();
         int Count(ServerHealthState state) => health.Count(h => h == state);
+        var snapshot = baseline is null ? Security.SecuritySnapshot.Empty : await baseline.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var security = clients.Select(snapshot.Of).ToList();
+        var known = security.Count(s => s.State != Security.BaselineState.Unknown);
         return new ComplianceSnapshotEntity
         {
             Day = DateOnly.FromDateTime(now),
@@ -66,6 +69,10 @@ internal sealed class ComplianceHistory(ServerDbContext db, DeploymentStatus dep
             StatusOffline = Count(ServerHealthState.Offline),
             OpenReleased = entries.Count(e => e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful),
             OpenHeld = entries.Count(e => e.State == DeploymentState.Queued),
+            BaselineCurrent = known == 0 ? null : security.Count(s => s.State == Security.BaselineState.Current),
+            BaselineKnown = known == 0 ? null : known,
+            OpenVulnerabilities = known == 0 ? null : security.Sum(s => s.Open.Count),
+            OpenExploited = known == 0 ? null : security.Sum(s => s.Exploited),
         };
     }
 

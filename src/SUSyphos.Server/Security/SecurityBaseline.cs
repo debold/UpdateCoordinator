@@ -125,7 +125,7 @@ internal sealed class SecuritySnapshot
     {
         BaselineState.Current => "Current",
         BaselineState.OneBehind => "1 behind",
-        BaselineState.TwoBehind => "2 or more behind",
+        BaselineState.TwoBehind => "2+ behind",
         _ => "Unknown",
     };
 

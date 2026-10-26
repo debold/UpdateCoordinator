@@ -1,0 +1,180 @@
+@page "/operating-systems"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using SUSyphos.Server.Security
+@using SUSyphos.Server.Lifecycle
+@inject ServerDbContext Db
+@inject SecurityBaseline Baseline
+@inject SupportLifecycle Lifecycle
+@inject MsrcSync Msrc
+@inject Microsoft.Extensions.Options.IOptions<MsrcOptions> MsrcOptions
+@inject NavigationManager Navigation
+
+<PageTitle>Operating systems</PageTitle>
+
+<PageHeader Title="Operating systems" Icon="@PageIcons.OperatingSystems" Subtitle="@Subtitle" Help="operating-systems" />
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+@if (!MsrcOptions.Value.Enabled)
+{
+    <Banner Label="Offline" Severity="pend" Help="operating-systems#data">
+        <ChildContent>The security data from Microsoft is switched off (Msrc:Enabled); baselines and vulnerabilities stay empty, the end of support still works.</ChildContent>
+    </Banner>
+}
+else if (_status.LastError is { } error)
+{
+    <Banner Label="Not fetched" Severity="queue" Help="operating-systems#data">
+        <ChildContent>The last fetch at @DisplayTime.Format(_status.LastAttemptUtc) failed: @error. The data there is stays; the next run tries again.</ChildContent>
+    </Banner>
+}
+
+<AuthorizeView Policy="@AdminRoles.Policies.Administer">
+    <ActionBand>
+        <form method="post" @formname="msrc-fetch" @onsubmit="FetchAsync">
+            <AntiforgeryToken />
+            <button type="submit" class="primary" disabled="@(!MsrcOptions.Value.Enabled)" title="@(MsrcOptions.Value.Enabled ? "Fetch the MSRC data of the last months now" : "Switched off in the configuration (Msrc:Enabled)")"><Icon Name="refresh-cw" Size="16" />Fetch security data now</button>
+        </form>
+    </ActionBand>
+</AuthorizeView>
+
+<section class="tiles" aria-label="Security">
+    <Tile Title="Security baseline" Href="@Servers.Link("security", SecuritySnapshot.Label(BaselineState.OneBehind), SecuritySnapshot.Label(BaselineState.TwoBehind))" Edge="@(_known > 0 && _current < _known ? "queue" : null)" Footer="servers on the newest security build of their Windows version">
+        <TileValue>@DisplayNumber.Format(_current) <small>/ @DisplayNumber.Format(_known)</small></TileValue>
+        <TileValue Value="@DisplayNumber.Percent(DisplayNumber.Share(_current, _known))" Caption="current" />
+    </Tile>
+    <Tile Title="Open vulnerabilities" Href="#vulnerabilities" Edge="@(_open.Any(o => o.Vulnerability.Exploited) ? "fail" : _open.Count > 0 ? "queue" : null)" Footer="distinct CVEs open on at least one server">
+        <TileValue Value="@DisplayNumber.Format(_open.Count)" Caption="CVEs" />
+        <TileValue Value="@DisplayNumber.Format(_open.Count(o => o.Vulnerability.Severity == "Critical"))" Caption="critical" />
+    </Tile>
+    <Tile Title="Exploited" Href="@Servers.Link("security", "Exploited")" Edge="@(_exploitedServers > 0 ? "fail" : null)" Footer="vulnerabilities Microsoft knows to be attacked">
+        <TileValue Value="@DisplayNumber.Format(_open.Count(o => o.Vulnerability.Exploited))" Caption="CVEs" />
+        <TileValue Value="@DisplayNumber.Format(_exploitedServers)" Caption="servers" />
+    </Tile>
+</section>
+
+<Box Title="Windows versions" Anchor="versions" Help="operating-systems#versions" Hint="approved servers by Windows version" Flush="true">
+    <div class="scroll">
+        <table>
+            <thead><tr><th>Version</th><th class="n">Servers</th><th>On baseline</th><th>Baseline</th><th>Open vulnerabilities</th><th class="n">Patch day to installation</th><th>Support</th></tr></thead>
+            <tbody>
+                @if (_versions.Count == 0)
+                {
+                    <tr><td colspan="7" class="note">No approved server with a known Windows version yet.</td></tr>
+                }
+                @foreach (var version in _versions)
+                {
+                    <tr>
+                        <td class="nowrap">@version.Name<div class="note mono">@version.Build</div></td>
+                        <td class="n"><a href="@Servers.Link("os", version.Name)">@DisplayNumber.Format(version.Servers)</a></td>
+                        <td class="nowrap">@if (version.Baseline is null) { <span class="note">no data</span> } else { <svg class="share-bar" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="@($"{version.Current} of {version.Servers} servers on the baseline")"><rect class="track" width="100" height="8" rx="4"></rect><rect class="@(version.Current == version.Servers ? "ok" : "queue")" width="@(version.Percent ?? 0)" height="8" rx="4"></rect></svg> <span>@DisplayNumber.Percent(version.Percent)</span> }</td>
+                        <td class="nowrap">@if (version.Baseline is { } baseline) { <span class="mono">@baseline.Build.@baseline.Revision</span> <div class="note"><KbLinks Kb="@baseline.Kb" /> · @baseline.Month</div> } else { <span class="note">–</span> }</td>
+                        <td>@if (version.Open.Count == 0) { <span class="note">@(version.Baseline is null ? "–" : "none")</span> } else { <span>@DisplayNumber.Format(version.Open.Count)</span> @if (version.Critical > 0) { <span class="pill fail">@version.Critical critical</span> } @if (version.Exploited > 0) { <span class="pill fail">@version.Exploited exploited</span> } }</td>
+                        <td class="n">@(version.MedianDays is { } days ? $"{days:0.#} days" : "–")</td>
+                        <td class="nowrap"><StatusTag Text="@version.Support.Label" Kind="@SupportLifecycle.Class(version.Support.State)" /><div class="note">@SupportLifecycle.Describe(version.Support)</div></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</Box>
+
+<Box Title="Open vulnerabilities" Anchor="vulnerabilities" Help="operating-systems#vulnerabilities" Hint="exploited first, then by CVSS score" Flush="true">
+    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search CVE or title" Noun="vulnerabilities" Empty="@(_snapshotHasData ? "No vulnerability is open on any approved server." : "No security data yet.")">
+        <Row Context="open">
+            <tr>
+                <td class="nowrap"><a href="@($"https://msrc.microsoft.com/update-guide/vulnerability/{Uri.EscapeDataString(open.Vulnerability.Cve)}")" target="_blank" rel="noopener noreferrer">@open.Vulnerability.Cve</a></td>
+                <td class="wrap">@open.Vulnerability.Title</td>
+                <td>@if (open.Vulnerability.Severity is { } severity) { <span class="pill @SeverityClass(severity)">@severity</span> }</td>
+                <td class="n">@(open.Vulnerability.CvssScore?.ToString("0.0", DisplayNumber.Culture) ?? "–")</td>
+                <td>@if (open.Vulnerability.Exploited) { <span class="pill fail">Exploited</span> } else if (open.Vulnerability.PubliclyDisclosed) { <span class="pill queue">Disclosed</span> }</td>
+                <td class="n">@DisplayNumber.Format(open.Servers)</td>
+                <td class="nowrap"><KbLinks Kb="@open.Kb" /></td>
+            </tr>
+        </Row>
+    </ListTable>
+</Box>
+
+<Box Title="Patch day to installation" Anchor="duration" Help="operating-systems#duration" Hint="median days from the release of a baseline to its installation">
+    <StatisticsChart Data="@_durationChart" />
+</Box>
+
+@code {
+    private MsrcStatus _status = new(null, null, null, []);
+    private List<VersionRow> _versions = [];
+    private List<OpenVulnerability> _open = [];
+    private int _current;
+    private int _known;
+    private int _exploitedServers;
+    private bool _snapshotHasData;
+    private TableQuery _table = default!;
+    private TablePage<OpenVulnerability> _page = default!;
+    private SUSyphos.Server.Rollouts.ChartData _durationChart = new(SUSyphos.Server.Rollouts.StatisticKind.SecurityDuration, SUSyphos.Server.Rollouts.ChartForm.Ranking, [], [], string.Empty, null, string.Empty);
+
+    private static readonly IReadOnlyList<TableColumn<OpenVulnerability>> Columns =
+    [
+        new("cve", "CVE", o => o.Vulnerability.Cve),
+        new("title", "Title", o => o.Vulnerability.Title),
+        new("severity", "Severity", o => SeverityRank(o.Vulnerability.Severity), o => [o.Vulnerability.Severity ?? string.Empty]),
+        new("cvss", "CVSS", o => o.Vulnerability.CvssScore, Class: "n"),
+        new("exploit", "Exploit", o => o.Vulnerability.Exploited ? 2 : o.Vulnerability.PubliclyDisclosed ? 1 : 0, o => [o.Vulnerability.Exploited ? "Exploited" : o.Vulnerability.PubliclyDisclosed ? "Disclosed" : string.Empty]),
+        new("servers", "Servers", o => o.Servers, Class: "n"),
+        new("kb", "Fixed by", o => o.Kb, Sortable: false),
+    ];
+
+    private string Subtitle => !MsrcOptions.Value.Enabled
+        ? "End of support and security state of the Windows versions of the approved servers"
+        : _status.LastSuccessUtc is { } fetched
+            ? $"Security data from Microsoft (MSRC) of {string.Join(", ", _status.Months)}, fetched {DisplayTime.Format(fetched)}"
+            : "Security data from Microsoft (MSRC) not fetched yet";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task FetchAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators can fetch the security data.", string.Empty);
+        }
+        else
+        {
+            var status = await Msrc.RunAsync(force: false, CancellationToken.None);
+            ShowResult(status.LastError is { } error ? $"Fetching the security data failed: {error}" : null, $"Security data of {string.Join(", ", status.Months)} fetched.");
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _status = await Msrc.GetStatusAsync(CancellationToken.None);
+        var clients = await Db.Clients.AsNoTracking().Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).ToListAsync();
+        var snapshot = await Baseline.LoadAsync(CancellationToken.None);
+        _snapshotHasData = snapshot.HasData;
+        var medians = await SecurityReport.MedianDaysAsync(Db, snapshot, clients, CancellationToken.None);
+        _versions = SecurityReport.Versions(clients, snapshot, Lifecycle, medians);
+        _open = SecurityReport.Open(clients, snapshot);
+        var states = clients.Select(snapshot.Of).ToList();
+        _known = states.Count(s => s.State != BaselineState.Unknown);
+        _current = states.Count(s => s.State == BaselineState.Current);
+        _exploitedServers = states.Count(s => s.Exploited > 0);
+        _table = TableQuery.From(Navigation, "exploit", defaultDescending: true, prefix: "cve.", defaultPageSize: 10);
+        _page = TablePaging.Apply(_open, _table, Columns, o => $"{o.Vulnerability.Cve} {o.Vulnerability.Title}");
+        _durationChart = SUSyphos.Server.Rollouts.DashboardStatistics.DurationChart(_versions);
+    }
+
+    private static int SeverityRank(string? severity) => severity switch
+    {
+        "Critical" => 4,
+        "Important" => 3,
+        "Moderate" => 2,
+        "Low" => 1,
+        _ => 0,
+    };
+
+    private static string SeverityClass(string severity) => severity switch
+    {
+        "Critical" => "fail",
+        "Important" => "queue",
+        _ => "neutral",
+    };
+}

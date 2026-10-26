@@ -42,6 +42,7 @@ The boxes are split into tabs below the tiles; the tab is part of the address, s
 
 - **Overview**: Tasks and pre-flight checks; "!" when a check failed.
 - **Updates**: the missing updates, with their count (red when one failed).
+- **Security**: the security baseline and the open vulnerabilities of the server, with their count (red when one is exploited).
 - **History**: the update history of SUSyphos and the Windows Update history.
 - **Configuration**: the assignment (ring, reboots, Automatic Updates, update source, groups, maintenance windows, agent settings).
 - **System**: the facts the agent reports; "!" when Windows installs on its own, the agent update failed or a move did not work.
@@ -60,6 +61,14 @@ The tags in the table:
 - **Restart**: a restart expected after the installation, or one requested by an administrator, with the reason when it waits (for example the reboot policy is "Never", a local veto, the window closes within 30 minutes).
 
 Heartbeats are not listed.
+
+## Security baseline {#security}
+
+In the **Security** tab: the **State** of the server against the security baseline of its Windows version ("Current", "1 behind", "2+ behind", or "Unknown" without security data from Microsoft), the **Build of the server**, the **Baseline** (the newest security build of the version, the month and patch day it came with and its KB), **Behind since** (when the oldest missing baseline was released and which KB closes it), the **Support** phase and what the agent found about **Extended Security Updates**: a licensed ESU key, a running Azure Arc agent or a virtual machine in Azure (agents from version 0.7.9). See [Operating systems](help/operating-systems#data) for where the data comes from.
+
+## Open vulnerabilities of the server {#vulnerabilities}
+
+Every vulnerability fixed in a later build than the server runs: **CVE** (opens Microsoft's description), **Title**, **Severity**, **CVSS**, **Exploit** (Exploited, Disclosed) and the update that fixes it (**Fixed by**). Exploited first. The tab shows how many are open, red when one is exploited.
 
 ## Assignment {#assignment}
 
@@ -113,7 +122,7 @@ When the server may install updates. "Inherit from groups or the system default"
 What the agent reported about the server:
 
 - **Operating system**, **Build**, **Domain**, **Roles** (detected roles such as domain controller, SQL Server, Hyper-V).
-- **Support**: the end of support of the Windows version (last day of updates) with the days left, and the end of mainstream support where Microsoft names one; the pill turns amber "Support ending" from 180 days before the end and red from 30 days ("Support ends soon") and after it ("Out of support"). "Unknown" when the shipped table does not know the version.
+- **Support**: the support phase of the Windows version with its end (last day of updates) and the days left, and the end of mainstream support where Microsoft names one: "Supported" (mainstream) and "Security only" (extended support) in green, "Ending soon" in amber from 180 days before the end, after the end "ESU (key)", "ESU (Azure Arc)", "ESU (Azure)", "ESU, inferred from updates" or "Support ended" in amber, and "No ESU" in red once the first patch day after the end passed without its updates. "Unknown" when the shipped table does not know the version.
 - **Update source**: what the agent reports: Microsoft Update (Windows and other Microsoft products, when the agent registered the Microsoft Update service), Windows Update, or WSUS with its address (a warning: the server should not depend on WSUS). A tag "set: …" next to it means the setting differs from what the agent reported last; it applies with the next heartbeat and shows after the next inventory.
 - **Agent update**: installed agent version (opens all servers with this version), a failed agent update with its error, or "below minimum" when the agent is older than the minimum version.
 - **Agent settings**: whether the agent applies the central agent settings as set, or how many differ (usually because the server sets them itself in the registry or by group policy). **Show** opens the [agent settings on the server](#applied-settings).

@@ -63,6 +63,8 @@ public sealed class InteractionTests(UiFixture ui)
             await filters.Nth(i).Locator("summary").ClickAsync();
             var pop = filters.Nth(i).Locator(".filter-pop");
             await Assertions.Expect(pop).ToBeVisibleAsync();
+            // The script moves a filter that would open beyond the edge back into view once it opened (toggle event).
+            await page.EvaluateAsync("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
             var box = await pop.BoundingBoxAsync();
             Assert.NotNull(box);
             Assert.True(box.X >= 0 && box.X + box.Width <= width + 1, $"Filter {i} on {path} opens outside the window ({box.X}+{box.Width} > {width}).");
