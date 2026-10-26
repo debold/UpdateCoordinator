@@ -490,6 +490,7 @@ label.field:has(.suggest) { position: relative; }
 .suggest { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; margin: 0.15rem 0 0; padding: 0.25rem; list-style: none; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow); max-height: 16rem; overflow-y: auto; }
 .suggest button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 0.4rem 0.55rem; border-radius: var(--r-sm); font: inherit; min-height: 0; }
 .suggest button:hover, .suggest button:focus-visible { background: var(--accent-soft); color: var(--accent); }
+.suggest button:disabled { color: var(--muted); cursor: not-allowed; background: transparent; }
 
 /* Week rule of a maintenance window: one drop-down, closed it names the weeks (like the column filters). */
 details.week-choice { position: relative; }
@@ -658,3 +659,7 @@ fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: cent
 .radio-list { max-height: 20rem; overflow-y: auto; margin-bottom: 0.8rem; border: 1px solid var(--line); border-radius: var(--r-sm); }
 .radio-list label { cursor: pointer; }
 .radio-list tr:has(input:checked) { background: var(--accent-soft); }
+
+/* Category tags tell kinds apart with a tint of the categorical palette (not a status colour). */
+.cat-tag { --cat: var(--series-1); display: inline-flex; align-items: center; height: 20px; padding: 0 0.5rem; border: 1px solid color-mix(in srgb, var(--cat) 45%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--cat) 14%, var(--surface)); color: var(--text); font-size: 0.78rem; white-space: nowrap; vertical-align: middle; }
+.cat-tag.c1 { --cat: var(--series-5); } .cat-tag.c2 { --cat: var(--series-7); } .cat-tag.c3 { --cat: var(--series-3); } .cat-tag.c4 { --cat: var(--series-8); }

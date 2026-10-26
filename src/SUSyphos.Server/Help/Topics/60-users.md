@@ -14,7 +14,7 @@ The roles build on each other:
 
 ## Accounts {#accounts}
 
-The list shows every account with its **Role** and **State** (Active, Locked by an administrator, or Locked out after five failed sign-ins for 15 minutes). Windows accounts carry the tag "Windows"; their role comes from their AD groups and is set at every sign-in.
+The list shows every account with its **Source**, **Role** and **State** (Active, Locked by an administrator, or Locked out after five failed sign-ins for 15 minutes). **Source** tells "Active Directory" accounts (they sign in with Windows; their role comes from their AD groups and is set at every sign-in) from "Local" accounts in two colours. The list is grouped by source; **Group by** switches it off ("No grouping"), and the column filter shows one kind only.
 
 - **New user**: opens the [dialog](#new-user) for a local account.
 - **Edit** (the pencil at the end of the row): change role or password of a local account. The other actions are under **More** (⋯):
@@ -40,9 +40,10 @@ Lets users sign in with their Windows account ("Sign in with Windows" on the sig
 
 Their role comes from the AD groups mapped here; if a user is in several mapped groups, the highest role wins. Users in no mapped group cannot sign in. Mappings are stored by the group's SID, so renaming the group in AD does not break them.
 
-- **AD group**: the group as DOMAIN\Group (for example LAB\SUSyphos-Admins) or its SID. While you type (two characters or more) a list shows the matching groups from Active Directory; choose one to fill the field. Without a connection to the directory the field still takes a typed name.
+- **AD group**: the group as DOMAIN\Group (for example LAB\SUSyphos-Admins) or its SID. While you type (two characters or more) a list shows the matching groups from Active Directory; choose one to fill the field. Groups Windows filters by User Account Control are listed greyed with "won't work (UAC)" and cannot be chosen. Without a connection to the directory the field still takes a typed name.
 - **Role**: the role members of this group get.
-- **Add** (next to the role) adds the mapping; **Remove** deletes one. When you pick a privileged group from the suggestions (Domain Admins, Enterprise Admins, Administrators and the like), a warning appears right under the field, and such a mapping is marked "usually gives no role (UAC)" in the table: Windows filters these groups to "deny only" in a logon without elevation.
+- **Add** (next to the role) adds the mapping. A privileged group (Domain Admins, Enterprise Admins, Schema Admins, Group Policy Creator Owners, Administrators and the built-in operator groups) is refused with "Won't work": Windows filters these groups to "deny only" in a logon without elevation, so their members would get no role. They are recognised by their well-known SID, whatever language the domain uses. A mapping of such a group saved by an earlier version stays in the table with a red **Won't work** tag (the tooltip says why) until you remove it.
+- **Remove mapping** (in the ⋯ menu of a row) deletes a mapping.
 - **Switch on** / **Switch off** turns Windows sign-in on or off. Local accounts keep working either way.
 
 If the configuration file sets `Authentication:Windows:Enabled` to false (emergency switch), nobody can sign in with Windows, whatever is set here. The central server must be a domain member and be opened by its DNS name for Kerberos to work.
@@ -51,7 +52,7 @@ If the configuration file sets `Authentication:Windows:Enabled` to false (emerge
 
 When "Sign in with Windows" ends with a message instead of the dashboard, the Windows part usually worked already; the role is missing. Look in the [audit log](help/audit-log) for the entry **Login.WindowsNoRole**: its actor is the account the browser signed in with, and its details name the authentication used (Negotiate, Kerberos or NTLM), how many groups were in the token and whether a mapped group was filtered. Common causes, most frequent first:
 
-1. **A privileged group is mapped**, such as Domain Admins, Enterprise Admins, Schema Admins or Administrators. In a session without elevation (User Account Control) Windows keeps these groups only as "deny only" in the token, so they give no role. `whoami /groups` shows them as "Group used for deny only". The sign-in page then says so. Map a dedicated group instead, for example DOMAIN\SUSyphos-Admins; mapping a privileged group shows a warning.
+1. **A privileged group is mapped**, such as Domain Admins, Enterprise Admins, Schema Admins or Administrators. In a session without elevation (User Account Control) Windows keeps these groups only as "deny only" in the token, so they give no role. `whoami /groups` shows them as "Group used for deny only". The sign-in page then says so. Map a dedicated group instead, for example DOMAIN\SUSyphos-Admins; a privileged group can no longer be mapped.
 2. **The browser uses another account**: it signs in with the account logged on to Windows on that computer, not with an administrator account you use elsewhere. The audit entry shows which one.
 3. **The group was not mapped**: the AD group field only takes effect with **Add**; **Switch on** alone does not save it. The group must be in the table above.
 4. **New group membership**: Windows reads groups at logon. After adding the account to a group, sign out of Windows and in again (or run `klist purge`).

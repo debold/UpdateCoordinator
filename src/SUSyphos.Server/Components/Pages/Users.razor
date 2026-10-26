@@ -20,11 +20,12 @@
 </form>
 <section class="box">
     <header class="box-head"><h2>Accounts<HelpLink To="users#accounts" Label="Accounts" /></h2></header>
-    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search account" Noun="accounts" ExtraColumns="1">
+    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search account" Noun="accounts" ExtraColumns="1" GroupOptions="GroupOptions">
         <ExtraHeader><th class="n">Actions</th></ExtraHeader>
         <Row Context="user">
                     <tr>
-                        <td>@user.UserName @if (user.Windows) { <span class="tag">Windows</span> }</td>
+                        <td>@user.UserName</td>
+                        <td>@if (user.Windows) { <CategoryTag Text="Active Directory" Index="1" /> } else { <CategoryTag Text="Local" Index="2" /> }</td>
                         <td>@user.Role @if (user.Windows) { <div class="note">from AD groups</div> }</td>
                         <td>
                             @if (user.LockedOut)
@@ -88,10 +89,10 @@
                     @foreach (var mapping in _mappings)
                     {
                         <tr>
-                            <td>@mapping.Name@if (WindowsSignIn.IsFilteredByUac(mapping.Sid)) { <div class="pill fail" title="Windows filters this group by User Account Control (deny only) in a logon without elevation">usually gives no role (UAC)</div> }</td>
+                            <td>@mapping.Name@if (WindowsSignIn.IsFilteredByUac(mapping.Sid)) { <div title="@WindowsSignIn.UacRefusal(mapping.Name)"><StatusTag Text="Won't work" Kind="fail" /></div> }</td>
                             <td class="mono note">@mapping.Sid</td>
                             <td>@mapping.Role</td>
-                            <td class="n"><button type="submit" name="WindowsAction" value="remove:@mapping.Sid" class="danger">Remove</button></td>
+                            <td class="n"><ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {mapping.Name}")"><MenuItem Name="WindowsAction" Value="@($"remove:{mapping.Sid}")" Icon="trash-2" Danger="true">Remove mapping</MenuItem></ActionMenu></td>
                         </tr>
                     }
                 </tbody>
@@ -110,7 +111,7 @@
             </label>
                 <button type="submit" name="WindowsAction" value="add"><Icon Name="plus" Size="16" />Add</button>
             </ChildContent>
-            <Note><p class="warning field-warning" data-privileged-warning hidden>Windows filters this group by User Account Control ("deny only") in a logon without elevation, so its members usually get no role. Map a dedicated group instead.</p></Note>
+            <Note>The group as DOMAIN\Group or its SID; suggestions appear while typing. Groups Windows filters by User Account Control (Domain Admins, Administrators and the like) are refused, because their members would get no role.</Note>
         </AddEntry>
     </div>
     <footer class="box-foot">
@@ -225,9 +226,12 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
     private TableQuery _table = default!;
     private TablePage<UserSummary> _page = default!;
 
+    private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("source", "Source")];
+
     private static readonly IReadOnlyList<TableColumn<UserSummary>> Columns =
     [
-        new("account", "Account", u => u.UserName, u => [u.Windows ? "Windows" : "Local"]),
+        new("account", "Account", u => u.UserName),
+        new("source", "Source", u => u.Windows, u => [u.Windows ? "Active Directory" : "Local"]),
         new("role", "Role", u => u.Role, u => [u.Role ?? string.Empty]),
         new("state", "State", u => u.LockedOut, u => [u.LockedOut ? "Locked" : "Active"]),
     ];
@@ -243,7 +247,7 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
     private async Task LoadAsync()
     {
         _users = await Administration.ListAsync(CancellationToken.None);
-        _table = TableQuery.From(Navigation, "account", prefix: "acc.");
+        _table = TableQuery.From(Navigation, "account", prefix: "acc.", defaultGroup: "source");
         _page = TablePaging.Apply(_users, _table, Columns, u => u.UserName);
         _mappings = await Windows.GetMappingsAsync(CancellationToken.None);
         _windowsEnabled = await Windows.IsEnabledAsync(CancellationToken.None);
@@ -263,12 +267,6 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
         };
 
         await LoadAsync();
-        if (outcome.Error is null && WindowsAction == "add"
-            && _mappings.FirstOrDefault(m => string.Equals(m.Name, WindowsGroup?.Trim(), StringComparison.OrdinalIgnoreCase) || string.Equals(m.Sid, WindowsGroup?.Trim(), StringComparison.OrdinalIgnoreCase)) is { } added
-            && WindowsSignIn.IsFilteredByUac(added.Sid))
-        {
-            success += $" Note: Windows filters {added.Name} by User Account Control (\"deny only\") in a logon without elevation, so its members usually get no role. Map a dedicated group instead.";
-        }
 
         ShowResult(outcome.Error, success);
     }

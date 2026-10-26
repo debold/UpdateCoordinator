@@ -26,7 +26,7 @@ public sealed class TableQuery
     private readonly Dictionary<string, StringValues> _values;
     private readonly string _prefix;
 
-    private TableQuery(string path, Dictionary<string, StringValues> values, string defaultSort, bool defaultDescending, string prefix, int defaultPageSize)
+    private TableQuery(string path, Dictionary<string, StringValues> values, string defaultSort, bool defaultDescending, string prefix, int defaultPageSize, string? defaultGroup = null)
     {
         if (prefix.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(prefix, "^[a-z]{1,10}\\.$"))
         {
@@ -45,7 +45,8 @@ public sealed class TableQuery
         PageSize = int.TryParse(Get(Key("size")), NumberStyles.None, CultureInfo.InvariantCulture, out var size) && PageSizes.Contains(size) ? size : defaultPageSize;
         var search = Get(Key("q"))?.Trim();
         Search = string.IsNullOrEmpty(search) ? null : search.Length > MaxSearchLength ? search[..MaxSearchLength] : search;
-        Group = Get(Key("group"));
+        // A list grouped by default stays ungrouped once "No grouping" was chosen (an empty value in the address).
+        Group = values.ContainsKey(Key("group")) ? Get(Key("group")) is { Length: > 0 } group ? group : null : defaultGroup;
     }
 
     /// <summary>Rows per page: one of <see cref="PageSizes"/>.</summary>
@@ -76,11 +77,12 @@ public sealed class TableQuery
     /// <param name="defaultDescending">True to list the default column newest or largest first.</param>
     /// <param name="prefix">Prefix of the address values when a page has several tables, e.g. "hist."; empty for one table.</param>
     /// <param name="defaultPageSize">Rows per page when the address names none.</param>
-    public static TableQuery From(NavigationManager navigation, string defaultSort, bool defaultDescending = false, string prefix = "", int defaultPageSize = DefaultPageSize)
+    /// <param name="defaultGroup">Column the list is grouped by when the address names no grouping.</param>
+    public static TableQuery From(NavigationManager navigation, string defaultSort, bool defaultDescending = false, string prefix = "", int defaultPageSize = DefaultPageSize, string? defaultGroup = null)
     {
         ArgumentNullException.ThrowIfNull(navigation);
         var uri = new Uri(navigation.Uri);
-        return new TableQuery(uri.AbsolutePath, QueryHelpers.ParseQuery(uri.Query), defaultSort, defaultDescending, prefix, defaultPageSize);
+        return new TableQuery(uri.AbsolutePath, QueryHelpers.ParseQuery(uri.Query), defaultSort, defaultDescending, prefix, defaultPageSize, defaultGroup);
     }
 
     /// <summary>For tests and pages that build a query from known values.</summary>

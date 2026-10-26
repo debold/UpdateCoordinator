@@ -264,15 +264,12 @@ public sealed class InteractionTests(UiFixture ui)
         await page.WaitForTimeoutAsync(400);
         await Assertions.Expect(page.Locator(".suggest")).ToBeHiddenAsync();
 
-        // A privileged group warns right under the field; typing again removes the warning.
-        var warning = page.Locator("[data-privileged-warning]");
-        await Assertions.Expect(warning).ToBeHiddenAsync();
+        // A group Windows filters by User Account Control is listed greyed with the reason and cannot be picked.
         await field.FillAsync(string.Empty);
         await field.PressSequentiallyAsync("domain");
-        await page.Locator(".suggest button", new PageLocatorOptions { HasTextString = "Domain Admins" }).ClickAsync();
-        await Assertions.Expect(warning).ToBeVisibleAsync();
-        await field.PressSequentiallyAsync("x");
-        await Assertions.Expect(warning).ToBeHiddenAsync();
+        var filtered = page.Locator(".suggest button", new PageLocatorOptions { HasTextString = "Domain Admins" });
+        await Assertions.Expect(filtered).ToBeDisabledAsync();
+        await Assertions.Expect(filtered).ToContainTextAsync("won't work (UAC)");
     }
 
     [Fact]

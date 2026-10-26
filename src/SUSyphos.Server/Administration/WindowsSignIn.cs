@@ -222,6 +222,12 @@ internal sealed partial class WindowsSignIn(
             return new Outcome($"Windows does not know the group \"{group}\". Check the name (DOMAIN\\Group) and that the central server is a member of the domain.");
         }
 
+        if (IsFilteredByUac(account.Sid))
+        {
+            // Detected by the well-known SID, so it works whatever language the domain uses for the group names.
+            return new Outcome(UacRefusal(account.Name));
+        }
+
         var mappings = (await GetMappingsAsync(cancellationToken).ConfigureAwait(false)).ToList();
         if (mappings.Count >= MaxMappings && !mappings.Any(m => m.Sid == account.Sid))
         {
@@ -279,6 +285,10 @@ internal sealed partial class WindowsSignIn(
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>Why a group filtered by User Account Control is refused, and what to do instead.</summary>
+    public static string UacRefusal(string name) =>
+        $"Won't work: Windows filters {name} by User Account Control (\"deny only\") in a logon without elevation, so its members get no role. Map a dedicated group instead.";
 
     /// <summary>
     /// Privileged groups that User Account Control filters to "deny only" in a logon without elevation (Domain Admins,

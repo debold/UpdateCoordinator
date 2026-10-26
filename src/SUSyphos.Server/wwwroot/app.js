@@ -192,12 +192,8 @@
         let timer = 0;
         let request = 0;
         const close = () => { list.hidden = true; list.replaceChildren(); };
-        const warning = input.closest('form')?.querySelector('[data-privileged-warning]');
         input.addEventListener('input', () => {
             clearTimeout(timer);
-            if (warning) {
-                warning.hidden = true;
-            }
 
             const term = input.value.trim();
             if (term.length < 2) {
@@ -220,13 +216,19 @@
                         choice.type = 'button';
                         choice.textContent = group.name;
                         choice.title = group.sid;
+                        if (group.privileged) {
+                            // Filtered by User Account Control: shown with the reason, but it cannot be picked.
+                            choice.disabled = true;
+                            choice.title = "Won't work: Windows filters this group (UAC). Map a dedicated group. " + group.sid;
+                            const reason = document.createElement('span');
+                            reason.className = 'note';
+                            reason.textContent = " won't work (UAC)";
+                            choice.append(reason);
+                        }
+
                         choice.addEventListener('click', () => {
                             input.value = group.name;
                             close();
-                            if (warning) {
-                                warning.hidden = !group.privileged;
-                            }
-
                             input.focus();
                         });
                         item.append(choice);

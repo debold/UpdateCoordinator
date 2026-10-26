@@ -1,0 +1,12 @@
+@* A tag that tells kinds apart (e.g. the source of an account): a categorical colour, not a status colour, so it never
+   reads as good or bad (docs/06-dashboard.md, section 8 "Tags"). *@
+<span class="cat-tag c@(Index)">@Text</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>Position in the categorical palette (1 to 4), the same for the same kind on every page.</summary>
+    [Parameter]
+    public int Index { get; set; } = 1;
+}

@@ -93,7 +93,7 @@ Implemented (2026-10-22): box "Move to a new server" announces the address of a 
 
 ### Agent settings
 
-Implemented (2026-10-22): page Administration → Agent settings with the system defaults of the central agent settings (intervals, logging, resources, pre-flight, search, restart notice), grouped in boxes. Server groups and single servers override them in a collapsed "Agent settings" section of their forms that shows the applied value and its source; nothing is overridden by default.
+Implemented (2026-10-22): page Administration → Agent settings with the system defaults of the central agent settings (intervals, logging, resources, pre-flight, search, restart notice). Server groups and single servers override them in a collapsed "Agent settings" section of their forms that shows the applied value and its source; nothing is overridden by default. Layout (Marc, 2026-10-26): one box, sections with a small heading and a thin line, one row per setting with the label left, a field of fixed width with the unit inside and the range or source right; an inherited value has a dashed, greyed field, a value set here a solid one. The same layout in the group dialog and the server's Configuration tab, where a setting the agent applies differently is marked ("not applied yet", "server: …"); the former dialog of applied settings is gone.
 
 ### Agent rollout
 
@@ -170,7 +170,8 @@ Every list (Marc, 2026-10-25), built on the shared list components.
 - **Selection:** a checkbox per row and "Select all" in the header (all, none or some). While rows are selected a bar appears above the header with the count, the actions for the selection (action band pattern) and "Clear selection"; selected rows are tinted.
 - **Row actions:** last column, fixed width: at most one icon for the most common action plus "⋯" for the rest; the menu shows an icon per entry, dangerous entries red at the bottom behind a separator. A row that expands shows ▾ there instead.
 - **Expanded row:** the details open right below the row, indented and lightly shaded, the row stays tinted. A table inside works like every table, compact: sorting, filters (as chips), and above 10 rows a search and pages of 10, with a note how many the filter hides. Outer and inner state both live in the address.
-- **Grouping:** a group row with the value and the count above each group; columns stay aligned.
+- **Grouping:** a group row with the value and the count above each group; columns stay aligned. One shared implementation for every list that offers "Group by" (`TablePaging.Groups`, `GroupRow`); a list may be grouped by default (accounts by source), and "No grouping" stays chosen in the address.
+- **Row menus** ("⋯" and every drop-down in a table) float above the page while open, so the scroll container of the table never cuts them off; near the bottom of the window they open upwards.
 - **Footer:** count ("1–10 of 48 servers"), rows per page (10, 25, 50, 100) and pages.
 - **Empty states:** "nothing there yet" explains what belongs here and offers the action to add it; "nothing matches" says how many entries search and filters hide and offers to clear them.
 
@@ -207,6 +208,7 @@ How states are shown everywhere (Marc, 2026-10-25).
 - **One form per job:**
   - *Pill* (outlined, with a dot): the state of a thing; large in tiles.
   - *Tag* (filled grey, square corners): a category or origin, not a state (classification, "manual", "rule", "SUSyphos", "Installation").
+  - *Category tag* (tinted in the categorical palette, square corners; shared component `CategoryTag`, Marc 2026-10-26): where a column tells kinds apart, each kind gets its own fixed colour (account source: "Active Directory", "Local"). Never a status colour, so it does not read as good or bad.
   - *Ring tag*: outlined in the ring's colour with the ring number ("1 Pilot"); one fixed colour per ring.
   - *Dot*: a small indicator next to a value, explained in its tooltip (e.g. heartbeat freshness).
   - *Icon mark*: a state in front of a value (agent version: ✓ current, ↑ update available, – failed).

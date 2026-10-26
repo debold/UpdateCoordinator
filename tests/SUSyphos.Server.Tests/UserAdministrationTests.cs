@@ -38,6 +38,21 @@ public sealed class UserAdministrationTests
         Assert.True(await factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "User.Created" && e.Target == "operator1", TestContext.Current.CancellationToken)));
     }
 
+    [Fact]
+    public async Task Accounts_AreGroupedBySource_UntilGroupingIsSwitchedOff()
+    {
+        await using var factory = new ServerFactory();
+        using var browser = await LoginAsync(factory, "admin", AdminRoles.Admin);
+
+        var grouped = await (await browser.GetAsync("/administration/users")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var ungrouped = await (await browser.GetAsync("/administration/users?acc.group=")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("<tr class=\"group-row\"><td colspan=\"5\">Local · 1</td></tr>", grouped, StringComparison.Ordinal);
+        Assert.Contains("cat-tag c2\">Local", grouped, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"source\" selected", grouped, StringComparison.Ordinal);
+        Assert.DoesNotContain("group-row", ungrouped, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("valid.name", "short", "Operator")]
     [InlineData("bad name!", "long enough passphrase", "Operator")]

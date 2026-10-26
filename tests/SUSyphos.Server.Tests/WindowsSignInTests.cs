@@ -211,7 +211,9 @@ public sealed class WindowsSignInTests
     {
         const string DomainAdmins = "S-1-5-21-1-2-3-512";
         await using var factory = new WindowsServerFactory();
-        await ConfigureAsync(factory, (DomainAdmins, AdminRoles.Admin));
+        // Mapped before such groups were refused; it stays and keeps being explained.
+        await SeedEarlierMappingAsync(factory, DomainAdmins, @"LAB\Domain Admins", AdminRoles.Admin);
+        await ConfigureAsync(factory);
         using var browser = new DashboardClient(factory);
 
         using (var refused = await WindowsGetAsync(browser, WindowsSignIn.Route, Alice, @"LAB\alice", "S-1-5-21-1-2-3-513", "!" + DomainAdmins))
@@ -223,11 +225,11 @@ public sealed class WindowsSignInTests
         Assert.Contains("filtered by User Account Control", message, StringComparison.Ordinal);
         var details = await factory.WithDbAsync(db => db.AuditEntries.Where(a => a.Action == "Login.WindowsNoRole").Select(a => a.Details).SingleAsync(TestContext.Current.CancellationToken));
         Assert.Contains("authentication Negotiate, 1 groups in the token", details, StringComparison.Ordinal);
-        Assert.Contains("mapped but filtered by UAC (deny only): S-1-5-21-1-2-3-512", details, StringComparison.Ordinal);
+        Assert.Contains(@"mapped but filtered by UAC (deny only): LAB\Domain Admins", details, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task MappingAPrivilegedGroup_Warns()
+    public async Task MappingAGroupFilteredByUac_IsRefused_AndAnEarlierMappingIsMarked()
     {
         await using var factory = new WindowsServerFactory();
         await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
@@ -238,8 +240,22 @@ public sealed class WindowsSignInTests
 
         using var response = await admin.PostFormAsync("/administration/users", new Dictionary<string, string> { ["_handler"] = "windows-sign-in", ["WindowsAction"] = "add", ["WindowsGroup"] = "S-1-5-21-1-2-3-512", ["WindowsRole"] = AdminRoles.Admin });
 
-        Assert.Contains("Map a dedicated group instead.", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains("Won&#x27;t work: Windows filters S-1-5-21-1-2-3-512", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Empty(await factory.Services.CreateAsyncScope().ServiceProvider.GetRequiredService<WindowsSignIn>().GetMappingsAsync(CancellationToken.None));
+
+        await SeedEarlierMappingAsync(factory, "S-1-5-32-544", @"BUILTIN\Administrators", AdminRoles.Admin);
+        var page = await (await admin.GetAsync("/administration/users")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Won&#x27;t work", page, StringComparison.Ordinal);
+        Assert.Contains("Remove mapping", page, StringComparison.Ordinal);
     }
+
+    /// <summary>A mapping stored before groups filtered by UAC were refused.</summary>
+    private static Task<int> SeedEarlierMappingAsync(WindowsServerFactory factory, string sid, string name, string role) =>
+        factory.WithDbAsync(db =>
+        {
+            db.Settings.Add(new SUSyphos.Server.Data.SettingEntity { Key = WindowsSignIn.GroupsKey, Value = System.Text.Json.JsonSerializer.Serialize(new[] { new WindowsGroupMapping(sid, name, role) }) });
+            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
 
     [Fact]
     public async Task GroupSearch_FindsGroupsForAdministratorsOnly()
