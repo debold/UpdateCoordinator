@@ -1,19 +1,7 @@
-@using SUSyphos.Server.Rollouts
-<div class="legend @(Vertical ? "vertical" : null)">
-    <span><span class="swatch ok"></span>Successful @if (Counts is not null) { <b>@Counts.Successful</b> }</span>
-    <span><span class="swatch pend"></span>Pending @if (Counts is not null) { <b>@Counts.Pending</b> }</span>
-    <span><span class="swatch queue"></span>Queued @if (Counts is not null) { <b>@Counts.Queued</b> }</span>
-    <span><span class="swatch fail"></span>Failed @if (Counts is not null) { <b>@Counts.Failed</b> }</span>
-    @if (Counts is { NotNeeded: > 0 })
-    {
-        <span><span class="swatch none"></span>Not needed <b>@Counts.NotNeeded</b></span>
-    }
+@* Key of the deployment state colours, without counts (a donut with counts uses DonutLegend). *@
+<div class="legend">
+    <span><span class="swatch ok"></span>Successful</span>
+    <span><span class="swatch pend"></span>Pending</span>
+    <span><span class="swatch queue"></span>Queued</span>
+    <span><span class="swatch fail"></span>Failed</span>
 </div>
-
-@code {
-    [Parameter]
-    public DeploymentCounts? Counts { get; set; }
-
-    [Parameter]
-    public bool Vertical { get; set; }
-}

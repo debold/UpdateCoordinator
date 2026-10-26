@@ -1,13 +1,8 @@
 @using SUSyphos.Server.Rollouts
 @* A distribution of states in a tile: a 64 px donut with the total in the middle and a legend with the counts. *@
 <div class="tile-donut">
-    <Donut Parts="@(Parts.Select(p => (p.Class, p.Value)).ToList())" Size="DonutSize.Tile" Caption="@Caption" />
-    <ul class="tile-legend">
-        @foreach (var part in Parts.Where(p => p.Value > 0 || ShowEmpty))
-        {
-            <li>@if (part.Href is not null) { <a href="@part.Href"><span class="swatch-dot @part.Class"></span>@part.Label <b>@DisplayNumber.Format(part.Value)</b></a> } else { <span class="swatch-dot @part.Class"></span>@part.Label <b>@DisplayNumber.Format(part.Value)</b> }</li>
-        }
-    </ul>
+    <Donut Parts="@(Charts.Sorted(Parts).Select(p => (p.Class, p.Value)).ToList())" Size="DonutSize.Tile" Caption="@Caption" />
+    <DonutLegend Parts="@Parts" />
 </div>
 
 @code {
@@ -17,8 +12,4 @@
 
     [Parameter]
     public string? Caption { get; set; }
-
-    /// <summary>True to list parts with a count of zero too.</summary>
-    [Parameter]
-    public bool ShowEmpty { get; set; }
 }

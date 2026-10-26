@@ -49,6 +49,27 @@ internal static class Charts
     public static string Describe(IReadOnlyList<(string Class, int Value)> parts) =>
         string.Join(", ", (parts ?? []).Where(p => p.Value > 0).Select(p => string.Create(CultureInfo.InvariantCulture, $"{p.Value} {p.Class}")));
 
+    /// <summary>Lines a donut legend shows at most, so tiles in a row keep their height (docs/06-dashboard.md, section 8 "Charts").</summary>
+    public const int LegendLines = 4;
+
+    /// <summary>Deployment states with their labels, for a donut with legend.</summary>
+    public static IReadOnlyList<DonutPart> Labeled(DeploymentCounts counts)
+    {
+        ArgumentNullException.ThrowIfNull(counts);
+        return [new("ok", "Successful", counts.Successful), new("pend", "Pending", counts.Pending), new("queue", "Queued", counts.Queued), new("fail", "Failed", counts.Failed), new("none", "Not needed", counts.NotNeeded)];
+    }
+
+    /// <summary>The parts of a donut as donut and legend show them: largest first, empty parts left out (equal counts keep their order).</summary>
+    public static IReadOnlyList<DonutPart> Sorted(IEnumerable<DonutPart> parts) =>
+        (parts ?? []).Where(p => p.Value > 0).OrderByDescending(p => p.Value).ToList();
+
+    /// <summary>The legend lines: up to <paramref name="lines"/> parts, or one line fewer and the rest summed up as "+N more".</summary>
+    public static (IReadOnlyList<DonutPart> Shown, IReadOnlyList<DonutPart> More) Legend(IReadOnlyList<DonutPart> sorted, int lines = LegendLines)
+    {
+        ArgumentNullException.ThrowIfNull(sorted);
+        return sorted.Count <= lines ? (sorted, []) : (sorted.Take(lines - 1).ToList(), sorted.Skip(lines - 1).ToList());
+    }
+
     /// <summary>Number for an SVG attribute: invariant culture, two decimals at most.</summary>
     public static string Number(double value) => Math.Round(value, 2).ToString(CultureInfo.InvariantCulture);
 }

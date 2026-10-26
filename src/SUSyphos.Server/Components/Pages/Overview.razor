@@ -56,7 +56,7 @@
         <TileValue Value="@DisplayNumber.Format(_pendingServers)" Caption="servers" />
     </Tile>
     <Tile Title="Server status" Href="/servers" Edge="@(_failedServers > 0 || _offlineServers > 0 ? "fail" : _warningServers > 0 ? "queue" : null)" Footer="@WarningFooter">
-        <TileDonut Parts="@_statusParts" ShowEmpty="true" />
+        <TileDonut Parts="@_statusParts" />
     </Tile>
     <Tile Title="Compliance" Href="@Servers.Link("pending", Servers.PendingNo)" Footer="share of approved servers">
         <TileValue Value="@DisplayNumber.Percent(_compliancePercent)" Caption="released installed" />

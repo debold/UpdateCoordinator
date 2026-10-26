@@ -322,6 +322,46 @@
         const target = event.target instanceof Element ? event.target : null;
         closeMenus(target?.closest('details[data-menu]') ?? null);
     });
+
+    // An open menu floats above the page (fixed to the window), so the scroll container of a table cannot cut it off;
+    // it opens upwards when there is no room below and stays inside the window.
+    const placeMenu = (menu) => {
+        const pop = menu.querySelector(':scope > .menu-pop');
+        if (!pop) {
+            return;
+        }
+
+        if (!menu.open) {
+            pop.classList.remove('floating');
+            pop.style.removeProperty('top');
+            pop.style.removeProperty('left');
+            return;
+        }
+
+        pop.classList.add('floating');
+        const anchor = menu.querySelector(':scope > summary').getBoundingClientRect();
+        const width = pop.offsetWidth;
+        const height = pop.offsetHeight;
+        const right = document.documentElement.clientWidth - 8;
+        const bottom = window.innerHeight - 8;
+        const left = menu.classList.contains('align-right') ? anchor.right - width : anchor.left;
+        let top = anchor.bottom + 4;
+        if (top + height > bottom && anchor.top - 4 - height >= 8) {
+            top = anchor.top - 4 - height;
+        }
+
+        pop.style.left = `${Math.round(Math.max(8, Math.min(left, right - width)))}px`;
+        pop.style.top = `${Math.round(Math.max(8, Math.min(top, bottom - height)))}px`;
+    };
+    // The toggle event does not bubble; a listener in the capture phase still sees it for every menu.
+    document.addEventListener('toggle', (event) => {
+        if (event.target instanceof HTMLDetailsElement && event.target.matches('details[data-menu]')) {
+            placeMenu(event.target);
+        }
+    }, true);
+    const placeOpenMenus = () => document.querySelectorAll('details[data-menu][open]').forEach(placeMenu);
+    window.addEventListener('scroll', placeOpenMenus, { capture: true, passive: true });
+    window.addEventListener('resize', placeOpenMenus);
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             const open = document.querySelector('details[data-menu][open]');

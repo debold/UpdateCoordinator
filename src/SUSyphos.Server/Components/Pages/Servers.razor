@@ -73,12 +73,9 @@
                 {
                     <tr><td colspan="9" class="note">No server matches the search and filters.</td></tr>
                 }
-                @foreach (var (group, rows) in Groups())
+                @foreach (var (group, rows) in TablePaging.Groups(_page, _table, Columns))
                 {
-                    @if (group is not null)
-                    {
-                        <tr class="group-row"><td colspan="9">@(group.Length == 0 ? "(none)" : group) · @rows.Count</td></tr>
-                    }
+                    <GroupRow Name="@group" Count="@rows.Count" Columns="9" />
                     @foreach (var row in rows)
                     {
                         <tr>
@@ -168,22 +165,6 @@
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
     private IReadOnlyList<FilterOption>? Options(string column) => _page.Options.GetValueOrDefault(column);
-
-    /// <summary>Rows of the current page, grouped when the address asks for it.</summary>
-    private IEnumerable<(string? Group, List<Row> Rows)> Groups()
-    {
-        var column = Columns.FirstOrDefault(c => c.Key == _table.Group && c.FilterValues is not null);
-        if (column is null)
-        {
-            yield return (null, [.. _page.Rows]);
-            yield break;
-        }
-
-        foreach (var group in _page.Rows.GroupBy(column.GroupKey))
-        {
-            yield return (group.Key, [.. group]);
-        }
-    }
 
     private async Task BulkAsync()
     {

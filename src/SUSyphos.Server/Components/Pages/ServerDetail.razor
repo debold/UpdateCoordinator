@@ -333,7 +333,7 @@ else
                         <MultiSelect Name="Groups" Placeholder="No group"
                                      Options="@([.. _groups.Take(MultiSelect.MaxOptions).Select(g => (g.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), g.Name))])"
                                      Selected="@([.. _memberships.Where(m => m.Manual).Select(m => m.GroupId.ToString(System.Globalization.CultureInfo.InvariantCulture))])"
-                                     Fixed="@([.. _memberships.Where(m => !m.Manual).Select(m => $"{GroupName(m.GroupId)} (rule)")])">
+                                     Fixed="@([.. _memberships.Where(m => !m.Manual).Select(m => (m.GroupId.ToString(System.Globalization.CultureInfo.InvariantCulture), $"{GroupName(m.GroupId)} (rule)"))])">
                             <Empty><span class="note">No group exists yet. <a href="/administration/groups">Create groups</a></span></Empty>
                         </MultiSelect>
                         <span class="help">Groups from assignment rules are added automatically.</span>

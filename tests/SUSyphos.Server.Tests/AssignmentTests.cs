@@ -515,6 +515,34 @@ public sealed class AssignmentPageTests
     }
 
     [Fact]
+    public async Task GroupsFromRules_AreShownFixed_AndNotOfferedAgain()
+    {
+        await using var factory = new ServerFactory();
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(factory);
+        var credentials = await RegisterTests.RegisterAsync(browser.Http);
+        var (ruled, free) = await factory.WithDbAsync(async db =>
+        {
+            var a = new GroupEntity { Name = "SQL cluster" };
+            var b = new GroupEntity { Name = "Web farm" };
+            db.Groups.AddRange(a, b);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.ClientGroups.Add(new ClientGroupEntity { ClientId = credentials.ClientId, GroupId = a.Id, Manual = false });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            return (a.Id, b.Id);
+        });
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        var html = await (await browser.GetAsync($"/servers/{credentials.ClientId}?tab=configuration")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("SQL cluster (rule)", html, StringComparison.Ordinal);
+        Assert.DoesNotContain($"name=\"Groups\" value=\"{ruled}\"", html, StringComparison.Ordinal);
+        Assert.Contains($"name=\"Groups\" value=\"{free}\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Admin_GetsValidationMessageForInvalidWindows()
     {
         await using var factory = new ServerFactory();

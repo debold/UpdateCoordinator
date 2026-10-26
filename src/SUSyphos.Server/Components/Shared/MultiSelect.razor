@@ -1,26 +1,27 @@
 @* Multi-select without script: a dropdown of checkboxes whose summary shows the checked options. Every option has a tag
    in the summary that CSS shows while its checkbox is checked (:has with the option index), so the summary follows the
-   selection before saving. Fixed entries (e.g. groups from assignment rules) are shown but cannot be changed here. *@
+   selection before saving. Fixed entries (e.g. groups from assignment rules) are shown but cannot be changed here, so they
+   are not offered as options either. *@
 <details class="multi">
     <summary>
         <span class="placeholder">@Placeholder</span>
-        @foreach (var fixedLabel in Fixed)
+        @foreach (var (_, fixedLabel) in Fixed)
         {
             <span class="tag fixed">@fixedLabel</span>
         }
-        @for (var i = 0; i < Options.Count; i++)
+        @for (var i = 0; i < _options.Count; i++)
         {
-            <span class="tag pick" data-i="@i">@Options[i].Label</span>
+            <span class="tag pick" data-i="@i">@_options[i].Label</span>
         }
     </summary>
     <div class="options">
-        @if (Options.Count == 0)
+        @if (_options.Count == 0)
         {
             @Empty
         }
-        @for (var i = 0; i < Options.Count; i++)
+        @for (var i = 0; i < _options.Count; i++)
         {
-            var option = Options[i];
+            var option = _options[i];
             <label><input type="checkbox" name="@Name" value="@option.Value" data-i="@i" checked="@Selected.Contains(option.Value, StringComparer.OrdinalIgnoreCase)" /> @option.Label</label>
         }
     </div>
@@ -39,13 +40,18 @@
     [Parameter]
     public IReadOnlyCollection<string> Selected { get; set; } = [];
 
-    /// <summary>Labels shown in the summary that the checkboxes do not change.</summary>
+    /// <summary>Values with the label shown in the summary that the checkboxes do not change; left out of the options.</summary>
     [Parameter]
-    public IReadOnlyList<string> Fixed { get; set; } = [];
+    public IReadOnlyList<(string Value, string Label)> Fixed { get; set; } = [];
 
     [Parameter]
     public string Placeholder { get; set; } = "None";
 
     [Parameter]
     public RenderFragment? Empty { get; set; }
+
+    private List<(string Value, string Label)> _options = [];
+
+    protected override void OnParametersSet() =>
+        _options = [.. Options.Where(o => !Fixed.Any(f => string.Equals(f.Value, o.Value, StringComparison.OrdinalIgnoreCase)))];
 }

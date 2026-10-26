@@ -188,8 +188,8 @@ else
 
         <Box Title="All servers" Help="update-detail#all-servers" Hint="servers that reported this update">
             <div class="ring-status">
-                <Donut Counts="@_total" />
-                <Legend Counts="@_total" Vertical="true" />
+                <Donut Parts="@(Charts.Sorted(Charts.Labeled(_total)).Select(p => (p.Class, p.Value)).ToList())" />
+                <DonutLegend Parts="@Charts.Labeled(_total)" />
             </div>
         </Box>
     </div>

@@ -120,6 +120,83 @@ public sealed class PageLayoutTests(UiFixture ui)
         Assert.True(broken.Count == 0, $"{path} has broken links:\n{string.Join('\n', broken)}");
     }
 
+    /// <summary>Every "Group by" a list offers shows group rows (it once did nothing on the update list).</summary>
+    [Theory]
+    [MemberData(nameof(Pages))]
+    public async Task EveryGrouping_ShowsGroupRows(string path)
+    {
+        await using var context = await ui.NewContextAsync();
+        var page = await context.NewPageAsync();
+        var url = await ResolveAsync(path);
+        await page.GotoAsync(url);
+
+        var choices = await page.EvalOnSelectorAllAsync<string[][]>(
+            "main select[id$='table-group']",
+            "selects => selects.flatMap(s => [...s.options].filter(o => o.value).map(o => [s.name, o.value]))");
+        var missing = new List<string>();
+        foreach (var choice in choices)
+        {
+            var grouped = new UriBuilder(new Uri(ui.BaseAddress, url));
+            var query = System.Web.HttpUtility.ParseQueryString(grouped.Query);
+            query[choice[0]] = choice[1];
+            grouped.Query = query.ToString();
+            await page.GotoAsync(grouped.Uri.ToString());
+            var select = page.Locator($"main select[name='{choice[0]}']");
+            var groups = await select.EvaluateAsync<int>("s => (s.closest('section, .box') ?? document).querySelectorAll('tr.group-row').length");
+            var rows = await select.EvaluateAsync<int>("s => (s.closest('section, .box') ?? document).querySelectorAll('tbody tr:not(.group-row)').length");
+            if (rows > 0 && groups == 0)
+            {
+                missing.Add($"{choice[0]}={choice[1]}");
+            }
+        }
+
+        Assert.True(missing.Count == 0, $"{path}: grouping shows no group rows for {string.Join(", ", missing)}");
+    }
+
+    /// <summary>Every drop-down and row menu opens fully visible: not cut off by a table's scroll container, inside the window.</summary>
+    [Theory]
+    [MemberData(nameof(Pages))]
+    public async Task EveryMenu_OpensVisibly(string path)
+    {
+        await using var context = await ui.NewContextAsync(1280, 800);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync(await ResolveAsync(path));
+
+        var hidden = new List<string>();
+        // With a modal dialog open only its own menus can be used.
+        var scope = await page.Locator("[role=dialog][aria-modal=true]").CountAsync() > 0 ? "[role=dialog][aria-modal=true]" : "main";
+        var menus = page.Locator($"{scope} details[data-menu]:visible > summary");
+        var count = await menus.CountAsync();
+        for (var i = 0; i < count; i++)
+        {
+            var summary = menus.Nth(i);
+            await summary.ClickAsync();
+            var problem = await summary.EvaluateAsync<string?>("""
+                async summary => {
+                    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                    const pop = summary.parentElement.querySelector(':scope > .menu-pop');
+                    const name = (summary.getAttribute('aria-label') || summary.textContent).trim();
+                    const r = pop.getBoundingClientRect();
+                    if (r.width === 0 || r.height === 0) return `${name}: not shown`;
+                    if (r.left < 0 || r.top < 0 || r.right > document.documentElement.clientWidth || r.bottom > window.innerHeight) return `${name}: outside the window`;
+                    for (const [x, y] of [[r.left + 4, r.top + 4], [r.right - 4, r.bottom - 4], [(r.left + r.right) / 2, (r.top + r.bottom) / 2]]) {
+                        const hit = document.elementFromPoint(x, y);
+                        if (!hit || !pop.contains(hit)) return `${name}: covered or cut off at ${Math.round(x)},${Math.round(y)}`;
+                    }
+                    return null;
+                }
+                """);
+            if (problem is not null)
+            {
+                hidden.Add(problem);
+            }
+
+            await page.Keyboard.PressAsync("Escape");
+        }
+
+        Assert.True(hidden.Count == 0, $"{path} has menus that do not open visibly:\n{string.Join('\n', hidden)}");
+    }
+
     /// <summary>A named field outside every form is never sent; it looks saved and silently is not.</summary>
     [Theory]
     [MemberData(nameof(Pages))]

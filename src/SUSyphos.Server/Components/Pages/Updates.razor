@@ -61,20 +61,24 @@
                 {
                     <tr><td colspan="10" class="note">No update matches the search and filters.</td></tr>
                 }
-                @foreach (var row in _page.Rows)
+                @foreach (var (group, rows) in TablePaging.Groups(_page, _table, Columns))
                 {
-                    <tr>
-                        <td>@if (!row.Outside) { <input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /> }</td>
+                    <GroupRow Name="@group" Count="@rows.Count" Columns="10" />
+                    @foreach (var row in rows)
+                    {
+                        <tr>
+                            <td>@if (!row.Outside) { <input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /> }</td>
 
-                        <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }<div class="note"><KbLinks Kb="@row.Kb" /></div></td>
-                        <td>@row.Classification</td>
-                        <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
-                        <td class="nowrap">@row.Restart</td>
-                        <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
-                        <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }@if (row.Newer is { } newer) { <div class="note">superseded by <a href="/updates/@newer.UpdateId/@newer.Revision">@newer.Name</a></div> }</td>
-                        <td class="nowrap">@foreach (var stage in row.Stages ?? []) { <span class="ring-stage r@(RingTag.Palette(stage.Order)) @stage.Class" title="@($"{stage.Order} {stage.Name}: {stage.Label}")">@stage.Order</span> }</td>
-                        <td class="nowrap"><span class="donut-cell" title="@($"{row.Missing} servers still miss it; {row.Counts.Successful} of {row.Counts.Total} installed, {row.Counts.Failed} failed")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
-                    </tr>
+                            <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }<div class="note"><KbLinks Kb="@row.Kb" /></div></td>
+                            <td>@row.Classification</td>
+                            <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
+                            <td class="nowrap">@row.Restart</td>
+                            <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
+                            <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }@if (row.Newer is { } newer) { <div class="note">superseded by <a href="/updates/@newer.UpdateId/@newer.Revision">@newer.Name</a></div> }</td>
+                            <td class="nowrap">@foreach (var stage in row.Stages ?? []) { <span class="ring-stage r@(RingTag.Palette(stage.Order)) @stage.Class" title="@($"{stage.Order} {stage.Name}: {stage.Label}")">@stage.Order</span> }</td>
+                            <td class="nowrap"><span class="donut-cell" title="@($"{row.Missing} servers still miss it; {row.Counts.Successful} of {row.Counts.Total} installed, {row.Counts.Failed} failed")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>

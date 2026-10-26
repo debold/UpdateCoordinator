@@ -92,6 +92,32 @@ public sealed class ChartTests
     public void NoEntries_DrawNoSegments() => Assert.Empty(Charts.Segments(DeploymentCounts.Empty, 100));
 
     [Fact]
+    public void Legend_ListsTheLargestFirst_WithoutEmptyParts()
+    {
+        var sorted = Charts.Sorted(Charts.Labeled(new DeploymentCounts(Queued: 3, Pending: 0, Successful: 5, Failed: 3)));
+
+        Assert.Equal(["Successful", "Queued", "Failed"], sorted.Select(p => p.Label));
+        var (shown, more) = Charts.Legend(sorted);
+        Assert.Equal(3, shown.Count);
+        Assert.Empty(more);
+    }
+
+    [Fact]
+    public void Legend_SumsUpWhatExceedsFourLines()
+    {
+        var parts = Enumerable.Range(1, 6).Select(i => new DonutPart("ok", $"Part {i}", i)).ToList();
+
+        var (shown, more) = Charts.Legend(Charts.Sorted(parts));
+
+        Assert.Equal(["Part 6", "Part 5", "Part 4"], shown.Select(p => p.Label));
+        Assert.Equal(6, more.Sum(p => p.Value));
+        Assert.Equal(Charts.LegendLines, shown.Count + 1);
+    }
+
+    [Fact]
+    public void Legend_OfNothing_IsEmpty() => Assert.Empty(Charts.Legend(Charts.Sorted([new DonutPart("ok", "None", 0)])).Shown);
+
+    [Fact]
     public void Numbers_UseInvariantCulture()
     {
         var culture = System.Globalization.CultureInfo.CurrentCulture;

@@ -14,7 +14,7 @@
         <TileValue Value="@DisplayNumber.Percent(_report.Percent)" Caption="covered" />
     </Tile>
     <Tile Title="Server accounts" Footer="@(_report.ReadAtUtc is { } read ? $"read from Active Directory at {DisplayTime.Format(read)}" : "not read yet")">
-        <TileDonut Parts="@Parts" ShowEmpty="true" />
+        <TileDonut Parts="@Parts" />
     </Tile>
 </section>
 

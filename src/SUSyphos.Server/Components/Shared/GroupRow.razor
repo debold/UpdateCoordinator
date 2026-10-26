@@ -1,0 +1,17 @@
+@* The heading row of a group in a grouped list (TablePaging.Groups): name and number of rows. *@
+@if (Name is not null)
+{
+    <tr class="group-row"><td colspan="@Columns">@(Name.Length == 0 ? "(none)" : Name) · @Count</td></tr>
+}
+
+@code {
+    /// <summary>Group name; null for an ungrouped list (nothing is shown), empty for rows without a value.</summary>
+    [Parameter]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public int Count { get; set; }
+
+    [Parameter]
+    public int Columns { get; set; }
+}

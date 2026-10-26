@@ -238,6 +238,24 @@ public static class TablePaging
         return new TablePage<T>([.. matching.Skip((page - 1) * pageSize).Take(pageSize)], matching.Count, rows.Count, page, pages, options, pageSize);
     }
 
+    /// <summary>
+    /// Rows of the page in their groups when the address asks for grouping by a filterable column (one group with a null
+    /// name otherwise). Apply already ordered the rows by group, so every list renders its groups the same way.
+    /// </summary>
+    public static IEnumerable<(string? Group, IReadOnlyList<T> Rows)> Groups<T>(TablePage<T> page, TableQuery query, IReadOnlyList<TableColumn<T>> columns)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(columns);
+        var column = columns.FirstOrDefault(c => c.Key == query.Group && c.FilterValues is not null);
+        if (column is null)
+        {
+            return [(null, page.Rows)];
+        }
+
+        return page.Rows.GroupBy(column.GroupKey).Select(g => ((string?)g.Key, (IReadOnlyList<T>)[.. g]));
+    }
+
     /// <summary>Labels of the filterable columns, for the filter chips.</summary>
     public static IReadOnlyDictionary<string, string> Labels<T>(IReadOnlyList<TableColumn<T>> columns)
     {

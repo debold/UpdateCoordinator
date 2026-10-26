@@ -132,7 +132,7 @@ Decided by Marc on 2026-10-25. New and changed pages use these patterns; existin
 Key figures at the top of a page (overview, server details, AD coverage, agents, and wherever a page leads with numbers).
 
 - **Header:** a short title in small type; optionally a link on the right, always named "Show ›".
-- **Main part:** exactly one or two values, large and bold, centred horizontally and vertically. Two values sit side by side, split by a thin vertical line, each with a small caption below. A state is a pill (e.g. "Failed", "up to date"), not plain text. A distribution of states is a small donut with a legend (e.g. servers by status, AD coverage). Never more than two values; anything else goes to the footer.
+- **Main part:** exactly one or two values, large and bold, centred horizontally and vertically. Two values take two equal halves, split by a thin vertical line in the middle, each centred in its half with a small caption below. A state is a pill (e.g. "Failed", "up to date"), not plain text. A distribution of states is a small donut with a legend (e.g. servers by status, AD coverage). Never more than two values; anything else goes to the footer.
 - **Footer:** one line of small text below a thin separator, always at the bottom (unit, context, time reference); longer text is cut with "…" and shown in full as tooltip.
 - **Edge:** a tile whose state needs attention gets a coloured left edge (red failure, amber warning); the edge never carries information the text does not say.
 - All tiles of a row have the same height. Version numbers carry a "v" prefix (v0.7.7).
@@ -239,6 +239,7 @@ How the dashboard tells what happened and what lasts (Marc, 2026-10-25).
 ### Charts
 
 - Donut sizes: 40 px in table cells, 64 px in tiles, 120 px in boxes (with the total in the middle). Bars are thin.
+- Donut legends (all donuts with a legend, in tiles and boxes; shared component `DonutLegend`, Marc 2026-10-26): parts sorted by count, the largest first, and the donut segments in the same order; parts with a count of zero are left out; one line per part that never wraps, the count right-aligned; at most four lines, from a fifth part on three lines and "+N more" with the sum and the hidden parts as tooltip, so tiles in a row keep their height.
 - Status colours for states, the categorical palette for categories (rings, classifications), assigned in a fixed order.
 - A legend from two series on, a tooltip on every mark, and "Show as table" below larger charts.
 

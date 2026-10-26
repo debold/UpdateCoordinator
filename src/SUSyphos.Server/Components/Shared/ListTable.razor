@@ -22,9 +22,13 @@
             {
                 <tr><td colspan="@(Columns.Count + ExtraColumns)" class="note">@(Page.Total == 0 ? Empty : "Nothing matches the search or filters.")</td></tr>
             }
-            @foreach (var row in Page.Rows)
+            @foreach (var (group, rows) in TablePaging.Groups(Page, Table, Columns))
             {
-                @Row(row)
+                <GroupRow Name="@group" Count="@rows.Count" Columns="@(Columns.Count + ExtraColumns)" />
+                @foreach (var row in rows)
+                {
+                    @Row(row)
+                }
             }
         </tbody>
     </table>

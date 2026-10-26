@@ -1,0 +1,21 @@
+@using SUSyphos.Server.Rollouts
+@* The legend of a donut: one line per part, largest first, empty parts left out, at most four lines (docs/06-dashboard.md, section 8 "Charts"). *@
+@{
+    var (shown, more) = Charts.Legend(Charts.Sorted(Parts));
+}
+<ul class="donut-legend">
+    @foreach (var part in shown)
+    {
+        <li>@if (part.Href is not null) { <a href="@part.Href"><span class="swatch-dot @part.Class"></span><span class="name">@part.Label</span><b>@DisplayNumber.Format(part.Value)</b></a> } else { <span class="swatch-dot @part.Class"></span><span class="name">@part.Label</span><b>@DisplayNumber.Format(part.Value)</b> }</li>
+    }
+    @if (more.Count > 0)
+    {
+        <li class="more" title="@string.Join(", ", more.Select(p => $"{p.Label} {DisplayNumber.Format(p.Value)}"))"><span class="swatch-dot neutral"></span><span class="name">+@more.Count more</span><b>@DisplayNumber.Format(more.Sum(p => p.Value))</b></li>
+    }
+</ul>
+
+@code {
+    /// <summary>The parts as status class (ok, pend, queue, fail, none, neutral), label, count and an optional link.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DonutPart> Parts { get; set; } = [];
+}
