@@ -204,7 +204,8 @@ public sealed class TableTests
         }
 
         var overview = await (await reader.GetAsync("/")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.Contains("href=\"/servers?f.status=Failed\"", overview, StringComparison.Ordinal);
+        // Empty parts of the status donut are left out of its legend (no server failed here).
+        Assert.DoesNotContain("href=\"/servers?f.status=Failed\"", overview, StringComparison.Ordinal);
         Assert.Contains("href=\"/servers?f.pending=Updates%20pending\"", overview, StringComparison.Ordinal);
         Assert.Contains("Servers reporting", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Installations running", overview, StringComparison.Ordinal);

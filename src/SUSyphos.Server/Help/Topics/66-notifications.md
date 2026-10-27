@@ -24,6 +24,7 @@ Changes are recorded in the [audit log](help/audit-log).
 - **Password**: the password of that user. Empty keeps the stored one; with a user name a password is required. **Remove the stored password** deletes it.
 - **Sender address**: the From address, for example susyphos@example.com.
 - **Recipients**: one or more addresses, separated by comma, semicolon or new lines.
+- **Send test e-mail** (below the box) sends a test e-mail with the saved settings, also while e-mail is off, and shows the answer of the mail server.
 
 E-mails are HTML in the look of the dashboard, with a plain text part for mail programs without HTML and for filter rules: a short header (date and time in the time zone of the central server, the central server, the severity Critical, Warning or Info), then each event with its name as heading, what happened, **Affected** and **Impact** where known, and an **Open in SUSyphos** button to the page concerned, and a footer with the address and version of the central server and a link to these settings.
 
@@ -33,6 +34,7 @@ E-mails are HTML in the look of the dashboard, with a plain text part for mail p
 
 - **Address (https://)**: the address that receives the notifications; only HTTPS is accepted.
 - **Signature secret**: optional. With a secret, every call carries the header `X-SUSyphos-Signature` with `sha256=` and the HMAC-SHA256 of the body, so the receiver can check that the call came from this central server. Empty keeps the stored secret; **Remove the stored secret** deletes it.
+- **Send test webhook** (below the box) calls the saved address with a test message, also while the webhook is off, and shows the HTTP status it answered; see the [example](#webhook-example).
 
 The webhook receives a JSON document with subject, time, severity, central server and version, and the events (kind, category, severity, title, key, text, affected, impact and link). Any 2xx answer counts as delivered; anything else is retried on the next run.
 

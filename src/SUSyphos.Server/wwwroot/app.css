@@ -161,12 +161,13 @@ button:disabled, .btn.disabled { opacity: 0.5; cursor: not-allowed; }
 .tile-number .pill { height: 28px; font-size: 0.95rem; padding: 0 0.9rem; }
 .tile-caption { color: var(--muted); font-size: 0.78rem; margin-top: 0.15rem; white-space: nowrap; }
 .tile-foot { border-top: 1px solid var(--line); padding-top: 0.45rem; color: var(--muted); font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tile-donut { display: flex; align-items: center; gap: 0.9rem; min-width: 0; }
+.tile-donut { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.tile-donut .donut-legend { flex: 1 1 auto; }
 /* Donut legend: one line per part, the count right-aligned, never wrapping (at most four lines). */
 .donut-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.1rem; font-size: 0.8rem; min-width: 0; }
 .donut-legend li, .donut-legend a { display: flex; align-items: center; min-width: 0; white-space: nowrap; color: var(--text); }
 .donut-legend .name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.donut-legend b { margin-left: auto; padding-left: 0.6rem; font-variant-numeric: tabular-nums; }
+.donut-legend b { margin-left: auto; padding-left: 0.4rem; font-variant-numeric: tabular-nums; }
 .donut-legend a { flex: 1; text-decoration: none; }
 .donut-legend a:hover .name { color: var(--accent); }
 .donut-legend .swatch-dot { flex: none; }

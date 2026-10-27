@@ -349,8 +349,8 @@ public sealed class DashboardViewTests
 
         var html = await (await browser.GetAsync($"/updates/{update.UpdateId}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        Assert.Contains("1 successful, 0 pending, 0 queued, 0 failed, 2 not needed", html, StringComparison.Ordinal);
-        Assert.Contains("Not needed <b>2</b>", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"name\">Not needed</span><b>2</b>", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"name\">Successful</span><b>1</b>", html, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -6,7 +6,7 @@
 <ul class="donut-legend">
     @foreach (var part in shown)
     {
-        <li>@if (part.Href is not null) { <a href="@part.Href"><span class="swatch-dot @part.Class"></span><span class="name">@part.Label</span><b>@DisplayNumber.Format(part.Value)</b></a> } else { <span class="swatch-dot @part.Class"></span><span class="name">@part.Label</span><b>@DisplayNumber.Format(part.Value)</b> }</li>
+        <li>@if (part.Href is not null) { <a href="@part.Href"><span class="swatch-dot @part.Class"></span><span class="name" title="@part.Label">@part.Label</span><b>@DisplayNumber.Format(part.Value)</b></a> } else { <span class="swatch-dot @part.Class"></span><span class="name" title="@part.Label">@part.Label</span><b>@DisplayNumber.Format(part.Value)</b> }</li>
     }
     @if (more.Count > 0)
     {
