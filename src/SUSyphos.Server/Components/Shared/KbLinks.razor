@@ -1,11 +1,13 @@
 @using SUSyphos.Server.Rollouts
-@* A KB number as link to Microsoft's release notes, with a second link to the Microsoft Update Catalog; both open in a new
-   tab. Renders nothing for a missing or invalid number. *@
+@* A KB number as link chip to Microsoft's release notes (the Defender update page for Defender updates), with a second chip
+   for the Microsoft Update Catalog; both open in a new tab and stand apart from long titles (Marc, 2026-10-27). Renders
+   nothing for a missing or invalid number. *@
 @if (UpdateText.ReleaseNotesLink(Kb) is { } notes)
 {
+    var defender = UpdateText.IsDefender(Kb);
     <span class="kb-links">
-        <a href="@notes" target="_blank" rel="noopener noreferrer" title="Release notes of KB@(Kb) at Microsoft">@(Label ?? $"KB{Kb}")</a>
-        <a class="kb-catalog" href="@UpdateText.CatalogLink(Kb)" target="_blank" rel="noopener noreferrer" title="KB@(Kb) in the Microsoft Update Catalog" aria-label="KB@(Kb) in the Microsoft Update Catalog">Catalog</a>
+        <a class="kb-chip" href="@notes" target="_blank" rel="noopener noreferrer" title="@(defender ? $"KB{Kb}: Microsoft Defender update information at Microsoft" : $"Release notes of KB{Kb} at Microsoft")"><Icon Name="file-text" Size="12" />@(Label ?? $"KB{Kb}")</a>
+        <a class="kb-chip kb-catalog" href="@UpdateText.CatalogLink(Kb)" target="_blank" rel="noopener noreferrer" title="KB@(Kb) in the Microsoft Update Catalog" aria-label="KB@(Kb) in the Microsoft Update Catalog"><Icon Name="package" Size="12" />Catalog</a>
     </span>
 }
 

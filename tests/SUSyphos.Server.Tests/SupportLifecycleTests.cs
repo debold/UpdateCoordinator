@@ -124,6 +124,8 @@ public sealed class SupportLifecycleTests
 
     [Theory]
     [InlineData("5066835", "https://support.microsoft.com/help/5066835", "https://catalog.update.microsoft.com/Search.aspx?q=KB5066835")]
+    [InlineData("2267602", UpdateText.DefenderNotes, "https://catalog.update.microsoft.com/Search.aspx?q=KB2267602")]
+    [InlineData("4052623", UpdateText.DefenderNotes, "https://catalog.update.microsoft.com/Search.aspx?q=KB4052623")]
     [InlineData("12345", null, null)]
     [InlineData("50668<script>", null, null)]
     [InlineData(null, null, null)]
@@ -132,6 +134,12 @@ public sealed class SupportLifecycleTests
         Assert.Equal(notes, UpdateText.ReleaseNotesLink(kb));
         Assert.Equal(catalog, UpdateText.CatalogLink(kb));
     }
+
+    [Theory]
+    [InlineData("5126651", "2026-10 Cumulative Update (KB5126651)", "2026-10 Cumulative Update (KB5126651)")]
+    [InlineData("925673", "MSXML 6.0 RTM Security Update (925673)", "KB925673 MSXML 6.0 RTM Security Update (925673)")]
+    [InlineData(null, "Broadcom driver", "Broadcom driver")]
+    public void Title_NamesTheKbOnce(string? kb, string title, string expected) => Assert.Equal(expected, UpdateText.Title(kb, title));
 
     [Theory]
     [InlineData("2026-10 Cumulative Update for Windows Server 2022 (KB5066782)", "5066782")]

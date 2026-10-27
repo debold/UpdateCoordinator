@@ -645,9 +645,12 @@ fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: cent
 .dialog-main { display: grid; gap: 0.85rem; min-width: 0; }
 @media (max-width: 60rem) { .dialog-split { grid-template-columns: 1fr; } }
 /* KB numbers linked to the release notes, with the catalog as a small second link. */
-.kb-links { display: inline-flex; align-items: baseline; gap: 0.4rem; white-space: nowrap; }
-.kb-links .kb-catalog { font-size: 0.78rem; color: var(--muted); }
-.kb-links .kb-catalog:hover { color: var(--accent); }
+.kb-links { display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap; vertical-align: middle; }
+.kb-chip { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.05rem 0.45rem; border: 1px solid var(--border); border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.75rem; line-height: 1.4; text-decoration: none; }
+.kb-chip:hover { border-color: var(--accent); text-decoration: none; }
+.kb-chip.kb-catalog { background: var(--surface-2); color: var(--muted); }
+.kb-chip.kb-catalog:hover { color: var(--accent); }
+td .kb-links { margin-top: 0.2rem; }
 /* Share of servers on the security baseline, a thin bar next to the percentage. */
 .share-bar { width: 5rem; height: 8px; vertical-align: middle; }
 .share-bar .track { fill: var(--line); }

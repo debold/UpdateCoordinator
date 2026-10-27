@@ -508,6 +508,37 @@ public sealed class RolloutPageTests
     }
 
     [Fact]
+    public async Task UpdateList_HidesRolloutsReleasedEverywhere_ThatNoServerNeeds()
+    {
+        // Released to every ring and missing nowhere is done, also when no server ever installed it (Marc, 2026-10-27).
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        await scenario.ManualStartOnlyAsync();
+        var update = RolloutScenario.Update("Feature Packs");
+        await scenario.ReportAsync(pilot, update);
+        Assert.True((await scenario.AdministerAsync(a => a.StartAsync(update.UpdateId, 1, "admin", CancellationToken.None))).Succeeded);
+        Assert.True((await scenario.AdministerAsync(a => a.OverrideAsync(update.UpdateId, 1, "admin", CancellationToken.None))).Succeeded);
+        await scenario.AdvanceAsync();
+        await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var browser = new DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("reader", Password))
+        {
+        }
+
+        var details = await (await browser.GetAsync($"/updates?open={update.UpdateId:D}:1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("class=\"details-row\"", details, StringComparison.Ordinal);
+        Assert.Contains($"{update.UpdateId:D} (revision 1)", details, StringComparison.Ordinal);
+
+        Assert.Contains("KB5040000", await (await browser.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+
+        // The only server that needed it leaves SUSyphos (as in the lab: 0/0).
+        await scenario.Factory.WithDbAsync(db => db.Clients.ExecuteUpdateAsync(s => s.SetProperty(c => c.State, RegistrationState.Deleted), TestContext.Current.CancellationToken));
+
+        Assert.DoesNotContain("KB5040000", await (await browser.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains("KB5040000", await (await browser.GetAsync("/updates?completed=1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Operator_StartsRolloutAndApprovesGateThroughPages()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
