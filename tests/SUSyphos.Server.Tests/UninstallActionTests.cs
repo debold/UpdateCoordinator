@@ -130,6 +130,7 @@ public sealed class UninstallActionTests
         var dialog = await (await admin.GetAsync(path + "?dialog=uninstall")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains($"value=\"{update.UpdateId}\"", dialog, StringComparison.Ordinal);
         Assert.DoesNotContain($"value=\"{notInstalled.UpdateId}\"", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("@candidate", dialog, StringComparison.Ordinal);
 
         // An update the server does not have is refused; the installed one is queued.
         using (await admin.PostFormAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallWhen"] = "now", ["UninstallUpdate"] = notInstalled.UpdateId.ToString() }))

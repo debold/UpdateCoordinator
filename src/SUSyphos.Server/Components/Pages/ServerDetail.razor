@@ -437,7 +437,7 @@ else
                                     {
                                         <tr>
                                             <td><input type="radio" id="@($"uninstall-{candidate.UpdateId:N}")" name="UninstallUpdate" value="@candidate.UpdateId" required data-help-term="Update" /></td>
-                                            <td class="wrap"><label for="@($"uninstall-{candidate.UpdateId:N}")">@candidate.Title</label>@if (candidate.Kb is not null) { <div class="note">KB@candidate.Kb</div> }@if (candidate.Uninstallable == false) { <div><span title="Windows Update cannot remove it; the agent tries DISM by the KB number, which some packages refuse"><StatusTag Text="only through DISM, may fail" Kind="queue" /></span></div> }</td>
+                                            <td class="wrap"><label for="@($"uninstall-{candidate.UpdateId:N}")">@candidate.Title</label>@if (candidate.Kb is not null) { <div class="note">KB@(candidate.Kb)</div> }@if (candidate.Uninstallable == false) { <div><span title="Windows Update cannot remove it; the agent tries DISM by the KB number, which some packages refuse"><StatusTag Text="only through DISM, may fail" Kind="queue" /></span></div> }</td>
                                             <td class="nowrap">@(candidate.InstalledAtUtc is { } at ? DisplayTime.FormatDate(at) : "–")</td>
                                         </tr>
                                     }

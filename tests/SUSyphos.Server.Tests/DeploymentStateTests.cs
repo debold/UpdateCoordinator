@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 using SUSyphos.Contracts.Agents;
@@ -54,6 +55,41 @@ public sealed class DeploymentStateTests
         });
 
         await scenario.ReportAsync(pilot);
+
+        Assert.Equal(DeploymentState.Successful, await StateAsync(scenario, pilot.ClientId, update.UpdateId));
+    }
+
+    [Fact]
+    public async Task SuccessfulInstallation_ReportedMissingAgain_CountsAsNotInstalled()
+    {
+        // Uninstalled after the installation (Marc, 2026-10-27): the next search reports the update again.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid() };
+        await scenario.ReportAsync(pilot, update);
+        var before = await StateAsync(scenario, pilot.ClientId, update.UpdateId);
+        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Succeeded);
+        await scenario.ReportAsync(pilot);
+        Assert.Equal(DeploymentState.Successful, await StateAsync(scenario, pilot.ClientId, update.UpdateId));
+
+        await scenario.ReportAsync(pilot, update);
+
+        Assert.Equal(before, await StateAsync(scenario, pilot.ClientId, update.UpdateId));
+        Assert.Contains(update.UpdateId, (await scenario.ReleasesAsync(pilot)).Releases.Select(r => r.UpdateId));
+    }
+
+    [Fact]
+    public async Task SuccessfulInstallation_WaitingForItsRestart_StaysSuccessful()
+    {
+        // Until the restart that completes it, a search may still report the update: that is no uninstallation.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid() };
+        await scenario.ReportAsync(pilot, update);
+        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Succeeded);
+        await scenario.Factory.WithDbAsync(db => db.Installations.ExecuteUpdateAsync(s => s.SetProperty(i => i.RebootRequired, true), TestContext.Current.CancellationToken));
+
+        await scenario.ReportAsync(pilot, update);
 
         Assert.Equal(DeploymentState.Successful, await StateAsync(scenario, pilot.ClientId, update.UpdateId));
     }

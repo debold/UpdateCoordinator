@@ -33,7 +33,8 @@ internal sealed record DeploymentEntry(
     DeploymentState State,
     DateTime? EarliestInstallAtUtc,
     DateTime? LastResultAtUtc,
-    int? HResult);
+    int? HResult,
+    bool MissingAgain = false);
 
 /// <summary>Counts per deployment state, e.g. for a ring or an update.</summary>
 /// <param name="Queued">Reported as missing, not released yet.</param>
@@ -86,8 +87,8 @@ internal sealed class DeploymentStatus(ServerDbContext db)
             .Where(c => c.State == RegistrationState.Approved)
             .Where(c => ringId == null || c.RingId == ringId)
             .Where(c => clientId == null || c.Id == clientId)
-            .Select(c => new { c.Id, c.RingId })
-            .ToDictionaryAsync(c => c.Id, c => c.RingId, cancellationToken)
+            .Select(c => new { c.Id, c.RingId, c.LastBootAtUtc })
+            .ToDictionaryAsync(c => c.Id, cancellationToken)
             .ConfigureAwait(false);
         if (clients.Count == 0)
         {
@@ -97,7 +98,7 @@ internal sealed class DeploymentStatus(ServerDbContext db)
         var ids = clients.Keys.ToList();
         var available = await db.ClientAvailableUpdates.AsNoTracking()
             .Where(a => ids.Contains(a.ClientId) && (updateIds == null || updateIds.Contains(a.UpdateId)))
-            .Select(a => new { a.ClientId, a.UpdateId, a.Revision })
+            .Select(a => new { a.ClientId, a.UpdateId, a.Revision, a.ReportedAtUtc })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
         var releases = await db.Releases.AsNoTracking()
@@ -107,7 +108,7 @@ internal sealed class DeploymentStatus(ServerDbContext db)
             .ConfigureAwait(false);
         var installations = await db.Installations.AsNoTracking()
             .Where(i => ids.Contains(i.ClientId) && (updateIds == null || updateIds.Contains(i.UpdateId)))
-            .Select(i => new { i.Id, i.ClientId, i.UpdateId, i.Revision, i.ResultCode, i.HResult, i.FinishedAtUtc })
+            .Select(i => new { i.Id, i.ClientId, i.UpdateId, i.Revision, i.ResultCode, i.HResult, i.RebootRequired, i.FinishedAtUtc })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -124,6 +125,7 @@ internal sealed class DeploymentStatus(ServerDbContext db)
         // A failed attempt only counts while the server still misses the update (Marc, 2026-10-23): once its search no longer
         // reports it, the failure is over; installed some other way (Windows itself, by hand) it counts as installed.
         var missing = available.Select(a => (a.ClientId, a.UpdateId)).ToHashSet();
+        var reportedAt = available.GroupBy(a => (a.ClientId, a.UpdateId, a.Revision)).ToDictionary(g => g.Key, g => g.Max(a => a.ReportedAtUtc));
         var settled = last.Where(l => !InstallEvidence.LeavesInstalled(l.Value.ResultCode, l.Value.HResult) && !missing.Contains((l.Key.ClientId, l.Key.UpdateId))).Select(l => l.Key).ToList();
         var installedSince = await InstallEvidence.InstalledAsync(db, settled.Select(k => k.ClientId).Distinct().ToList(), settled.Select(k => k.UpdateId).Distinct().ToList(), cancellationToken).ConfigureAwait(false);
         var settledKeys = settled.ToHashSet();
@@ -140,20 +142,28 @@ internal sealed class DeploymentStatus(ServerDbContext db)
 
             var succeeded = result is not null && (InstallEvidence.LeavesInstalled(result.ResultCode, result.HResult) || settledKeys.Contains(key));
 
+            // Missing again after a success (uninstalled, by SUSyphos or otherwise; Marc, 2026-10-27): a search after the
+            // installation reports it again, and the installation needed no restart or the server restarted since, so the
+            // search is not just waiting for the restart that completes the installation. It counts as not installed.
+            var missingAgain = succeeded
+                && reportedAt.TryGetValue(key, out var seen) && seen > result!.FinishedAtUtc
+                && (!result.RebootRequired || clients[key.ClientId].LastBootAtUtc > result.FinishedAtUtc);
+
             // A release after a failure stays Failed until a new result arrives; a success without a new search is final.
-            var state = result is null
+            var state = result is null || missingAgain
                 ? hasRelease ? DeploymentState.Pending : DeploymentState.Queued
                 : succeeded ? DeploymentState.Successful : DeploymentState.Failed;
 
             entries.Add(new DeploymentEntry(
                 key.ClientId,
-                clients[key.ClientId],
+                clients[key.ClientId].RingId,
                 key.UpdateId,
                 key.Revision,
                 state,
                 hasRelease ? earliest : null,
                 result?.FinishedAtUtc,
-                result is null || succeeded ? null : result.HResult));
+                result is null || succeeded ? null : result.HResult,
+                missingAgain));
         }
 
         return entries;
@@ -179,6 +189,7 @@ internal static class DeploymentText
         {
             DeploymentState.Successful => $"Installed {Format(entry.LastResultAtUtc)} UTC",
             DeploymentState.Failed => string.Create(CultureInfo.InvariantCulture, $"0x{entry.HResult ?? 0:X8}: {HResultCatalog.Describe(entry.HResult ?? 0)}"),
+            DeploymentState.Pending when entry.MissingAgain => $"Missing again after the installation of {Format(entry.LastResultAtUtc)} UTC (uninstalled); waiting for the maintenance window",
             DeploymentState.Pending => "Waiting for the maintenance window",
             _ => "Not released for the server's ring",
         };
