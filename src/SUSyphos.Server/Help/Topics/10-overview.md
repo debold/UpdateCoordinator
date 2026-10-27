@@ -45,7 +45,7 @@ Everything that waits for a human decision or points to a problem, each with a b
 - **Registration**: new servers wait for approval.
 - **Lease**: the installations of a group failed or expired several times in a row; the central server issues no new installation slots for the group until an operator resumes it.
 - **Failed** and **Offline**: servers with a failed installation or without a heartbeat for over an hour.
-- **Support**: servers without Extended Security Updates after the end of support (red, "No ESU"), servers past the end without ESU found yet (amber) and servers whose support ends within 180 days (amber); **Show servers** opens the server list filtered to them.
+- **Support**: servers without Extended Security Updates after the end of support (red, "Out of support"), servers past the end without ESU found yet (amber, "End of support") and servers whose support ends within 180 days (amber); **Show servers** opens the server list filtered to them.
 - **Security**: servers with a vulnerability Microsoft knows to be exploited (red), servers missing a security baseline released longer ago than the way through the rings takes (amber; the maximum waits of all transitions plus a week, or `Security:BehindDays`), and a share of servers behind the baseline of at least 20 % (amber, `Security:BehindPercent`); see [Operating systems](help/operating-systems).
 - **Update**: a newer version of the central server is available; **Show** opens it on the [Agents](help/agents#server) page with the download.
 

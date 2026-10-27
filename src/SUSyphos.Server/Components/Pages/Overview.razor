@@ -377,9 +377,9 @@
         // End of support (Marc, 2026-10-26): red without ESU after the first missed patch day, amber shortly before the end and
         // after the end while no ESU is found yet.
         var support = clients.Select(c => Support.Of(c, _security.Of(c)).State).ToList();
-        if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.EndOfSupport) is > 0 and var unsupported)
+        if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.OutOfSupport) is > 0 and var unsupported)
         {
-            _attention.Add(new AttentionItem("Support", "fail", $"{unsupported} servers are out of support without Extended Security Updates", "Windows gets no security updates for them any more; plan an upgrade or ESU.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.EndOfSupport)), "Show servers"));
+            _attention.Add(new AttentionItem("Support", "fail", $"{unsupported} servers are out of support without Extended Security Updates", "Windows gets no security updates for them any more; plan an upgrade or ESU.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.OutOfSupport)), "Show servers"));
         }
 
         if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.Ended) is > 0 and var ended)

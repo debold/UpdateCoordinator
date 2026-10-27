@@ -80,6 +80,30 @@ public sealed class ServerListRingTests
     }
 
     [Fact]
+    public async Task RingColumn_ShowsTheRingAndEachGroupAsTag_WithoutTheManualNote()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var server = await scenario.AddClientAsync("SQL01", RingEntity.PilotId);
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            var cluster = new GroupEntity { Name = "SQL cluster" };
+            var all = new GroupEntity { Name = "My servers" };
+            db.Groups.AddRange(cluster, all);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.ClientGroups.AddRange(new ClientGroupEntity { ClientId = server.ClientId, GroupId = cluster.Id, Manual = true }, new ClientGroupEntity { ClientId = server.ClientId, GroupId = all.Id });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        using var reader = await LoginAsync(scenario, AdminRoles.Reader);
+
+        var html = await (await reader.GetAsync("/servers")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains(">Ring and groups<", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"tag\">SQL cluster</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"tag\">My servers</span>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<div class=\"note\">manual</div>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RingPages_AreGone()
     {
         await using var scenario = await RolloutScenario.CreateAsync();

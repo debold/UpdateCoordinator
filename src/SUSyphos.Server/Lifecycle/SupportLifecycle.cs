@@ -19,19 +19,20 @@ internal sealed class LifecycleOptions
 }
 
 /// <summary>
-/// The support phase of a server's Windows version (Marc, 2026-10-26): mainstream (Supported), extended (Security only),
-/// close to the end (Ending soon), after the end with Extended Security Updates (Esu), after the end before the first
-/// missed patch day without ESU found (Ended), and without ESU after that (EndOfSupport).
+/// The support phase of a server's Windows version (Marc, 2026-10-26), named after the Microsoft lifecycle (Marc,
+/// 2026-10-27): Mainstream Support, Extended Support, close to the end (End of support soon), after the end with Extended
+/// Security Updates (Esu), after the end before the first missed patch day without ESU found (End of support), and
+/// without ESU after that (Out of support).
 /// </summary>
 internal enum SupportState
 {
     Unknown,
-    Supported,
-    SecurityOnly,
+    Mainstream,
+    Extended,
     EndingSoon,
     Esu,
     Ended,
-    EndOfSupport,
+    OutOfSupport,
 }
 
 /// <summary>Where Extended Security Updates of a server come from.</summary>
@@ -54,8 +55,8 @@ internal sealed record SupportInfo(string? Name, DateOnly? MainstreamEnd, DateOn
 {
     public static readonly SupportInfo Unknown = new(null, null, null, null, SupportState.Unknown);
 
-    /// <summary>The word for the state, with the ESU source: "ESU (key)", "ESU, inferred from updates".</summary>
-    public string Label => SupportLifecycle.Label(State, Esu);
+    /// <summary>The tag of the phase in Microsoft's lifecycle words ("Mainstream", "Extended", "ESU", …).</summary>
+    public string Label => SupportLifecycle.Label(State);
 }
 
 /// <summary>
@@ -102,7 +103,7 @@ internal sealed class SupportLifecycle(IOptions<LifecycleOptions> options, TimeP
         if (days > options.Value.WarningDays)
         {
             var mainstream = entry.Mainstream is not { } until || until >= today;
-            return new SupportInfo(entry.Name, entry.Mainstream, entry.End, days, mainstream ? SupportState.Supported : SupportState.SecurityOnly);
+            return new SupportInfo(entry.Name, entry.Mainstream, entry.End, days, mainstream ? SupportState.Mainstream : SupportState.Extended);
         }
 
         if (days >= 0)
@@ -124,7 +125,7 @@ internal sealed class SupportLifecycle(IOptions<LifecycleOptions> options, TimeP
 
         // "No ESU" only once the first patch day after the end has passed without the server getting its updates.
         var firstPatchDay = DateOnly.FromDateTime(Security.MsrcSync.PatchDay(entry.End.AddMonths(1).Year, entry.End.AddMonths(1).Month));
-        return new SupportInfo(entry.Name, entry.Mainstream, entry.End, days, today > firstPatchDay ? SupportState.EndOfSupport : SupportState.Ended);
+        return new SupportInfo(entry.Name, entry.Mainstream, entry.End, days, today > firstPatchDay ? SupportState.OutOfSupport : SupportState.Ended);
     }
 
     /// <summary>The table entry of a Windows version, or null when the table does not know it.</summary>
@@ -149,34 +150,43 @@ internal sealed class SupportLifecycle(IOptions<LifecycleOptions> options, TimeP
         : !string.IsNullOrWhiteSpace(productName) ? productName.Contains("Server", StringComparison.OrdinalIgnoreCase)
         : Entries.Any(e => e.Server && e.Build == build);
 
-    public static string Label(SupportState state, EsuSource esu = EsuSource.None) => state switch
+    /// <summary>The tag of a phase in Microsoft's lifecycle words; the ESU source goes to the tooltip (<see cref="Describe"/>).</summary>
+    public static string Label(SupportState state) => state switch
     {
-        SupportState.Supported => "Supported",
-        SupportState.SecurityOnly => "Security only",
-        SupportState.EndingSoon => "Ending soon",
-        SupportState.Esu => esu switch
-        {
-            EsuSource.Key => "ESU (key)",
-            EsuSource.Azure => "ESU (Azure)",
-            _ => "ESU, inferred from updates",
-        },
-        SupportState.Ended => "Support ended",
-        SupportState.EndOfSupport => "No ESU",
+        SupportState.Mainstream => "Mainstream",
+        SupportState.Extended => "Extended",
+        SupportState.EndingSoon => "End of support soon",
+        SupportState.Esu => "ESU",
+        SupportState.Ended => "End of support",
+        SupportState.OutOfSupport => "Out of support",
         _ => "Unknown",
+    };
+
+    /// <summary>Where the ESU of a server come from, for the tooltip.</summary>
+    public static string EsuText(EsuSource esu) => esu switch
+    {
+        EsuSource.Key => "ESU through a licensed key",
+        EsuSource.Azure => "ESU as Azure virtual machine",
+        EsuSource.Inferred => "ESU inferred from the security updates installed after the end",
+        _ => string.Empty,
     };
 
     public static string Class(SupportState state) => state switch
     {
-        SupportState.Supported or SupportState.SecurityOnly => "ok",
+        SupportState.Mainstream or SupportState.Extended => "ok",
         SupportState.EndingSoon or SupportState.Esu or SupportState.Ended => "queue",
-        SupportState.EndOfSupport => "fail",
+        SupportState.OutOfSupport => "fail",
         _ => "neutral",
     };
 
     /// <summary>States that belong under "Needs attention" and into a notification.</summary>
-    public static bool NeedsAttention(SupportState state) => state is SupportState.EndingSoon or SupportState.Ended or SupportState.EndOfSupport;
+    public static bool NeedsAttention(SupportState state) => state is SupportState.EndingSoon or SupportState.Ended or SupportState.OutOfSupport;
 
-    /// <summary>"ends 2027-01-12 (in 78 days)" or "ended 2025-10-14 (378 days ago)"; "–" when unknown.</summary>
+    /// <summary>
+    /// The phase with its date, e.g. "Mainstream Support ends 2029-11-13 (in 1,113 days)", "Extended Support ends 2027-01-12
+    /// (in 77 days)" or "Support ended 2025-10-14 (378 days ago); ESU through a licensed key"; "–" when unknown. Versions
+    /// without a mainstream date (Windows 10/11 releases) have one "Support" end.
+    /// </summary>
     public static string Describe(SupportInfo info)
     {
         ArgumentNullException.ThrowIfNull(info);
@@ -185,13 +195,26 @@ internal sealed class SupportLifecycle(IOptions<LifecycleOptions> options, TimeP
             return "–";
         }
 
-        var date = end.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (info.State == SupportState.Mainstream && info.MainstreamEnd is { } mainstream && info.End > mainstream)
+        {
+            var left = mainstream.DayNumber - end.DayNumber + days;
+            return $"Mainstream Support {When("ends", mainstream, left)}; Extended Support until {end.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}";
+        }
+
+        var phase = days < 0 ? "Support" : info.MainstreamEnd is null ? "Support" : "Extended Support";
+        var text = $"{phase} {When(days < 0 ? "ended" : "ends", end, days)}";
+        return info.Esu == EsuSource.None ? text : $"{text}; {EsuText(info.Esu)}";
+    }
+
+    private static string When(string verb, DateOnly date, int days)
+    {
+        var day = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         return days switch
         {
-            < 0 => $"ended {date} ({Components.DisplayNumber.Format(-days)} days ago)",
-            0 => $"ends {date} (today)",
-            1 => $"ends {date} (tomorrow)",
-            _ => $"ends {date} (in {Components.DisplayNumber.Format(days)} days)",
+            < 0 => $"{verb} {day} ({Components.DisplayNumber.Format(-days)} days ago)",
+            0 => $"{verb} {day} (today)",
+            1 => $"{verb} {day} (tomorrow)",
+            _ => $"{verb} {day} (in {Components.DisplayNumber.Format(days)} days)",
         };
     }
 

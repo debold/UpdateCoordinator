@@ -22,6 +22,15 @@ public sealed class HelpTests
     }
 
     [Fact]
+    public void EveryHelpFile_StartsWithItsTitle()
+    {
+        // A line before the title once moved a table row of the update list to the top of its help page.
+        var topics = Path.Combine(WebRoot, "..", "Help", "Topics");
+
+        Assert.All(Directory.GetFiles(topics, "*.md"), file => Assert.StartsWith("# ", File.ReadAllText(file), StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void EveryScreenshot_ExistsInTheWebRoot()
     {
         var images = new HelpCatalog().Topics.SelectMany(t => t.Images.Select(i => (t.Slug, Image: i))).ToList();

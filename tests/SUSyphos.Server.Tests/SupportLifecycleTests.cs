@@ -22,12 +22,12 @@ public sealed class SupportLifecycleTests
 
     [Theory]
     [InlineData("10.0.14393.9612", "ServerStandard", null, "Windows Server 2016", "2027-01-12", "EndingSoon")]
-    [InlineData("10.0.17763.9376", "ServerDatacenter", null, "Windows Server 2019", "2029-01-09", "SecurityOnly")]
-    [InlineData("10.0.26100.33650", null, "Windows Server 2025 Standard", "Windows Server 2025", "2034-11-14", "Supported")]
-    [InlineData("10.0.26100.33650", null, null, "Windows Server 2025", "2034-11-14", "Supported")]
+    [InlineData("10.0.17763.9376", "ServerDatacenter", null, "Windows Server 2019", "2029-01-09", "Extended")]
+    [InlineData("10.0.26100.33650", null, "Windows Server 2025 Standard", "Windows Server 2025", "2034-11-14", "Mainstream")]
+    [InlineData("10.0.26100.33650", null, null, "Windows Server 2025", "2034-11-14", "Mainstream")]
     [InlineData("10.0.26100.9711", "Professional", "Windows 11 Pro", "Windows 11, version 24H2", "2026-10-13", "Ended")]
-    [InlineData("10.0.26100.9711", "Enterprise", "Windows 11 Enterprise", "Windows 11 Enterprise, version 24H2", "2027-10-12", "Supported")]
-    [InlineData("10.0.19045.6456", "Professional", null, "Windows 10, version 22H2", "2025-10-14", "EndOfSupport")]
+    [InlineData("10.0.26100.9711", "Enterprise", "Windows 11 Enterprise", "Windows 11 Enterprise, version 24H2", "2027-10-12", "Mainstream")]
+    [InlineData("10.0.19045.6456", "Professional", null, "Windows 10, version 22H2", "2025-10-14", "OutOfSupport")]
     public void KnownVersions_GetTheirEndOfSupport_AndAState(string version, string? edition, string? product, string name, string end, string state)
     {
         var info = Create().Of(version, edition, product);
@@ -56,22 +56,35 @@ public sealed class SupportLifecycleTests
         var info = Create(warning: 60).Of("10.0.14393.1", "ServerStandard", null);
 
         Assert.Equal(78, info.DaysLeft);
-        Assert.Equal(SupportState.SecurityOnly, info.State);
-        Assert.Equal("Security only", info.Label);
-        Assert.Equal("ends 2027-01-12 (in 78 days)", SupportLifecycle.Describe(info));
+        Assert.Equal(SupportState.Extended, info.State);
+        Assert.Equal("Extended", info.Label);
+        Assert.Equal("Extended Support ends 2027-01-12 (in 78 days)", SupportLifecycle.Describe(info));
         Assert.Equal("ok", SupportLifecycle.Class(info.State));
     }
 
     [Theory]
-    [InlineData(true, false, "ESU (key)")]
-    [InlineData(null, true, "ESU (Azure)")]
-    [InlineData(false, false, "No ESU")]
+    [InlineData(true, false, "ESU")]
+    [InlineData(null, true, "ESU")]
+    [InlineData(false, false, "Out of support")]
     public void AfterTheEnd_EsuFoundByTheAgentCounts(bool? key, bool? azure, string label)
     {
         var info = Create().Of("10.0.19045.6456", "Professional", null, SupportLifecycle.Detected(key, azure));
 
         Assert.Equal(label, info.Label);
-        Assert.Equal(label == "No ESU" ? "fail" : "queue", SupportLifecycle.Class(info.State));
+        Assert.Equal(label == "Out of support" ? "fail" : "queue", SupportLifecycle.Class(info.State));
+    }
+
+    [Fact]
+    public void Tooltips_NameThePhaseWithItsDate_AndTheEsuSource()
+    {
+        var mainstream = Create().Of("10.0.26100.1", "ServerStandard", null);
+        var esu = Create().Of("10.0.19045.6456", "Professional", null, EsuSource.Key);
+        var client = Create().Of("10.0.26100.9711", "Enterprise", null);
+
+        Assert.Equal("Mainstream", mainstream.Label);
+        Assert.Equal("Mainstream Support ends 2029-11-13 (in 1,114 days); Extended Support until 2034-11-14", SupportLifecycle.Describe(mainstream).Replace('.', ','));
+        Assert.Equal("Support ended 2025-10-14 (377 days ago); ESU through a licensed key", SupportLifecycle.Describe(esu));
+        Assert.StartsWith("Support ends 2027-10-12", SupportLifecycle.Describe(client), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -84,8 +97,9 @@ public sealed class SupportLifecycleTests
         var current = Create().Of("10.0.19045.7000", "Professional", null, EsuSource.None, snapshot.Of("10.0.19045.7000"));
         var behind = Create().Of("10.0.19045.6456", "Professional", null, EsuSource.None, snapshot.Of("10.0.19045.6456"));
 
-        Assert.Equal("ESU, inferred from updates", current.Label);
-        Assert.Equal(SupportState.EndOfSupport, behind.State);
+        Assert.Equal("ESU", current.Label);
+        Assert.EndsWith("; ESU inferred from the security updates installed after the end", SupportLifecycle.Describe(current), StringComparison.Ordinal);
+        Assert.Equal(SupportState.OutOfSupport, behind.State);
     }
 
     [Fact]
@@ -179,6 +193,6 @@ public sealed class SupportLifecycleTests
         var events = await scenario.WithServiceAsync<NotificationEvents, List<NotificationEvent>>(e => e.CollectAsync(CancellationToken.None));
         var support = Assert.Single(events, e => e.Kind == NotificationKind.SupportEnding);
         Assert.Equal("OLD2016", support.Affected);
-        Assert.StartsWith("Windows Server 2016 on OLD2016 ends 2027-01-12", support.Text, StringComparison.Ordinal);
+        Assert.StartsWith("Windows Server 2016 on OLD2016: Extended Support ends 2027-01-12", support.Text, StringComparison.Ordinal);
     }
 }

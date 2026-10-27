@@ -209,12 +209,12 @@ internal sealed class NotificationEvents(
                 events.Add(new NotificationEvent(
                     $"server.support:{client.Id}:{info.State}",
                     NotificationKind.SupportEnding,
-                    $"{info.Name} on {client.HostName} {Lifecycle.SupportLifecycle.Describe(info)}.",
+                    $"{info.Name} on {client.HostName}: {Lifecycle.SupportLifecycle.Describe(info)}.",
                     Components.ServerPage.Path(client.Id, "system"),
                     client.HostName,
                     info.State switch
                     {
-                        Lifecycle.SupportState.EndOfSupport => "Windows gets no security updates any more and no Extended Security Updates were found; plan an upgrade or ESU.",
+                        Lifecycle.SupportState.OutOfSupport => "Windows gets no security updates any more and no Extended Security Updates were found; plan an upgrade or ESU.",
                         Lifecycle.SupportState.Ended => "Without Extended Security Updates the server gets no security updates any more; ESU were not found yet.",
                         _ => "Plan the upgrade or Extended Security Updates before Windows stops getting security updates.",
                     }));
