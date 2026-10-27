@@ -435,6 +435,24 @@
         input.addEventListener('input', () => checkFolder(input));
     }
 
+    // An option with its own fields (rings to tick, a server to pick): using one of them chooses the option too.
+    document.addEventListener('change', (event) => {
+        const field = event.target instanceof Element ? event.target : null;
+        const choice = field?.closest('.choice');
+        const radio = choice?.querySelector(':scope > input[type="radio"]');
+        if (radio && field !== radio) {
+            radio.checked = true;
+        }
+
+        // Uninstall dialog: blocking is preselected only when the update goes everywhere, until it was ticked by hand.
+        const block = field?.form?.querySelector('input[name="UninstallBlock"]:not([disabled])');
+        if (block && field.name === 'UninstallBlock') {
+            block.dataset.touched = 'true';
+        } else if (block && !block.dataset.touched && field.form.querySelector('input[name="UninstallTarget"]:checked')) {
+            block.checked = field.form.querySelector('input[name="UninstallTarget"]:checked').value === 'all';
+        }
+    });
+
     for (const input of document.querySelectorAll('input[data-ad-group-search]')) {
         groupSearch(input);
     }

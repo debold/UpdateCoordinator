@@ -72,22 +72,42 @@ else
             <div class="spacer"></div>
             <ActionMenu Label="Block" Icon="ban" Kind="danger" Align="right">
                 <MenuItem Form="update-actions" Name="Action" Value="block" Icon="ban" Danger="true" Disabled="@(_update.BlockedAtUtc is not null)" Reason="@(_update.BlockedAtUtc is null ? "Stop the rollout and keep the update from starting again" : "The update is blocked already")">Block</MenuItem>
-                <MenuItem Href="@($"/updates/{UpdateId}/{Revision}?dialog=uninstall")" Icon="undo-2" Danger="true" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? null : "Only administrators can do this")">Block and uninstall…</MenuItem>
+                <MenuItem Href="@($"/updates/{UpdateId}/{Revision}?dialog=uninstall")" Icon="undo-2" Danger="true" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? "Uninstall it on all, some rings, groups or one server" : "Only administrators can do this")">Uninstall…</MenuItem>
             </ActionMenu>
         }
     </ActionBand>
 
     @if (Dialog == "uninstall")
     {
-        <Dialog Title="@($"Block and uninstall {(_update.KbArticle is null ? "this update" : $"KB{_update.KbArticle}")}?")" CloseHref="@($"/updates/{UpdateId}/{Revision}")" Help="update-detail#uninstall">
+        <Dialog Title="@($"Uninstall {(_update.KbArticle is null ? "this update" : $"KB{_update.KbArticle}")}?")" CloseHref="@($"/updates/{UpdateId}/{Revision}")" Help="update-detail#uninstall" Wide="true">
             <form method="post" @formname="uninstall" @onsubmit="UninstallAsync">
                 <AntiforgeryToken />
                 <div class="dialog-body">
-                    <p>The update is <b>blocked</b> (its rollout stops and it does not start again), and the @_installedOn servers that report it as installed <b>uninstall</b> it with their next heartbeat, also outside the maintenance window.</p>
-                    <p>The agent uninstalls through Windows Update; for updates Windows Update cannot remove (e.g. combined servicing stack and cumulative packages) it uses DISM with the KB number. Some packages cannot be removed at all; the remote action on each server then reports why.</p>
-                    <p>If Windows needs a restart afterwards, the server restarts <b>right after</b> (five minute warning) or in its <b>next maintenance window</b>. The local veto (AllowReboot) prevents the restart.</p>
+                    @if (_targets.Count == 0)
+                    {
+                        <p>No approved server reports this update as installed; there is nothing to uninstall.</p>
+                    }
+                    else
+                    {
+                        <fieldset class="choices">
+                            <legend>Where</legend>
+                            <label class="choice"><input type="radio" name="UninstallTarget" value="all" checked data-help-term="All servers that have it" /> <span><b>All servers that have it</b><span class="note">@DisplayNumber.Format(_targets.Count) servers report it as installed.</span></span></label>
+                            @if (TargetRings.Count > 0)
+                            {
+                                <div class="choice"><input type="radio" id="uninstall-target-rings" name="UninstallTarget" value="rings" data-help-term="Rings" /> <span><label for="uninstall-target-rings"><b>Rings</b></label><span class="choice-list">@foreach (var (ring, count) in TargetRings) { <label><input type="checkbox" name="UninstallRings" value="@ring.Id" /> @ring.Order @ring.Name <span class="note">(@count)</span></label> }</span></span></div>
+                            }
+                            @if (TargetGroups.Count > 0)
+                            {
+                                <div class="choice"><input type="radio" id="uninstall-target-groups" name="UninstallTarget" value="groups" data-help-term="Server groups" /> <span><label for="uninstall-target-groups"><b>Server groups</b></label><span class="choice-list">@foreach (var (group, count) in TargetGroups) { <label><input type="checkbox" name="UninstallGroups" value="@group.Id" /> @group.Name <span class="note">(@count)</span></label> }</span></span></div>
+                            }
+                            <div class="choice"><input type="radio" id="uninstall-target-server" name="UninstallTarget" value="server" data-help-term="One server" /> <span><label for="uninstall-target-server"><b>One server</b></label><select name="UninstallServer" aria-label="Server">@foreach (var target in _targets) { <option value="@target.ClientId">@target.HostName</option> }</select></span></div>
+                        </fieldset>
+                        <UninstallTiming />
+                        <label class="check"><input type="checkbox" name="UninstallBlock" value="yes" checked="@(_update.BlockedAtUtc is null)" disabled="@(_update.BlockedAtUtc is not null)" data-help-term="Block the update" /> @(_update.BlockedAtUtc is null ? "Block the update, so its rollout stops and it does not come back (recommended when it goes everywhere)" : "The update is blocked already")</label>
+                        <p class="note">The agent uninstalls through Windows Update, or with DISM by the KB number where Windows Update cannot; some packages cannot be removed, the remote action on each server then reports why.</p>
+                    }
                 </div>
-                <div class="dialog-foot"><a class="btn" href="/updates/@UpdateId/@Revision">Cancel</a><button type="submit" name="UninstallRestart" value="window">Uninstall, restart in the next window</button><button type="submit" name="UninstallRestart" value="now" class="danger">Uninstall and restart right after</button></div>
+                <div class="dialog-foot"><a class="btn" href="/updates/@UpdateId/@Revision">Cancel</a><button type="submit" class="danger" disabled="@(_targets.Count == 0)">Uninstall update</button></div>
             </form>
         </Dialog>
     }
@@ -345,25 +365,69 @@ else
     private string? Dialog { get; set; }
 
     [SupplyParameterFromForm(FormName = "uninstall")]
-    private string? UninstallRestart { get; set; }
+    private string? UninstallWhen { get; set; }
 
-    private int _installedOn;
+    [SupplyParameterFromForm(FormName = "uninstall")]
+    private string? UninstallTarget { get; set; }
 
-    /// <summary>Blocks the update and queues its uninstallation on every server that has it (administrators only).</summary>
+    [SupplyParameterFromForm(FormName = "uninstall")]
+    private int[]? UninstallRings { get; set; }
+
+    [SupplyParameterFromForm(FormName = "uninstall")]
+    private int[]? UninstallGroups { get; set; }
+
+    [SupplyParameterFromForm(FormName = "uninstall")]
+    private Guid? UninstallServer { get; set; }
+
+    [SupplyParameterFromForm(FormName = "uninstall")]
+    private string? UninstallBlock { get; set; }
+
+    /// <summary>The servers that have the update installed, for the uninstall dialog.</summary>
+    private List<SUSyphos.Server.Agents.UninstallTarget> _targets = [];
+
+    private List<GroupEntity> _allGroups = [];
+
+    private List<RingEntity> _rings = [];
+
+    private IReadOnlyList<(RingEntity Ring, int Count)> TargetRings =>
+        [.. _rings.Select(r => (r, _targets.Count(t => t.RingId == r.Id))).Where(r => r.Item2 > 0)];
+
+    private IReadOnlyList<(GroupEntity Group, int Count)> TargetGroups =>
+        [.. _allGroups.Select(g => (g, _targets.Count(t => t.GroupIds.Contains(g.Id)))).Where(g => g.Item2 > 0)];
+
+    /// <summary>Queues the uninstallation on the chosen servers and blocks the update if asked (administrators only).</summary>
     private async Task UninstallAsync()
     {
-        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer) || UninstallRestart is not ("now" or "window"))
+        var kind = SUSyphos.Server.Agents.AgentActionService.UninstallKind(UninstallWhen);
+        SUSyphos.Server.Agents.UninstallScope? scope = UninstallTarget switch
         {
-            ShowResult(UninstallRestart is "now" or "window" ? "Only administrators can uninstall updates." : "Choose when the servers restart.", string.Empty);
+            "all" => SUSyphos.Server.Agents.UninstallScope.All,
+            "rings" when UninstallRings is { Length: > 0 } rings => new(Rings: rings),
+            "groups" when UninstallGroups is { Length: > 0 } groups => new(Groups: groups),
+            "server" when UninstallServer is { } server => new(Clients: [server]),
+            _ => null,
+        };
+        var error = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? "Only administrators can uninstall updates."
+            : scope is null ? "Choose where the update goes: all servers, at least one ring or group, or one server."
+            : kind is null ? "Choose when the servers uninstall it."
+            : null;
+        if (error is not null)
+        {
+            ShowResult(error, string.Empty);
             await LoadAsync();
             return;
         }
 
         var actor = await GetActorAsync();
-        var blocked = await Db.Updates.AnyAsync(u => u.UpdateId == UpdateId && u.Revision == Revision && u.BlockedAtUtc != null);
-        var outcome = blocked ? Outcome.Ok : await Administration.BlockAsync(UpdateId, Revision, actor, CancellationToken.None);
-        var queued = outcome.Succeeded ? await Actions.QueueUninstallEverywhereAsync(UpdateId, UninstallRestart == "now", actor, CancellationToken.None) : 0;
-        ShowResultAndReload(outcome.Error, $"The update is blocked; {queued} servers uninstall it with their next heartbeat (see the remote actions on each server).");
+        var outcome = Outcome.Ok;
+        if (UninstallBlock == "yes" && !await Db.Updates.AnyAsync(u => u.UpdateId == UpdateId && u.Revision == Revision && u.BlockedAtUtc != null))
+        {
+            outcome = await Administration.BlockAsync(UpdateId, Revision, actor, CancellationToken.None);
+        }
+
+        var queued = outcome.Succeeded ? await Actions.QueueUninstallForAsync(UpdateId, kind!.Value, scope!, actor, CancellationToken.None) : 0;
+        var when = kind == SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow ? "in their next maintenance window" : "with their next heartbeat";
+        ShowResultAndReload(outcome.Error, $"{(UninstallBlock == "yes" ? "The update is blocked; " : string.Empty)}{queued} servers uninstall it {when}, in coordinated groups one after another (see the remote actions on each server).");
         Dialog = null;
         await LoadAsync();
     }
@@ -429,8 +493,13 @@ else
         _cveTable = TableQuery.From(Navigation, SUSyphos.Server.Security.VulnerabilityColumns.DefaultSort, defaultDescending: true, prefix: "cve.", defaultPageSize: 10);
         _cvePage = TablePaging.Apply(_fixes, _cveTable, VulnerabilityTable, SUSyphos.Server.Security.VulnerabilityColumns.SearchText);
         _supersededBy = (await Supersedence.NewerAsync(Db, [UpdateId])).GetValueOrDefault(UpdateId);
-        var approvedClients = Db.Clients.Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).Select(c => c.Id);
-        _installedOn = await Db.ClientUpdates.Where(u => u.UpdateId == UpdateId && approvedClients.Contains(u.ClientId)).Select(u => u.ClientId).Distinct().CountAsync();
+        if (Dialog == "uninstall")
+        {
+            _targets = await Actions.UninstallTargetsAsync(UpdateId, CancellationToken.None);
+            _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+            _allGroups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        }
+
         var outside = await Db.ClientUpdateHistory.AsNoTracking()
             .Where(h => h.UpdateId == UpdateId && h.Operation == SUSyphos.Contracts.Agents.UpdateOperation.Installation
                 && (h.ResultCode == SUSyphos.Contracts.Agents.InstallResultCode.Succeeded || h.ResultCode == SUSyphos.Contracts.Agents.InstallResultCode.SucceededWithErrors)

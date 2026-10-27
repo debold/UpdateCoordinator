@@ -30,9 +30,9 @@ public sealed class UninstallActionTests
         var path = $"/updates/{update.UpdateId}/1";
 
         var dialog = await (await admin.GetAsync(path + "?dialog=uninstall")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.Contains("the 2 servers that report it as installed", dialog, StringComparison.Ordinal);
+        Assert.Contains("2 servers report it as installed.", dialog, StringComparison.Ordinal);
 
-        using (var done = await admin.PostFormAndFollowAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallRestart"] = "window" }))
+        using (var done = await admin.PostFormAndFollowAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallTarget"] = "all", ["UninstallWhen"] = "window", ["UninstallBlock"] = "yes" }))
         {
             Assert.Contains("2 servers uninstall it", await done.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
@@ -50,6 +50,59 @@ public sealed class UninstallActionTests
         // The agent gets the update with the action.
         var fetched = Assert.Single(await FetchAsync(scenario, first));
         Assert.Equal((update.UpdateId, (int?)1, "5040434"), (fetched.UpdateId!.Value, fetched.Revision, fetched.KbArticle));
+    }
+
+    [Fact]
+    public async Task Uninstall_GoesOnlyToTheChosenRingGroupOrServer_InTheNextWindow_WithoutBlocking()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var production = await scenario.AddClientAsync("PROD01", RingEntity.ProductionId);
+        var clustered = await scenario.AddClientAsync("SQL01", RingEntity.ProductionId);
+        var update = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid(), KbArticle = "5040434" };
+        foreach (var client in new[] { pilot, production, clustered })
+        {
+            await InstalledAsync(scenario, client, update.UpdateId);
+        }
+
+        var groupId = await scenario.Factory.WithDbAsync(async db =>
+        {
+            var group = new GroupEntity { Name = "SQL cluster", LeasesHalted = false };
+            db.Groups.Add(group);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.ClientGroups.Add(new ClientGroupEntity { ClientId = clustered.ClientId, GroupId = group.Id, Manual = true });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            return group.Id;
+        });
+        using var admin = await LoginAsync(scenario, AdminRoles.Admin, "admin");
+        var path = $"/updates/{update.UpdateId}/1?dialog=uninstall";
+
+        var dialog = await (await admin.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("SQL cluster", dialog, StringComparison.Ordinal);
+        Assert.Contains("In the next maintenance window", dialog, StringComparison.Ordinal);
+
+        // Rings chosen but none ticked: refused, nothing queued.
+        using (var refused = await admin.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallTarget"] = "rings", ["UninstallWhen"] = "in-window" }))
+        {
+            Assert.Contains("at least one ring or group", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
+
+        using (await admin.PostFormAndFollowAsync(path, new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallTarget"] = "groups", ["UninstallGroups"] = groupId.ToString(System.Globalization.CultureInfo.InvariantCulture), ["UninstallWhen"] = "in-window" }))
+        {
+        }
+
+        var action = await scenario.Factory.WithDbAsync(db => db.AgentActions.SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Equal((clustered.ClientId, AgentActionKind.UninstallInWindow), (action.ClientId, action.Kind));
+        Assert.Null(await scenario.Factory.WithDbAsync(db => db.Updates.Where(u => u.UpdateId == update.UpdateId).Select(u => u.BlockedAtUtc).SingleAsync(TestContext.Current.CancellationToken)));
+
+        using (await admin.PostFormAndFollowAsync(path, new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallTarget"] = "rings", ["UninstallRings"] = RingEntity.PilotId.ToString(System.Globalization.CultureInfo.InvariantCulture), ["UninstallWhen"] = "now" }))
+        {
+        }
+
+        Assert.Equal(AgentActionKind.Uninstall, await scenario.Factory.WithDbAsync(db => db.AgentActions.Where(a => a.ClientId == pilot.ClientId).Select(a => a.Kind).SingleAsync(TestContext.Current.CancellationToken)));
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(a => a.ClientId == production.ClientId, TestContext.Current.CancellationToken)));
     }
 
     [Fact]
@@ -79,12 +132,12 @@ public sealed class UninstallActionTests
         Assert.DoesNotContain($"value=\"{notInstalled.UpdateId}\"", dialog, StringComparison.Ordinal);
 
         // An update the server does not have is refused; the installed one is queued.
-        using (await admin.PostFormAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallRestart"] = "now", ["UninstallUpdate"] = notInstalled.UpdateId.ToString() }))
+        using (await admin.PostFormAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallWhen"] = "now", ["UninstallUpdate"] = notInstalled.UpdateId.ToString() }))
         {
         }
 
         Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
-        using (await admin.PostFormAndFollowAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallRestart"] = "now", ["UninstallUpdate"] = update.UpdateId.ToString() }))
+        using (await admin.PostFormAndFollowAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallWhen"] = "now", ["UninstallUpdate"] = update.UpdateId.ToString() }))
         {
         }
 

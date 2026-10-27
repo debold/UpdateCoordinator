@@ -34,17 +34,19 @@ An entry that does not fit the current state is greyed out with the reason as to
 The red drop-down button **Block** on the right:
 
 - **Block**: stops the rollout like "Stop rollout" and locks the update: neither a start rule nor an operator starts it again until someone chooses **Unblock**. For an update known to be faulty.
-- **Block and uninstall…** (administrators): opens the [uninstall dialog](#uninstall).
+- **Uninstall…** (administrators): opens the [uninstall dialog](#uninstall) to remove the update from all servers, some rings or groups, or one server.
 
-## Block and uninstall {#uninstall}
+## Uninstall {#uninstall}
 
-Blocks the update and lets every server that reports it as installed uninstall it with its next heartbeat, also outside the maintenance window. The agent uninstalls through Windows Update; where Windows Update cannot remove an update (for example combined servicing stack and cumulative packages) it uses DISM with the KB number. Some packages, such as servicing stack updates, cannot be removed at all; the remote action on that server then reports why.
+**Uninstall…** (in the red **Block** menu, administrators) removes the update from the servers that report it as installed, for example a faulty one.
 
-- **Uninstall and restart right after**: if Windows needs a restart, the server restarts at once after a five minute warning.
-- **Uninstall, restart in the next window**: a needed restart waits for the next maintenance window that stays open long enough.
-- **Cancel** closes the dialog without changing anything.
+- **Where**: **All servers that have it** (with their number), **Rings** or **Server groups** (tick one or more; each with the number of servers that have it), or **One server**. Ticking a ring or group, or picking a server, chooses that option.
+- **When**: **In the next maintenance window** (the server uninstalls and restarts in its next window that stays open long enough), **Now, restart in the next window** (uninstalls with the next heartbeat, also outside the window; a needed restart waits for the window) or **Now, restart right after** (a needed restart follows after a five minute warning).
+- **Block the update**: stops its rollout and keeps it from coming back; ticked when the update goes to all servers. Already blocked updates say so.
+- **Uninstall update** queues the remote actions; **Cancel** closes the dialog without changing anything.
 
-The local veto (registry value AllowReboot) prevents the restart. Each server shows the action and its result under its remote actions.
+In a coordinated group every server first waits for the lease of its group, also for "now", so the servers of a group uninstall and restart one after another; the remote action shows "Waiting (window or lease)" meanwhile. The agent uninstalls through Windows Update; where Windows Update cannot remove an update (for example combined servicing stack and cumulative packages) it uses DISM with the KB number. Some packages, such as servicing stack updates, cannot be removed at all; the remote action on that server then reports why. The local veto (registry value AllowReboot) prevents the restart.
+
 
 Administrators also have **Create release rule from this update…**, which opens a new start rule pre-filled with the classification, severity and title of this update ([Release rules](help/release-rules#start-rules)).
 

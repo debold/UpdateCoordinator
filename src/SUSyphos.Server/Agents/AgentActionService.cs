@@ -17,6 +17,24 @@ internal enum LogUploadResult
 /// Remote action queue (docs/03-communication-protocol.md, section 6): administrators queue actions, the heartbeat
 /// announces them, the agent fetches and confirms them. The central server never contacts the agent.
 /// </summary>
+/// <summary>A server that has an update installed, with what an uninstallation can be aimed at: its ring and groups.</summary>
+internal sealed record UninstallTarget(Guid ClientId, string HostName, int? RingId, IReadOnlyList<int> GroupIds);
+
+/// <summary>Where an uninstallation goes: the servers of these rings, groups or the named servers; nothing named means every server that has the update.</summary>
+internal sealed record UninstallScope(IReadOnlyCollection<int>? Rings = null, IReadOnlyCollection<int>? Groups = null, IReadOnlyCollection<Guid>? Clients = null)
+{
+    public static readonly UninstallScope All = new();
+
+    public bool Contains(UninstallTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return (Rings, Groups, Clients) is (null or { Count: 0 }, null or { Count: 0 }, null or { Count: 0 })
+            || (target.RingId is { } ring && Rings?.Contains(ring) == true)
+            || target.GroupIds.Any(g => Groups?.Contains(g) == true)
+            || Clients?.Contains(target.ClientId) == true;
+    }
+}
+
 internal sealed partial class AgentActionService(
     ServerDbContext db, AuditLog audit, Microsoft.Extensions.Options.IOptions<AdministrationOptions> administration, TimeProvider timeProvider, ILogger<AgentActionService> logger)
 {
@@ -35,6 +53,15 @@ internal sealed partial class AgentActionService(
     /// </summary>
     public static readonly TimeSpan HeldLifetime = TimeSpan.FromDays(7);
 
+    /// <summary>The kind of an uninstallation from the choice in the dialogs ("now", "window", "in-window"); null for anything else.</summary>
+    public static AgentActionKind? UninstallKind(string? timing) => timing switch
+    {
+        "now" => AgentActionKind.Uninstall,
+        "window" => AgentActionKind.UninstallRestartInWindow,
+        "in-window" => AgentActionKind.UninstallInWindow,
+        _ => null,
+    };
+
     /// <summary>The actions the agent holds until they may run (uninstallations).</summary>
     public static bool IsHeld(AgentActionKind kind) => kind is AgentActionKind.Uninstall or AgentActionKind.UninstallRestartInWindow or AgentActionKind.UninstallInWindow;
 
@@ -47,8 +74,13 @@ internal sealed partial class AgentActionService(
     /// Queues the uninstallation of an update the server has installed (per its inventory), with the restart right after
     /// or in the next maintenance window. The KB number goes along so the agent can use DISM where Windows Update cannot.
     /// </summary>
-    public async Task<Outcome> QueueUninstallAsync(Guid clientId, Guid updateId, bool restartNow, string actor, CancellationToken cancellationToken)
+    public async Task<Outcome> QueueUninstallAsync(Guid clientId, Guid updateId, AgentActionKind kind, string actor, CancellationToken cancellationToken)
     {
+        if (!IsHeld(kind))
+        {
+            return new Outcome("Choose when the server uninstalls the update and restarts.");
+        }
+
         var installed = await db.ClientUpdates.AsNoTracking()
             .Where(u => u.ClientId == clientId && u.UpdateId == updateId)
             .OrderByDescending(u => u.Revision)
@@ -61,24 +93,35 @@ internal sealed partial class AgentActionService(
         }
 
         var update = await db.Updates.AsNoTracking().Where(u => u.UpdateId == updateId && u.Revision == installed.Revision).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-        var kind = restartNow ? AgentActionKind.Uninstall : AgentActionKind.UninstallRestartInWindow;
         return await QueueCoreAsync(clientId, kind, actor, (updateId, installed.Revision, update?.KbArticle), cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Queues the uninstallation on every approved server that reports the update as installed; returns how many got it.</summary>
-    public async Task<int> QueueUninstallEverywhereAsync(Guid updateId, bool restartNow, string actor, CancellationToken cancellationToken)
+    /// <summary>The approved servers that report the update as installed, with ring and groups (the targets of an uninstallation).</summary>
+    public async Task<List<UninstallTarget>> UninstallTargetsAsync(Guid updateId, CancellationToken cancellationToken)
     {
-        var approved = db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
+        var approved = db.Clients.Where(c => c.State == RegistrationState.Approved);
         var clients = await db.ClientUpdates.AsNoTracking()
-            .Where(u => u.UpdateId == updateId && approved.Contains(u.ClientId))
-            .Select(u => u.ClientId)
+            .Where(u => u.UpdateId == updateId)
+            .Join(approved, u => u.ClientId, c => c.Id, (u, c) => new { c.Id, c.HostName, c.RingId })
             .Distinct()
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+        var ids = clients.Select(c => c.Id).ToList();
+        var groups = await db.ClientGroups.AsNoTracking().Where(g => ids.Contains(g.ClientId)).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return [.. clients.Select(c => new UninstallTarget(c.Id, c.HostName, c.RingId, [.. groups.Where(g => g.ClientId == c.Id).Select(g => g.GroupId)])).OrderBy(c => c.HostName, StringComparer.OrdinalIgnoreCase)];
+    }
+
+    /// <summary>
+    /// Queues the uninstallation on the servers of the scope that report the update as installed (all of them when the
+    /// scope names nothing); returns how many got it. In coordinated groups the agents take their turns through the lease.
+    /// </summary>
+    public async Task<int> QueueUninstallForAsync(Guid updateId, AgentActionKind kind, UninstallScope scope, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
         var queued = 0;
-        foreach (var clientId in clients)
+        foreach (var target in (await UninstallTargetsAsync(updateId, cancellationToken).ConfigureAwait(false)).Where(scope.Contains))
         {
-            if ((await QueueUninstallAsync(clientId, updateId, restartNow, actor, cancellationToken).ConfigureAwait(false)).Succeeded)
+            if ((await QueueUninstallAsync(target.ClientId, updateId, kind, actor, cancellationToken).ConfigureAwait(false)).Succeeded)
             {
                 queued++;
             }

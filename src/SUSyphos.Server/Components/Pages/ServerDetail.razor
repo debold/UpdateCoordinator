@@ -395,7 +395,7 @@ else
                             <td class="nowrap">@Format(action.RequestedAtUtc)</td>
                             <td>@ActionLabel(action.Kind)</td>
                             <td>@action.RequestedBy</td>
-                            <td><span class="pill @ActionClass(action.State)">@action.State</span></td>
+                            <td><span class="pill @ActionClass(action.State)">@ActionStateLabel(action)</span></td>
                             <td>
                                 @action.Detail
                                 @if (action.LogFileSize is { } size && _canOperate)
@@ -443,10 +443,10 @@ else
                             </table>
                         </div>
                     }
-                    <p>The agent uninstalls it with its next heartbeat, also outside the maintenance window: through Windows Update, or with DISM by the KB number where Windows Update cannot. Some packages cannot be removed; the remote action then reports why. To keep the update from coming back on all servers, block it on its update page.</p>
-                    <p>If Windows needs a restart afterwards, the server restarts <b>right after</b> (five minute warning) or in the <b>next maintenance window</b> (next window: @NextWindowText). The local veto (AllowReboot) prevents the restart.</p>
+                    <UninstallTiming />
+                    <p class="note">Next maintenance window: @NextWindowText. The agent uninstalls through Windows Update, or with DISM by the KB number where Windows Update cannot; some packages cannot be removed, the remote action then reports why. To keep the update away from all servers, block it on its update page.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" name="UninstallRestart" value="window" disabled="@(_installed.Count == 0)">Uninstall, restart in the next window</button><button type="submit" name="UninstallRestart" value="now" class="danger" disabled="@(_installed.Count == 0)">Uninstall and restart right after</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="danger" disabled="@(_installed.Count == 0)">Uninstall update</button></div>
             </form>
         </Dialog>
     }
@@ -620,7 +620,7 @@ else
     private string? InstallRestart { get; set; }
 
     [SupplyParameterFromForm(FormName = "uninstall")]
-    private string? UninstallRestart { get; set; }
+    private string? UninstallWhen { get; set; }
 
     [SupplyParameterFromForm(FormName = "uninstall")]
     private Guid? UninstallUpdate { get; set; }
@@ -630,12 +630,15 @@ else
 
     private async Task UninstallAsync()
     {
+        var kind = SUSyphos.Server.Agents.AgentActionService.UninstallKind(UninstallWhen);
         var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer)
             ? new Outcome("Only administrators can uninstall updates.")
-            : UninstallRestart is not ("now" or "window") || UninstallUpdate is not { } updateId
-                ? new Outcome("Choose the update and when the server restarts.")
-                : await Actions.QueueUninstallAsync(Id, updateId, UninstallRestart == "now", await GetActorAsync(), CancellationToken.None);
-        ShowResultAndReload(outcome.Error, "The uninstallation was queued; the agent removes the update after its next heartbeat.");
+            : kind is null || UninstallUpdate is not { } updateId
+                ? new Outcome("Choose the update and when the server uninstalls it.")
+                : await Actions.QueueUninstallAsync(Id, updateId, kind.Value, await GetActorAsync(), CancellationToken.None);
+        ShowResultAndReload(outcome.Error, kind == SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow
+            ? "The uninstallation was queued; the agent removes the update in the next maintenance window."
+            : "The uninstallation was queued; the agent removes the update after its next heartbeat (in a coordinated group once it has the lease).");
         await LoadAsync();
     }
 
@@ -763,6 +766,7 @@ else
         SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow => "Install now, restart in maintenance window",
         SUSyphos.Contracts.Agents.AgentActionKind.Uninstall => "Uninstall, restart right after",
         SUSyphos.Contracts.Agents.AgentActionKind.UninstallRestartInWindow => "Uninstall, restart in maintenance window",
+        SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow => "Uninstall in maintenance window",
         _ => kind.ToString(),
     };
 
@@ -949,6 +953,10 @@ else
         ShowResultAndReload(outcome.Error, success);
         await LoadAsync();
     }
+
+    /// <summary>The state of a remote action; an uninstallation the agent fetched waits for its window or the lease of its group.</summary>
+    private static string ActionStateLabel(AgentActionEntity action) =>
+        action.State == AgentActionState.Delivered && SUSyphos.Server.Agents.AgentActionService.IsHeld(action.Kind) ? "Waiting (window or lease)" : action.State.ToString();
 
     private static string ActionClass(AgentActionState state) => state switch
     {
@@ -1175,7 +1183,7 @@ else
         var tasks = new List<PlannedTask>();
         foreach (var action in _actions.Where(a => a.State is AgentActionState.Queued or AgentActionState.Delivered))
         {
-            tasks.Add(new(now, action.State == AgentActionState.Queued ? "next heartbeat" : "now", "Remote action", "queue", $"{ActionLabel(action.Kind)}, requested by {action.RequestedBy}", []));
+            tasks.Add(new(now, action.State == AgentActionState.Queued ? "next heartbeat" : SUSyphos.Server.Agents.AgentActionService.IsHeld(action.Kind) ? "when it may run" : "now", "Remote action", "queue", $"{ActionLabel(action.Kind)}, requested by {action.RequestedBy}", []));
         }
 
         // While the agent searches or after a search was requested it reports no next time: the search runs now.
