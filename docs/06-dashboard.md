@@ -197,7 +197,8 @@ Every form, in dialogs and on pages (Marc, 2026-10-25).
 - **States:** focus with a blue ring; error with a red outline and the message below; disabled greyed with the reason as help; read-only (no right to change) as plain text, not as a locked field.
 - **Inherit:** every setting that can come from a level above (ring, reboots, Automatic Updates, Microsoft Update, maintenance windows, agent settings) has an "Inherit" switch at its label. While on, the field shows the inherited value dashed and greyed with its source below; switched off, the field is editable.
 - **Switches and checkboxes:** a switch turns a feature on or off (channel, schedule, coordination); its fields hang below it, indented with a thin line, greyed while it is off. Plain options inside a form are checkboxes.
-- **Adding to a list:** below the list a lightly tinted block holds all fields of the new entry and "+ Add" in one row, the button aligned with the fields; help and warnings sit right below the block.
+- **Adding to a list:** below the list a lightly tinted block holds all fields of the new entry and "+ Add" in one row, the button aligned with the fields; help and warnings sit right below the block, never below a single field (a layout test checks that the fields of every add row end on one line).
+- **Dates and times** (Marc, 2026-10-27): one shared date field everywhere: the date as YYYY-MM-DD in a text field with a small calendar (script) and the time from the 24-hour list, in the time zone of the central server; no browser date or time pickers, which follow the browser's language (US dates, AM/PM). A UI test fails on any such input.
 - **Settings pages:** one form across all boxes with Save (and Discard changes) in the action band at the top; with script "Unsaved changes" appears as soon as something changes, and leaving the page asks first.
 
 ### Status indicators
