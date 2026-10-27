@@ -166,6 +166,52 @@ public sealed class UpdateHoldTests
         Assert.Empty((await scenario.ReleasesAsync(pilot)).Releases);
     }
 
+    [Fact]
+    public async Task Page_HoldUntil_TakesTheDateFieldFormat_AndRefusesOthers()
+    {
+        // One date field everywhere (Marc, 2026-10-27): YYYY-MM-DD and a 24-hour time, in the time zone of the central server.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(pilot, update);
+        var path = $"/updates/{update.UpdateId}/1?dialog=hold";
+        await scenario.Factory.CreateUserAsync("operator", Password, AdminRoles.Operator);
+        using var browser = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("operator", Password))
+        {
+        }
+
+        var dialog = await (await browser.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("name=\"HoldUntilDate\"", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("datetime-local", dialog, StringComparison.Ordinal);
+
+        static Dictionary<string, string> Form(string date) => new() { ["_handler"] = "hold", ["HoldTarget"] = "Ring", ["HoldRing"] = RingEntity.PilotId.ToString(System.Globalization.CultureInfo.InvariantCulture), ["HoldUntilDate"] = date, ["HoldUntilTime"] = "18:30" };
+        using (var refused = await browser.PostFormAndFollowAsync(path, Form("11/30/2099")))
+        {
+            Assert.Contains("YYYY-MM-DD", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.UpdateHolds.AnyAsync(TestContext.Current.CancellationToken)));
+        using (await browser.PostFormAndFollowAsync(path, Form("2099-11-30")))
+        {
+        }
+
+        var until = await scenario.Factory.WithDbAsync(db => db.UpdateHolds.Select(h => h.UntilUtc).SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(new DateTime(2099, 11, 30, 18, 30, 0), SUSyphos.Server.Components.DisplayTime.ToLocal(until!.Value));
+    }
+
+    [Theory]
+    [InlineData("2026-11-30", "18:30", true)]
+    [InlineData(" 2026-11-30 ", "00:00", true)]
+    [InlineData("11/30/2026", "18:30", false)]
+    [InlineData("2026-02-30", "18:30", false)]
+    [InlineData("2026-11-30", "6:30 PM", false)]
+    [InlineData("", "18:30", false)]
+    [InlineData(null, null, false)]
+    public void DateField_TakesOnlyItsFormat(string? date, string? time, bool valid) =>
+        Assert.Equal(valid, SUSyphos.Server.Components.Shared.DateTimeField.ParseUtc(date, time) is not null);
+
+
     private static Task<Outcome> HoldAsync(RolloutScenario scenario, Guid updateId, HoldTarget target, string targetId, string? reason = null, DateTime? until = null) =>
         scenario.WithServiceAsync<UpdateHolds, Outcome>(h => h.HoldAsync(updateId, 1, target, targetId, reason, until, "operator", CancellationToken.None));
 }

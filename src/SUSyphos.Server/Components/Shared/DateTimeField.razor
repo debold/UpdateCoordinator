@@ -1,0 +1,54 @@
+@* A date and time in the time zone of the central server, the same everywhere (Marc, 2026-10-27): the date as YYYY-MM-DD
+   in a text field (browser date pickers follow the browser's language, with US dates and AM/PM), the time from the 24-hour
+   list. app.js adds a small calendar to the date field; without script the field takes the typed date. *@
+<div class="field">
+    <span class="field-label">@Label@if (Optional) { <span class="note"> optional</span> }</span>
+    <span class="date-time">
+        <input name="@DateName" type="text" inputmode="numeric" maxlength="10" size="11" pattern="\d{4}-\d{2}-\d{2}" placeholder="YYYY-MM-DD" autocomplete="off" aria-label="@($"{Label} date")" title="Date as YYYY-MM-DD" value="@Date" required="@(!Optional)" data-calendar />
+        <select name="@TimeName" aria-label="@($"{Label} time")">
+            @foreach (var time in WindowPickerForm.Times(null, includeEndOfDay: false))
+            {
+                var text = WindowPickerForm.Format(time);
+                <option value="@text" selected="@(text == (Time ?? DefaultTime))">@text</option>
+            }
+        </select>
+    </span>
+</div>
+
+@code {
+    /// <summary>Format of the date field.</summary>
+    public const string DateFormat = "yyyy-MM-dd";
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Form name of the date; the time is posted as <see cref="TimeName"/>.</summary>
+    [Parameter, EditorRequired]
+    public string DateName { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string TimeName { get; set; } = string.Empty;
+
+    /// <summary>The date to show again, for example after a refused entry.</summary>
+    [Parameter]
+    public string? Date { get; set; }
+
+    [Parameter]
+    public string? Time { get; set; }
+
+    [Parameter]
+    public string DefaultTime { get; set; } = "00:00";
+
+    /// <summary>An empty date is allowed (for example "no end").</summary>
+    [Parameter]
+    public bool Optional { get; set; }
+
+    /// <summary>
+    /// The posted date and time as UTC; null when the date is empty or not a real date in the format. Only the exact
+    /// formats are accepted, so nothing else from the form reaches the time conversion.
+    /// </summary>
+    public static DateTime? ParseUtc(string? date, string? time) =>
+        DateTime.TryParseExact($"{date?.Trim()} {time}", $"{DateFormat} HH:mm", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var local)
+            ? DisplayTime.ToUtc(local)
+            : null;
+}

@@ -1,7 +1,8 @@
 // Progressive enhancement for the dashboard (docs/06-dashboard.md). Every page works without this file: forms post to the
 // server as before. The script only makes things more convenient: dependent fields become inert while their switch is off,
 // column filters get a search box, the maintenance window picker redraws its week preview on every change, the first
-// setup takes the token from the address the installer opened, and the AD group field searches the directory while typing.
+// setup takes the token from the address the installer opened, the AD group field searches the directory while typing and
+// date fields get a small calendar.
 // Served from the central server itself (Content-Security-Policy script-src 'self'); no inline code, no other sources.
 (() => {
     'use strict';
@@ -265,6 +266,106 @@
             }
         });
     };
+
+    // Date fields (DateTimeField): a small month calendar below the field, weeks starting on Monday; choosing a day writes
+    // it as YYYY-MM-DD, the format the server takes. Typing the date keeps working, and the server checks it on saving.
+    const pad = (n) => String(n).padStart(2, '0');
+    const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const parseIso = (text) => {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((text || '').trim());
+        const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+        return d && d.getMonth() === Number(m[2]) - 1 ? d : null;
+    };
+    for (const input of document.querySelectorAll('input[data-calendar]')) {
+        const calendar = document.createElement('div');
+        calendar.className = 'calendar';
+        calendar.hidden = true;
+        input.closest('.field').append(calendar);
+        let shown = null;
+        let choosing = false;
+
+        const render = () => {
+            const first = new Date(shown.getFullYear(), shown.getMonth(), 1);
+            const start = new Date(first);
+            start.setDate(1 - ((first.getDay() + 6) % 7));
+            const chosen = parseIso(input.value);
+            const today = isoDate(new Date());
+            const head = document.createElement('div');
+            head.className = 'calendar-head';
+            const step = (months, label, text) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'ghost';
+                button.textContent = text;
+                button.setAttribute('aria-label', label);
+                button.addEventListener('click', () => {
+                    shown = new Date(shown.getFullYear(), shown.getMonth() + months, 1);
+                    render();
+                });
+                return button;
+            };
+            const title = document.createElement('span');
+            title.textContent = `${first.getFullYear()}-${pad(first.getMonth() + 1)}`;
+            head.append(step(-1, 'Previous month', '‹'), title, step(1, 'Next month', '›'));
+            const grid = document.createElement('div');
+            grid.className = 'calendar-grid';
+            for (const day of ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']) {
+                const name = document.createElement('span');
+                name.className = 'calendar-day-name';
+                name.textContent = day;
+                grid.append(name);
+            }
+            for (let i = 0; i < 42; i++) {
+                const day = new Date(start);
+                day.setDate(start.getDate() + i);
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = String(day.getDate());
+                button.dataset.date = isoDate(day);
+                button.classList.toggle('other', day.getMonth() !== first.getMonth());
+                button.classList.toggle('today', button.dataset.date === today);
+                button.classList.toggle('chosen', chosen !== null && button.dataset.date === isoDate(chosen));
+                button.addEventListener('click', () => {
+                    input.value = button.dataset.date;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    calendar.hidden = true;
+                    choosing = true;
+                    input.focus();
+                    choosing = false;
+                });
+                grid.append(button);
+            }
+            calendar.replaceChildren(head, grid);
+        };
+
+        const open = () => {
+            if (choosing) {
+                return;
+            }
+
+            const chosen = parseIso(input.value) ?? new Date();
+            shown = new Date(chosen.getFullYear(), chosen.getMonth(), 1);
+            render();
+            calendar.hidden = false;
+        };
+        input.addEventListener('focus', open);
+        input.addEventListener('click', open);
+        input.addEventListener('input', () => {
+            if (!calendar.hidden && parseIso(input.value)) {
+                open();
+            }
+        });
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' || event.key === 'Tab') {
+                calendar.hidden = true;
+            }
+        });
+        document.addEventListener('mousedown', (event) => {
+            if (!calendar.hidden && !calendar.contains(event.target) && event.target !== input) {
+                calendar.hidden = true;
+            }
+        });
+    }
 
     // "Select all" in a table header: ticks or clears the row checkboxes of that table with the same name.
     for (const all of document.querySelectorAll('input[data-select-all]')) {

@@ -284,6 +284,29 @@ public sealed class InteractionTests(UiFixture ui)
     }
 
     [Fact]
+    public async Task DateFields_AreTheSameEverywhere_AndOfferACalendar()
+    {
+        // Marc, 2026-10-27: no browser date picker (US dates, AM/PM); YYYY-MM-DD with a calendar and a 24-hour time.
+        await using var context = await ui.NewContextAsync(1280, 900);
+        var page = await context.NewPageAsync();
+        foreach (var path in PageLayoutTests.Pages.Select(p => p.Data).Append("/updates/{update}?dialog=hold"))
+        {
+            await page.GotoAsync(await new PageLayoutTests(ui).ResolveAsync(path));
+            Assert.Equal(0, await page.Locator("input[type='date'], input[type='datetime-local'], input[type='time']").CountAsync());
+        }
+
+        await page.GotoAsync("/administration/maintenance");
+        var start = page.Locator("input[name='BlackoutStartDate']");
+        await start.ClickAsync();
+        var calendar = page.Locator(".calendar").Filter(new LocatorFilterOptions { Visible = true });
+        await Assertions.Expect(calendar).ToHaveCountAsync(1);
+        await calendar.Locator("button.today").ClickAsync();
+        await Assertions.Expect(start).ToHaveValueAsync(DateTime.Now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        await Assertions.Expect(calendar).ToHaveCountAsync(0);
+        Assert.Equal("00:00", await page.Locator("select[name='BlackoutStartTime'] option").First.TextContentAsync());
+    }
+
+    [Fact]
     public async Task AdGroupField_SuggestsGroupsWhileTyping()
     {
         await using var context = await ui.NewContextAsync(1280, 900);

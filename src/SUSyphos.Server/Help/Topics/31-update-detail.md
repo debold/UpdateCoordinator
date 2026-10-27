@@ -43,7 +43,7 @@ The red drop-down button **Block** on the right:
 
 - **For**: a **Ring**, a **Server group** or a **Server** (the approved servers that report the update). Picking one in its list chooses that option.
 - **Reason** (optional): one line that the banner and the audit log show.
-- **Hold until** (optional, server time): the hold ends by itself then; empty keeps it until someone selects **Resume**.
+- **Hold until** (optional, time of the central server): date as YYYY-MM-DD (typed or chosen in the calendar that opens below the field) and time from the 24-hour list; the hold ends by itself then. Without a date it lasts until someone selects **Resume**.
 - **Hold update** sets the hold; **Cancel** closes the dialog.
 
 While a hold lasts, the servers of the target do not get the update; where it is installed already it stays (use [Uninstall](#uninstall) to remove it). A ring on hold does not count as done, so the next ring waits as at a manual gate. The banner **On hold** at the top lists every hold with target, since when, who, the reason and the end; **Resume** lifts one, and the servers get the update again. In the update list the ring of a held update is outlined dashed in the **Rings** column. Hold, Stop rollout and Block differ: a hold is for one target and reversible, Stop withdraws the rollout everywhere, Block keeps the update away for good.

@@ -453,6 +453,18 @@ details.multi:has(input[data-i='62']:checked) .tag.pick[data-i='62'],
 details.multi:has(input[data-i='63']:checked) .tag.pick[data-i='63'] { display: inline-flex; }
 
 .date-time { display: flex; gap: 0.4rem; }
+.date-time input[data-calendar] { width: 8.5rem; flex: 0 0 auto; }
+.field:has(> .calendar) { position: relative; }
+.calendar { position: absolute; z-index: 30; top: 100%; left: 0; margin-top: 0.2rem; padding: 0.5rem; width: 15.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: var(--shadow); }
+.calendar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem; font-weight: 600; }
+.calendar-head button { min-height: 0; padding: 0.15rem 0.55rem; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.1rem; text-align: center; }
+.calendar-day-name { font-size: 0.72rem; color: var(--muted); padding: 0.15rem 0; }
+.calendar-grid button { min-height: 0; padding: 0.25rem 0; border: 0; border-radius: var(--r-sm); background: transparent; font: inherit; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.calendar-grid button:hover { background: var(--accent-soft); color: var(--accent); }
+.calendar-grid button.other { color: var(--muted); }
+.calendar-grid button.today { outline: 1px solid var(--border); }
+.calendar-grid button.chosen { background: var(--accent); color: #fff; }
 .js .js-hide { display: none; }
 @media (max-width: 110rem) { .grid-side.wide-only { grid-template-columns: 1fr; } }
 .task-updates { margin-top: 0.35rem; font-size: 0.85rem; }

@@ -110,7 +110,8 @@ else
                         <div class="choice"><input type="radio" id="hold-target-server" name="HoldTarget" value="Server" data-help-term="Server" /> <span><label for="hold-target-server"><b>Server</b></label><select name="HoldServer" aria-label="Server">@foreach (var (id, name) in _holdServers) { <option value="@id">@name</option> }</select></span></div>
                     </fieldset>
                     <label class="field"><span>Reason <span class="note">optional</span></span><input name="HoldReason" maxlength="@UpdateHoldEntity.MaxReasonLength" autocomplete="off" placeholder="e.g. Exchange crashes after installing it" /></label>
-                    <label class="field"><span>Hold until <span class="note">optional, server time</span></span><input name="HoldUntil" type="datetime-local" /><span class="help">Empty: until someone selects Resume</span></label>
+                    <DateTimeField Label="Hold until" DateName="HoldUntilDate" TimeName="HoldUntilTime" Optional="true" />
+                    <p class="help">Time of the central server. Without a date the hold lasts until someone selects Resume.</p>
                 </div>
                 <div class="dialog-foot"><a class="btn" href="/updates/@UpdateId/@Revision">Cancel</a><button type="submit" class="primary">Hold update</button></div>
             </form>
@@ -437,7 +438,10 @@ else
     private string? HoldReason { get; set; }
 
     [SupplyParameterFromForm(FormName = "hold")]
-    private DateTime? HoldUntil { get; set; }
+    private string? HoldUntilDate { get; set; }
+
+    [SupplyParameterFromForm(FormName = "hold")]
+    private string? HoldUntilTime { get; set; }
 
     private List<HoldView> _holds = [];
 
@@ -448,10 +452,12 @@ else
     private async Task HoldAsync()
     {
         var target = Enum.TryParse<SUSyphos.Server.Rollouts.HoldTarget>(HoldTarget, out var parsed) && Enum.IsDefined(parsed) ? parsed : (SUSyphos.Server.Rollouts.HoldTarget?)null;
+        var until = DateTimeField.ParseUtc(HoldUntilDate, HoldUntilTime);
         var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Operate) ? new Outcome("Only operators and administrators can hold updates.")
             : target is null ? new Outcome("Choose the ring, group or server to hold the update for.")
+            : !string.IsNullOrWhiteSpace(HoldUntilDate) && until is null ? new Outcome("Enter the end of the hold as a date YYYY-MM-DD, or leave it empty.")
             : await Holds.HoldAsync(UpdateId, Revision, target.Value, target switch { SUSyphos.Server.Rollouts.HoldTarget.Ring => HoldRing, SUSyphos.Server.Rollouts.HoldTarget.Group => HoldGroup, _ => HoldServer },
-                HoldReason, HoldUntil is { } until ? DisplayTime.ToUtc(until) : null, await GetActorAsync(), CancellationToken.None);
+                HoldReason, until, await GetActorAsync(), CancellationToken.None);
         ShowResultAndReload(outcome.Error, "The update is on hold; the servers there do not get it until it is resumed.");
         if (outcome.Succeeded)
         {
