@@ -63,7 +63,7 @@ Implemented (2026-10-18): health (offline, failed, reboot pending, warning, OK),
 
 ### Maintenance windows
 
-Three levels: system default (Mon–Fri 19:00–05:00, Sat/Sun all day) → group → individual server. In addition, blackout times as a time filter on top of the ring release.
+Three levels: system default (Mon–Fri 19:00–05:00, Sat/Sun all day) → group → individual server. In addition, blackout times as a time filter on top of the ring release. One-time windows (2026-10-27) for all servers, a ring, a group or a server add dates on top of the weekly windows; "Next 30 days" shows weekly windows, one-time windows and blackouts of each level (system, ring, group, server) as one bar per day in a dialog.
 
 Implemented pages (Admin role): Administration → Maintenance windows (system default), Server groups (create, delete, group windows), Assignment rules (create, delete). Servers and server detail (Reader role) show ring, groups and effective windows; administrators change the manual ring, manual groups and server windows on the server detail page.
 

@@ -11,6 +11,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- Uninstallations wait like installations: in a coordinated group an uninstallation and the restart after it run only while the agent holds a lease. New remote action "uninstall in the next maintenance window" (`UninstallInWindow`): the agent keeps the request and uninstalls once a window is open. Held uninstallations survive a service restart; their results are reported when they ran.
+- One-time maintenance windows from the release list (`oneTimeWindows`, UTC, at most 30 of at most 7 days each) open installations and restarts at those times in addition to the weekly windows; they are converted to the local time of the server.
 - A failed update search (for example one cut off by a shutdown right after a restart, 0x8024001E) is repeated after 15 minutes instead of waiting the whole search interval, so an update removed before a restart shows as missing again soon. The result of an uninstallation says that the update shows as missing again after the restart.
 - Reports per installed update whether Windows Update can uninstall it (WUA `IsUninstallable`).
 - The HTTP resilience pipeline (`Polly`) logs from level Warning, so a heartbeat no longer writes a log line (also on the central server).
@@ -65,6 +67,10 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Uninstall an update from its page (Block ▼ → Uninstall…) on all servers that have it, a ring, a group or one server, now or in the next maintenance window; "All servers" blocks the update as well by default. Waiting uninstallations (window or lease) are shown as such and kept for a week. Role `Admin`.
+- Hold an update for a ring, a group or a server (Rollout ▼ → Hold…), optionally until a date: it is no longer released there, a held ring does not count as done, the update page shows an "On hold" banner with Resume and the Updates list marks held rings. Role `Operator`. New tables `UpdateHolds` and `OneTimeWindows`.
+- One-time maintenance windows (Administration → Maintenance windows) for all servers, a ring, a group or a server: start and end in the time zone of the central server, at most 7 days, valid for every released update; delivered with the release list. Role `Admin`.
+- "Next 30 days" for the system defaults, a ring, a group and a server: weekly windows, one-time windows and blackout periods as one bar per day, with the updates on hold there.
 - Server list: the ring column is called "Ring and groups" and shows each server group as a tag below the ring tag; the "manual" note is gone (the server's Configuration tab shows it).
 - Support phases use Microsoft's lifecycle words: "Mainstream", "Extended", "End of support soon", "ESU", "End of support" and "Out of support". The tooltip names the phase with its date ("Extended Support ends 2027-01-12 (in 77 days)") and the ESU source; the server list shows only the phases that need attention (Mainstream and Extended no longer appear there).
 - Vulnerability lists on the update page (now below "Progress by ring" and "All servers") and in the Security tab of the server page are lists like every other: search, sorting, filters on severity and exploit, and pages.
