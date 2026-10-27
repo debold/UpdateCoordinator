@@ -97,6 +97,11 @@ internal sealed partial class AgentActionService(
         }
 
         var update = await db.Updates.AsNoTracking().Where(u => u.UpdateId == updateId && u.Revision == installed.Revision).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        if (update is not null && !SUSyphos.Server.Rollouts.UninstallCandidates.IsRemovable(update.Classification, update.Title))
+        {
+            return new Outcome("Windows cannot uninstall this update this way (definition updates, the Defender platform, the removal tool and cumulative updates for .NET Framework).");
+        }
+
         return await QueueCoreAsync(clientId, kind, actor, (updateId, installed.Revision, update?.KbArticle), cancellationToken).ConfigureAwait(false);
     }
 

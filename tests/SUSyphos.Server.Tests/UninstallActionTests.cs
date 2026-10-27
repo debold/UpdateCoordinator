@@ -230,6 +230,35 @@ public sealed class UninstallActionTests
         Assert.DoesNotMatch($"value=\"{update}\"[^>]*checked", await malformed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
 
+    [Theory]
+    [InlineData("Security Updates", "2026-10 Cumulative Update for Windows Server 2019 (1809) for x64-based Systems (KB5126651)", true)]
+    [InlineData("Updates", "2026-10 Cumulative Update for .NET Framework 3.5, 4.7.2 and 4.8 for Windows Server 2019 for x64 (KB5128923)", false)]
+    [InlineData("Definition Updates", "Security Intelligence Update for Microsoft Defender Antivirus - KB2267602", false)]
+    [InlineData("Update Rollups", "Windows Malicious Software Removal Tool x64 - v5.146 (KB890830)", false)]
+    public void OnlyUpdatesWindowsCanRemove_AreOffered(string classification, string title, bool removable) =>
+        Assert.Equal(removable, SUSyphos.Server.Rollouts.UninstallCandidates.IsRemovable(classification, title));
+
+    [Fact]
+    public async Task DotNetFrameworkCumulativeUpdates_AreRefused()
+    {
+        // Lab, Marc 2026-10-27: DISM found no package of KB5128923, Windows Update cannot remove it.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        var update = Guid.NewGuid();
+        await scenario.Factory.WithDbAsync(db =>
+        {
+            db.Updates.Add(new UpdateEntity { UpdateId = update, Revision = 1, Title = "2026-10 Cumulative Update for .NET Framework 3.5, 4.7.2 and 4.8 for Windows Server 2019 for x64 (KB5128923)", KbArticle = "5128923", Classification = "Updates", FirstSeenAtUtc = DateTime.UtcNow });
+            db.ClientUpdates.Add(new ClientUpdateEntity { ClientId = client.ClientId, UpdateId = update, Revision = 1, ReportedAtUtc = DateTime.UtcNow });
+            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        var outcome = await scenario.WithServiceAsync<SUSyphos.Server.Agents.AgentActionService, Outcome>(a => a.QueueUninstallAsync(client.ClientId, update, AgentActionKind.Uninstall, "admin", CancellationToken.None));
+
+        Assert.Contains(".NET Framework", outcome.Error, StringComparison.Ordinal);
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
+    }
+
+
     private static Task<int> InstalledAsync(RolloutScenario scenario, RegisterResponse client, Guid updateId) =>
         scenario.Factory.WithDbAsync(async db =>
         {

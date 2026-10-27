@@ -88,7 +88,7 @@ else
             <div class="spacer"></div>
             <ActionMenu Label="Block" Icon="ban" Kind="danger" Align="right">
                 <MenuItem Form="update-actions" Name="Action" Value="block" Icon="ban" Danger="true" Disabled="@(_update.BlockedAtUtc is not null)" Reason="@(_update.BlockedAtUtc is null ? "Stop the rollout and keep the update from starting again" : "The update is blocked already")">Block</MenuItem>
-                <MenuItem Href="@($"/updates/{UpdateId}/{Revision}?dialog=uninstall")" Icon="undo-2" Danger="true" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? "Uninstall it on all, some rings, groups or one server" : "Only administrators can do this")">Uninstall…</MenuItem>
+                <MenuItem Href="@($"/updates/{UpdateId}/{Revision}?dialog=uninstall")" Icon="undo-2" Danger="true" Disabled="@(!_canAdminister || !Removable)" Reason="@(!_canAdminister ? "Only administrators can do this" : !Removable ? "Windows cannot uninstall this update this way" : "Uninstall it on all, some rings, groups or one server")">Uninstall…</MenuItem>
             </ActionMenu>
         }
     </ActionBand>
@@ -393,6 +393,9 @@ else
     private TablePage<SecurityVulnerabilityEntity> _cvePage = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
     private static readonly IReadOnlyList<TableColumn<SecurityVulnerabilityEntity>> VulnerabilityTable = SUSyphos.Server.Security.VulnerabilityColumns.Of<SecurityVulnerabilityEntity>(v => v);
     private bool _canAdminister;
+
+    /// <summary>Whether Windows can uninstall the update the way the agent does (not definitions, the Defender platform, the removal tool or .NET Framework cumulative updates).</summary>
+    private bool Removable => _update is not null && SUSyphos.Server.Rollouts.UninstallCandidates.IsRemovable(_update.Classification, _update.Title);
 
     private static readonly IReadOnlyList<(string Key, string Label)> Tabs = [("overview", "Overview"), ("servers", "Servers"), ("timeline", "Timeline")];
 

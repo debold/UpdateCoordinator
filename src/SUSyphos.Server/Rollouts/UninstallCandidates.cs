@@ -15,7 +15,12 @@ internal sealed record UninstallCandidate(Guid UpdateId, string? Kb, string Titl
 /// </summary>
 internal static class UninstallCandidates
 {
-    private static readonly string[] NotRemovable = ["Malicious Software Removal Tool", "antimalware platform"];
+    /// <summary>
+    /// Title parts of updates that cannot be removed this way. Cumulative updates for .NET Framework bundle one package per
+    /// framework version under other KB numbers: Windows Update refuses to uninstall them and DISM finds no package of the KB
+    /// the dialog names (seen in the lab, Marc 2026-10-27), so they are not offered.
+    /// </summary>
+    private static readonly string[] NotRemovable = ["Malicious Software Removal Tool", "antimalware platform", "Cumulative Update for .NET Framework"];
 
     public static bool IsRemovable(string? classification, string title) =>
         !DefinitionUpdates.IsClassification(classification)

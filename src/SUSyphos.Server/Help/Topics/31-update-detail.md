@@ -50,7 +50,7 @@ While a hold lasts, the servers of the target do not get the update; where it is
 
 ## Uninstall {#uninstall}
 
-**Uninstall…** (in the red **Block** menu, administrators) removes the update from the servers that report it as installed, for example a faulty one.
+**Uninstall…** (in the red **Block** menu, administrators) removes the update from the servers that report it as installed, for example a faulty one. It is greyed out for updates Windows cannot remove this way: definition updates, the Defender platform, the Malicious Software Removal Tool and cumulative updates for .NET Framework.
 
 - **Where**: **All servers that have it** (with their number), **Rings** or **Server groups** (tick one or more; each with the number of servers that have it), or **One server**. Ticking a ring or group, or picking a server, chooses that option.
 - **When**: **In the next maintenance window** (the server uninstalls and restarts in its next window that stays open long enough), **Now, restart in the next window** (uninstalls with the next heartbeat, also outside the window; a needed restart waits for the window) or **Now, restart right after** (a needed restart follows after a five minute warning).
