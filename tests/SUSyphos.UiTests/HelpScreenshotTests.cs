@@ -23,6 +23,17 @@ public sealed class HelpScreenshotTests(UiFixture ui)
         { "release-rules-ring-dialog", "/administration/release-rules?tab=rings", "main a[href*='dialog=ring&']", "[role='dialog']" },
         { "release-rules-start-dialog", "/administration/release-rules?dialog=rule-new", null, "[role='dialog']" },
         { "week-choice", "/administration/maintenance", "details.week-choice > summary", "details.week-choice[open]" },
+
+        // Pages and boxes, so every help page shows what it explains (Marc, 2026-10-27).
+        { "overview-tiles", "/", null, "main .tiles" },
+        { "server-list", "/servers", null, "main section.box:has(.ring-strip)" },
+        { "server-page", "/servers/{main}", null, "main .tiles" },
+        { "update-list", "/updates", null, "main section.box:has(table)" },
+        { "update-progress", "/updates/{update}", null, "main .grid-side" },
+        { "operating-systems", "/operating-systems", null, "main .tiles" },
+        { "agent-settings", "/administration/agent-settings", null, "main section.box" },
+        { "notifications-channels", "/administration/notifications", null, "main .grid-2" },
+        { "certificates", "/administration/certificate", null, "main section.box:has(table)" },
     };
 
     /// <summary>Viewport rectangle (left, top, right, bottom) of an element and all its visible descendants.</summary>

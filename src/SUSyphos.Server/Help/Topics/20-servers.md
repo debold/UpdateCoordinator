@@ -2,6 +2,8 @@
 
 All servers that registered with the central server, approved or not (deleted servers are left out). Click a server name to open its [details](help/server-detail). Search, grouping, sorting and column filters work as described in [Working with lists](help/tables).
 
+![The server list with the ring strip above it, the support and security tags, ring and groups, agent, status and updates](help-images/server-list.png)
+
 ## Actions for selected servers {#actions}
 
 Operators and administrators see a band above the list. Tick the servers in the list (**Select**), then choose in a drop-down button:
@@ -28,7 +30,7 @@ A ring tag switches that ring on or off in the **Ring** filter of the list: seve
 
 ## Servers of an assignment rule {#rule}
 
-Opened from the **Servers** number of an assignment rule, the list shows only the approved servers whose role, domain and host name match that rule. The chip "Assignment rule" with its priority says so; its **Ã—** shows all servers again.
+Opened from the **Servers** number of an assignment rule, the list shows only the approved servers whose role, domain and host name match that rule. The chip "Assignment rule" with its priority says so; its **×** shows all servers again.
 
 ## Columns {#columns}
 
@@ -40,7 +42,7 @@ Opened from the **Servers** number of an assignment rule, the list shows only th
 | **Ring and groups** | The ring the server belongs to, as ring tag ("–": no ring yet), and below it a tag for each server group it belongs to (coordination of installations, see [Server groups](help/groups)). The column filter is the ring; the filter "Group" is in the chips and in "Group by". Whether the ring was set by hand shows on the server's Configuration tab. |
 | **Agent** | Version of the SUSyphos agent on the server (full version in the tooltip) with a mark before it: a green check means current (no newer version released for its ring), a blue arrow up means an update is available (it installs itself), a red dash means the last update failed, and grey dots mean the version is unknown or too old to update itself. The tooltip of the mark explains it; the filter offers the versions and these states. |
 | **Status** | See below. |
-| **Security** | The server against the security baseline of its Windows version: "Current", "1 behind", "2+ behind" or "Unknown" (no security data from Microsoft, see [Operating systems](help/operating-systems#data)), with "Exploited" below when a vulnerability Microsoft knows to be attacked is open. The tooltip names build, baseline and the open vulnerabilities; the filter offers the states and "Exploited". The server groups now stand below the ring. |
+| **Security** | The server against the security baseline of its Windows version: "Current", "1 behind", "2+ behind" or "Unknown" (no security data from Microsoft, see [Operating systems](help/operating-systems#data)), with "Exploited" below when a vulnerability Microsoft knows to be attacked is open. The tooltip names build, baseline and the open vulnerabilities; the filter offers the states and "Exploited". |
 | **Updates** | The updates of the server by state as a small ring (installed, pending, failed, queued), with the number of updates still pending next to it and the counts in the tooltip. Sorted by the pending number; its filter offers "Updates pending" and "Up to date". |
 | **Last heartbeat** | Time of the last heartbeat with a dot before it: green up to 5 minutes old, amber up to an hour, red older (the server counts as offline). Its filter offers "Current", "Older" and "Long ago". |
 

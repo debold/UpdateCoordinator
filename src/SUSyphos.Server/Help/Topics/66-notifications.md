@@ -2,6 +2,8 @@
 
 The central server tells you about events that need attention, by e-mail and/or a webhook. Every minute it sends each new event once, collected in one message per channel; the [Events](#events) table decides which events go to which channel. A condition is reported once while it lasts and again only after it ended and came back; a failed delivery is retried with the next run. Administrators only.
 
+![The channels tab with the e-mail and webhook boxes and their test buttons](help-images/notifications-channels.png)
+
 Passwords and secrets are stored encrypted on this server (Windows data protection) and are not part of the backup; enter them again after a restore on another machine.
 
 The settings are split into two tabs of one form: **Channels** (e-mail, webhook, messages and links; the tab says how many channels are on, amber when none) and **Events** (the event table, with the number of events sent at all). **Save** stores both tabs at once.

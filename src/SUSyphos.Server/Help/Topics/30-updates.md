@@ -2,6 +2,8 @@
 
 All updates that approved servers reported as missing, or that are in a rollout. Each update runs through the rings on its own ([How SUSyphos works](help/concepts#rollouts)). Click a title to open the [update details](help/update-detail). Search, grouping, sorting and column filters work as described in [Working with lists](help/tables).
 
+![The update list with search, grouping, the "Show:" switches and the rings column](help-images/update-list.png)
+
 The search takes a KB number, words of the title or a CVE number, in full or in part (for example CVE-2026-100201): with a CVE it lists the updates that fix it, according to Microsoft's security data (see [Operating systems](help/operating-systems#data)), and names the matching CVEs below their titles.
 
 ## Actions for selected updates {#actions}

@@ -28,6 +28,9 @@ public sealed class HelpTests
         var topics = Path.Combine(WebRoot, "..", "Help", "Topics");
 
         Assert.All(Directory.GetFiles(topics, "*.md"), file => Assert.StartsWith("# ", File.ReadAllText(file), StringComparison.Ordinal));
+
+        // UTF-8 read as another code page once turned "×" into "Ã—".
+        Assert.All(Directory.GetFiles(topics, "*.md"), file => Assert.DoesNotContain("Ã", File.ReadAllText(file), StringComparison.Ordinal));
     }
 
     [Fact]

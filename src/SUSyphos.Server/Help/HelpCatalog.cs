@@ -16,7 +16,8 @@ namespace SUSyphos.Server.Help;
 /// <param name="Html">The rendered page.</param>
 /// <param name="Anchors">Element ids of the headings, the targets of the help links in the dashboard.</param>
 /// <param name="Images">Image paths the page shows (screenshots under <c>help-images/</c>).</param>
-public sealed record HelpTopic(string Slug, string Title, string Summary, int Order, string Html, FrozenSet<string> Anchors, IReadOnlyList<string> Images);
+/// <param name="Sections">The level-2 headings with their ids, for the navigation next to the page.</param>
+public sealed record HelpTopic(string Slug, string Title, string Summary, int Order, string Html, FrozenSet<string> Anchors, IReadOnlyList<string> Images, IReadOnlyList<(string Id, string Title)> Sections);
 
 /// <summary>
 /// The help pages of the dashboard. Sources are Markdown files compiled into the assembly (<c>Help/Topics</c>); raw HTML
@@ -86,7 +87,8 @@ public sealed partial class HelpCatalog
         var summary = document.Descendants<ParagraphBlock>().FirstOrDefault() is { } first ? PlainText(first.Inline) : string.Empty;
         var anchors = headings.Select(h => h.GetAttributes().Id).OfType<string>().ToFrozenSet(StringComparer.Ordinal);
         var images = document.Descendants<LinkInline>().Where(l => l.IsImage && l.Url is not null).Select(l => l.Url!).ToList();
-        return new HelpTopic(slug, title, summary, order, document.ToHtml(Pipeline), anchors, images);
+        var sections = headings.Where(h => h.Level == 2 && h.GetAttributes().Id is not null).Select(h => (h.GetAttributes().Id!, PlainText(h.Inline))).ToList();
+        return new HelpTopic(slug, title, summary, order, document.ToHtml(Pipeline), anchors, images, sections);
     }
 
     private static string PlainText(ContainerInline? inline) =>

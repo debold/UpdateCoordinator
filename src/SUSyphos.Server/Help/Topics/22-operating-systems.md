@@ -2,6 +2,8 @@
 
 The Windows versions of the approved servers: how many servers run the newest security build, which vulnerabilities are still open, how quickly the servers install a new security build, and when Microsoft ends the support of each version. The line under the title says which monthly security data from Microsoft the page uses and when it was fetched.
 
+![The tiles of the operating systems page: security baseline, open vulnerabilities and exploited](help-images/operating-systems.png)
+
 ## Security data from Microsoft {#data}
 
 The central server reads the security data of the last three months from the Security Update Guide of Microsoft (MSRC, `api.msrc.microsoft.com`, no account needed): once a day, and every two hours from the patch day (second Tuesday) to two days after, when Microsoft revises the data. For every vulnerability (CVE) it keeps severity, CVSS score, impact, whether it is exploited or publicly disclosed, and for every Windows Server version (2016 to 2025, Server Core included) the build and KB that fix it. A failed fetch keeps the data there is; a blue banner **Offline** appears when the fetch is switched off in the configuration (`Msrc:Enabled`, for a central server without internet access), an amber banner **Not fetched** when the last fetch failed, with the error.

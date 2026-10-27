@@ -22,9 +22,32 @@ else if (_topic is not null)
 {
     <PageTitle>Help: @_topic.Title</PageTitle>
     <nav class="crumbs" aria-label="Breadcrumb"><a href="help">Help</a><span aria-hidden="true">/</span><span>@_topic.Title</span></nav>
-    <article class="box help-article">
-        <div class="box-body">@((MarkupString)_topic.Html)</div>
-    </article>
+    <div class="help-layout">
+        @* Every topic at hand, the current one with its sections, so readers move between pages without going back. *@
+        <nav class="help-nav box" aria-label="Help topics">
+            <ul>
+                @foreach (var topic in Catalog.Topics)
+                {
+                    var current = topic.Slug == _topic.Slug;
+                    <li class="@(current ? "current" : null)">
+                        <a href="@($"help/{topic.Slug}")" aria-current="@(current ? "page" : null)">@topic.Title</a>
+                        @if (current && topic.Sections.Count > 0)
+                        {
+                            <ul>
+                                @foreach (var (id, title) in topic.Sections)
+                                {
+                                    <li><a href="@($"help/{topic.Slug}#{id}")">@title</a></li>
+                                }
+                            </ul>
+                        }
+                    </li>
+                }
+            </ul>
+        </nav>
+        <article class="box help-article">
+            <div class="box-body">@((MarkupString)_topic.Html)</div>
+        </article>
+    </div>
 }
 
 @code {

@@ -2,6 +2,8 @@
 
 One update with its rollout through the rings and its state on every server. The line under the title shows classification, severity, revision, restart behaviour and when it was first reported; the tag next to the title shows the rollout state as in the [update list](help/updates#columns). **Release notes** opens Microsoft's support article of the KB in a new tab, **Catalog** the KB in the Microsoft Update Catalog (packages for download).
 
+![Progress by ring and all servers on the overview tab of an update](help-images/update-progress.png)
+
 The boxes are split into three tabs: **Overview** (start rule, progress by ring and the state of all servers), **Servers** (every server with its state, and installations outside SUSyphos; the tab shows the number of failed installations) and **Timeline**. The tab is part of the address.
 
 ## Blocked, withdrawn and superseded {#block}

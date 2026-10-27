@@ -2,6 +2,8 @@
 
 Everything about one server: its state, what the agent does next, its configuration, its updates and its history. Open it from the [server list](help/servers) or any link with the server name. The line under the name shows the fully qualified name, operating system, build and ring.
 
+![The tiles at the top of a server page: status, updates, next maintenance window and last heartbeat](help-images/server-page.png)
+
 ## Queued restart {#restart-queued}
 
 A red banner at the top appears when a restart of the server is queued or planned: requested by an administrator (now or in the next maintenance window) or announced by the agent. It says when the restart happens or why it waits. Once the agent has announced the restart to Windows (the five-minute warning signed-in users see), the banner says **Restart announced** with the exact time; the System box, the Tasks box and the server list show that time too.

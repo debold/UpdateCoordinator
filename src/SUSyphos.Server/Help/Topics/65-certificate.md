@@ -2,6 +2,8 @@
 
 The certificate the central server presents to agents and browsers over HTTPS. Administrators only.
 
+![The certificate list with state, valid until and the row actions](help-images/certificates.png)
+
 Agents do not pin the certificate but the **trust anchor** of the central server, a key that stays the same for its whole life. Whenever the certificate changes, the trust anchor signs a binding for the new certificate, and every agent accepts the new certificate on its next contact. A certificate change therefore never cuts the agents off. Renewals of the certificate in the LocalMachine store (for example by autoenrollment) are picked up automatically; without a certificate of its own the central server creates and renews a self-signed one.
 
 ## In use {#in-use}

@@ -2,6 +2,8 @@
 
 The start page shows at a glance whether updates reach the servers, what is going wrong and what waits for a decision. All numbers count approved servers only; servers waiting for approval appear under [Approvals](help/approvals).
 
+![The tiles at the top of the overview: servers reporting, pending updates, server status, compliance, AD coverage and the central server](help-images/overview-tiles.png)
+
 The time under the title ("As of …") is when the page was built, in the time zone of the central server. The page does not refresh by itself: reload it to see new numbers.
 
 ## Global pause and blackouts {#pause}
