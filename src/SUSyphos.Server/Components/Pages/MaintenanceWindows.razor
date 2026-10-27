@@ -8,6 +8,7 @@
 @inject SUSyphos.Server.Agents.BlackoutPeriods Blackouts
 @inject TimeProvider Time
 @inject OneTimeWindows OneTime
+@inject SchedulePreview Preview
 @inject SUSyphos.Server.Data.ServerDbContext Db
 @using Microsoft.EntityFrameworkCore
 
@@ -15,6 +16,15 @@
 
 <PageHeader Title="Maintenance windows and reboots" Icon="@PageIcons.MaintenanceWindows" Subtitle="System defaults for every server without own or group settings" Help="maintenance-windows" Crumbs="@([("Administration", null), ("Maintenance windows", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
+<ActionBand>
+    <a class="btn" href="/administration/maintenance?dialog=preview" data-help-term="Next 30 days"><Icon Name="calendar-clock" Size="16" />Next @SchedulePreview.Days days</a>
+    <div class="spacer"></div>
+    <span class="note">Weekly windows, one-time windows and blackouts of all servers together</span>
+</ActionBand>
+@if (Dialog == "preview" && _preview is not null)
+{
+    <SchedulePreviewDialog Preview="@_preview" CloseHref="/administration/maintenance" />
+}
 
 <div class="grid-side">
     <form method="post" @formname="maintenance" @onsubmit="SaveAsync" class="box">
@@ -333,8 +343,14 @@
         await LoadAsync();
     }
 
+    [SupplyParameterFromQuery(Name = "dialog")]
+    private string? Dialog { get; set; }
+
+    private SchedulePreviewResult? _preview;
+
     private async Task LoadAsync()
     {
+        _preview = Dialog == "preview" ? await Preview.ForSystemAsync(CancellationToken.None) : null;
         _oneTime = await OneTime.ListAsync(CancellationToken.None);
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();

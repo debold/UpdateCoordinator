@@ -5,6 +5,7 @@
 @inject ServerDbContext Db
 @inject AssignmentAdministration Administration
 @inject NavigationManager Navigation
+@inject SUSyphos.Server.Assignment.SchedulePreview Preview
 
 <PageTitle>Server groups</PageTitle>
 
@@ -46,6 +47,7 @@
                             <a class="btn icon-button" href="@Path?dialog=edit&id=@group.Id" title="Edit @group.Name" aria-label="Edit @group.Name" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
                             <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {group.Name}")">
                                 <MenuItem Href="@Servers.Link("group", group.Name)" Icon="server">Show members</MenuItem>
+                                <MenuItem Href="@($"{Path}?dialog=preview&id={group.Id}")" Icon="calendar-clock">Next @SUSyphos.Server.Assignment.SchedulePreview.Days days</MenuItem>
                                 <MenuSeparator />
                                 <MenuItem Href="@($"{Path}?dialog=delete&id={group.Id}")" Icon="trash-2" Danger="true">Delete group…</MenuItem>
                             </ActionMenu>
@@ -145,6 +147,10 @@ else if (_dialog == "agent-setting" && Editing is { } settingGroup && SUSyphos.C
     var inherited = AgentSettingValues.Explain(_systemAgentSettings, [], new Dictionary<string, string>(), "this group").First(e => e.Definition.Key == settingDefinition.Key);
     <AgentSettingDialog Definition="settingDefinition" Scope="@($"group {settingGroup.Name}")" Own="@AgentSettingValues.Parse(settingGroup.AgentSettingsJson).GetValueOrDefault(settingDefinition.Key)"
                         InheritedValue="@inherited.Value" InheritedSource="@inherited.Source" CancelHref="@EditGroupHref(settingGroup.Id)" Error="@_settingError" Help="groups#agent-settings" OnSave="SaveSettingAsync" />
+}
+else if (_dialog == "preview" && _schedulePreview is not null)
+{
+    <SchedulePreviewDialog Preview="@_schedulePreview" CloseHref="@Path" />
 }
 else if (_dialog == "delete" && Editing is { } doomed)
 {
@@ -395,8 +401,11 @@ else if (_dialog == "delete" && Editing is { } doomed)
         await LoadAsync();
     }
 
+    private SUSyphos.Server.Assignment.SchedulePreviewResult? _schedulePreview;
+
     private async Task LoadAsync()
     {
+        _schedulePreview = _dialog == "preview" && int.TryParse(DialogId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var previewId) ? await Preview.ForGroupAsync(previewId, CancellationToken.None) : null;
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         _systemAgentSettings = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
         _members = await Db.ClientGroups.AsNoTracking().GroupBy(m => m.GroupId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count);

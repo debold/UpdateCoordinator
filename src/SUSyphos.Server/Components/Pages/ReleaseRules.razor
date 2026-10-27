@@ -7,6 +7,7 @@
 @inject RolloutAdministration Administration
 @inject RingAdministration Rings
 @inject NavigationManager Navigation
+@inject SUSyphos.Server.Assignment.SchedulePreview SchedulePreview
 
 <PageTitle>Release rules</PageTitle>
 
@@ -58,6 +59,8 @@
                         <td class="n"><span class="row-actions">
                             <a class="btn icon-button" href="@($"{RingsPath}&dialog=ring&id={ring.Id}")" title="Edit @ring.Name" aria-label="Edit @ring.Name" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
                             <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {ring.Name}")">
+                                <MenuItem Href="@($"{RingsPath}&dialog=preview&id={ring.Id}")" Icon="calendar-clock">Next @SUSyphos.Server.Assignment.SchedulePreview.Days days</MenuItem>
+                                <MenuSeparator />
                                 <MenuItem Href="@($"{RingsPath}&dialog=ring-delete&id={ring.Id}")" Icon="trash-2" Danger="true" Disabled="@final" Reason="@(final ? "The final ring cannot be deleted" : null)">Delete ring…</MenuItem>
                             </ActionMenu>
                         </span></td>
@@ -276,6 +279,10 @@ else if (_dialog is "ring-new" or "ring" && (_dialog == "ring-new" || EditingRin
             <div class="dialog-foot"><a class="btn" href="@RingsPath">Cancel</a><button type="submit" class="primary">@(ring is null ? "Create ring" : "Save")</button></div>
         </form>
     </Dialog>
+}
+else if (_dialog == "preview" && _schedulePreview is not null)
+{
+    <SchedulePreviewDialog Preview="@_schedulePreview" CloseHref="@RingsPath" />
 }
 else if (_dialog == "ring-delete" && EditingRing is { } doomedRing)
 {
@@ -503,8 +510,11 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
         await LoadAsync();
     }
 
+    private SUSyphos.Server.Assignment.SchedulePreviewResult? _schedulePreview;
+
     private async Task LoadAsync()
     {
+        _schedulePreview = _dialog == "preview" && int.TryParse(DialogId, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var previewId) ? await SchedulePreview.ForRingAsync(previewId, CancellationToken.None) : null;
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _transitions = await Db.RingTransitions.AsNoTracking().ToDictionaryAsync(t => t.FromRingId);
         _startRules = await Db.StartRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync();

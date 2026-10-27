@@ -16,7 +16,7 @@ All rings in order with their number of servers and the transition rule to the n
 The next ring gets an update after the minimum wait when enough servers reported (feedback) and enough of them succeeded (success). At the maximum wait a good success rate is enough, even if feedback is missing. A poor success rate, or no report at all at the maximum wait, raises an alarm that an operator decides. When no server of a ring needs the update ("no server needs it" instead of the rates), it moves on once the minimum wait has passed; a manual gate still waits for an operator. The days count for each update separately, from its release in the ring it is in (in the first ring: after the delay of its start rule), not from the start of the rollout.
 
 - **Edit** (the pencil at the end of the row): opens the ring dialog.
-- **More** (⋯): **Delete ring…** opens a confirmation (greyed out for the final ring); **Delete ring** there removes the ring (not the final ring). Only a ring without servers and without assignment rules can be deleted; running rollouts skip it from then on.
+- **More** (⋯): **Next 30 days** shows the windows of the ring's servers on the next 30 days (system default and one-time windows for the ring) and the updates on hold for the ring, see [Next 30 days](help/maintenance-windows#preview). **Delete ring…** opens a confirmation (greyed out for the final ring); **Delete ring** there removes the ring (not the final ring). Only a ring without servers and without assignment rules can be deleted; running rollouts skip it from then on.
 
 ## Ring dialog {#ring-dialog}
 

@@ -10,7 +10,7 @@ A new group is empty. Servers join it in one of three ways: select them in the [
 
 The table shows each group with **Description**, number of **Members** (the name opens the server list filtered to the group), its **Maintenance windows** ("system default" if it has none), **Reboots** ("inherit" if not set) and **Coordination** (share and maximum, "Stopped" when its installations were stopped after failures, or "not coordinated").
 
-- **Edit** (the pencil at the end of the row): opens the group dialog. **More** (⋯) has **Show members** (the server list filtered to the group) and:
+- **Edit** (the pencil at the end of the row): opens the group dialog. **More** (⋯) has **Show members** (the server list filtered to the group), **Next 30 days** (the [maintenance windows, one-time windows and blackouts](help/maintenance-windows#preview) of the group on the next 30 days, with its holds) and:
 - **Delete group…**: opens a confirmation. With **Delete group**, members leave the group and fall back to the system defaults; assignment rules that point to the group are removed too.
 
 ## New group and edit {#dialog}

@@ -14,6 +14,7 @@
 @inject SUSyphos.Server.AgentPackages.AgentUpdateService AgentUpdates
 @inject SUSyphos.Server.Lifecycle.SupportLifecycle Support
 @inject SUSyphos.Server.Security.SecurityBaseline Baseline
+@inject SUSyphos.Server.Assignment.SchedulePreview Preview
 
 <PageTitle>@(_client?.HostName ?? "Server")</PageTitle>
 
@@ -325,6 +326,7 @@ else
                     <div class="field">
                         <span class="field-label">Maintenance windows</span>
                         <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
+                        <p class="note"><a href="@($"/servers/{Id}?tab=configuration&dialog=preview")" data-help-term="Next 30 days">Next @SUSyphos.Server.Assignment.SchedulePreview.Days days</a>: weekly and one-time windows and blackouts of this server together.</p>
                     </div>
                     <AgentSettingOverrides Explained="@_agentSettings" Own="@_ownAgentSettings" Applied="@_appliedSettings" EditHref="@(key => SettingHref(key))" Help="server-detail#agent-settings" />
                 </div>
@@ -339,7 +341,7 @@ else
                 <dl class="facts">
                     <dt>Ring</dt><dd>@RingName(_client.RingId) @(_client.ManualRingId is null ? "(automatic)" : "(manual)")</dd>
                     <dt>Groups</dt><dd>@(_memberships.Count > 0 ? string.Join(", ", _memberships.Select(m => GroupName(m.GroupId))) : "–")</dd>
-                    <dt>Maintenance windows</dt><dd>@(_effectiveWindows.Count > 0 ? WindowPickerForm.Describe(_effectiveWindows) : "none")</dd>
+                    <dt>Maintenance windows</dt><dd>@(_effectiveWindows.Count > 0 ? WindowPickerForm.Describe(_effectiveWindows) : "none") <a href="@($"/servers/{Id}?tab=configuration&dialog=preview")" data-help-term="Next 30 days">Next @SUSyphos.Server.Assignment.SchedulePreview.Days days</a></dd>
                     <dt>Reboots</dt><dd>@RebootPolicyText.Label(_client.EffectiveRebootPolicy)</dd>
                     <dt>Update source</dt><dd>@(_client.EffectiveUseMicrosoftUpdate ? "Microsoft Update" : "Windows Update only")</dd>
                 </dl>
@@ -449,6 +451,10 @@ else
                 <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="danger" disabled="@(_installed.Count == 0)">Uninstall update</button></div>
             </form>
         </Dialog>
+    }
+    else if (Dialog == "preview" && _schedulePreview is not null)
+    {
+        <SchedulePreviewDialog Preview="@_schedulePreview" CloseHref="@($"/servers/{Id}?tab=configuration")" />
     }
     else if (Dialog == "install")
     {
@@ -627,6 +633,8 @@ else
 
     /// <summary>Updates the inventory lists as installed, for the uninstall dialog.</summary>
     private List<UninstallCandidate> _installed = [];
+
+    private SUSyphos.Server.Assignment.SchedulePreviewResult? _schedulePreview;
 
     private async Task UninstallAsync()
     {
@@ -1027,6 +1035,7 @@ else
             .Select(g => (g.Name, (IReadOnlyDictionary<string, string>)SUSyphos.Server.Assignment.AgentSettingValues.Parse(g.AgentSettingsJson))).ToList();
         _agentSettings = SUSyphos.Server.Assignment.AgentSettingValues.Explain(_systemAgentSettings, _memberGroupSettings, _ownAgentSettings, "this server");
         _appliedSettings = SUSyphos.Server.Assignment.AppliedAgentSettings.Parse(_client.AppliedAgentSettingsJson);
+        _schedulePreview = Dialog == "preview" ? await Preview.ForClientAsync(Id, CancellationToken.None) : null;
         if (Dialog == "uninstall")
         {
             _installed = await UninstallCandidates.LoadAsync(Db, Id, CancellationToken.None);

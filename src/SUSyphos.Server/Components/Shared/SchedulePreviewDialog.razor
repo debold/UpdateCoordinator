@@ -1,0 +1,54 @@
+@using SUSyphos.Server.Assignment
+@* The next 30 days of a level as one bar per day (Marc, 2026-10-27): weekly windows green, one-time windows dark green,
+   blackouts red, closed grey; the tooltip of a stretch names its source. Drawn on the server, so it works without script. *@
+<Dialog Title="@($"Next {SchedulePreview.Days} days: {Preview.Title}")" CloseHref="@CloseHref" Help="maintenance-windows#preview" Wide="true">
+    <div class="dialog-body">
+        <p class="note">When installations may start, in the time zone of the central server. A server applies its weekly windows in its own time zone; the bars show them in the time zone of the central server as an approximation. The global pause and holds still apply.</p>
+        <div class="legend"><span><span class="swatch preview-open"></span>Weekly window</span><span><span class="swatch preview-once"></span>One-time window</span><span><span class="swatch preview-blocked"></span>Blackout</span><span><span class="swatch preview-closed"></span>No window</span></div>
+        <svg class="schedule-preview" viewBox="@($"0 0 {Width} {Top + (Preview.Days.Count * Row)}")" role="img" aria-label="@($"Maintenance windows of the next {Preview.Days.Count} days")">
+            @for (var hour = 0; hour <= 24; hour += 6)
+            {
+                <g><text class="axis" x="@(Left + (hour * BarWidth / 24))" y="12" text-anchor="middle">@($"{hour:00}:00")</text></g>
+            }
+            @for (var i = 0; i < Preview.Days.Count; i++)
+            {
+                var day = Preview.Days[i];
+                var y = Top + (i * Row);
+                <g><text class="day" x="0" y="@(y + 11)">@day.Day.ToString("ddd MM-dd", System.Globalization.CultureInfo.InvariantCulture)</text></g>
+                @foreach (var slot in day.Slots)
+                {
+                    <rect class="@SlotClass(slot.Kind)" x="@(Left + (slot.From * BarWidth / 1440))" y="@y" width="@Math.Max(1, (slot.To - slot.From) * BarWidth / 1440)" height="@(Row - 4)"><title>@($"{day.Day:yyyy-MM-dd} {Time(slot.From)}–{Time(slot.To)}: {(slot.Kind == SlotKind.Closed ? "no window" : slot.Source)}")</title></rect>
+                }
+            }
+        </svg>
+        @if (Preview.Holds.Count > 0)
+        {
+            <p><b>On hold here:</b> @string.Join(", ", Preview.Holds)</p>
+        }
+    </div>
+    <div class="dialog-foot"><a class="btn" href="@CloseHref">Close</a></div>
+</Dialog>
+
+@code {
+    private const int Left = 84;
+    private const int BarWidth = 576;
+    private const int Width = Left + BarWidth + 20;
+    private const int Top = 20;
+    private const int Row = 18;
+
+    [Parameter, EditorRequired]
+    public SchedulePreviewResult Preview { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string CloseHref { get; set; } = string.Empty;
+
+    private static string SlotClass(SlotKind kind) => kind switch
+    {
+        SlotKind.Open => "preview-open",
+        SlotKind.OneTime => "preview-once",
+        SlotKind.Blocked => "preview-blocked",
+        _ => "preview-closed",
+    };
+
+    private static string Time(int minute) => minute >= 1440 ? "24:00" : $"{minute / 60:00}:{minute % 60:00}";
+}

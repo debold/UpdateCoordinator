@@ -119,7 +119,7 @@ Groups the server belongs to by hand; tick them in the drop-down.
 
 ### Maintenance windows {#windows}
 
-When the server may install updates. "Inherit from groups or the system default" uses the windows of its groups, else the system default; untick it to give the server windows of its own. The editor is described under [Maintenance windows](help/maintenance-windows#editor).
+When the server may install updates. "Inherit from groups or the system default" uses the windows of its groups, else the system default; untick it to give the server windows of its own. The editor is described under [Maintenance windows](help/maintenance-windows#editor). **Next 30 days** shows the effective weekly windows, the one-time windows and blackouts of the server on the next 30 days and the updates on hold for it, see [Next 30 days](help/maintenance-windows#preview).
 
 ## System {#system}
 

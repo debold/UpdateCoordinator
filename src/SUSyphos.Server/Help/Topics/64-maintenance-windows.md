@@ -59,6 +59,12 @@ A one-time window lets installations start at a date and time in addition to the
 
 The servers concerned get the window with their next heartbeat (they fetch a new release list) and use it like a weekly window, also for restarts; the time is converted to the time zone of each server. Blackout periods and the global pause still win. Ended windows disappear from the list 30 days after their end; the audit log keeps every change.
 
+## Next 30 days {#preview}
+
+**Next 30 days** (in the action band) shows when installations may start on the next 30 days, one bar per day: weekly windows green, one-time windows dark green, blackout periods red and time without a window grey. Hovering a stretch names its source (system default, a group, a one-time window with its reason, a blackout with its reason). The same preview opens for a ring (⋯ menu on the Rings tab of the release rules), a group (⋯ menu in the group list) and a server (Configuration tab and facts of the server page); there it combines what applies to that level and lists the updates on hold there.
+
+Times are in the time zone of the central server. A server applies its weekly windows in its own time zone, so for servers in other time zones the bars are an approximation. The global pause is not shown.
+
 ## Blackout periods {#blackouts}
 
 Times in which no installation starts anywhere, for example a year-end freeze: like a planned global pause. Searches, inventory and reporting continue; running installations finish. Times are in the time zone of the central server.

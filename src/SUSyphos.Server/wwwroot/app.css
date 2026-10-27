@@ -710,3 +710,11 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 /* Several holds in one banner: one line each with its Resume button. */
 .hold-line + .hold-line { margin-top: 0.35rem; }
 .hold-line button { margin-left: 0.5rem; }
+
+/* Preview of the next 30 days (SchedulePreviewDialog): one bar per day. */
+.schedule-preview { width: 100%; height: auto; margin-top: 0.5rem; }
+.schedule-preview text { font-size: 10px; fill: var(--muted); }
+.preview-open, .swatch.preview-open { fill: var(--ok); background: var(--ok); opacity: 0.75; }
+.preview-once, .swatch.preview-once { fill: #0E5B3A; background: #0E5B3A; }
+.preview-blocked, .swatch.preview-blocked { fill: var(--fail); background: var(--fail); }
+.preview-closed, .swatch.preview-closed { fill: var(--line); background: var(--line); }
