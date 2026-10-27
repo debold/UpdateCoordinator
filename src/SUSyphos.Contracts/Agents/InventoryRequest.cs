@@ -50,7 +50,7 @@ public sealed record InventoryRequest
     [MaxLength(UpdateHistoryEntry.MaxEntries)]
     public IReadOnlyList<UpdateHistoryEntry>? UpdateHistory { get; init; }
 
-    /// <summary>Signs of Extended Security Updates; null from agents before 0.7.9.</summary>
+    /// <summary>Signs of Extended Security Updates; null from agents before 0.7.10.</summary>
     public ExtendedSecurityUpdatesInfo? ExtendedSecurityUpdates { get; init; }
 }
 

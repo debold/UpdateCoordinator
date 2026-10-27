@@ -48,7 +48,7 @@ A call looks like this (POST, `Content-Type: application/json; charset=utf-8`; t
   "createdAtUtc": "2026-10-27T08:15:00Z",
   "severity": "Critical",
   "server": "uc01.lab.local",
-  "version": "0.7.9",
+  "version": "0.7.10",
   "events": [
     {
       "kind": "LeasesHalted",

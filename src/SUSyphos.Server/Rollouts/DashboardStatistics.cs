@@ -323,7 +323,7 @@ internal sealed class DashboardStatistics(ServerDbContext db, ComplianceHistory 
             [new ChartSeries("On the security baseline", "s1", [.. snapshots.Select(s => s is { BaselineCurrent: { } current, BaselineKnown: > 0 and var known } ? Math.Round(100.0 * current / known, 1) : (double?)null)])],
             "%",
             100,
-            "Share of the servers on the newest security build of their Windows version (MSRC), of the servers it can be checked for (recorded from version 0.7.9 on).");
+            "Share of the servers on the newest security build of their Windows version (MSRC), of the servers it can be checked for (recorded from version 0.7.10 on).");
     }
 
     private async Task<ChartData> VulnerabilitiesAsync(List<(DateOnly From, DateOnly To)> buckets, int days, CancellationToken cancellationToken)
@@ -339,7 +339,7 @@ internal sealed class DashboardStatistics(ServerDbContext db, ComplianceHistory 
             ],
             string.Empty,
             null,
-            "Vulnerabilities open on the servers per day, each server counted once per CVE; exploited: Microsoft knows of attacks (recorded from version 0.7.9 on).");
+            "Vulnerabilities open on the servers per day, each server counted once per CVE; exploited: Microsoft knows of attacks (recorded from version 0.7.10 on).");
     }
 
     private async Task<ChartData> SecurityDurationAsync(CancellationToken cancellationToken)

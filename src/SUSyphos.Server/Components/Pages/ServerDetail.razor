@@ -597,7 +597,7 @@ else
 
     /// <summary>What the agent found about Extended Security Updates.</summary>
     private string EsuText => _client is null || (_client.EsuKey is null && _client.AzureArc is null && _client.Azure is null)
-        ? "reported by agents from version 0.7.9"
+        ? "reported by agents from version 0.7.10"
         : string.Join("; ", new[] { _client.EsuKey == true ? "ESU key licensed" : null, _client.AzureArc == true ? "Azure Arc agent running (no proof of ESU)" : null, _client.Azure == true ? "runs in Azure" : null }.Where(s => s is not null)) is { Length: > 0 } found ? found : "nothing found (no ESU key, no Azure Arc agent, not in Azure)";
     private DateTime _now;
     private const string AdministratorsOnly = "Only administrators can do this";

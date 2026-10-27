@@ -46,7 +46,7 @@ internal sealed class ClientEntity
 
     public string? OsDisplayVersion { get; set; }
 
-    /// <summary>An Extended Security Updates key is installed and licensed (SoftwareLicensingProduct); null before agent 0.7.9.</summary>
+    /// <summary>An Extended Security Updates key is installed and licensed (SoftwareLicensingProduct); null before agent 0.7.10.</summary>
     public bool? EsuKey { get; set; }
 
     /// <summary>The Azure Arc agent (Connected Machine) runs on the server, which delivers ESU licenses through Azure.</summary>
