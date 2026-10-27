@@ -213,8 +213,8 @@ public sealed class InventoryCollectorTests
         // Read only: WMI licenses, the himds service and the chassis asset tag of this machine.
         var info = new WmiEsuProbe(Microsoft.Extensions.Logging.Abstractions.NullLogger<WmiEsuProbe>.Instance).Read();
 
+        // Values depend on the machine (GitHub runners are Azure virtual machines); reading must work and not throw.
         Assert.NotNull(info);
-        Assert.NotEqual(true, info.Azure);
     }
 
     private sealed class FakeEsuProbe(ExtendedSecurityUpdatesInfo info) : IEsuProbe
