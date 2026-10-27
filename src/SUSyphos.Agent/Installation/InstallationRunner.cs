@@ -39,6 +39,12 @@ internal interface IInstallationRunner
 
     /// <summary>Installs every released update the server misses with the next cycle (remote action); a needed restart follows at once or in the next window.</summary>
     void RequestInstallNow(bool restartNow);
+
+    /// <summary>
+    /// Holds an uninstallation (remote action) until it may run: in a coordinated group with the lease, for
+    /// <see cref="AgentActionKind.UninstallInWindow"/> inside the maintenance window. Its result goes to the central server then.
+    /// </summary>
+    void RequestUninstall(AgentAction action);
 }
 
 internal sealed partial class InstallationRunner : IInstallationRunner
@@ -50,6 +56,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     private readonly IUpdateReporter _updates;
     private readonly IInventoryReporter _inventory;
     private readonly IUpdateInstaller _installer;
+    private readonly IUpdateUninstaller _uninstaller;
     private readonly PreFlightCheck _preFlight;
     private readonly ICentralServerClient _client;
     private readonly IInstallationStateStore _store;
@@ -65,6 +72,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         IUpdateReporter updates,
         IInventoryReporter inventory,
         IUpdateInstaller installer,
+        IUpdateUninstaller uninstaller,
         PreFlightCheck preFlight,
         ICentralServerClient client,
         IInstallationStateStore store,
@@ -78,6 +86,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         _updates = updates;
         _inventory = inventory;
         _installer = installer;
+        _uninstaller = uninstaller;
         _preFlight = preFlight;
         _client = client;
         _store = store;
@@ -98,6 +107,10 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
         CompleteLeaseAfterReboot();
         CompleteRequestedRestart();
+        if (!await RunUninstallsAsync(identity, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
 
         // "Install now" waits only for a pause; otherwise it runs with this cycle, done or not, and is cleared.
         var installNow = _state.InstallNow;
@@ -284,9 +297,13 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         return true;
     }
 
-    /// <summary>A reboot can still come from this agent: the policy allows reboots and no local veto applies.</summary>
+    /// <summary>
+    /// A reboot can still come from this agent: the policy allows reboots, a restart is held for the window, or the agent
+    /// announced one (restart right after an uninstallation or "install now"); and no local veto applies.
+    /// </summary>
     private bool RebootMayFollow() =>
-        (_releases.Current.RebootPolicy == RebootPolicy.InsideMaintenanceWindow || _state.RestartRequestedAt is not null) && _options.Value.AllowReboot && _options.Value.Enabled;
+        (_releases.Current.RebootPolicy == RebootPolicy.InsideMaintenanceWindow || _state.RestartRequestedAt is not null || _restart.AnnouncedFor is not null)
+        && _options.Value.AllowReboot && _options.Value.Enabled;
 
     /// <summary>
     /// Restarts the server when a reboot is pending and the central policy, the local veto, the global pause and the
@@ -394,6 +411,114 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Installed on request, but reboots are forbidden on this server (AllowReboot); the restart is left to an administrator.")]
     private partial void LogInstallNowNoReboot();
+
+    public void RequestUninstall(AgentAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (action.UpdateId is not { } updateId || (_state.Uninstalls ?? []).Any(u => u.ActionId == action.Id))
+        {
+            return;
+        }
+
+        Save(_state with { Uninstalls = [.. _state.Uninstalls ?? [], new UninstallRequest(action.Id, action.Kind, updateId, action.KbArticle, _timeProvider.GetUtcNow())] });
+    }
+
+    /// <summary>
+    /// Runs the held uninstallations that may run now and reports their results: one waiting for the maintenance window
+    /// or for the lease of a coordinated group stays held. False if the central server rejected the credentials.
+    /// </summary>
+    private async Task<bool> RunUninstallsAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        foreach (var request in _state.Uninstalls ?? [])
+        {
+            if (request.Kind == AgentActionKind.UninstallInWindow && !InstallationPlanner.IsInWindow(EffectiveWindows, _timeProvider.GetLocalNow().DateTime))
+            {
+                continue;
+            }
+
+            // In a coordinated group the uninstallation and the restart after it need the lease, like an installation.
+            var lease = await EnsureLeaseAsync(identity, cancellationToken).ConfigureAwait(false);
+            if (lease is null)
+            {
+                return false;
+            }
+
+            if (!lease.Value)
+            {
+                // Tried again with the next cycle; the wait is logged with the reason.
+                break;
+            }
+
+            var result = await UninstallAsync(request, cancellationToken).ConfigureAwait(false);
+            Save(_state with
+            {
+                Uninstalls = [.. (_state.Uninstalls ?? []).Where(u => u.ActionId != request.ActionId)],
+                ActionOutbox = [.. _state.ActionOutbox ?? [], new ActionOutcome(request.ActionId, result)],
+            });
+        }
+
+        return await FlushActionOutboxAsync(identity, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Removes the update, then restarts at once or in the next window if Windows needs it; never against the local veto.</summary>
+    private async Task<AgentActionResult> UninstallAsync(UninstallRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _uninstaller.UninstallAsync(request.UpdateId, request.KbArticle, cancellationToken).ConfigureAwait(false);
+
+        // The next inventory and search tell the central server what is installed now.
+        _inventory.Reset();
+        _updates.RequestRun();
+        if (_state.Lease is { } hold)
+        {
+            Save(_state with { Lease = hold with { InstallationSucceeded = hold.InstallationSucceeded && result.Status == UninstallStatus.Succeeded, AwaitingReboot = result.RebootRequired } });
+        }
+
+        if (result.Status != UninstallStatus.Succeeded)
+        {
+            return new AgentActionResult { Status = result.Status == UninstallStatus.Failed ? AgentActionStatus.Failed : AgentActionStatus.Rejected, Detail = result.Detail };
+        }
+
+        if (!result.RebootRequired)
+        {
+            return Succeeded(result.Detail);
+        }
+
+        if (!_options.Value.AllowReboot)
+        {
+            return Succeeded($"{result.Detail} Reboots are forbidden on this server (AllowReboot); the restart is left to an administrator.");
+        }
+
+        if (request.Kind == AgentActionKind.Uninstall)
+        {
+            if (!_restart.Schedule(_options.Value.RestartWarning))
+            {
+                return new AgentActionResult { Status = AgentActionStatus.Failed, Detail = $"{result.Detail} Windows did not accept the restart request." };
+            }
+
+            Save(_state with { LastRebootRequestAt = _timeProvider.GetUtcNow() });
+            return Succeeded($"{result.Detail} The server restarts in 5 minutes.");
+        }
+
+        RequestRestart();
+        return Succeeded($"{result.Detail} The restart waits for the next maintenance window.");
+    }
+
+    private static AgentActionResult Succeeded(string detail) => new() { Status = AgentActionStatus.Succeeded, Detail = detail };
+
+    private async Task<bool> FlushActionOutboxAsync(AgentIdentity identity, CancellationToken cancellationToken)
+    {
+        while (_state.ActionOutbox is [var outcome, ..])
+        {
+            if (!await _client.SendActionResultAsync(identity, outcome.ActionId, outcome.Result, cancellationToken).ConfigureAwait(false))
+            {
+                return false;
+            }
+
+            Save(_state with { ActionOutbox = [.. _state.ActionOutbox.Skip(1)] });
+        }
+
+        return true;
+    }
 
     internal IReadOnlyList<Release> PlanBatch()
     {

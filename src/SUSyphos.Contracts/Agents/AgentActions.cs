@@ -42,6 +42,9 @@ public enum AgentActionKind
 
     /// <summary>Like <see cref="Uninstall"/>, but a needed restart waits for the next maintenance window that stays open long enough.</summary>
     UninstallRestartInWindow = 10,
+
+    /// <summary>Uninstall the named update in the next maintenance window of the server, a needed restart in the same window.</summary>
+    UninstallInWindow = 11,
 }
 
 /// <summary>One queued action.</summary>

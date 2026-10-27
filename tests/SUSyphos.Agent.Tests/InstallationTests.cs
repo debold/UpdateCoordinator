@@ -225,6 +225,7 @@ public sealed class InstallationRunnerTests
     private readonly FakeDiskSpace _disk = new();
     private readonly FakeEnvironment _environment = new();
     private readonly FakeRestart _restart = new();
+    private readonly FakeUninstaller _uninstaller = new();
     private readonly Release _release;
 
     public InstallationRunnerTests()
@@ -654,6 +655,103 @@ public sealed class InstallationRunnerTests
         Assert.Equal([false], _client.LeaseReleases);
     }
 
+    [Theory]
+    [InlineData(AgentActionKind.Uninstall, true, 1, false)]
+    [InlineData(AgentActionKind.UninstallRestartInWindow, true, 0, true)]
+    [InlineData(AgentActionKind.Uninstall, false, 0, false)]
+    public async Task Uninstall_RemovesTheUpdate_ReportsTheResult_AndRestartsAsAsked(AgentActionKind kind, bool allowReboot, int restarts, bool heldForWindow)
+    {
+        // Tuesday 10:00 UTC, outside the maintenance window: the uninstallation runs now, a restart for the window waits.
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 27, 10, 0, 0, TimeSpan.Zero));
+        _uninstaller.Result = new UninstallResult(UninstallStatus.Succeeded, true, "Uninstalled with DISM.");
+        var action = Uninstall(kind);
+        var runner = Create(new InstallationOptions { AllowReboot = allowReboot });
+        runner.RequestUninstall(action);
+
+        Assert.True(await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken));
+
+        Assert.Equal([(action.UpdateId!.Value, (string?)"5040434")], _uninstaller.Calls);
+        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[action.Id].Status);
+        Assert.Equal(restarts, _restart.Requests.Count);
+        Assert.Equal(heldForWindow, runner.RestartRequested);
+        Assert.Empty(_store.State.Uninstalls!);
+        Assert.Empty(_store.State.ActionOutbox!);
+    }
+
+    [Fact]
+    public async Task Uninstall_InACoordinatedGroup_WaitsForTheLease_AndKeepsItForTheRestart()
+    {
+        // Nothing to install, only the uninstallation: it must not run without the lease of its group.
+        _updates.LastMissingUpdates = new HashSet<(Guid, int)>();
+        _releases.Current = new ReleaseList(1, [], null, RebootPolicy.Never, RequiresLease: true);
+        _client.LeaseAnswer = new LeaseResponse(false, null, "2 of 2 servers of SQL cluster are busy");
+        _uninstaller.Result = new UninstallResult(UninstallStatus.Succeeded, true, "Uninstalled through Windows Update.");
+        var action = Uninstall(AgentActionKind.Uninstall);
+        var runner = Create();
+        runner.RequestUninstall(action);
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Empty(_uninstaller.Calls);
+        Assert.Empty(_client.ActionResults);
+        Assert.Single(_store.State.Uninstalls!);
+
+        // The lease is granted: the update goes, the restart is announced and the lease stays until the server is back.
+        _client.LeaseAnswer = new LeaseResponse(true, _time.GetUtcNow().AddHours(2));
+        _restart.AnnouncedFor = _time.GetUtcNow().AddMinutes(5);
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_uninstaller.Calls);
+        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[action.Id].Status);
+        Assert.Single(_restart.Requests);
+        Assert.True(_store.State.Lease!.AwaitingReboot);
+        Assert.Empty(_client.LeaseReleases);
+    }
+
+    [Fact]
+    public async Task UninstallInWindow_WaitsOutsideTheWindow_AndRunsInsideIt()
+    {
+        // Tuesday 10:00 UTC: outside the default window (Mon–Fri 19:00–05:00).
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 27, 10, 0, 0, TimeSpan.Zero));
+        _updates.LastMissingUpdates = new HashSet<(Guid, int)>();
+        var action = Uninstall(AgentActionKind.UninstallInWindow);
+        var runner = Create();
+        runner.RequestUninstall(action);
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Empty(_uninstaller.Calls);
+
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 27, 20, 0, 0, TimeSpan.Zero));
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_uninstaller.Calls);
+        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[action.Id].Status);
+    }
+
+    [Fact]
+    public async Task FailedUninstall_IsReported_AndReleasesTheLeaseAsFailed_ResultKeptUntilDelivered()
+    {
+        _updates.LastMissingUpdates = new HashSet<(Guid, int)>();
+        _releases.Current = new ReleaseList(1, [], null, null, RequiresLease: true);
+        _uninstaller.Result = new UninstallResult(UninstallStatus.Failed, false, "DISM could not remove it.");
+        _client.AcceptActionResults = false;
+        var action = Uninstall(AgentActionKind.Uninstall);
+        var runner = Create();
+        runner.RequestUninstall(action);
+        runner.RequestUninstall(action);
+
+        Assert.False(await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken));
+        Assert.Single(_store.State.ActionOutbox!);
+
+        _client.AcceptActionResults = true;
+        Assert.True(await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken));
+
+        Assert.Single(_uninstaller.Calls);
+        Assert.Equal(AgentActionStatus.Failed, _client.ActionResults[action.Id].Status);
+        Assert.Equal([false], _client.LeaseReleases);
+    }
+
+    private static AgentAction Uninstall(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow, Guid.NewGuid(), 1, "5040434");
+
     private static InstallReport Report() => new()
     {
         RunId = Guid.NewGuid(),
@@ -670,6 +768,7 @@ public sealed class InstallationRunnerTests
             _updates,
             _inventory,
             _installer,
+            _uninstaller,
             preFlight,
             _client,
             _store,

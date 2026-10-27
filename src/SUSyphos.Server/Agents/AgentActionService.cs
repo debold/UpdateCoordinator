@@ -29,8 +29,17 @@ internal sealed partial class AgentActionService(
     /// <summary>A fetched action without result expires after this time (agent restarted or crashed).</summary>
     public static readonly TimeSpan DeliveredLifetime = TimeSpan.FromHours(1);
 
+    /// <summary>
+    /// A fetched uninstallation may wait for its maintenance window or the lease of a coordinated group before the agent
+    /// runs it and reports the result, so it expires only after a week.
+    /// </summary>
+    public static readonly TimeSpan HeldLifetime = TimeSpan.FromDays(7);
+
+    /// <summary>The actions the agent holds until they may run (uninstallations).</summary>
+    public static bool IsHeld(AgentActionKind kind) => kind is AgentActionKind.Uninstall or AgentActionKind.UninstallRestartInWindow or AgentActionKind.UninstallInWindow;
+
     public Task<Outcome> QueueAsync(Guid clientId, AgentActionKind kind, string actor, CancellationToken cancellationToken) =>
-        kind is AgentActionKind.Uninstall or AgentActionKind.UninstallRestartInWindow
+        IsHeld(kind)
             ? Task.FromResult(new Outcome("Choose the update to uninstall."))
             : QueueCoreAsync(clientId, kind, actor, null, cancellationToken);
 
@@ -259,8 +268,12 @@ internal sealed partial class AgentActionService(
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var queuedBefore = now - QueuedLifetime;
         var deliveredBefore = now - DeliveredLifetime;
+        var heldBefore = now - HeldLifetime;
+        AgentActionKind[] held = [AgentActionKind.Uninstall, AgentActionKind.UninstallRestartInWindow, AgentActionKind.UninstallInWindow];
         return await db.AgentActions
-            .Where(a => (a.State == AgentActionState.Queued && a.RequestedAtUtc < queuedBefore) || (a.State == AgentActionState.Delivered && a.DeliveredAtUtc < deliveredBefore))
+            .Where(a => (a.State == AgentActionState.Queued && a.RequestedAtUtc < queuedBefore)
+                || (a.State == AgentActionState.Delivered && !held.Contains(a.Kind) && a.DeliveredAtUtc < deliveredBefore)
+                || (a.State == AgentActionState.Delivered && held.Contains(a.Kind) && a.DeliveredAtUtc < heldBefore))
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.State, AgentActionState.Expired).SetProperty(a => a.CompletedAtUtc, now), cancellationToken)
             .ConfigureAwait(false);
     }

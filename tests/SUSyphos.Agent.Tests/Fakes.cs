@@ -281,6 +281,10 @@ internal sealed class FakeInstallationRunner : IInstallationRunner
 
     public void RequestInstallNow(bool restartNow) => InstallNowRestartNow = restartNow;
 
+    public List<AgentAction> Uninstalls { get; } = [];
+
+    public void RequestUninstall(AgentAction action) => Uninstalls.Add(action);
+
     public Task<bool> RunIfDueAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
         Runs++;

@@ -194,6 +194,22 @@ public sealed class AgentActionTests
         Assert.All(await scenario.Factory.WithDbAsync(db => db.AgentActions.ToListAsync(TestContext.Current.CancellationToken)), a => Assert.Equal(AgentActionState.Expired, a.State));
     }
 
+    [Fact]
+    public async Task HeldUninstall_WaitingForItsWindowOrLease_ExpiresOnlyAfterAWeek()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        await scenario.Factory.WithDbAsync(db =>
+        {
+            db.AgentActions.Add(new AgentActionEntity { Id = Guid.NewGuid(), ClientId = client.ClientId, Kind = AgentActionKind.UninstallInWindow, RequestedBy = "admin", RequestedAtUtc = DateTime.UtcNow.AddDays(-3), State = AgentActionState.Delivered, DeliveredAtUtc = DateTime.UtcNow.AddDays(-3), UpdateId = Guid.NewGuid() });
+            db.AgentActions.Add(new AgentActionEntity { Id = Guid.NewGuid(), ClientId = client.ClientId, Kind = AgentActionKind.Uninstall, RequestedBy = "admin", RequestedAtUtc = DateTime.UtcNow.AddDays(-8), State = AgentActionState.Delivered, DeliveredAtUtc = DateTime.UtcNow.AddDays(-8), UpdateId = Guid.NewGuid() });
+            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        Assert.Equal(1, await scenario.WithServiceAsync<AgentActionService, int>(s => s.ExpireAsync(CancellationToken.None)));
+        Assert.Equal(AgentActionState.Delivered, await scenario.Factory.WithDbAsync(db => db.AgentActions.Where(a => a.Kind == AgentActionKind.UninstallInWindow).Select(a => a.State).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
     [Theory]
     [InlineData("queue:1")]
     [InlineData("queue:Bogus")]
