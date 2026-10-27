@@ -310,7 +310,7 @@ public sealed class InteractionTests(UiFixture ui)
         await field.PressSequentiallyAsync("domain");
         var filtered = page.Locator(".suggest button", new PageLocatorOptions { HasTextString = "Domain Admins" });
         await Assertions.Expect(filtered).ToBeDisabledAsync();
-        await Assertions.Expect(filtered).ToContainTextAsync("won't work (UAC)");
+        await Assertions.Expect(filtered).ToContainTextAsync("Filtered by UAC");
     }
 
     [Fact]

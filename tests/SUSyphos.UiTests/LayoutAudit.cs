@@ -53,6 +53,17 @@ internal static class LayoutAudit
                 }
             }
 
+            // Adding to a list: the fields and "+ Add" of a row end on one line, so no hint below a field shifts it (Marc, 2026-10-27).
+            for (const row of document.querySelectorAll('main .add-row')) {
+                const controls = [...row.querySelectorAll(':scope > .field input, :scope > .field select, :scope > button, :scope > .btn')].filter(visible);
+                // Controls side by side (their heights overlap) must end at the same height; a wrapped narrow row is fine.
+                const rects = controls.map((c) => c.getBoundingClientRect());
+                const off = controls.filter((c, i) => rects.some((r, j) => j !== i && r.top < rects[i].bottom && rects[i].top < r.bottom && Math.abs(r.bottom - rects[i].bottom) > 2));
+                if (off.length > 0) {
+                    issues.push(`fields of an add row do not line up: ${off.map(describe).join(', ')}`);
+                }
+            }
+
             if (!allowTableScroll) {
                 for (const sc of document.querySelectorAll('main .scroll')) {
                     if (visible(sc) && sc.scrollWidth > sc.clientWidth + 1) {

@@ -219,10 +219,10 @@
                         if (group.privileged) {
                             // Filtered by User Account Control: shown with the reason, but it cannot be picked.
                             choice.disabled = true;
-                            choice.title = "Won't work: Windows filters this group (UAC). Map a dedicated group. " + group.sid;
+                            choice.title = 'Filtered by UAC: Windows filters this group by User Account Control, so its members would get no role. Map a dedicated group. ' + group.sid;
                             const reason = document.createElement('span');
-                            reason.className = 'note';
-                            reason.textContent = " won't work (UAC)";
+                            reason.className = 'pill fail uac-tag';
+                            reason.textContent = 'Filtered by UAC';
                             choice.append(reason);
                         }
 
