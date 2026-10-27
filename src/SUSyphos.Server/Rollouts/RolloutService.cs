@@ -158,6 +158,12 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // A ring on hold for an update does not count as done: the next ring waits, as at a manual gate.
+        var heldRings = (await UpdateHolds.ActiveAsync(db, now, cancellationToken).ConfigureAwait(false))
+            .Where(h => h.RingId is not null)
+            .Select(h => (h.UpdateId, h.Revision, h.RingId!.Value))
+            .ToHashSet();
+
         var changes = 0;
         foreach (var rollout in active)
         {
@@ -170,7 +176,8 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
             {
                 if (!states.TryGetValue(rings[i].Id, out var from) || !states.TryGetValue(rings[i + 1].Id, out var to)
                     || from.State != RingRolloutState.Released || to.State != RingRolloutState.Waiting
-                    || !transitions.TryGetValue(rings[i].Id, out var rule))
+                    || !transitions.TryGetValue(rings[i].Id, out var rule)
+                    || heldRings.Contains((rollout.UpdateId, rollout.Revision, rings[i].Id)))
                 {
                     continue;
                 }

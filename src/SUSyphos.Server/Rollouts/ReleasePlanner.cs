@@ -50,6 +50,12 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
         var existing = (await db.Releases.Where(r => ids.Contains(r.ClientId)).ToListAsync(cancellationToken).ConfigureAwait(false))
             .ToLookup(r => r.ClientId);
 
+        // Holds (Marc, 2026-10-27) withhold the releases of their ring, group or server.
+        var holds = await UpdateHolds.ActiveAsync(db, now, cancellationToken).ConfigureAwait(false);
+        var memberships = holds.Any(h => h.GroupId is not null)
+            ? (await db.ClientGroups.AsNoTracking().Where(m => ids.Contains(m.ClientId)).ToListAsync(cancellationToken).ConfigureAwait(false)).ToLookup(m => m.ClientId, m => m.GroupId)
+            : Enumerable.Empty<ClientGroupEntity>().ToLookup(m => m.ClientId, m => m.GroupId);
+
         foreach (var client in clients)
         {
             var current = existing[client.Id].ToList();
@@ -70,6 +76,12 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
                 foreach (var key in desired.Keys.Where(k => supersededBy[k.Item1].Any(covered.Contains)).ToList())
                 {
                     desired.Remove(key);
+                }
+
+                var groups = memberships[client.Id].ToHashSet();
+                foreach (var held in holds.Where(h => h.RingId == ring || h.ClientId == client.Id || (h.GroupId is { } group && groups.Contains(group))))
+                {
+                    desired.Remove((held.UpdateId, held.Revision));
                 }
             }
 

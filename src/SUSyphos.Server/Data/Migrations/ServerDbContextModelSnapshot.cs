@@ -962,6 +962,57 @@ namespace SUSyphos.Server.Data.Migrations
                     b.ToTable("Leases", (string)null);
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.OneTimeWindowEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("EndUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("GroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RingId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StartUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("EndUtc");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("RingId");
+
+                    b.ToTable("OneTimeWindows", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OneTimeWindows_AtMostOneTarget", "(\"RingId\" IS NOT NULL) + (\"GroupId\" IS NOT NULL) + (\"ClientId\" IS NOT NULL) <= 1");
+
+                            t.HasCheckConstraint("CK_OneTimeWindows_EndAfterStart", "\"EndUtc\" > \"StartUtc\"");
+                        });
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.ReleaseEntity", b =>
                 {
                     b.Property<Guid>("ClientId")
@@ -1395,6 +1446,58 @@ namespace SUSyphos.Server.Data.Migrations
                     b.ToTable("Updates", (string)null);
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.UpdateHoldEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("GroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("RingId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UntilUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("RingId");
+
+                    b.HasIndex("UpdateId", "Revision");
+
+                    b.ToTable("UpdateHolds", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_UpdateHolds_OneTarget", "(\"RingId\" IS NOT NULL) + (\"GroupId\" IS NOT NULL) + (\"ClientId\" IS NOT NULL) = 1");
+                        });
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.UpdateSupersedenceEntity", b =>
                 {
                     b.Property<Guid>("UpdateId")
@@ -1621,6 +1724,24 @@ namespace SUSyphos.Server.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.OneTimeWindowEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("SUSyphos.Server.Data.GroupEntity", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("SUSyphos.Server.Data.RingEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RingId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.ReleaseEntity", b =>
                 {
                     b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
@@ -1667,6 +1788,24 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasForeignKey("UpdateId", "Revision")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.UpdateHoldEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("SUSyphos.Server.Data.GroupEntity", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("SUSyphos.Server.Data.RingEntity", null)
+                        .WithMany()
+                        .HasForeignKey("RingId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("SUSyphos.Server.Data.UpdateSupersedenceEntity", b =>

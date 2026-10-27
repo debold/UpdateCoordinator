@@ -34,6 +34,10 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<ClientGroupEntity> ClientGroups => Set<ClientGroupEntity>();
 
+    public DbSet<UpdateHoldEntity> UpdateHolds => Set<UpdateHoldEntity>();
+
+    public DbSet<OneTimeWindowEntity> OneTimeWindows => Set<OneTimeWindowEntity>();
+
     public DbSet<AssignmentRuleEntity> AssignmentRules => Set<AssignmentRuleEntity>();
 
     public DbSet<SettingEntity> Settings => Set<SettingEntity>();
@@ -229,6 +233,31 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         membership.HasKey(m => new { m.ClientId, m.GroupId });
         membership.HasOne<ClientEntity>().WithMany().HasForeignKey(m => m.ClientId).OnDelete(DeleteBehavior.Cascade);
         membership.HasOne<GroupEntity>().WithMany().HasForeignKey(m => m.GroupId).OnDelete(DeleteBehavior.Cascade);
+
+        var hold = modelBuilder.Entity<UpdateHoldEntity>();
+        hold.ToTable("UpdateHolds", t => t.HasCheckConstraint("CK_UpdateHolds_OneTarget", "(\"RingId\" IS NOT NULL) + (\"GroupId\" IS NOT NULL) + (\"ClientId\" IS NOT NULL) = 1"));
+        hold.HasKey(h => h.Id);
+        hold.Property(h => h.Reason).HasMaxLength(UpdateHoldEntity.MaxReasonLength);
+        hold.Property(h => h.CreatedBy).HasMaxLength(256);
+        // Not unique: SQLite counts empty targets as different, so the service refuses a second hold for the same target.
+        hold.HasIndex(h => new { h.UpdateId, h.Revision });
+        hold.HasOne<RingEntity>().WithMany().HasForeignKey(h => h.RingId).OnDelete(DeleteBehavior.Cascade);
+        hold.HasOne<GroupEntity>().WithMany().HasForeignKey(h => h.GroupId).OnDelete(DeleteBehavior.Cascade);
+        hold.HasOne<ClientEntity>().WithMany().HasForeignKey(h => h.ClientId).OnDelete(DeleteBehavior.Cascade);
+
+        var oneTime = modelBuilder.Entity<OneTimeWindowEntity>();
+        oneTime.ToTable("OneTimeWindows", t =>
+        {
+            t.HasCheckConstraint("CK_OneTimeWindows_AtMostOneTarget", "(\"RingId\" IS NOT NULL) + (\"GroupId\" IS NOT NULL) + (\"ClientId\" IS NOT NULL) <= 1");
+            t.HasCheckConstraint("CK_OneTimeWindows_EndAfterStart", "\"EndUtc\" > \"StartUtc\"");
+        });
+        oneTime.HasKey(w => w.Id);
+        oneTime.Property(w => w.Reason).HasMaxLength(OneTimeWindowEntity.MaxReasonLength);
+        oneTime.Property(w => w.CreatedBy).HasMaxLength(256);
+        oneTime.HasIndex(w => w.EndUtc);
+        oneTime.HasOne<RingEntity>().WithMany().HasForeignKey(w => w.RingId).OnDelete(DeleteBehavior.Cascade);
+        oneTime.HasOne<GroupEntity>().WithMany().HasForeignKey(w => w.GroupId).OnDelete(DeleteBehavior.Cascade);
+        oneTime.HasOne<ClientEntity>().WithMany().HasForeignKey(w => w.ClientId).OnDelete(DeleteBehavior.Cascade);
 
         var rule = modelBuilder.Entity<AssignmentRuleEntity>();
         rule.ToTable("AssignmentRules");

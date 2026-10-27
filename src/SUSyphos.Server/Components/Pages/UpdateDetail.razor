@@ -5,6 +5,7 @@
 @inject ServerDbContext Db
 @inject DeploymentStatus Deployment
 @inject RolloutService Rollouts
+@inject UpdateHolds Holds
 @inject RolloutAdministration Administration
 @inject NavigationManager Navigation
 @inject SUSyphos.Server.Security.SecurityBaseline Baseline
@@ -40,6 +41,20 @@ else
             <Action>@if (_canOperate && _update.BlockedAtUtc is null) { <button type="submit" form="update-actions" name="Action" value="block" class="danger">Block</button> }</Action>
         </Banner>
     }
+    @if (_holds.Count > 0)
+    {
+        <Banner Label="On hold" Severity="queue" Help="update-detail#hold">
+            <ChildContent>
+                @foreach (var hold in _holds)
+                {
+                    <div class="hold-line">
+                        On hold for @(hold.Target switch { SUSyphos.Server.Rollouts.HoldTarget.Ring => "ring", SUSyphos.Server.Rollouts.HoldTarget.Group => "group", _ => "server" }) <b>@hold.TargetName</b> since @Format(hold.CreatedAtUtc), by @hold.CreatedBy@(hold.Reason is null ? null : $": {hold.Reason}")@(hold.UntilUtc is { } until ? $" (until {Format(until)})" : null).
+                        @if (_canOperate) { <button type="submit" form="update-actions" name="Action" value="@($"resume:{hold.Id}")" data-help-term="Resume">Resume</button> }
+                    </div>
+                }
+            </ChildContent>
+        </Banner>
+    }
     @if (_supersededBy is not null && (_update.BlockedAtUtc is null || _update.WithdrawnAtUtc is null))
     {
         <Banner Label="Superseded" Severity="pend" Help="update-detail#block">
@@ -60,6 +75,7 @@ else
             <ActionMenu Label="Rollout" Icon="git-branch" Kind="@(waiting ? null : "primary")">
                 <MenuItem Form="update-actions" Name="Action" Value="start" Icon="play" Disabled="@(blocked || running)" Reason="@(blocked ? "Unblock the update first" : running ? "The rollout is running" : null)">@(_rollout is null ? "Start rollout" : "Resume rollout")</MenuItem>
                 <MenuItem Form="update-actions" Name="Action" Value="override" Icon="send" Disabled="@(blocked || _rollout is { Override: true, State: not RolloutState.Stopped })" Reason="@(blocked ? "Unblock the update first" : _rollout is { Override: true, State: not RolloutState.Stopped } ? "Already released to every ring" : "Release to every ring at once, without waiting for the transitions")">Release to all rings</MenuItem>
+                <MenuItem Href="@($"/updates/{UpdateId}/{Revision}?dialog=hold")" Icon="pause" Reason="Hold the update for a ring, a group or a server">Hold…</MenuItem>
                 <MenuSeparator />
                 <MenuItem Form="update-actions" Name="Action" Value="stop" Icon="circle-stop" Danger="true" Disabled="@(!running)" Reason="@(running ? "Withdraw the releases not installed yet" : "No rollout is running")">Stop rollout</MenuItem>
             </ActionMenu>
@@ -77,6 +93,29 @@ else
         }
     </ActionBand>
 
+    @if (Dialog == "hold" && _canOperate)
+    {
+        <Dialog Title="@($"Hold {(_update.KbArticle is null ? "this update" : $"KB{_update.KbArticle}")}?")" CloseHref="@($"/updates/{UpdateId}/{Revision}")" Help="update-detail#hold">
+            <form method="post" @formname="hold" @onsubmit="HoldAsync">
+                <AntiforgeryToken />
+                <div class="dialog-body">
+                    <p>Servers of the target do not get the update while the hold lasts; where it is installed already it stays. A ring on hold does not count as done, so the next ring waits. Elsewhere the rollout goes on.</p>
+                    <fieldset class="choices">
+                        <legend>For</legend>
+                        <div class="choice"><input type="radio" id="hold-target-ring" name="HoldTarget" value="Ring" checked data-help-term="Ring" /> <span><label for="hold-target-ring"><b>Ring</b></label><select name="HoldRing" aria-label="Ring">@foreach (var ring in _rings) { <option value="@ring.Id">@ring.Order @ring.Name</option> }</select></span></div>
+                        @if (_allGroups.Count > 0)
+                        {
+                            <div class="choice"><input type="radio" id="hold-target-group" name="HoldTarget" value="Group" data-help-term="Server group" /> <span><label for="hold-target-group"><b>Server group</b></label><select name="HoldGroup" aria-label="Server group">@foreach (var group in _allGroups) { <option value="@group.Id">@group.Name</option> }</select></span></div>
+                        }
+                        <div class="choice"><input type="radio" id="hold-target-server" name="HoldTarget" value="Server" data-help-term="Server" /> <span><label for="hold-target-server"><b>Server</b></label><select name="HoldServer" aria-label="Server">@foreach (var (id, name) in _holdServers) { <option value="@id">@name</option> }</select></span></div>
+                    </fieldset>
+                    <label class="field"><span>Reason <span class="note">optional</span></span><input name="HoldReason" maxlength="@UpdateHoldEntity.MaxReasonLength" autocomplete="off" placeholder="e.g. Exchange crashes after installing it" /></label>
+                    <label class="field"><span>Hold until <span class="note">optional, server time</span></span><input name="HoldUntil" type="datetime-local" /><span class="help">Empty: until someone selects Resume</span></label>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="/updates/@UpdateId/@Revision">Cancel</a><button type="submit" class="primary">Hold update</button></div>
+            </form>
+        </Dialog>
+    }
     @if (Dialog == "uninstall")
     {
         <Dialog Title="@($"Uninstall {(_update.KbArticle is null ? "this update" : $"KB{_update.KbArticle}")}?")" CloseHref="@($"/updates/{UpdateId}/{Revision}")" Help="update-detail#uninstall" Wide="true">
@@ -382,6 +421,46 @@ else
     [SupplyParameterFromForm(FormName = "uninstall")]
     private string? UninstallBlock { get; set; }
 
+    [SupplyParameterFromForm(FormName = "hold")]
+    private string? HoldTarget { get; set; }
+
+    [SupplyParameterFromForm(FormName = "hold")]
+    private string? HoldRing { get; set; }
+
+    [SupplyParameterFromForm(FormName = "hold")]
+    private string? HoldGroup { get; set; }
+
+    [SupplyParameterFromForm(FormName = "hold")]
+    private string? HoldServer { get; set; }
+
+    [SupplyParameterFromForm(FormName = "hold")]
+    private string? HoldReason { get; set; }
+
+    [SupplyParameterFromForm(FormName = "hold")]
+    private DateTime? HoldUntil { get; set; }
+
+    private List<HoldView> _holds = [];
+
+    /// <summary>Approved servers that report the update, missing or installed: the servers a hold can be for.</summary>
+    private List<(Guid Id, string Name)> _holdServers = [];
+
+    /// <summary>Holds the update for one ring, group or server (operators and administrators).</summary>
+    private async Task HoldAsync()
+    {
+        var target = Enum.TryParse<SUSyphos.Server.Rollouts.HoldTarget>(HoldTarget, out var parsed) && Enum.IsDefined(parsed) ? parsed : (SUSyphos.Server.Rollouts.HoldTarget?)null;
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Operate) ? new Outcome("Only operators and administrators can hold updates.")
+            : target is null ? new Outcome("Choose the ring, group or server to hold the update for.")
+            : await Holds.HoldAsync(UpdateId, Revision, target.Value, target switch { SUSyphos.Server.Rollouts.HoldTarget.Ring => HoldRing, SUSyphos.Server.Rollouts.HoldTarget.Group => HoldGroup, _ => HoldServer },
+                HoldReason, HoldUntil is { } until ? DisplayTime.ToUtc(until) : null, await GetActorAsync(), CancellationToken.None);
+        ShowResultAndReload(outcome.Error, "The update is on hold; the servers there do not get it until it is resumed.");
+        if (outcome.Succeeded)
+        {
+            Dialog = null;
+        }
+
+        await LoadAsync();
+    }
+
     /// <summary>The servers that have the update installed, for the uninstall dialog.</summary>
     private List<SUSyphos.Server.Agents.UninstallTarget> _targets = [];
 
@@ -462,6 +541,16 @@ else
         }
 
         var parts = Action?.Split(':', 2);
+        if (parts is ["resume", var holdText])
+        {
+            var resumed = int.TryParse(holdText, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var holdId)
+                ? await Holds.ResumeAsync(UpdateId, Revision, holdId, await GetActorAsync(), CancellationToken.None)
+                : new Outcome("Invalid request.");
+            ShowResult(resumed.Error, "The hold was lifted; the servers get the update again.");
+            await LoadAsync();
+            return;
+        }
+
         int? ringId = null;
         if (parts is ["approve", var ring])
         {
@@ -493,11 +582,24 @@ else
         _cveTable = TableQuery.From(Navigation, SUSyphos.Server.Security.VulnerabilityColumns.DefaultSort, defaultDescending: true, prefix: "cve.", defaultPageSize: 10);
         _cvePage = TablePaging.Apply(_fixes, _cveTable, VulnerabilityTable, SUSyphos.Server.Security.VulnerabilityColumns.SearchText);
         _supersededBy = (await Supersedence.NewerAsync(Db, [UpdateId])).GetValueOrDefault(UpdateId);
-        if (Dialog == "uninstall")
+        _holds = await Holds.GetAsync(UpdateId, Revision, CancellationToken.None);
+        if (Dialog is "uninstall" or "hold")
         {
             _targets = await Actions.UninstallTargetsAsync(UpdateId, CancellationToken.None);
             _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
             _allGroups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        }
+
+        if (Dialog == "hold")
+        {
+            var reporting = Db.ClientAvailableUpdates.Where(a => a.UpdateId == UpdateId).Select(a => a.ClientId)
+                .Concat(Db.ClientUpdates.Where(u => u.UpdateId == UpdateId).Select(u => u.ClientId));
+            _holdServers = [.. (await Db.Clients.AsNoTracking()
+                    .Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved && reporting.Contains(c.Id))
+                    .Select(c => new { c.Id, c.HostName })
+                    .ToListAsync())
+                .OrderBy(c => c.HostName, StringComparer.OrdinalIgnoreCase)
+                .Select(c => (c.Id, c.HostName))];
         }
 
         var outside = await Db.ClientUpdateHistory.AsNoTracking()

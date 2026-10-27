@@ -637,6 +637,7 @@ a.ring-tag:hover { text-decoration: none; background: var(--surface-2); }
 .ring-stage.ok { background: var(--ok-soft); color: var(--ok); }
 .ring-stage.pend { background: var(--pend-soft); color: var(--pend); }
 .ring-stage.queue { background: var(--queue-soft); color: var(--queue); }
+.ring-stage.held { outline: 2px dashed var(--queue); outline-offset: 1px; }
 .ring-stage.fail { background: var(--fail-soft); color: var(--fail); }
 fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0.15rem 0; }
 /* Wide dialogs with a preview: the fields on the left, what the change affects on the right. */
@@ -705,3 +706,7 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 .choice > span { display: grid; gap: 0.1rem; }
 .choice .note { font-size: 0.8rem; }
 .choice-list { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.3rem; }
+
+/* Several holds in one banner: one line each with its Resume button. */
+.hold-line + .hold-line { margin-top: 0.35rem; }
+.hold-line button { margin-left: 0.5rem; }

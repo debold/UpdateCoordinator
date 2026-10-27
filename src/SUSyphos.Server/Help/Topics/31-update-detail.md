@@ -25,6 +25,7 @@ The drop-down button **Rollout** (blue unless an approval waits):
 
 - **Start rollout** / **Resume rollout**: starts a queued update or resumes a stopped rollout.
 - **Release to all rings**: releases the update to every ring at once, skipping wait times, rates and gates.
+- **Hold…**: opens the [hold dialog](#hold) to hold the update for one ring, group or server.
 - **Stop rollout** (red): withdraws all releases that are not installed yet; can be resumed later.
 
 An entry that does not fit the current state is greyed out with the reason as tooltip.
@@ -35,6 +36,17 @@ The red drop-down button **Block** on the right:
 
 - **Block**: stops the rollout like "Stop rollout" and locks the update: neither a start rule nor an operator starts it again until someone chooses **Unblock**. For an update known to be faulty.
 - **Uninstall…** (administrators): opens the [uninstall dialog](#uninstall) to remove the update from all servers, some rings or groups, or one server.
+
+## Hold {#hold}
+
+**Hold…** (in the **Rollout** menu, operators and administrators) holds the update for one target while the rollout goes on elsewhere, for example when it causes trouble on one kind of server.
+
+- **For**: a **Ring**, a **Server group** or a **Server** (the approved servers that report the update). Picking one in its list chooses that option.
+- **Reason** (optional): one line that the banner and the audit log show.
+- **Hold until** (optional, server time): the hold ends by itself then; empty keeps it until someone selects **Resume**.
+- **Hold update** sets the hold; **Cancel** closes the dialog.
+
+While a hold lasts, the servers of the target do not get the update; where it is installed already it stays (use [Uninstall](#uninstall) to remove it). A ring on hold does not count as done, so the next ring waits as at a manual gate. The banner **On hold** at the top lists every hold with target, since when, who, the reason and the end; **Resume** lifts one, and the servers get the update again. In the update list the ring of a held update is outlined dashed in the **Rings** column. Hold, Stop rollout and Block differ: a hold is for one target and reversible, Stop withdraws the rollout everywhere, Block keeps the update away for good.
 
 ## Uninstall {#uninstall}
 

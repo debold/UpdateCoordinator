@@ -97,6 +97,7 @@ internal static class DashboardServiceCollectionExtensions
         services.AddScoped<ReleasePlanner>();
         services.AddScoped<RolloutService>();
         services.AddScoped<RolloutAdministration>();
+        services.AddScoped<UpdateHolds>();
         services.AddScoped<RingAdministration>();
         services.AddOptions<UpdateArchiveOptions>()
             .Bind(configuration.GetSection(UpdateArchiveOptions.SectionName))

@@ -237,6 +237,7 @@
         var listedIds = updates.Select(u => u.UpdateId).ToList();
         _archived = await Db.Updates.CountAsync(u => u.ArchivedAtUtc != null);
         var supersededBy = await Supersedence.NewerAsync(Db, listedIds);
+        var heldRings = (await UpdateHolds.ActiveAsync(Db, DateTime.UtcNow, CancellationToken.None)).Where(h => h.RingId is not null).ToLookup(h => (h.UpdateId, h.Revision), h => h.RingId!.Value);
 
         List<Row> rows = [.. updates
             .Where(u => ShowArchived || keys.Contains((u.UpdateId, u.Revision)))
@@ -289,7 +290,7 @@
                     UpdateText.Restart(u.RebootBehavior),
                     newerUpdate,
                     completed,
-                    Stages: Stages(rollouts.GetValueOrDefault(key), ringStates[key], rings, counts[key]));
+                    Stages: Stages(rollouts.GetValueOrDefault(key), ringStates[key], rings, counts[key], [.. heldRings[key]]));
             })];
 
         // Superseded, completed, withdrawn and outside updates are out of the way unless asked for; the toggles say how many.
@@ -364,12 +365,12 @@
     }
 
     /// <summary>The stage of the update in each ring (released, rolling out, awaiting approval, alarm, waiting, not started).</summary>
-    private static IReadOnlyList<(int Order, string Name, string Label, string Class)> Stages(RolloutEntity? rollout, IEnumerable<RolloutRingEntity> states, List<RingEntity> rings, IEnumerable<DeploymentEntry> entries) =>
+    private static IReadOnlyList<(int Order, string Name, string Label, string Class)> Stages(RolloutEntity? rollout, IEnumerable<RolloutRingEntity> states, List<RingEntity> rings, IEnumerable<DeploymentEntry> entries, ICollection<int> heldRings) =>
         [.. rings.Select(ring =>
         {
             var state = rollout is null ? (RingRolloutState?)null : rollout.Override ? RingRolloutState.Released : states.FirstOrDefault(s => s.RingId == ring.Id)?.State;
             var (label, cls) = RingStage.Of(state, DeploymentCounts.Of(entries.Where(e => e.RingId == ring.Id)));
-            return (ring.Order, ring.Name, label, cls);
+            return heldRings.Contains(ring.Id) ? (ring.Order, ring.Name, $"{label}, on hold", "queue held") : (ring.Order, ring.Name, label, cls);
         })];
 
     /// <summary>Rollout state for the list: queued, alarm or gate first, else the furthest released ring.</summary>
