@@ -8,6 +8,7 @@
 @inject DeploymentStatus Deployment
 @inject RolloutAdministration Administration
 @inject NavigationManager Navigation
+@inject SUSyphos.Server.Security.SecurityBaseline Baseline
 
 <PageTitle>Updates</PageTitle>
 
@@ -31,7 +32,7 @@
 </AuthorizeView>
 
 <Box Flush="true">
-    <TableTools Table="_table" Placeholder="Search KB or title" Labels="Labels" GroupOptions="GroupOptions">
+    <TableTools Table="_table" Placeholder="Search KB, title or CVE" Labels="Labels" GroupOptions="GroupOptions">
         <span class="view-toggles" data-help="updates#toggles">
                 <span class="note">Show:</span>
                 @foreach (var (name, label, on, count) in Toggles.Where(t => !ShowArchived || t.Name == "archived"))
@@ -69,7 +70,7 @@
                         <tr>
                             <td>@if (!row.Outside) { <input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /> }</td>
 
-                            <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }<div class="note"><KbLinks Kb="@row.Kb" /></div></td>
+                            <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }<div class="note"><KbLinks Kb="@row.Kb" /></div>@if (MatchingCves(row) is { Count: > 0 } fixedCves) { <div class="note">fixes @string.Join(", ", fixedCves.Take(3))@(fixedCves.Count > 3 ? $" and {fixedCves.Count - 3} more" : null)</div> }</td>
                             <td>@row.Classification</td>
                             <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
                             <td class="nowrap">@row.Restart</td>
@@ -302,8 +303,16 @@
             rows = [.. rows.Where(r => (ShowSuperseded || r.Rollout != "Superseded") && (ShowCompleted || !r.Completed) && (ShowWithdrawn || r.Rollout != WithdrawnLabel) && (ShowOutside || !r.Outside))];
         }
 
-        _page = TablePaging.Apply(rows, _table, Columns, r => $"KB{r.Kb} {r.Title}");
+        // The search also finds CVEs: an update matches when its KB fixes one (security data from Microsoft).
+        _cves = (await Baseline.LoadAsync(CancellationToken.None)).CvesByKb();
+        _page = TablePaging.Apply(rows, _table, Columns, r => $"KB{r.Kb} {r.Title} {string.Join(' ', _cves[r.Kb])}");
     }
+
+    private ILookup<string, string> _cves = Array.Empty<string>().ToLookup(c => c);
+
+    /// <summary>The CVEs of a row the search term matches, shown under its title.</summary>
+    private IReadOnlyList<string> MatchingCves(Row row) =>
+        _table.Search is { Length: >= 3 } term ? [.. _cves[row.Kb].Where(c => c.Contains(term, StringComparison.OrdinalIgnoreCase)).Order(StringComparer.Ordinal)] : [];
 
     private const string WithdrawnLabel = "Withdrawn by Microsoft";
 

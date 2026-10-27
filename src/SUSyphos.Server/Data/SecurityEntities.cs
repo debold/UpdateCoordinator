@@ -22,8 +22,8 @@ internal sealed class SecurityBaselineEntity
     public string? Kb { get; set; }
 }
 
-/// <summary>One vulnerability (CVE) of the MSRC releases kept by the central server.</summary>
-internal sealed class SecurityVulnerabilityEntity
+/// <summary>One vulnerability (CVE) of the MSRC releases kept by the central server (public for the shared VulnerabilityCells component).</summary>
+public sealed class SecurityVulnerabilityEntity
 {
     public required string Cve { get; set; }
 

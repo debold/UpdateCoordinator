@@ -231,28 +231,11 @@ else
     </Box>
 
     <Box Title="Open vulnerabilities" Anchor="vulnerabilities" Help="server-detail#vulnerabilities" Hint="fixed in a later build than the server runs; exploited first" Flush="true">
-        <div class="scroll">
-            <table>
-                <thead><tr><th>CVE</th><th>Title</th><th>Severity</th><th class="n">CVSS</th><th>Exploit</th><th>Fixed by</th></tr></thead>
-                <tbody>
-                    @if (_serverSecurity.Open.Count == 0)
-                    {
-                        <tr><td colspan="6" class="note">@(_serverSecurity.State == SUSyphos.Server.Security.BaselineState.Unknown ? "Unknown without security data for this Windows version." : "No vulnerability is open on this server.")</td></tr>
-                    }
-                    @foreach (var vulnerability in _serverSecurity.Open.Take(200))
-                    {
-                        <tr>
-                            <td class="nowrap"><a href="@($"https://msrc.microsoft.com/update-guide/vulnerability/{Uri.EscapeDataString(vulnerability.Cve)}")" target="_blank" rel="noopener noreferrer">@vulnerability.Cve</a></td>
-                            <td class="wrap">@vulnerability.Title</td>
-                            <td>@if (vulnerability.Severity is { } severity) { <span class="pill @(severity == "Critical" ? "fail" : severity == "Important" ? "queue" : "neutral")">@severity</span> }</td>
-                            <td class="n">@(vulnerability.CvssScore?.ToString("0.0", DisplayNumber.Culture) ?? "–")</td>
-                            <td>@if (vulnerability.Exploited) { <span class="pill fail">Exploited</span> } else if (vulnerability.PubliclyDisclosed) { <span class="pill queue">Disclosed</span> }</td>
-                            <td class="nowrap"><KbLinks Kb="@_securityFixes.GetValueOrDefault(vulnerability.Cve)" /></td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+        <ListTable Table="_cveTable" Page="_cvePage" Columns="VulnerabilityTable" Search="Search CVE or title" Noun="vulnerabilities" Empty="@(_serverSecurity.State == SUSyphos.Server.Security.BaselineState.Unknown ? "Unknown without security data for this Windows version." : "No vulnerability is open on this server.")">
+            <Row Context="vulnerability">
+                <tr><VulnerabilityCells Vulnerability="@vulnerability" /><td class="nowrap"><KbLinks Kb="@_securityFixes.GetValueOrDefault(vulnerability.Cve)" /></td></tr>
+            </Row>
+        </ListTable>
     </Box>
     }
     else if (_tab == ServerPage.History)
@@ -593,6 +576,10 @@ else
     private bool _canAdminister;
     private SUSyphos.Server.Security.ServerSecurity _serverSecurity = SUSyphos.Server.Security.ServerSecurity.Unknown;
     private Dictionary<string, string?> _securityFixes = [];
+    private TableQuery _cveTable = default!;
+    private TablePage<SUSyphos.Server.Data.SecurityVulnerabilityEntity> _cvePage = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
+    private static readonly IReadOnlyList<TableColumn<SUSyphos.Server.Data.SecurityVulnerabilityEntity>> VulnerabilityTable =
+        [.. SUSyphos.Server.Security.VulnerabilityColumns.Of<SUSyphos.Server.Data.SecurityVulnerabilityEntity>(v => v), new("kb", "Fixed by", v => v.Cve, Sortable: false)];
     private bool _securityHasData;
 
     /// <summary>What the agent found about Extended Security Updates.</summary>
@@ -1074,6 +1061,8 @@ else
         _securityHasData = securitySnapshot.HasData;
         _serverSecurity = securitySnapshot.Of(_client);
         _securityFixes = _serverSecurity.Build is { } securityBuild ? _serverSecurity.Open.ToDictionary(v => v.Cve, v => securitySnapshot.FixesOf(v.Cve).Where(f => f.Build == securityBuild).OrderByDescending(f => f.Revision).Select(f => f.Kb).FirstOrDefault()) : [];
+        _cveTable = TableQuery.From(Navigation, SUSyphos.Server.Security.VulnerabilityColumns.DefaultSort, defaultDescending: true, prefix: "cve.", defaultPageSize: 10);
+        _cvePage = TablePaging.Apply([.. _serverSecurity.Open], _cveTable, VulnerabilityTable, SUSyphos.Server.Security.VulnerabilityColumns.SearchText);
         _window = NextWindowUtc();
         _planned = _window is { } window
             ? [.. _open.Where(o => o.Entry.EarliestInstallAtUtc is { } earliest && earliest <= window.End && o.Entry.State is DeploymentState.Pending or DeploymentState.Failed)]

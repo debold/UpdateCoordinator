@@ -68,7 +68,7 @@ In the **Security** tab: the **State** of the server against the security baseli
 
 ## Open vulnerabilities of the server {#vulnerabilities}
 
-Every vulnerability fixed in a later build than the server runs: **CVE** (opens Microsoft's description), **Title**, **Severity**, **CVSS**, **Exploit** (Exploited, Disclosed) and the update that fixes it (**Fixed by**). Exploited first. The tab shows how many are open, red when one is exploited.
+Every vulnerability fixed in a later build than the server runs: **CVE** (opens Microsoft's description), **Title**, **Severity**, **CVSS**, **Exploit** (Exploited, Disclosed) and the update that fixes it (**Fixed by**). Exploited first; search, sorting, the filters on **Severity** and **Exploit** and the pages work as described in [Working with lists](help/tables). The tab shows how many are open, red when one is exploited.
 
 ## Assignment {#assignment}
 

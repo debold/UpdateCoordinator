@@ -82,11 +82,7 @@ else if (_status.LastError is { } error)
     <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search CVE or title" Noun="vulnerabilities" Empty="@(_snapshotHasData ? "No vulnerability is open on any approved server." : "No security data yet.")">
         <Row Context="open">
             <tr>
-                <td class="nowrap"><a href="@($"https://msrc.microsoft.com/update-guide/vulnerability/{Uri.EscapeDataString(open.Vulnerability.Cve)}")" target="_blank" rel="noopener noreferrer">@open.Vulnerability.Cve</a></td>
-                <td class="wrap">@open.Vulnerability.Title</td>
-                <td>@if (open.Vulnerability.Severity is { } severity) { <span class="pill @SeverityClass(severity)">@severity</span> }</td>
-                <td class="n">@(open.Vulnerability.CvssScore?.ToString("0.0", DisplayNumber.Culture) ?? "–")</td>
-                <td>@if (open.Vulnerability.Exploited) { <span class="pill fail">Exploited</span> } else if (open.Vulnerability.PubliclyDisclosed) { <span class="pill queue">Disclosed</span> }</td>
+                <VulnerabilityCells Vulnerability="@open.Vulnerability" />
                 <td class="n">@DisplayNumber.Format(open.Servers)</td>
                 <td class="nowrap"><KbLinks Kb="@open.Kb" /></td>
             </tr>
@@ -112,11 +108,7 @@ else if (_status.LastError is { } error)
 
     private static readonly IReadOnlyList<TableColumn<OpenVulnerability>> Columns =
     [
-        new("cve", "CVE", o => o.Vulnerability.Cve),
-        new("title", "Title", o => o.Vulnerability.Title),
-        new("severity", "Severity", o => SeverityRank(o.Vulnerability.Severity), o => [o.Vulnerability.Severity ?? string.Empty]),
-        new("cvss", "CVSS", o => o.Vulnerability.CvssScore, Class: "n"),
-        new("exploit", "Exploit", o => o.Vulnerability.Exploited ? 2 : o.Vulnerability.PubliclyDisclosed ? 1 : 0, o => [o.Vulnerability.Exploited ? "Exploited" : o.Vulnerability.PubliclyDisclosed ? "Disclosed" : string.Empty]),
+        .. VulnerabilityColumns.Of<OpenVulnerability>(o => o.Vulnerability),
         new("servers", "Servers", o => o.Servers, Class: "n"),
         new("kb", "Fixed by", o => o.Kb, Sortable: false),
     ];
@@ -158,23 +150,7 @@ else if (_status.LastError is { } error)
         _current = states.Count(s => s.State == BaselineState.Current);
         _exploitedServers = states.Count(s => s.Exploited > 0);
         _table = TableQuery.From(Navigation, "exploit", defaultDescending: true, prefix: "cve.", defaultPageSize: 10);
-        _page = TablePaging.Apply(_open, _table, Columns, o => $"{o.Vulnerability.Cve} {o.Vulnerability.Title}");
+        _page = TablePaging.Apply(_open, _table, Columns, o => VulnerabilityColumns.SearchText(o.Vulnerability));
         _durationChart = SUSyphos.Server.Rollouts.DashboardStatistics.DurationChart(_versions);
     }
-
-    private static int SeverityRank(string? severity) => severity switch
-    {
-        "Critical" => 4,
-        "Important" => 3,
-        "Moderate" => 2,
-        "Low" => 1,
-        _ => 0,
-    };
-
-    private static string SeverityClass(string severity) => severity switch
-    {
-        "Critical" => "fail",
-        "Important" => "queue",
-        _ => "neutral",
-    };
 }

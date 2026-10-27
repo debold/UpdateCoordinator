@@ -81,6 +81,10 @@ internal sealed class SecuritySnapshot
     public IEnumerable<SecurityFixEntity> FixesOf(string cve) => _fixes.SelectMany(g => g).Where(f => f.Cve == cve);
 
     /// <summary>Vulnerabilities an update (by KB) fixes on Windows Server.</summary>
+    /// <summary>The CVEs each KB fixes, built once for lists that search by CVE (the update list).</summary>
+    public ILookup<string, string> CvesByKb() =>
+        _fixes.SelectMany(g => g).Where(f => !string.IsNullOrEmpty(f.Kb)).Select(f => (Kb: f.Kb!, f.Cve)).Distinct().ToLookup(f => f.Kb, f => f.Cve, StringComparer.Ordinal);
+
     public IReadOnlyList<SecurityVulnerabilityEntity> FixedBy(string? kb) =>
         kb is null ? [] : [.. _fixes.SelectMany(g => g).Where(f => f.Kb == kb).Select(f => f.Cve).Distinct().Select(c => _vulnerabilities.GetValueOrDefault(c)).OfType<SecurityVulnerabilityEntity>()];
 

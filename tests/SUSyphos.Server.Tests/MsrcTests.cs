@@ -176,6 +176,46 @@ public sealed class MsrcTests
         Assert.Contains("<option value=\"vulnerabilities\" selected", chart, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task UpdateList_FindsUpdatesByTheCvesTheyFix_AndVulnerabilityListsWorkLikeEveryList()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var server = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        var month = MsrcParser.Parse("2026-Oct", Excerpt());
+        var fixing = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid(), KbArticle = "5126655", Title = "2026-10 Cumulative Update for Microsoft server operating system version 21H2 (KB5126655)" };
+        var other = RolloutScenario.Update("Updates") with { UpdateId = Guid.NewGuid(), KbArticle = "5000001", Title = "Some other update" };
+        await scenario.ReportAsync(server, fixing, other);
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            db.SecurityBaselines.AddRange(month.Baselines);
+            db.SecurityFixes.AddRange(month.Fixes);
+            db.SecurityVulnerabilities.AddRange(month.Vulnerabilities);
+            return await db.SaveChangesAsync();
+        });
+        await scenario.Factory.CreateUserAsync("reader", "correct horse battery", SUSyphos.Server.Administration.AdminRoles.Reader);
+        using var reader = new DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", "correct horse battery"))
+        {
+        }
+
+        async Task<string> GetAsync(string path) => await (await reader.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var found = await GetAsync("/updates?q=CVE-2026-100201");
+        var none = await GetAsync("/updates?q=CVE-1999-0001");
+        var update = await GetAsync($"/updates/{fixing.UpdateId}/1?cve.f.severity=Critical");
+
+        Assert.Contains("KB5126655", found, StringComparison.Ordinal);
+        Assert.Contains("fixes CVE-2026-100201", found, StringComparison.Ordinal);
+        Assert.DoesNotContain("Some other update", found, StringComparison.Ordinal);
+        Assert.DoesNotContain("KB5126655", none, StringComparison.Ordinal);
+        Assert.Contains("Search KB, title or CVE", found, StringComparison.Ordinal);
+
+        // The list of fixed vulnerabilities has search, filters and sorting like every list.
+        Assert.Contains("Search CVE or title", update, StringComparison.Ordinal);
+        Assert.Contains("cve.sort=cvss", update, StringComparison.Ordinal);
+        Assert.Contains("Severity: Critical", System.Net.WebUtility.HtmlDecode(update), StringComparison.Ordinal);
+        Assert.True(update.IndexOf("All servers", StringComparison.Ordinal) < update.IndexOf("Fixes vulnerabilities", StringComparison.Ordinal), "The vulnerabilities come below progress and all servers.");
+    }
+
     private static async Task<MsrcStatus> RunAsync(ServerFactory factory, bool force)
     {
         await using var scope = factory.Services.CreateAsyncScope();

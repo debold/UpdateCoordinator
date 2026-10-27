@@ -52,7 +52,7 @@ Which start rule started the rollout and when, or, before a rollout, which rule 
 
 ## Fixes vulnerabilities {#vulnerabilities}
 
-Shown when Microsoft lists Windows Server vulnerabilities this update (by its KB) fixes: **CVE** (opens Microsoft's description), **Title**, **Severity**, **CVSS** and **Exploit** (Exploited, Disclosed), exploited first. The data comes from the Security Update Guide, see [Operating systems](help/operating-systems#data).
+Shown when Microsoft lists Windows Server vulnerabilities this update (by its KB) fixes: **CVE** (opens Microsoft's description), **Title**, **Severity**, **CVSS** and **Exploit** (Exploited, Disclosed), exploited first, below "Progress by ring" and "All servers". Search, sorting, the filters on **Severity** and **Exploit** and the pages work as described in [Working with lists](help/tables). The data comes from the Security Update Guide, see [Operating systems](help/operating-systems#data).
 
 ## Progress by ring {#progress}
 
