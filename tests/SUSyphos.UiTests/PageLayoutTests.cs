@@ -152,7 +152,10 @@ public sealed class PageLayoutTests(UiFixture ui)
         Assert.True(missing.Count == 0, $"{path}: grouping shows no group rows for {string.Join(", ", missing)}");
     }
 
-    /// <summary>Every drop-down and row menu opens fully visible: not cut off by a table's scroll container, inside the window.</summary>
+    /// <summary>
+    /// Every pop-up opens fully visible: drop-down and row menus, column filters and multi-selects, not cut off by the
+    /// scroll container of a table or dialog, inside the window.
+    /// </summary>
     [Theory]
     [MemberData(nameof(Pages))]
     public async Task EveryMenu_OpensVisibly(string path)
@@ -162,18 +165,24 @@ public sealed class PageLayoutTests(UiFixture ui)
         await page.GotoAsync(await ResolveAsync(path));
 
         var hidden = new List<string>();
-        // With a modal dialog open only its own menus can be used.
+        // With a modal dialog open only its own pop-ups can be used.
         var scope = await page.Locator("[role=dialog][aria-modal=true]").CountAsync() > 0 ? "[role=dialog][aria-modal=true]" : "main";
-        var menus = page.Locator($"{scope} details[data-menu]:visible > summary");
+        var menus = page.Locator($"{scope} details[data-menu]:visible > summary, {scope} details.col-filter:visible > summary, {scope} details.multi:visible > summary");
         var count = await menus.CountAsync();
         for (var i = 0; i < count; i++)
         {
             var summary = menus.Nth(i);
+            if (await summary.EvaluateAsync<bool>("s => !!s.closest('[inert]')"))
+            {
+                // Fields of a switched-off section cannot be used, so their pop-ups never open.
+                continue;
+            }
+
             await summary.ClickAsync();
             var problem = await summary.EvaluateAsync<string?>("""
                 async summary => {
                     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-                    const pop = summary.parentElement.querySelector(':scope > .menu-pop');
+                    const pop = summary.parentElement.querySelector(':scope > .menu-pop, :scope > .filter-pop, :scope > .options');
                     const name = (summary.getAttribute('aria-label') || summary.textContent).trim();
                     const r = pop.getBoundingClientRect();
                     if (r.width === 0 || r.height === 0) return `${name}: not shown`;
@@ -190,10 +199,10 @@ public sealed class PageLayoutTests(UiFixture ui)
                 hidden.Add(problem);
             }
 
-            await page.Keyboard.PressAsync("Escape");
+            await summary.EvaluateAsync("s => { s.parentElement.open = false; }");
         }
 
-        Assert.True(hidden.Count == 0, $"{path} has menus that do not open visibly:\n{string.Join('\n', hidden)}");
+        Assert.True(hidden.Count == 0, $"{path} has pop-ups that do not open visibly:\n{string.Join('\n', hidden)}");
     }
 
     /// <summary>A named field outside every form is never sent; it looks saved and silently is not.</summary>

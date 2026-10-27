@@ -284,33 +284,6 @@
         });
     }
 
-    // A column filter that would open beyond the right edge of the window opens to the left instead.
-    for (const filter of document.querySelectorAll('details.col-filter')) {
-        filter.addEventListener('toggle', () => {
-            if (!filter.open) {
-                return;
-            }
-
-            filter.classList.remove('open-left');
-            const pop = filter.querySelector('.filter-pop');
-            if (!pop) {
-                return;
-            }
-
-            pop.style.transform = '';
-            const width = document.documentElement.clientWidth;
-            if (pop.getBoundingClientRect().right > width) {
-                filter.classList.add('open-left');
-            }
-
-            // Still beyond the edge (the table scrolls sideways in a narrow window): moved back into view.
-            const overflow = pop.getBoundingClientRect().right - width + 8;
-            if (overflow > 0) {
-                pop.style.transform = `translateX(-${Math.ceil(overflow)}px)`;
-            }
-        });
-    }
-
     // Drop-down buttons open without script (a disclosure); with it, only one is open at a time and a click elsewhere or
     // Esc closes them.
     const closeMenus = (except) => {
@@ -325,28 +298,38 @@
         closeMenus(target?.closest('details[data-menu]') ?? null);
     });
 
-    // An open menu floats above the page (fixed to the window), so the scroll container of a table cannot cut it off;
-    // it opens upwards when there is no room below and stays inside the window.
-    const placeMenu = (menu) => {
-        const pop = menu.querySelector(':scope > .menu-pop');
+    // Every pop-up of a disclosure (drop-down and row menus, column filters, multi-selects) floats above the page while
+    // open, fixed to the window, so the scroll container of a table or dialog cannot cut it off; it opens upwards when
+    // there is no room below, to the left at the right edge, and always stays inside the window.
+    const popups = 'details[data-menu], details.col-filter, details.multi';
+    const popOf = (details) => details.querySelector(':scope > .menu-pop, :scope > .filter-pop, :scope > .options');
+    const placePopup = (details) => {
+        const pop = popOf(details);
         if (!pop) {
             return;
         }
 
-        if (!menu.open) {
+        if (!details.open) {
             pop.classList.remove('floating');
-            pop.style.removeProperty('top');
-            pop.style.removeProperty('left');
+            for (const property of ['top', 'left', 'width']) {
+                pop.style.removeProperty(property);
+            }
+
             return;
         }
 
+        const anchor = details.querySelector(':scope > summary').getBoundingClientRect();
         pop.classList.add('floating');
-        const anchor = menu.querySelector(':scope > summary').getBoundingClientRect();
+        if (details.matches('.multi')) {
+            // A multi-select list is as wide as its field.
+            pop.style.width = `${Math.round(anchor.width)}px`;
+        }
+
         const width = pop.offsetWidth;
         const height = pop.offsetHeight;
         const right = document.documentElement.clientWidth - 8;
         const bottom = window.innerHeight - 8;
-        const left = menu.classList.contains('align-right') ? anchor.right - width : anchor.left;
+        const left = details.matches('.align-right') || anchor.left + width > right ? anchor.right - width : anchor.left;
         let top = anchor.bottom + 4;
         if (top + height > bottom && anchor.top - 4 - height >= 8) {
             top = anchor.top - 4 - height;
@@ -355,13 +338,13 @@
         pop.style.left = `${Math.round(Math.max(8, Math.min(left, right - width)))}px`;
         pop.style.top = `${Math.round(Math.max(8, Math.min(top, bottom - height)))}px`;
     };
-    // The toggle event does not bubble; a listener in the capture phase still sees it for every menu.
+    // The toggle event does not bubble; a listener in the capture phase still sees it for every pop-up.
     document.addEventListener('toggle', (event) => {
-        if (event.target instanceof HTMLDetailsElement && event.target.matches('details[data-menu]')) {
-            placeMenu(event.target);
+        if (event.target instanceof HTMLDetailsElement && event.target.matches(popups)) {
+            placePopup(event.target);
         }
     }, true);
-    const placeOpenMenus = () => document.querySelectorAll('details[data-menu][open]').forEach(placeMenu);
+    const placeOpenMenus = () => document.querySelectorAll(popups.split(', ').map((s) => `${s}[open]`).join(', ')).forEach(placePopup);
     window.addEventListener('scroll', placeOpenMenus, { capture: true, passive: true });
     window.addEventListener('resize', placeOpenMenus);
     document.addEventListener('keydown', (event) => {

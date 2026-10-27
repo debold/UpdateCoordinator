@@ -462,7 +462,7 @@ details.multi:has(input[data-i='63']:checked) .tag.pick[data-i='63'] { display: 
 th.select, td.select { width: 1%; }
 .note.break { white-space: normal; overflow-wrap: anywhere; max-width: 14rem; }
 /* Filters of the last columns open to the left, so they stay inside the window. */
-th:nth-last-child(-n+5) .filter-pop, details.col-filter.open-left .filter-pop { left: auto; right: 0.5rem; }
+th:nth-last-child(-n+5) .filter-pop { left: auto; right: 0.5rem; }
 
 /* Help: "?" links next to titles and fields, and the help pages. */
 .help-link { display: inline-flex; align-items: center; justify-content: center; width: 1.05rem; height: 1.05rem; margin-left: 0.4rem; border: 1px solid var(--border); border-radius: 50%; color: var(--muted); background: var(--surface); font-size: 0.68rem; font-weight: 700; line-height: 1; vertical-align: 0.15em; text-decoration: none; flex: none; }
@@ -568,7 +568,7 @@ details.menu > summary.compact { min-width: 2.1rem; padding: 0 0.45rem; }
 .menu-pop { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 15rem; display: grid; padding: 0.3rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); box-shadow: 0 6px 20px rgba(20, 30, 45, 0.14); }
 details.menu.align-right .menu-pop { left: auto; right: 0; }
 /* With script the open menu floats above the page (app.js), so table scroll containers do not cut it off. */
-.menu-pop.floating, details.menu.align-right .menu-pop.floating { position: fixed; right: auto; z-index: 60; max-height: calc(100vh - 16px); overflow-y: auto; }
+.menu-pop.floating, details.menu.align-right .menu-pop.floating, th .filter-pop.floating, details.multi .options.floating { position: fixed; right: auto; z-index: 60; max-height: calc(100vh - 16px); overflow-y: auto; }
 .menu-item { display: flex; align-items: center; justify-content: flex-start; gap: 0.55rem; width: 100%; min-height: 2rem; padding: 0.35rem 0.6rem; border: 0; border-radius: 5px; background: none; color: var(--text); font: inherit; font-weight: 400; text-align: left; white-space: nowrap; cursor: pointer; }
 .menu-item:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
 .menu-item .icon { color: var(--muted); }
