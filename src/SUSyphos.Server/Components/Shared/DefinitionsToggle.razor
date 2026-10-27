@@ -1,0 +1,18 @@
+@* The "definition updates (n)" switch of a history list: antivirus definitions arrive several times a day and would bury
+   the other installations, so they are hidden unless switched on (Marc, 2026-10-27). *@
+<span class="view-toggles">
+    <span class="note">Show:</span>
+    <a class="btn ghost toggle @(Show ? "on" : null)" href="@Href" aria-pressed="@(Show ? "true" : "false")" data-help-term="definition updates" title="@(Show ? "Hide antivirus definition updates" : "Show antivirus definition updates")">definition updates (@Count)</a>
+</span>
+
+@code {
+    [Parameter]
+    public bool Show { get; set; }
+
+    /// <summary>Definition updates in the list, hidden while the switch is off.</summary>
+    [Parameter]
+    public int Count { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Href { get; set; } = string.Empty;
+}

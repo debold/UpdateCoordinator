@@ -185,6 +185,51 @@ public sealed class UninstallActionTests
         Assert.Contains("type=\"radio\"", dialog, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task History_HidesDefinitionUpdates_AndOpensTheUninstallDialogForARow()
+    {
+        // Marc, 2026-10-27: definition updates bury the history; a row offers its own uninstallation.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        var update = Guid.NewGuid();
+        var signature = Guid.NewGuid();
+        await scenario.Factory.WithDbAsync(db =>
+        {
+            var now = DateTime.UtcNow;
+            db.Updates.AddRange(
+                new UpdateEntity { UpdateId = update, Revision = 1, Title = "2026-09 Cumulative Update (KB5065432)", KbArticle = "5065432", Classification = "Security Updates", FirstSeenAtUtc = now },
+                new UpdateEntity { UpdateId = signature, Revision = 1, Title = "Security Intelligence Update for Microsoft Defender Antivirus - KB2267602", KbArticle = "2267602", Classification = "Definition Updates", FirstSeenAtUtc = now });
+            db.ClientUpdates.AddRange(
+                new ClientUpdateEntity { ClientId = client.ClientId, UpdateId = update, Revision = 1, ReportedAtUtc = now, Uninstallable = true },
+                new ClientUpdateEntity { ClientId = client.ClientId, UpdateId = signature, Revision = 1, ReportedAtUtc = now });
+            db.ClientUpdateHistory.AddRange(
+                new ClientUpdateHistoryEntity { ClientId = client.ClientId, UpdateId = update, Revision = 1, Title = "2026-09 Cumulative Update (KB5065432)", DateUtc = now.AddDays(-3), Operation = UpdateOperation.Installation, ResultCode = InstallResultCode.Succeeded },
+                new ClientUpdateHistoryEntity { ClientId = client.ClientId, UpdateId = signature, Revision = 1, Title = "Security Intelligence Update for Microsoft Defender Antivirus - KB2267602", DateUtc = now.AddDays(-1), Operation = UpdateOperation.Installation, ResultCode = InstallResultCode.Succeeded });
+            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        using var admin = await LoginAsync(scenario, AdminRoles.Admin, "admin");
+        var path = $"/servers/{client.ClientId}";
+
+        var history = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync(path + "?tab=history")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("2026-09 Cumulative Update (KB5065432)", history, StringComparison.Ordinal);
+        Assert.Contains("Security Updates", history, StringComparison.Ordinal);
+        Assert.DoesNotContain("Security Intelligence Update", history, StringComparison.Ordinal);
+        Assert.Contains("definition updates (1)", history, StringComparison.Ordinal);
+        Assert.Contains($"dialog=uninstall&update={update:D}", history, StringComparison.Ordinal);
+        Assert.DoesNotContain($"update={signature:D}", history, StringComparison.Ordinal);
+
+        var all = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync(path + "?tab=history&definitions=1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("Security Intelligence Update", all, StringComparison.Ordinal);
+
+        var dialog = await (await admin.GetAsync($"{path}?tab=history&dialog=uninstall&update={update:D}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Matches($"value=\"{update}\"[^>]*checked", dialog);
+
+        // A malformed choice only leaves the dialog without preselection.
+        using var malformed = await admin.GetAsync($"{path}?dialog=uninstall&update=%27%3Bdrop");
+        Assert.Equal(System.Net.HttpStatusCode.OK, malformed.StatusCode);
+        Assert.DoesNotMatch($"value=\"{update}\"[^>]*checked", await malformed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
     private static Task<int> InstalledAsync(RolloutScenario scenario, RegisterResponse client, Guid updateId) =>
         scenario.Factory.WithDbAsync(async db =>
         {

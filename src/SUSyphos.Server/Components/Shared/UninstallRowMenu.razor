@@ -1,0 +1,23 @@
+@* The ⋯ of a history row with "Uninstall…": opens the uninstall dialog of the server page with that update preselected
+   (Marc, 2026-10-27). Only for updates the server can uninstall; greyed out for non-administrators. *@
+@if (Show)
+{
+    <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {Title}")">
+        <MenuItem Href="@Href" Icon="rotate-ccw" Danger="true" Disabled="@(!Allowed)" Reason="@(Allowed ? "Uninstall this update from the server" : "Only administrators can do this")">Uninstall…</MenuItem>
+    </ActionMenu>
+}
+
+@code {
+    [Parameter]
+    public bool Show { get; set; }
+
+    [Parameter]
+    public bool Allowed { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Href { get; set; } = string.Empty;
+
+    /// <summary>Name of the update for the menu's tooltip.</summary>
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+}

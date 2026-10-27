@@ -243,13 +243,17 @@ else
     {
     <Box Title="Installed by SUSyphos" Anchor="history" Help="server-detail#history" Hint="installations the agent ran, with result and restart" Flush="true">
         <ListTable Table="_historyTable" Page="_historyPage" Columns="HistoryColumns" Search="Search update" Noun="installations" Empty="No installation reported yet.">
+            <Tools><DefinitionsToggle Show="@ShowDefinitions" Count="@_definitionCounts.Installations" Href="@DefinitionsLink" /></Tools>
+            <ExtraHeader><th class="n"><span class="visually-hidden">Actions</span></th></ExtraHeader>
             <Row Context="row">
                 <tr>
                     <td class="nowrap">@Format(row.Installation.FinishedAtUtc)</td>
                     <td class="wrap"><a href="/updates/@row.Installation.UpdateId/@row.Installation.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /></td>
+                    <td>@row.Category</td>
                     <td><StatusTag Text="SUSyphos" Kind="ok" /></td>
                     <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Kind="@UpdateHistoryText.ResultClass((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Detail="@UpdateHistoryText.ResultDetail((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" /></td>
                     <td>@{ var reboot = RebootTag(row.Installation); }<StatusTag Text="@reboot.Text" Kind="@reboot.Kind" Detail="@reboot.Detail" /></td>
+                    <td class="n"><UninstallRowMenu Show="@IsUninstallable(row.Installation.UpdateId)" Allowed="@_canAdminister" Href="@UninstallLink(row.Installation.UpdateId)" Title="@row.Title" /></td>
                 </tr>
             </Row>
         </ListTable>
@@ -257,13 +261,17 @@ else
 
     <Box Title="All installations on the server" Anchor="windows-history" Help="server-detail#windows-history" Hint="@($"Windows Update history of the last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days, from any source: SUSyphos, Windows, Defender, administrators; updated with the inventory")" Flush="true">
         <ListTable Table="_windowsTable" Page="_windowsPage" Columns="WindowsColumns" Search="Search update" Noun="entries" Empty="Nothing reported yet; agents from version 0.7 send the history with their inventory.">
+            <Tools><DefinitionsToggle Show="@ShowDefinitions" Count="@_definitionCounts.Windows" Href="@DefinitionsLink" /></Tools>
+            <ExtraHeader><th class="n"><span class="visually-hidden">Actions</span></th></ExtraHeader>
             <Row Context="entry">
                         <tr>
                             <td class="nowrap">@Format(entry.DateUtc)</td>
                             <td class="wrap">@entry.Title <KbLinks Kb="@UpdateText.KbIn(entry.Title)" /></td>
+                            <td>@Category(entry)</td>
                             <td><StatusTag Text="@entry.Operation.ToString()" /></td>
                             <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel(entry.ResultCode, entry.HResult)" Kind="@UpdateHistoryText.ResultClass(entry.ResultCode, entry.HResult)" Detail="@UpdateHistoryText.ResultDetail(entry.ResultCode, entry.HResult)" /></td>
                             <td>@{ var started = StartedBy(entry); }<StatusTag Text="@started.Text" Kind="@started.Kind" Detail="@started.Detail" /></td>
+                            <td class="n"><UninstallRowMenu Show="@(entry.Operation == SUSyphos.Contracts.Agents.UpdateOperation.Installation && IsUninstallable(entry.UpdateId))" Allowed="@_canAdminister" Href="@UninstallLink(entry.UpdateId)" Title="@entry.Title" /></td>
                         </tr>
             </Row>
         </ListTable>
@@ -436,7 +444,7 @@ else
                                     @foreach (var candidate in _installed)
                                     {
                                         <tr>
-                                            <td><input type="radio" id="@($"uninstall-{candidate.UpdateId:N}")" name="UninstallUpdate" value="@candidate.UpdateId" required data-help-term="Update" /></td>
+                                            <td><input type="radio" id="@($"uninstall-{candidate.UpdateId:N}")" name="UninstallUpdate" value="@candidate.UpdateId" checked="@(candidate.UpdateId == PreselectedUpdate)" required data-help-term="Update" /></td>
                                             <td class="wrap"><label for="@($"uninstall-{candidate.UpdateId:N}")">@candidate.Title</label>@if (candidate.Kb is not null) { <div class="note">KB@(candidate.Kb)</div> }@if (candidate.Uninstallable == false) { <div><span title="Windows Update cannot remove it; the agent tries DISM by the KB number, which some packages refuse"><StatusTag Text="only through DISM, may fail" Kind="queue" /></span></div> }</td>
                                             <td class="nowrap">@(candidate.InstalledAtUtc is { } at ? DisplayTime.FormatDate(at) : "–")</td>
                                         </tr>
@@ -565,6 +573,32 @@ else
 
     [SupplyParameterFromQuery(Name = "key")]
     private string? SettingKey { get; set; }
+
+    /// <summary>The update the uninstall dialog preselects, when opened from a history row.</summary>
+    [SupplyParameterFromQuery(Name = "update")]
+    private string? PreselectedUpdateParam { get; set; }
+
+    private Guid? PreselectedUpdate => Guid.TryParse(PreselectedUpdateParam, out var id) ? id : null;
+
+    /// <summary>Shows antivirus definition updates in the histories; hidden by default so they do not bury the rest (Marc, 2026-10-27).</summary>
+    [SupplyParameterFromQuery(Name = "definitions")]
+    private string? Definitions { get; set; }
+
+    private bool ShowDefinitions => Definitions == "1";
+
+    private string DefinitionsLink => Navigation.GetUriWithQueryParameter("definitions", ShowDefinitions ? null : "1");
+
+    private string UninstallLink(Guid updateId) => $"{DialogLink("uninstall")}&update={updateId:D}";
+
+    private bool IsUninstallable(Guid updateId) => _installed.Any(c => c.UpdateId == updateId);
+
+    /// <summary>Definition updates in each history, shown on the switches.</summary>
+    private (int Installations, int Windows) _definitionCounts;
+
+    private Dictionary<Guid, string> _categories = [];
+
+    private string Category(ClientUpdateHistoryEntity entry) =>
+        _categories.GetValueOrDefault(entry.UpdateId) ?? (DefinitionUpdates.IsTitle(entry.Title) ? DefinitionUpdates.Classification : "Unknown");
 
     private string SettingHref(string key) => $"/servers/{Id}?tab={ServerPage.Configuration}&dialog=agent-setting&key={Uri.EscapeDataString(key)}";
     private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _effectiveWindows = [];
@@ -1036,7 +1070,7 @@ else
         _agentSettings = SUSyphos.Server.Assignment.AgentSettingValues.Explain(_systemAgentSettings, _memberGroupSettings, _ownAgentSettings, "this server");
         _appliedSettings = SUSyphos.Server.Assignment.AppliedAgentSettings.Parse(_client.AppliedAgentSettingsJson);
         _schedulePreview = Dialog == "preview" ? await Preview.ForClientAsync(Id, CancellationToken.None) : null;
-        if (Dialog == "uninstall")
+        if (Dialog == "uninstall" || _tab == ServerPage.History)
         {
             _installed = await UninstallCandidates.LoadAsync(Db, Id, CancellationToken.None);
         }
@@ -1059,13 +1093,16 @@ else
         var ids = entries.Select(e => e.UpdateId).Concat(installations.Select(i => i.UpdateId)).Concat(liveIds).Distinct().ToList();
         var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync();
         string Title(Guid updateId, int revision) => UpdateText.Title(updates.FirstOrDefault(u => u.UpdateId == updateId && u.Revision == revision), updateId);
+        string ClassificationOf(Guid updateId, int revision) => updates.FirstOrDefault(u => u.UpdateId == updateId && u.Revision == revision)?.Classification ?? "Unknown";
 
         // Missing = reported by the last search, or released and not installed yet.
         _open = [.. entries
             .Where(e => available.Any(a => a.UpdateId == e.UpdateId && a.Revision == e.Revision) || (e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful))
             .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
             .Select(e => (e, Title(e.UpdateId, e.Revision)))];
-        _history = [.. installations.Select(i => (i, Title(i.UpdateId, i.Revision)))];
+        var history = installations.Select(i => (Installation: i, Title: Title(i.UpdateId, i.Revision), Category: ClassificationOf(i.UpdateId, i.Revision))).ToList();
+        _history = ShowDefinitions ? history : [.. history.Where(h => !DefinitionUpdates.IsClassification(h.Category))];
+        _definitionCounts.Installations = history.Count(h => DefinitionUpdates.IsClassification(h.Category));
         _openTable = TableQuery.From(Navigation, "status", defaultDescending: true, prefix: "mu.", defaultPageSize: 10);
         _openPage = TablePaging.Apply(_open, _openTable, OpenColumns, o => o.Title);
         _historyTable = TableQuery.From(Navigation, "finished", defaultDescending: true, prefix: "hist.", defaultPageSize: 10);
@@ -1097,6 +1134,15 @@ else
             .OrderByDescending(a => a.AtUtc).ThenByDescending(a => a.Id)
             .Take(MaxActivities)
             .ToListAsync();
+        var historyIds = _windowsHistory.Select(h => h.UpdateId).Distinct().ToList();
+        _categories = (await Db.Updates.AsNoTracking().Where(u => historyIds.Contains(u.UpdateId) && u.Classification != null).Select(u => new { u.UpdateId, u.Revision, u.Classification }).ToListAsync())
+            .GroupBy(u => u.UpdateId).ToDictionary(g => g.Key, g => g.MaxBy(u => u.Revision)!.Classification!);
+        _definitionCounts.Windows = _windowsHistory.Count(h => DefinitionUpdates.IsClassification(Category(h)));
+        if (!ShowDefinitions)
+        {
+            _windowsHistory = [.. _windowsHistory.Where(h => !DefinitionUpdates.IsClassification(Category(h)))];
+        }
+
         _windowsTable = TableQuery.From(Navigation, "date", defaultDescending: true, prefix: "wu.", defaultPageSize: 10);
         _windowsPage = TablePaging.Apply(_windowsHistory, _windowsTable, WindowsColumns, h => h.Title);
         _activityTable = TableQuery.From(Navigation, "time", defaultDescending: true, prefix: "act.", defaultPageSize: 10);
@@ -1110,7 +1156,7 @@ else
     private TableQuery _openTable = default!;
     private TablePage<(DeploymentEntry Entry, string Title)> _openPage = default!;
     private TableQuery _historyTable = default!;
-    private TablePage<(InstallationEntity Installation, string Title)> _historyPage = default!;
+    private TablePage<(InstallationEntity Installation, string Title, string Category)> _historyPage = default!;
     private TableQuery _windowsTable = default!;
     private TablePage<ClientUpdateHistoryEntity> _windowsPage = default!;
     private TableQuery _activityTable = default!;
@@ -1130,12 +1176,13 @@ else
         new("result", "Result", o => o.Entry.HResult, o => [HResultCode(o.Entry.HResult)]),
     ];
 
-    private IReadOnlyList<TableColumn<(InstallationEntity Installation, string Title)>>? _historyColumns;
+    private IReadOnlyList<TableColumn<(InstallationEntity Installation, string Title, string Category)>>? _historyColumns;
 
-    private IReadOnlyList<TableColumn<(InstallationEntity Installation, string Title)>> HistoryColumns => _historyColumns ??=
+    private IReadOnlyList<TableColumn<(InstallationEntity Installation, string Title, string Category)>> HistoryColumns => _historyColumns ??=
     [
         new("finished", "Finished", h => h.Installation.FinishedAtUtc),
         new("update", "Update", h => h.Title),
+        new("category", "Category", h => h.Category, h => [h.Category]),
         new("source", "Started by", h => "SUSyphos", h => ["SUSyphos"]),
         new("result", "Result", h => ResultText(h.Installation), h => [UpdateHistoryText.ResultLabel((SUSyphos.Contracts.Agents.InstallResultCode)h.Installation.ResultCode, h.Installation.HResult)]),
         new("reboot", "Restart", h => RebootKind(h.Installation), h => [RebootKind(h.Installation)]),
@@ -1147,6 +1194,7 @@ else
     [
         new("date", "Date", h => h.DateUtc),
         new("update", "Update", h => h.Title),
+        new("category", "Category", h => Category(h), h => [Category(h)]),
         new("operation", "Operation", h => h.Operation.ToString(), h => [h.Operation.ToString()]),
         new("result", "Result", h => UpdateHistoryText.Result(h.ResultCode, h.HResult), h => [UpdateHistoryText.ResultLabel(h.ResultCode, h.HResult)]),
         new("started", "Started by", h => StartedBy(h).Text, h => [StartedBy(h).Text]),
@@ -1316,7 +1364,7 @@ else
 
     private ServerHealthState _health;
     private List<(DeploymentEntry Entry, string Title)> _open = [];
-    private List<(InstallationEntity Installation, string Title)> _history = [];
+    private List<(InstallationEntity Installation, string Title, string Category)> _history = [];
     private List<(DeploymentEntry Entry, string Title)> _planned = [];
     private (DateTime Start, DateTime End)? _window;
     private bool _paused;
