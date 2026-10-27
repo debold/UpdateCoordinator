@@ -240,12 +240,12 @@ public sealed class WindowsSignInTests
 
         using var response = await admin.PostFormAsync("/administration/users", new Dictionary<string, string> { ["_handler"] = "windows-sign-in", ["WindowsAction"] = "add", ["WindowsGroup"] = "S-1-5-21-1-2-3-512", ["WindowsRole"] = AdminRoles.Admin });
 
-        Assert.Contains("Won&#x27;t work: Windows filters S-1-5-21-1-2-3-512", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains("Filtered by UAC: Windows filters S-1-5-21-1-2-3-512", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         Assert.Empty(await factory.Services.CreateAsyncScope().ServiceProvider.GetRequiredService<WindowsSignIn>().GetMappingsAsync(CancellationToken.None));
 
         await SeedEarlierMappingAsync(factory, "S-1-5-32-544", @"BUILTIN\Administrators", AdminRoles.Admin);
         var page = await (await admin.GetAsync("/administration/users")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.Contains("Won&#x27;t work", page, StringComparison.Ordinal);
+        Assert.Contains("Filtered by UAC", page, StringComparison.Ordinal);
         Assert.Contains("Remove mapping", page, StringComparison.Ordinal);
     }
 

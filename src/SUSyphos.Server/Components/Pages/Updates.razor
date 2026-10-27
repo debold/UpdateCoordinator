@@ -274,7 +274,8 @@
                 var deployment = DeploymentCounts.Of(counts[key]);
                 NewerUpdate? newerUpdate = null;
                 var nothingPending = deployment.Pending == 0 && deployment.Failed == 0 && deployment.Queued == 0;
-                var completed = nothingPending && ((cls == "ok" && rollouts.GetValueOrDefault(key) is { State: RolloutState.Active }) || u.WithdrawnAtUtc is not null);
+                // Released everywhere with nothing left is done, also when no server needs it (any more); a withdrawn update only once servers installed it.
+                var completed = nothingPending && ((cls == "ok" && rollouts.GetValueOrDefault(key) is { State: RolloutState.Active }) || (u.WithdrawnAtUtc is not null && deployment.Total > 0));
                 if (completed)
                 {
                     (rollout, detail) = ("Completed", "released to every ring, nothing pending");
