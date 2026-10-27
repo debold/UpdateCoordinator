@@ -9,6 +9,7 @@
 @inject SUSyphos.Server.Assignment.LeaseService Leases
 @inject SUSyphos.Server.Approval.ClientLifecycle Lifecycle
 @inject SUSyphos.Server.Approval.ApprovalDomains Domains
+@inject SUSyphos.Server.Agents.ActionResults ActionResults
 @inject IAuthorizationService Authorization
 @inject NavigationManager Navigation
 
@@ -16,7 +17,7 @@
 <LiveRefresh Seconds="30" />
 <PageTitle>Approvals</PageTitle>
 
-<PageHeader Title="Approvals" Icon="@PageIcons.Approvals" Subtitle="Decisions that wait for an operator: new servers, ring transitions, stopped groups and clone suspicions" Help="approvals" />
+<PageHeader Title="Approvals" Icon="@PageIcons.Approvals" Subtitle="Decisions that wait for an operator: new servers, ring transitions, stopped groups, clone suspicions and results of remote actions" Help="approvals" />
 
 @if (_message is not null)
 {
@@ -162,6 +163,50 @@
     </form>
 </div>
 
+<form method="post" @formname="action-results" @onsubmit="AcknowledgeAsync" class="box">
+    <AntiforgeryToken />
+    <header class="box-head">
+        <h2>Remote action results<HelpLink To="approvals#actions-results" Label="Remote action results" /> @if (_results.Count(r => r.Failed) is > 0 and var failures) { <span class="pill fail">@failures</span> }</h2>
+        <span class="hint">Manual actions that failed, or finished with a result, in the last @((int)SUSyphos.Server.Agents.ActionResults.ShownFor.TotalDays) days</span>
+        @if (_results.Count > 0)
+        {
+            <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="acknowledgeAll">
+                <button type="submit" name="Acknowledge" value="all" data-help-term="Acknowledge all">Acknowledge all</button>
+            </AuthorizeView>
+        }
+    </header>
+    @if (_results.Count == 0)
+    {
+        <div class="empty-state">No remote action result waits.</div>
+    }
+    else
+    {
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Server</th><th>Action</th><th>Requested by</th><th>Finished</th><th>Result</th><th>Detail</th><th class="n"><span class="visually-hidden">Actions</span></th></tr></thead>
+                <tbody>
+                    @foreach (var result in _results)
+                    {
+                        <tr>
+                            <td class="nowrap"><a href="@SUSyphos.Server.Components.ServerPage.Path(result.ClientId, "activity")">@result.HostName</a></td>
+                            <td>@SUSyphos.Server.Agents.AgentActionText.Label(result.Kind)</td>
+                            <td>@result.RequestedBy</td>
+                            <td class="nowrap">@Format(result.FinishedAtUtc)</td>
+                            <td><span class="pill @SUSyphos.Server.Agents.AgentActionText.StateClass(result.State)">@result.State</span></td>
+                            <td class="wrap">@(result.Detail ?? (result.State == AgentActionState.Expired ? "The agent did not answer in time." : null))@if (result.Kind == SUSyphos.Contracts.Agents.AgentActionKind.UploadLogs && !result.Failed) { <text> </text><a href="@SUSyphos.Server.Administration.AgentLogEndpoints.DownloadPath(result.ActionId)">Download</a> }</td>
+                            <td class="n">
+                                <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="acknowledgeOne">
+                                    <span class="row-actions"><button type="submit" name="Acknowledge" value="@result.ActionId" data-help-term="Acknowledge">Acknowledge</button></span>
+                                </AuthorizeView>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</form>
+
 <form method="post" @formname="approval-domains" @onsubmit="ChangeDomainAsync" class="box">
     <AntiforgeryToken />
     <header class="box-head"><h2>Automatic approval<HelpLink To="approvals#domains" Label="Automatic approval" /></h2><span class="hint">New servers of these domains are approved once their computer account is found enabled in Active Directory and they registered from an address DNS lists for them</span></header>
@@ -242,6 +287,24 @@
 
     [SupplyParameterFromForm(FormName = "halted")]
     private string? ResumeGroup { get; set; }
+
+    [SupplyParameterFromForm(FormName = "action-results")]
+    private string? Acknowledge { get; set; }
+
+    private List<SUSyphos.Server.Agents.ActionResult> _results = [];
+
+    /// <summary>Acknowledges one remote action result, or all shown ("all"); operators and administrators.</summary>
+    private async Task AcknowledgeAsync()
+    {
+        var actor = AuthenticationState is null ? "unknown" : (await AuthenticationState).User.Identity?.Name ?? "unknown";
+        var allowed = AuthenticationState is not null && (await Authorization.AuthorizeAsync((await AuthenticationState).User, AdminRoles.Policies.Operate)).Succeeded;
+        var outcome = !allowed ? new Outcome("Only operators and administrators can acknowledge results.")
+            : Acknowledge == "all" ? await ActionResults.AcknowledgeAsync([], actor, CancellationToken.None)
+            : Guid.TryParse(Acknowledge, out var actionId) ? await ActionResults.AcknowledgeAsync([actionId], actor, CancellationToken.None)
+            : new Outcome("Invalid request.");
+        _message = outcome.Error ?? "Acknowledged.";
+        await LoadAsync();
+    }
     private string? _message;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
@@ -336,6 +399,7 @@
     private async Task LoadAsync()
     {
         _domains = await Domains.ListAsync(CancellationToken.None);
+        _results = await ActionResults.OpenAsync(CancellationToken.None);
         _pending = await Db.Clients.AsNoTracking()
             .Where(c => c.State == RegistrationState.Pending)
             .OrderBy(c => c.RegisteredAtUtc)

@@ -4,8 +4,8 @@
 <div class="field">
     <span class="field-label">@Label@if (Optional) { <span class="note"> optional</span> }</span>
     <span class="date-time">
-        <input name="@DateName" type="text" inputmode="numeric" maxlength="10" size="11" pattern="\d{4}-\d{2}-\d{2}" placeholder="YYYY-MM-DD" autocomplete="off" aria-label="@($"{Label} date")" title="Date as YYYY-MM-DD" value="@Date" required="@(!Optional)" data-calendar />
-        <select name="@TimeName" aria-label="@($"{Label} time")">
+        <input name="@DateName" type="text" inputmode="numeric" maxlength="10" size="11" pattern="\d{4}-\d{2}-\d{2}" placeholder="YYYY-MM-DD" autocomplete="off" aria-label="@($"{Label} date")" title="Date as YYYY-MM-DD" value="@Date" required="@(!Optional)" data-calendar data-help-term="@Label" />
+        <select name="@TimeName" aria-label="@($"{Label} time")" data-help-term="@Label">
             @foreach (var time in WindowPickerForm.Times(null, includeEndOfDay: false))
             {
                 var text = WindowPickerForm.Format(time);

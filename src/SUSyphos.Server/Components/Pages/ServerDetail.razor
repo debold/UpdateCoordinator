@@ -71,6 +71,10 @@ else
             </ActionMenu>
         }
         <a class="btn" href="@AddressWithoutMessage" title="Load the page again with the latest state"><Icon Name="refresh-cw" Size="16" />Refresh</a>
+        @if (_canOperate && LatestLogs is { } logs)
+        {
+            <a class="btn primary" href="@AgentLogEndpoints.DownloadPath(logs.Id)" title="@($"Logs the agent uploaded on {Format(logs.CompletedAtUtc)}")" data-help-term="Download logs"><Icon Name="download" Size="16" />Download logs</a>
+        }
         @if (_canOperate)
         {
             <div class="spacer"></div>
@@ -413,14 +417,14 @@ else
             <Row Context="action">
                         <tr>
                             <td class="nowrap">@Format(action.RequestedAtUtc)</td>
-                            <td>@ActionLabel(action.Kind)</td>
+                            <td>@SUSyphos.Server.Agents.AgentActionText.Label(action.Kind)</td>
                             <td>@action.RequestedBy</td>
-                            <td><span class="pill @ActionClass(action.State)">@ActionStateLabel(action)</span></td>
+                            <td><span class="pill @SUSyphos.Server.Agents.AgentActionText.StateClass(action.State)">@ActionStateLabel(action)</span></td>
                             <td>
                                 @action.Detail
                                 @if (action.LogFileSize is { } size && _canOperate)
                                 {
-                                    <a href="@AgentLogEndpoints.DownloadPath(action.Id)">Download (@(size / 1024) KB)</a>
+                                    <text> </text><a href="@AgentLogEndpoints.DownloadPath(action.Id)">Download (@(size / 1024) KB)</a>
                                 }
                             </td>
                             <td class="n">
@@ -807,24 +811,6 @@ else
         }
     }
 
-    private static string ActionLabel(SUSyphos.Contracts.Agents.AgentActionKind kind) => kind switch
-    {
-        SUSyphos.Contracts.Agents.AgentActionKind.SearchNow => "Search for updates",
-        SUSyphos.Contracts.Agents.AgentActionKind.FullResync => "Sync inventory",
-        SUSyphos.Contracts.Agents.AgentActionKind.RestartService => "Restart agent service",
-        SUSyphos.Contracts.Agents.AgentActionKind.RestartServer => "Restart server now",
-        SUSyphos.Contracts.Agents.AgentActionKind.UploadLogs => "Request logs",
-        SUSyphos.Contracts.Agents.AgentActionKind.RestartServerInWindow => "Restart server in maintenance window",
-        SUSyphos.Contracts.Agents.AgentActionKind.CancelRestart => "Cancel restart",
-        SUSyphos.Contracts.Agents.AgentActionKind.InstallNow => "Install now, restart right after",
-        SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow => "Install now, restart in maintenance window",
-        SUSyphos.Contracts.Agents.AgentActionKind.Uninstall => "Uninstall, restart right after",
-        SUSyphos.Contracts.Agents.AgentActionKind.UninstallRestartInWindow => "Uninstall, restart in maintenance window",
-        SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow => "Uninstall in maintenance window",
-        SUSyphos.Contracts.Agents.AgentActionKind.UninstallAgent => "Uninstall agent (removal)",
-        _ => kind.ToString(),
-    };
-
     private ClientEntity? _client;
     private List<RingEntity> _rings = [];
     private List<GroupEntity> _groups = [];
@@ -1013,14 +999,6 @@ else
     private static string ActionStateLabel(AgentActionEntity action) =>
         action.State == AgentActionState.Delivered && SUSyphos.Server.Agents.AgentActionService.IsHeld(action.Kind) ? "Waiting (window or lease)" : action.State.ToString();
 
-    private static string ActionClass(AgentActionState state) => state switch
-    {
-        AgentActionState.Succeeded => "ok",
-        AgentActionState.Queued or AgentActionState.Delivered => "pend",
-        AgentActionState.Failed or AgentActionState.Rejected or AgentActionState.Expired => "fail",
-        _ => "neutral",
-    };
-
     [SupplyParameterFromForm(FormName = "remove")]
     private string? Remove { get; set; }
 
@@ -1031,6 +1009,9 @@ else
     private string? UninstallAgent { get; set; }
 
     private SUSyphos.Server.Approval.PendingRemoval? _pendingRemoval;
+
+    /// <summary>The newest agent logs that can still be downloaded, shown as a button in the action band (Marc, 2026-10-27).</summary>
+    private AgentActionEntity? LatestLogs => _actions.Where(a => a.Kind == SUSyphos.Contracts.Agents.AgentActionKind.UploadLogs && a.LogFileSize is not null).MaxBy(a => a.CompletedAtUtc);
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -1075,7 +1056,7 @@ else
         _pendingRemoval = await Removal.PendingAsync(Id, CancellationToken.None);
         _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(MaxHistory).ToListAsync();
         _actionTable = TableQuery.From(Navigation, "requested", defaultDescending: true, prefix: "ra.", defaultPageSize: 10);
-        _actionPage = TablePaging.Apply(_actions, _actionTable, ActionColumns, a => $"{ActionLabel(a.Kind)} {a.RequestedBy} {a.Detail}");
+        _actionPage = TablePaging.Apply(_actions, _actionTable, ActionColumns, a => $"{SUSyphos.Server.Agents.AgentActionText.Label(a.Kind)} {a.RequestedBy} {a.Detail}");
         if (_client is null)
         {
             return;
@@ -1234,7 +1215,7 @@ else
     private static readonly IReadOnlyList<TableColumn<AgentActionEntity>> ActionColumns =
     [
         new("requested", "Requested", a => a.RequestedAtUtc),
-        new("action", "Action", a => ActionLabel(a.Kind), a => [ActionLabel(a.Kind)]),
+        new("action", "Action", a => SUSyphos.Server.Agents.AgentActionText.Label(a.Kind), a => [SUSyphos.Server.Agents.AgentActionText.Label(a.Kind)]),
         new("by", "By", a => a.RequestedBy, a => [a.RequestedBy]),
         new("state", "State", a => a.State.ToString(), a => [a.State.ToString()]),
         new("detail", "Detail", a => a.Detail, Sortable: false),
@@ -1259,7 +1240,7 @@ else
         var tasks = new List<PlannedTask>();
         foreach (var action in _actions.Where(a => a.State is AgentActionState.Queued or AgentActionState.Delivered))
         {
-            tasks.Add(new(now, action.State == AgentActionState.Queued ? "next heartbeat" : SUSyphos.Server.Agents.AgentActionService.IsHeld(action.Kind) ? "when it may run" : "now", "Remote action", "queue", $"{ActionLabel(action.Kind)}, requested by {action.RequestedBy}", []));
+            tasks.Add(new(now, action.State == AgentActionState.Queued ? "next heartbeat" : SUSyphos.Server.Agents.AgentActionService.IsHeld(action.Kind) ? "when it may run" : "now", "Remote action", "queue", $"{SUSyphos.Server.Agents.AgentActionText.Label(action.Kind)}, requested by {action.RequestedBy}", []));
         }
 
         // While the agent searches or after a search was requested it reports no next time: the search runs now.

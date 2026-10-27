@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @using SUSyphos.Contracts.Agents
+@inject SUSyphos.Server.Agents.ActionResults ActionResults
 @inject ServerDbContext Db
 @inject SUSyphos.Server.AgentPackages.AgentPackageAdministration ServerUpdates
 
@@ -56,7 +57,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Count for the navigation badge: servers and ring transitions that wait for a human decision.
+        // Count for the navigation badge: servers, ring transitions and failed remote actions that wait for a human.
         if (AuthenticationState is not null && (await AuthenticationState).User.Identity?.IsAuthenticated == true)
         {
             var servers = await Db.Clients.CountAsync(c => c.State == RegistrationState.Pending);
@@ -64,7 +65,8 @@
                 .Where(r => r.State == RingRolloutState.AwaitingApproval || r.State == RingRolloutState.Alarm)
                 .CountAsync(r => Db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.State == RolloutState.Active));
             _serverUpdate = await ServerUpdates.GetServerUpdateAsync(CancellationToken.None);
-            _waiting = servers + transitions + await Db.Groups.CountAsync(g => g.LeasesHalted) + await Db.Clients.CountAsync(c => c.State == RegistrationState.Blocked);
+            _waiting = servers + transitions + await Db.Groups.CountAsync(g => g.LeasesHalted) + await Db.Clients.CountAsync(c => c.State == RegistrationState.Blocked)
+                + await ActionResults.OpenFailuresAsync(CancellationToken.None);
         }
     }
 }

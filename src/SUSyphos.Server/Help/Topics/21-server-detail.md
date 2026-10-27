@@ -27,7 +27,7 @@ The band below the title groups the actions by topic in drop-down buttons. Opera
 - **Restart agent service**: the SUSyphos agent service restarts itself; the server keeps running.
 - **Request logs**: the agent uploads its log files compressed; when they arrived, a **Download** link appears in the remote action.
 
-**Refresh** loads the page again with the latest state. While the agent works or an action waits to be picked up or for its result, the page also refreshes itself every 10 seconds (the hint of the Tasks box says so) and keeps its scroll position. After an action the page is loaded anew, so F5 never sends the action a second time.
+**Refresh** loads the page again with the latest state. **Download logs** (blue, operators) appears once the agent uploaded its logs and downloads the newest upload while it is kept. While the agent works or an action waits to be picked up or for its result, the page also refreshes itself every 10 seconds (the hint of the Tasks box says so) and keeps its scroll position. After an action the page is loaded anew, so F5 never sends the action a second time.
 
 **Remove** (red, on the right; administrators): **Remove server…** opens the [remove dialog](#remove).
 

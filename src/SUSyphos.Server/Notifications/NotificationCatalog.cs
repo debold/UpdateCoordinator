@@ -44,12 +44,14 @@ internal static class NotificationCatalog
         new(NotificationKind.CertificateChanged, NotificationCategory.Recommended, "Certificate changed", "The central server switched to another TLS certificate."),
         new(NotificationKind.ServerVersionAvailable, NotificationCategory.Recommended, "New central server version", "A newer central server release is available."),
         new(NotificationKind.AdminChanged, NotificationCategory.Recommended, "Administration changed", "An account was created, deleted or got another role, or an AD group was mapped or removed."),
+        new(NotificationKind.RemoteActionFailed, NotificationCategory.Recommended, "Remote action failed", "A manual remote action (install now, uninstall, restart, logs and so on) failed, was refused by the agent or got no answer in time."),
         new(NotificationKind.AgentVersionAvailable, NotificationCategory.Optional, "New agent version", "A newer agent version is available and waits for release."),
         new(NotificationKind.RolloutProgress, NotificationCategory.Optional, "Rollout reached a ring", "An update was released to another ring."),
         new(NotificationKind.PauseChanged, NotificationCategory.Optional, "Pause or blackout", "All installations were paused or resumed, or a blackout period started."),
         new(NotificationKind.NewUpdatesDaily, NotificationCategory.Optional, "New updates (daily)", "Once a day: the updates the servers reported for the first time the day before."),
         new(NotificationKind.DailySummary, NotificationCategory.Optional, "Daily summary", "Once a day: compliance, failures and upcoming installations."),
         new(NotificationKind.WeeklySummary, NotificationCategory.Optional, "Weekly summary", "Every Monday: compliance, failures and upcoming installations."),
+        new(NotificationKind.RemoteActionFinished, NotificationCategory.Optional, "Remote action finished", "A manual remote action with a result finished: logs ready to download, updates installed or uninstalled, a restart done."),
     ];
 
     public static NotificationKindInfo Of(NotificationKind kind) => All.First(k => k.Kind == kind);

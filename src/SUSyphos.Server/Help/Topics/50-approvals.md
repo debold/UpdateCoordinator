@@ -1,6 +1,6 @@
 # Approvals {#top}
 
-Decisions that wait for an operator: new servers, ring transitions, stopped coordinated groups and clone suspicions, plus the domains whose servers are approved automatically. The page reloads every 30 seconds, so new servers appear by themselves. Operators and administrators.
+Decisions that wait for an operator: new servers, ring transitions, stopped coordinated groups, clone suspicions and results of remote actions, plus the domains whose servers are approved automatically. The page reloads every 30 seconds, so new servers appear by themselves. Operators and administrators.
 
 ## Actions for selected servers {#actions}
 
@@ -32,6 +32,14 @@ Servers whose credentials were used by two different hosts in turn, typically a 
 
 - **Unblock** if only one host really uses the credentials (for example after a rename).
 - Otherwise delete the server on its [details page](help/server-detail#remove); the agents then register again, each with its own identity.
+
+## Remote action results {#actions-results}
+
+Manual remote actions of the last 7 days that need a look or brought a result, so nobody has to open every server page: actions that **Failed**, were **Rejected** by the agent (for example an update it could not remove) or **Expired** without an answer, and actions that **Succeeded** with a result (logs uploaded, updates installed now or uninstalled, a restart). Routine actions such as a search or an inventory are not listed. Each row names the **Server** (it opens its Activity tab), the **Action**, who **Requested** it, when it **Finished**, the **Result** and the agent's **Detail**; uploaded logs have a **Download** link.
+
+- **Acknowledge** (in the row) removes one result from the list, **Acknowledge all** (in the box header) every result shown (operators and administrators; recorded in the audit log).
+
+Failed results that nobody acknowledged count in the number next to **Approvals** in the menu. The events "Remote action failed" and "Remote action finished" on the [Notifications](help/notifications#events) page send them by e-mail or webhook.
 
 ## Automatic approval {#domains}
 

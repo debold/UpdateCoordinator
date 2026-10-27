@@ -38,6 +38,8 @@ internal enum NotificationKind
     WeeklySummary,
     DefenderSignaturesOutdated,
     SupportEnding,
+    RemoteActionFailed,
+    RemoteActionFinished,
 }
 
 /// <summary>
@@ -340,6 +342,37 @@ internal sealed class NotificationEvents(
             $"{Rollouts.UpdateText.Title(r.KbArticle, r.Title)} was released to ring {r.RingName}.",
             $"updates/{r.UpdateId}/{r.Revision}",
             $"ring {r.RingName}")));
+
+        // Manual remote actions that failed or finished with a result (Marc, 2026-10-27).
+        var actions = await (
+                from action in db.AgentActions.AsNoTracking()
+                where action.CompletedAtUtc >= since && action.Kind != AgentActionKind.UninstallAgent
+                join client in db.Clients on action.ClientId equals client.Id
+                select new { action.Id, action.ClientId, client.HostName, action.Kind, action.State, action.RequestedBy, action.Detail })
+            .Take(500)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var action in actions)
+        {
+            var label = Agents.AgentActionText.Label(action.Kind);
+            if (Agents.ActionResults.IsFailure(action.State))
+            {
+                events.Add(new NotificationEvent(
+                    $"action.failed:{action.Id}",
+                    NotificationKind.RemoteActionFailed,
+                    $"{label} on {action.HostName} ended with {action.State}{(action.Detail is { Length: > 0 } detail ? $": {detail}" : ".")}",
+                    "approvals",
+                    $"{action.HostName}, requested by {action.RequestedBy}"));
+            }
+            else if (action.State == AgentActionState.Succeeded && Agents.ActionResults.HasResult(action.Kind))
+            {
+                events.Add(new NotificationEvent(
+                    $"action.finished:{action.Id}",
+                    NotificationKind.RemoteActionFinished,
+                    $"{label} on {action.HostName} finished{(action.Detail is { Length: > 0 } detail ? $": {detail}" : ".")}",
+                    "approvals",
+                    $"{action.HostName}, requested by {action.RequestedBy}"));
+            }
+        }
     }
 
     /// <summary>Once a day: new updates of the day before and the summary; on Mondays the weekly summary.</summary>
