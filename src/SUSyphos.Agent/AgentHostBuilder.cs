@@ -103,6 +103,7 @@ internal static class AgentHostBuilder
             provider.GetRequiredService<ILogger<ProtectedInstallationStateStore>>()));
         services.AddSingleton<ISystemRestart, ShutdownToolRestart>();
         services.AddSingleton<IServiceRestarter, HostServiceRestarter>();
+        services.AddSingleton<IAgentUninstaller>(new MsiAgentUninstaller(Path.Combine(DataPaths.Agent, "uninstall.log")));
         services.AddOptions<ResourceOptions>()
             .Bind(configuration.GetSection(ResourceOptions.SectionName))
             .ValidateDataAnnotations()

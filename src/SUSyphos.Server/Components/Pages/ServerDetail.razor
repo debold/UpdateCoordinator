@@ -8,7 +8,7 @@
 @inject AssignmentAdministration Administration
 @inject DeploymentStatus Deployment
 @inject SUSyphos.Server.Agents.AgentActionService Actions
-@inject SUSyphos.Server.Approval.ClientLifecycle Lifecycle
+@inject SUSyphos.Server.Approval.ServerRemoval Removal
 @inject TimeProvider Time
 @inject SUSyphos.Server.Agents.GlobalPause Pause
 @inject SUSyphos.Server.AgentPackages.AgentUpdateService AgentUpdates
@@ -30,6 +30,17 @@ else
 
     <form id="actions" method="post" @formname="action" @onsubmit="HandleActionAsync" class="detached"><AntiforgeryToken /></form>
     <form id="cancel-restart" method="post" @formname="cancel-restart" @onsubmit="CancelRestartAsync" class="detached"><AntiforgeryToken /></form>
+    @if (_pendingRemoval is { } removal)
+    {
+        <Banner Label="Removal requested" Severity="fail" Help="server-detail#remove">
+            <ChildContent>@removal.Actor asked on @Format(removal.RequestedAtUtc) to remove the server@(removal.KeepHistory ? " (history kept)" : " with its history"). It waits for the agent to uninstall itself and is removed once the agent confirms, or when the agent does not answer in time.</ChildContent>
+            <Action>
+                <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="cancelRemoval">
+                    <button type="submit" form="actions" name="RemoteAction" value="@($"cancel:{removal.ActionId}")" class="danger">Cancel removal</button>
+                </AuthorizeView>
+            </Action>
+        </Banner>
+    }
     @if (RestartQueuedText is { } restartText)
     {
         <Banner Label="@(_client.RestartAnnouncedAtUtc is null ? "Restart queued" : "Restart announced")" Severity="fail" Help="server-detail#restart-queued">
@@ -64,8 +75,7 @@ else
         {
             <div class="spacer"></div>
             <ActionMenu Label="Remove" Icon="trash-2" Kind="danger" Align="right">
-                <MenuItem Href="@DialogLink("remove")" Icon="ban" Danger="true" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? "Remove the server; it can register again" : AdministratorsOnly)">Remove server…</MenuItem>
-                <MenuItem Href="@DialogLink("purge")" Icon="trash-2" Danger="true" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? "Delete the server with its whole history" : AdministratorsOnly)">Delete with history…</MenuItem>
+                <MenuItem Href="@DialogLink("remove")" Icon="trash-2" Danger="true" Disabled="@(!_canAdminister || _pendingRemoval is not null)" Reason="@(!_canAdminister ? AdministratorsOnly : _pendingRemoval is not null ? "The removal waits for the agent to uninstall itself" : "Remove the server from SUSyphos, with or without its history, and uninstall its agent")">Remove server…</MenuItem>
             </ActionMenu>
         }
     </ActionBand>
@@ -516,23 +526,25 @@ else
         <AgentSettingDialog Definition="settingDefinition" Scope="@($"server {_client.HostName}")" Own="@_ownAgentSettings.GetValueOrDefault(settingDefinition.Key)"
                             InheritedValue="@inherited.Value" InheritedSource="@inherited.Source" CancelHref="@(ServerPage.Link(Id, "assignment"))" Error="@_settingError" Help="server-detail#agent-settings" OnSave="SaveSettingAsync" />
     }
-    else if (Dialog is "remove" or "purge")
+    else if (Dialog is "remove" or "purge" && _pendingRemoval is null)
     {
-        <Dialog Title="@(Dialog == "purge" ? $"Delete {_client.HostName} with its history?" : $"Remove {_client.HostName}?")" CloseHref="@Here" Help="server-detail#remove">
+        var canUninstall = _client.State == SUSyphos.Contracts.Agents.RegistrationState.Approved;
+        <Dialog Title="@($"Remove {_client.HostName}?")" CloseHref="@Here" Help="server-detail#remove">
             <form method="post" @formname="remove" @onsubmit="RemoveAsync">
                 <AntiforgeryToken />
                 <input type="hidden" name="ConfirmRemove" value="yes" />
                 <div class="dialog-body">
-                    @if (Dialog == "purge")
-                    {
-                        <p>The server and all its data (history, installations, actions) are deleted for good. This cannot be undone.</p>
-                    }
-                    else
-                    {
-                        <p>The history is kept, open releases, actions and leases are cancelled and the credentials end. If the agent still runs, it registers again as a new pending server.</p>
-                    }
+                    <fieldset class="choices">
+                        <legend>History</legend>
+                        <div class="choice"><input type="radio" id="remove-keep" name="Remove" value="soft" checked="@(Dialog != "purge")" data-help-term="Keep the history" /> <span><label for="remove-keep"><b>Keep the history</b></label><span class="note">Releases, actions and leases end; installations and activity stay in the reports.</span></span></div>
+                        <div class="choice"><input type="radio" id="remove-delete" name="Remove" value="hard" checked="@(Dialog == "purge")" data-help-term="Delete with the history" /> <span><label for="remove-delete"><b>Delete with the history</b></label><span class="note">The server and all its data are deleted for good. This cannot be undone.</span></span></div>
+                    </fieldset>
+                    <label class="check"><input type="checkbox" name="UninstallAgent" value="yes" checked="@canUninstall" disabled="@(!canUninstall)" data-help-term="Uninstall the agent" /> Uninstall the agent</label>
+                    <p class="help">@(canUninstall
+                        ? "The agent uninstalls itself with its next heartbeat and the server is removed once it confirms; if it does not answer within a day, the server is removed anyway. Without this, a running agent registers again."
+                        : "Only an approved server can uninstall its agent; uninstall it by hand if it still runs.") A removed server that registers again is never approved by a rule; approve it by hand under Approvals.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" name="Remove" value="@(Dialog == "purge" ? "hard" : "soft")" class="danger">@(Dialog == "purge" ? "Delete with history" : "Remove server")</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="danger">Remove server</button></div>
             </form>
         </Dialog>
     }
@@ -809,6 +821,7 @@ else
         SUSyphos.Contracts.Agents.AgentActionKind.Uninstall => "Uninstall, restart right after",
         SUSyphos.Contracts.Agents.AgentActionKind.UninstallRestartInWindow => "Uninstall, restart in maintenance window",
         SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow => "Uninstall in maintenance window",
+        SUSyphos.Contracts.Agents.AgentActionKind.UninstallAgent => "Uninstall agent (removal)",
         _ => kind.ToString(),
     };
 
@@ -1014,6 +1027,11 @@ else
     [SupplyParameterFromForm(FormName = "remove")]
     private string? ConfirmRemove { get; set; }
 
+    [SupplyParameterFromForm(FormName = "remove")]
+    private string? UninstallAgent { get; set; }
+
+    private SUSyphos.Server.Approval.PendingRemoval? _pendingRemoval;
+
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
@@ -1030,20 +1048,20 @@ else
         }
         else
         {
-            outcome = Remove switch
-            {
-                "soft" => await Lifecycle.SoftDeleteAsync(Id, await GetActorAsync(), CancellationToken.None),
-                "hard" => await Lifecycle.HardDeleteAsync(Id, await GetActorAsync(), CancellationToken.None),
-                _ => new Outcome("Invalid request."),
-            };
-            if (outcome.Succeeded && Remove == "hard")
+            var uninstall = UninstallAgent == "yes";
+            outcome = Remove is "soft" or "hard"
+                ? await Removal.RemoveAsync(Id, Remove == "soft", uninstall, await GetActorAsync(), CancellationToken.None)
+                : new Outcome("Invalid request.");
+            if (outcome.Succeeded && Remove == "hard" && !uninstall)
             {
                 Navigation.NavigateTo("/servers");
                 return;
             }
         }
 
-        ShowResultAndReload(outcome.Error, "The server was deleted; its history is kept.");
+        ShowResultAndReload(outcome.Error, UninstallAgent == "yes"
+            ? "The agent uninstalls itself with its next heartbeat; the server is removed once it confirms."
+            : "The server was removed; its history is kept.");
         Dialog = null;
         await LoadAsync();
     }
@@ -1054,6 +1072,7 @@ else
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         _memberships = await Db.ClientGroups.AsNoTracking().Where(m => m.ClientId == Id).ToListAsync();
+        _pendingRemoval = await Removal.PendingAsync(Id, CancellationToken.None);
         _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(MaxHistory).ToListAsync();
         _actionTable = TableQuery.From(Navigation, "requested", defaultDescending: true, prefix: "ra.", defaultPageSize: 10);
         _actionPage = TablePaging.Apply(_actions, _actionTable, ActionColumns, a => $"{ActionLabel(a.Kind)} {a.RequestedBy} {a.Detail}");

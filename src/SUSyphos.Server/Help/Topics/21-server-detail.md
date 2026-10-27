@@ -29,7 +29,7 @@ The band below the title groups the actions by topic in drop-down buttons. Opera
 
 **Refresh** loads the page again with the latest state. While the agent works or an action waits to be picked up or for its result, the page also refreshes itself every 10 seconds (the hint of the Tasks box says so) and keeps its scroll position. After an action the page is loaded anew, so F5 never sends the action a second time.
 
-**Remove** (red, on the right; administrators): **Remove server…** and **Delete with history…** open the [remove dialog](#remove).
+**Remove** (red, on the right; administrators): **Remove server…** opens the [remove dialog](#remove).
 
 ## Status tiles {#tiles}
 
@@ -195,6 +195,10 @@ A local veto on the server (`AllowReboot`) applies to both. A queued restart can
 
 ![The dialog to remove a server](help-images/server-remove-dialog.png)
 
-- **Remove server**: the server leaves SUSyphos, its history is kept. Open releases, actions and installation slots are cancelled and its credentials stop working. If the agent still runs, it registers again and appears as a new pending server under [Approvals](help/approvals). Uninstall the agent first if the server should stay away.
-- **Delete with history**: the server and all its data (history, installations, actions) are deleted for good. This cannot be undone.
-- **Cancel** closes the dialog.
+The server leaves SUSyphos: open releases, actions and installation slots are cancelled and its credentials stop working.
+
+- **History**: **Keep the history** keeps its installations and activity in the reports; **Delete with the history** deletes the server and all its data for good, which cannot be undone.
+- **Uninstall the agent** (ticked for approved servers): the agent gets the remote action "Uninstall agent (removal)" with its next heartbeat, confirms it and uninstalls its own package. The server is removed once the agent confirmed; if the agent does not answer within a day (switched off, unreachable), it is removed anyway. If the agent refuses (it was not installed with its MSI package), the server stays and the remote action says why. While SUSyphos waits, a red **Removal requested** banner shows who asked and when; **Cancel removal** in it stops the removal before the agent picked it up. Without this option a running agent registers again as a new pending server.
+- **Remove server** removes the server or starts the agent uninstallation; **Cancel** closes the dialog.
+
+A removed server that registers again (for example because its agent was offline) is never approved by an approval rule: it waits under [Approvals](help/approvals) for a manual decision. The agent's data folder (%ProgramData%\SUSyphos\Agent) stays after the uninstallation; delete it if the server will not come back.

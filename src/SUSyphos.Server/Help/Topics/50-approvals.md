@@ -35,6 +35,6 @@ Servers whose credentials were used by two different hosts in turn, typically a 
 
 ## Automatic approval {#domains}
 
-New servers of the listed domains are approved without a person, once the central server finds their computer account enabled in Active Directory and the address they registered from is one DNS lists for them. Without a domain, every new server waits for a manual decision.
+New servers of the listed domains are approved without a person, once the central server finds their computer account enabled in Active Directory and the address they registered from is one DNS lists for them. A server that was removed from SUSyphos before (same host name and domain) is never approved automatically; it waits for a manual decision, because its agent may simply have been offline when it was removed. Without a domain, every new server waits for a manual decision.
 
 Administrators can **Add domain** (enter the DNS domain, for example corp.example.com, and press the button) and **Remove** one. Domains marked "(configuration)" come from the configuration file and can only be changed there. The central server needs to reach the domain controllers (LDAP with signing) and DNS. Changes are recorded in the [audit log](help/audit-log).

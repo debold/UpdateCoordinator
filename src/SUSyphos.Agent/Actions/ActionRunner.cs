@@ -50,9 +50,13 @@ internal sealed partial class ActionRunner(
     ISystemRestart systemRestart,
     IInstallationRunner installationRunner,
     ILogCollector logs,
+    IAgentUninstaller uninstaller,
     IOptions<InstallationOptions> installation,
     ILogger<ActionRunner> logger) : IActionRunner
 {
+    /// <summary>Product code to uninstall once every result of this round was delivered (the agent is being removed).</summary>
+    private string? _uninstallAfter;
+
     public async Task<bool> RunAnnouncedAsync(AgentIdentity identity, HeartbeatResponse heartbeat, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(heartbeat);
@@ -92,8 +96,14 @@ internal sealed partial class ActionRunner(
             restart |= restartAfter;
         }
 
-        // The restart comes last, after every result was delivered.
-        if (restart)
+        // Uninstalling and restarting come last, after every result was delivered.
+        if (_uninstallAfter is { } product)
+        {
+            _uninstallAfter = null;
+            LogUninstalling(product);
+            uninstaller.Start(product);
+        }
+        else if (restart)
         {
             restarter.RequestRestart();
         }
@@ -174,6 +184,15 @@ internal sealed partial class ActionRunner(
                 return (Succeeded("Inventory and update search run with this cycle."), false, true);
             case AgentActionKind.RestartService:
                 return (Succeeded("The agent service restarts."), true, true);
+            case AgentActionKind.UninstallAgent:
+                // Confirmed first, uninstalled after the results: msiexec stops this service.
+                if (uninstaller.FindProductCode() is not { } product)
+                {
+                    return (new AgentActionResult { Status = AgentActionStatus.Rejected, Detail = "The agent was not installed with its MSI package; uninstall it by hand." }, false, true);
+                }
+
+                _uninstallAfter = product;
+                return (Succeeded("The agent uninstalls itself now."), false, true);
             default:
                 // A newer central server may know actions this agent does not.
                 return (new AgentActionResult { Status = AgentActionStatus.Rejected, Detail = "This agent version does not know the action." }, false, true);
@@ -184,6 +203,9 @@ internal sealed partial class ActionRunner(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Remote action {ActionId} ({Kind}): {Status}.")]
     private partial void LogAction(Guid actionId, AgentActionKind kind, AgentActionStatus status);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The server is removed from SUSyphos: uninstalling the agent package {ProductCode}.")]
+    private partial void LogUninstalling(string productCode);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Remote action {ActionId} ({Kind}) is held until it may run; its result follows.")]
     private partial void LogHeld(Guid actionId, AgentActionKind kind);

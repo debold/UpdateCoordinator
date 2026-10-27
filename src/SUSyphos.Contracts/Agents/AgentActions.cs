@@ -45,6 +45,9 @@ public enum AgentActionKind
 
     /// <summary>Uninstall the named update in the next maintenance window of the server, a needed restart in the same window.</summary>
     UninstallInWindow = 11,
+
+    /// <summary>Uninstall the agent itself (its MSI package) after confirming the action; sent when the server is removed from SUSyphos.</summary>
+    UninstallAgent = 12,
 }
 
 /// <summary>One queued action.</summary>

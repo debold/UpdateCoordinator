@@ -164,6 +164,71 @@ public sealed class ClientLifecycleTests
         Assert.Equal(RegistrationState.Deleted, await scenario.Factory.WithDbAsync(db => db.Clients.Select(c => c.State).SingleAsync(TestContext.Current.CancellationToken)));
     }
 
+    [Theory]
+    [InlineData(AgentActionStatus.Succeeded, true)]
+    [InlineData(AgentActionStatus.Rejected, false)]
+    public async Task RemovalWithTheAgent_WaitsForTheAgent_AndRemovesOnlyWhenItUninstalled(AgentActionStatus status, bool removed)
+    {
+        // Marc, 2026-10-27: the agent uninstalls itself first, so it cannot register again.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+
+        Assert.True((await scenario.WithServiceAsync<ServerRemoval, Outcome>(r => r.RemoveAsync(client.ClientId, keepHistory: true, uninstallAgent: true, "admin", CancellationToken.None))).Succeeded);
+        Assert.False((await scenario.WithServiceAsync<ServerRemoval, Outcome>(r => r.RemoveAsync(client.ClientId, keepHistory: true, uninstallAgent: true, "admin", CancellationToken.None))).Succeeded);
+        Assert.Equal(RegistrationState.Approved, await StateAsync(scenario));
+
+        var fetched = await scenario.WithServiceAsync<SUSyphos.Server.Agents.AgentActionService, AgentActionList>(a => a.FetchAsync(client.ClientId, CancellationToken.None));
+        var action = Assert.Single(fetched.Actions);
+        Assert.Equal(AgentActionKind.UninstallAgent, action.Kind);
+        Assert.Equal(0, await scenario.WithServiceAsync<ServerRemoval, int>(r => r.CompleteAsync(CancellationToken.None)));
+        Assert.True(await scenario.WithServiceAsync<SUSyphos.Server.Agents.AgentActionService, bool>(a => a.CompleteAsync(client.ClientId, action.Id, new AgentActionResult { Status = status, Detail = "done" }, CancellationToken.None)));
+
+        await scenario.WithServiceAsync<ServerRemoval, int>(r => r.CompleteAsync(CancellationToken.None));
+
+        Assert.Equal(removed ? RegistrationState.Deleted : RegistrationState.Approved, await StateAsync(scenario));
+        Assert.Null(await scenario.WithServiceAsync<ServerRemoval, PendingRemoval?>(r => r.PendingAsync(client.ClientId, CancellationToken.None)));
+        Assert.Equal(removed, await scenario.WithServiceAsync<ServerRemoval, bool>(r => r.WasRemovedAsync("srv01", null, CancellationToken.None)));
+    }
+
+    [Fact]
+    public async Task UninstallingTheAgent_IsOnlyPartOfARemoval()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+
+        Assert.False((await scenario.WithServiceAsync<SUSyphos.Server.Agents.AgentActionService, Outcome>(a => a.QueueAsync(client.ClientId, AgentActionKind.UninstallAgent, "admin", CancellationToken.None))).Succeeded);
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task RemovalPage_OffersOneDialog_AndShowsTheWaitingRemoval()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var admin = new DashboardClient(scenario.Factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        var path = $"/servers/{client.ClientId}?dialog=remove";
+        var dialog = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("name=\"UninstallAgent\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("Delete with the history", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("dialog=purge", dialog, StringComparison.Ordinal);
+
+        using (var waiting = await admin.PostFormAndFollowAsync(path, new Dictionary<string, string> { ["_handler"] = "remove", ["Remove"] = "hard", ["ConfirmRemove"] = "yes", ["UninstallAgent"] = "yes" }))
+        {
+            Assert.Contains("Removal requested", await waiting.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.Equal(RegistrationState.Approved, await StateAsync(scenario));
+    }
+
+    private static Task<RegistrationState> StateAsync(RolloutScenario scenario) =>
+        scenario.Factory.WithDbAsync(db => db.Clients.Select(c => c.State).SingleAsync(TestContext.Current.CancellationToken));
+
+
     private static async Task<HttpResponseMessage> HeartbeatAsync(RolloutScenario scenario, RegisterResponse client, string host)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(ApiRoutes.AgentHeartbeat, UriKind.Relative))

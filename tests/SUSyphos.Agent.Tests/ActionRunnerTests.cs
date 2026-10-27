@@ -26,7 +26,9 @@ public sealed class ActionRunnerTests
     private readonly FakeInstallationRunner _runner = new();
     private InstallationOptions _installation = new();
 
-    private ActionRunner Create() => new(_client, _updates, _inventory, _restarter, _systemRestart, _runner, _logs, Microsoft.Extensions.Options.Options.Create(_installation), NullLogger<ActionRunner>.Instance);
+    private readonly FakeAgentUninstaller _uninstaller = new();
+
+    private ActionRunner Create() => new(_client, _updates, _inventory, _restarter, _systemRestart, _runner, _logs, _uninstaller, Microsoft.Extensions.Options.Options.Create(_installation), NullLogger<ActionRunner>.Instance);
 
     private static AgentAction Action(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow);
 
@@ -225,6 +227,56 @@ public sealed class ActionRunnerTests
 
         _client.ActionList = null;
         Assert.False(await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken));
+    }
+    [Fact]
+    public async Task UninstallAgent_IsConfirmedFirst_ThenTheOwnPackageIsUninstalled()
+    {
+        var uninstall = Action(AgentActionKind.UninstallAgent);
+        _client.ActionList = new AgentActionList([uninstall]);
+
+        Assert.True(await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken));
+
+        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[uninstall.Id].Status);
+        Assert.Equal(["{11111111-2222-3333-4444-555555555555}"], _uninstaller.Started);
+        Assert.Equal(0, _restarter.Requests);
+    }
+
+    [Fact]
+    public async Task UninstallAgent_WithoutItsPackage_IsRejected()
+    {
+        _uninstaller.ProductCode = null;
+        var uninstall = Action(AgentActionKind.UninstallAgent);
+        _client.ActionList = new AgentActionList([uninstall]);
+
+        Assert.True(await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken));
+
+        Assert.Equal(AgentActionStatus.Rejected, _client.ActionResults[uninstall.Id].Status);
+        Assert.Empty(_uninstaller.Started);
+    }
+
+    [Fact]
+    public void PackedCodes_AreWindowsInstallerForm_AndTheUpgradeCodeMatchesThePackage()
+    {
+        // The agent package: {F94F20CA-E2D1-4F0C-8D0C-4D810C149471} is stored as AC02F49F1D2EC0F4D8C0D418C0414917.
+        Assert.Equal("AC02F49F1D2EC0F4D8C0D418C0414917", SUSyphos.Agent.Actions.MsiAgentUninstaller.Pack(Guid.Parse(SUSyphos.Agent.Actions.MsiAgentUninstaller.UpgradeCode)));
+        var guid = Guid.Parse("12345678-9ABC-DEF0-1234-56789ABCDEF0");
+        Assert.Equal("87654321CBA90FED21436587A9CBED0F", SUSyphos.Agent.Actions.MsiAgentUninstaller.Pack(guid));
+        Assert.Equal(guid, SUSyphos.Agent.Actions.MsiAgentUninstaller.Unpack("87654321CBA90FED21436587A9CBED0F"));
+        Assert.Null(SUSyphos.Agent.Actions.MsiAgentUninstaller.Unpack("not a code"));
+
+        var package = File.ReadAllText(Path.Combine(RepositoryRoot(), "installer", "Agent", "Package.wxs"));
+        Assert.Contains($"UpgradeCode=\"{SUSyphos.Agent.Actions.MsiAgentUninstaller.UpgradeCode}\"", package, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string RepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "SUSyphos.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName ?? throw new InvalidOperationException("Repository root not found.");
     }
 }
 

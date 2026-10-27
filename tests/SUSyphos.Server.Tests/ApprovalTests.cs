@@ -264,6 +264,26 @@ public sealed class RuleBasedApprovalWorkerTests
     }
 
     [Fact]
+    public async Task HostRemovedBefore_WaitsForAManualApproval()
+    {
+        // Its agent may have been offline when the server was removed (Marc, 2026-10-27).
+        var directory = new FakeDirectory();
+        await using var factory = CreateFactory(directory);
+        var removedId = await AddPendingClientAsync(factory, "127.0.0.1");
+        await WithDbAsync(factory, db => db.Clients.Where(c => c.Id == removedId).ExecuteUpdateAsync(s => s.SetProperty(c => c.State, RegistrationState.Approved), TestContext.Current.CancellationToken));
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            Assert.True((await scope.ServiceProvider.GetRequiredService<ServerRemoval>().RemoveAsync(removedId, keepHistory: false, uninstallAgent: false, "admin", TestContext.Current.CancellationToken)).Succeeded);
+        }
+
+        var clientId = await AddPendingClientAsync(factory, "127.0.0.1");
+
+        await RunWorkerAsync(factory);
+
+        Assert.Equal(RegistrationState.Pending, await WithDbAsync(factory, db => db.Clients.Where(c => c.Id == clientId).Select(c => c.State).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
     public async Task DirectoryOutage_LeavesClientPending()
     {
         var directory = new FakeDirectory { Failure = new LdapException("server down") };

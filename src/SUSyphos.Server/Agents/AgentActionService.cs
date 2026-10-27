@@ -66,9 +66,13 @@ internal sealed partial class AgentActionService(
     public static bool IsHeld(AgentActionKind kind) => kind is AgentActionKind.Uninstall or AgentActionKind.UninstallRestartInWindow or AgentActionKind.UninstallInWindow;
 
     public Task<Outcome> QueueAsync(Guid clientId, AgentActionKind kind, string actor, CancellationToken cancellationToken) =>
-        IsHeld(kind)
-            ? Task.FromResult(new Outcome("Choose the update to uninstall."))
+        IsHeld(kind) ? Task.FromResult(new Outcome("Choose the update to uninstall."))
+            : kind == AgentActionKind.UninstallAgent ? Task.FromResult(new Outcome("The agent is uninstalled by removing the server."))
             : QueueCoreAsync(clientId, kind, actor, null, cancellationToken);
+
+    /// <summary>Queues the uninstallation of the agent with the given action ID; only <see cref="SUSyphos.Server.Approval.ServerRemoval"/> uses it.</summary>
+    internal Task<Outcome> QueueUninstallAgentAsync(Guid clientId, Guid actionId, string actor, CancellationToken cancellationToken) =>
+        QueueCoreAsync(clientId, AgentActionKind.UninstallAgent, actor, null, cancellationToken, actionId);
 
     /// <summary>
     /// Queues the uninstallation of an update the server has installed (per its inventory), with the restart right after
@@ -130,7 +134,7 @@ internal sealed partial class AgentActionService(
         return queued;
     }
 
-    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken)
+    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken, Guid? actionId = null)
     {
         if (!Enum.IsDefined(kind))
         {
@@ -156,7 +160,7 @@ internal sealed partial class AgentActionService(
 
         db.AgentActions.Add(new AgentActionEntity
         {
-            Id = Guid.NewGuid(),
+            Id = actionId ?? Guid.NewGuid(),
             ClientId = clientId,
             Kind = kind,
             State = AgentActionState.Queued,

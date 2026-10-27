@@ -136,6 +136,7 @@ internal sealed partial class RuleBasedApprovalWorker(
         var db = scope.ServiceProvider.GetRequiredService<ServerDbContext>();
         var approver = scope.ServiceProvider.GetRequiredService<RuleBasedApprover>();
         var approvals = scope.ServiceProvider.GetRequiredService<ClientApprovalService>();
+        var removals = scope.ServiceProvider.GetRequiredService<ServerRemoval>();
         var allowed = await scope.ServiceProvider.GetRequiredService<ApprovalDomains>().GetAllowedAsync(cancellationToken).ConfigureAwait(false);
         if (allowed.Count == 0)
         {
@@ -150,6 +151,12 @@ internal sealed partial class RuleBasedApprovalWorker(
 
         foreach (var client in pending)
         {
+            // A server removed before waits for a manual approval: its agent may simply have been offline when it was removed.
+            if (await removals.WasRemovedAsync(client.HostName, client.DomainName, cancellationToken).ConfigureAwait(false))
+            {
+                continue;
+            }
+
             RuleVerdict verdict;
             try
             {

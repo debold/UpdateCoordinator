@@ -426,3 +426,15 @@ internal sealed class FakeAgentAddressStore : IAgentAddressStore
 
     public void Save(Uri address) => Saved = address;
 }
+
+/// <summary>Records uninstall requests instead of running msiexec; never touches the machine.</summary>
+internal sealed class FakeAgentUninstaller : SUSyphos.Agent.Actions.IAgentUninstaller
+{
+    public string? ProductCode { get; set; } = "{11111111-2222-3333-4444-555555555555}";
+
+    public List<string> Started { get; } = [];
+
+    public string? FindProductCode() => ProductCode;
+
+    public void Start(string productCode) => Started.Add(productCode);
+}

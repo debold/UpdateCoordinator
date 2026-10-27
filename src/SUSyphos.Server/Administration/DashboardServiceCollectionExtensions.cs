@@ -86,6 +86,7 @@ internal static class DashboardServiceCollectionExtensions
             .ValidateOnStart();
         services.AddScoped<ClientApprovalService>();
         services.AddScoped<ClientLifecycle>();
+        services.AddScoped<ServerRemoval>();
         services.AddScoped<AssignmentService>();
         services.AddScoped<AssignmentAdministration>();
         services.AddScoped<LeaseService>();
