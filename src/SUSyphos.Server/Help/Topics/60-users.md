@@ -29,7 +29,7 @@ All changes are recorded in the [audit log](help/audit-log).
 
 - **Account name**: the name used to sign in (letters, digits and common punctuation; a backslash is reserved for Windows accounts). It cannot be changed later.
 - **Role**: Reader, Operator or Admin, see [Roles](#roles).
-- **Initial password**, or when editing **New password (empty: keep the current one)**: at least 12 characters; passphrases are welcome, there are no rules about character classes.
+- **Initial password**, or when editing **New password (empty: keep the current one)**: at least 12 characters; passphrases are welcome, there are no rules about character classes. While you type, a line below the field says how many characters are missing and warns of a weak password (only digits, one or two repeated characters, or the account name in it); a weak one is still accepted. The same hints appear in the first-time setup, where **Repeat password** also shows whether both match.
 - **Create user** or **Save** stores it; **Cancel** closes the dialog.
 
 A role change or a new password ends the sessions of the account within a minute.

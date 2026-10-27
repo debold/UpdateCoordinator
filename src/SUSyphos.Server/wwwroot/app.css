@@ -672,3 +672,9 @@ tr.details-row > td { padding: 0.75rem 1rem 0.9rem 2.2rem; background: var(--sur
 tr.details-row .facts { margin: 0; }
 .icon-button.expand svg { transition: transform 0.12s; }
 .icon-button.expand.open svg { transform: rotate(180deg); }
+
+/* Hints while typing (app.js): below the field, coloured by kind; the text always says what is wrong. */
+.live-hint { font-size: 0.8rem; }
+.live-hint[data-kind="error"] { color: var(--fail); }
+.live-hint[data-kind="warning"] { color: var(--queue); }
+.live-hint[data-kind="ok"] { color: var(--ok); }

@@ -162,8 +162,8 @@
                         </select>
                     </label>
                     <label class="field"><span>@(editing is null ? "Initial password" : "New password (empty: keep the current one)")</span>
-                        <input name="Password" type="password" autocomplete="new-password" />
-                        <span class="help">At least 12 characters. A role change or new password ends the sessions of this account within a minute.</span>
+                        <input name="Password" type="password" autocomplete="new-password" minlength="@PasswordRules.MinimumLength" data-user-field="Name" />
+                        <span class="help">At least @PasswordRules.MinimumLength characters. A role change or new password ends the sessions of this account within a minute.</span>
                     </label>
                 </div>
                 <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">@(editing is null ? "Create user" : "Save")</button></div>

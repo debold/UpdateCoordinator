@@ -223,6 +223,47 @@ public sealed class InteractionTests(UiFixture ui)
     }
 
     [Fact]
+    public async Task PasswordAndFolderFields_ExplainProblemsWhileTyping()
+    {
+        await using var context = await ui.NewContextAsync(1280, 900);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync("/administration/backup");
+
+        var password = page.Locator("input[name='password']");
+        var repeat = page.Locator("input[name='passwordRepeat']");
+        await password.PressSequentiallyAsync("short");
+        await Assertions.Expect(page.Locator("input[name='password'] + .live-hint")).ToHaveTextAsync("Too short: 7 more characters (at least 12)");
+        await password.FillAsync(string.Empty);
+        await password.PressSequentiallyAsync("123456789012");
+        await Assertions.Expect(page.Locator("input[name='password'] + .live-hint")).ToContainTextAsync("Weak: only digits");
+        await password.FillAsync(string.Empty);
+        await password.PressSequentiallyAsync("correct horse battery");
+        await Assertions.Expect(page.Locator("input[name='password'] + .live-hint")).ToHaveTextAsync("Long enough");
+
+        await repeat.PressSequentiallyAsync("correct horse");
+        await Assertions.Expect(page.Locator("input[name='passwordRepeat'] + .live-hint")).ToHaveTextAsync("The passwords do not match");
+        Assert.False(await repeat.EvaluateAsync<bool>("r => r.checkValidity()"));
+        await repeat.PressSequentiallyAsync(" battery");
+        await Assertions.Expect(page.Locator("input[name='passwordRepeat'] + .live-hint")).ToHaveTextAsync("The passwords match");
+        Assert.True(await repeat.EvaluateAsync<bool>("r => r.checkValidity()"));
+
+        // The folder only counts while the schedule is ticked (no save).
+        var schedule = page.Locator("input[name='ScheduleEnabled']");
+        if (!await schedule.IsCheckedAsync())
+        {
+            await schedule.CheckAsync();
+        }
+
+        var folder = page.Locator("input[name='Folder']");
+        await folder.FillAsync(string.Empty);
+        await folder.PressSequentiallyAsync("backup");
+        await Assertions.Expect(page.Locator("input[name='Folder'] + .live-hint")).ToContainTextAsync("Enter an absolute folder");
+        await folder.FillAsync(string.Empty);
+        await folder.PressSequentiallyAsync(@"D:\Backup");
+        await Assertions.Expect(page.Locator("input[name='Folder'] + .live-hint")).ToBeHiddenAsync();
+    }
+
+    [Fact]
     public async Task PageSize_AppliesOnChange_AndKeepsTheOtherLists()
     {
         await using var context = await ui.NewContextAsync(1280, 900);

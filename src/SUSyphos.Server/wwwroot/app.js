@@ -372,6 +372,86 @@
         }
     });
 
+    // Hints while typing, from the same rules the server checks (minlength comes from the server's constant): how many
+    // characters are missing, whether the repeated password matches, a weak password (only a hint, it is accepted) and
+    // the form of a folder. The server still checks everything on saving.
+    const liveHint = (input) => {
+        let hint = input.parentElement.querySelector(':scope > .live-hint');
+        if (!hint) {
+            hint = document.createElement('span');
+            hint.className = 'live-hint';
+            hint.setAttribute('aria-live', 'polite');
+            input.after(hint);
+        }
+
+        return hint;
+    };
+    const showHint = (input, text, kind) => {
+        const hint = liveHint(input);
+        hint.textContent = text;
+        hint.dataset.kind = kind;
+        hint.hidden = text.length === 0;
+    };
+    const fieldNamed = (input, name) => (input.form ?? document).querySelector(`[name="${CSS.escape(name)}"]`);
+    const weakness = (input) => {
+        const value = input.value;
+        const user = input.dataset.userField ? fieldNamed(input, input.dataset.userField)?.value.trim().toLowerCase() : '';
+        if (/^\d+$/.test(value)) {
+            return 'only digits';
+        }
+
+        if (new Set(value.toLowerCase()).size <= 2) {
+            return 'repeats one or two characters';
+        }
+
+        if (user && user.length >= 3 && value.toLowerCase().includes(user)) {
+            return 'contains the user name';
+        }
+
+        return null;
+    };
+    const checkPassword = (input) => {
+        const min = Number(input.getAttribute('minlength')) || 0;
+        const length = input.value.length;
+        if (length === 0) {
+            showHint(input, '', '');
+        } else if (length < min) {
+            showHint(input, `Too short: ${min - length} more ${min - length === 1 ? 'character' : 'characters'} (at least ${min})`, 'error');
+        } else if (weakness(input)) {
+            showHint(input, `Weak: ${weakness(input)}; a passphrase of several words is safer`, 'warning');
+        } else {
+            showHint(input, 'Long enough', 'ok');
+        }
+    };
+    const checkRepeat = (input) => {
+        const original = fieldNamed(input, input.dataset.match);
+        const differs = input.value.length > 0 && original && input.value !== original.value;
+        input.setCustomValidity(differs ? 'The passwords do not match.' : '');
+        showHint(input, input.value.length === 0 ? '' : differs ? 'The passwords do not match' : 'The passwords match', differs ? 'error' : 'ok');
+    };
+    const folderPattern = /^([A-Za-z]:\\|\\\\[A-Za-z0-9._-]+\\[A-Za-z0-9$._ -]+)/;
+    const checkFolder = (input) => {
+        const value = input.value.trim();
+        const valid = value.length === 0 || (folderPattern.test(value) && !value.split('\\').some((part) => part === '.' || part === '..'));
+        showHint(input, valid ? '' : 'Enter an absolute folder, e.g. D:\\Backup\\SUSyphos or \\\\fileserver\\backup\\susyphos', valid ? '' : 'error');
+    };
+    for (const input of document.querySelectorAll('input[type="password"][minlength]')) {
+        input.addEventListener('input', () => {
+            checkPassword(input);
+            for (const repeat of (input.form ?? document).querySelectorAll(`input[data-match="${CSS.escape(input.name)}"]`)) {
+                if (repeat.value.length > 0) {
+                    checkRepeat(repeat);
+                }
+            }
+        });
+    }
+    for (const input of document.querySelectorAll('input[data-match]')) {
+        input.addEventListener('input', () => checkRepeat(input));
+    }
+    for (const input of document.querySelectorAll('input[data-folder]')) {
+        input.addEventListener('input', () => checkFolder(input));
+    }
+
     for (const input of document.querySelectorAll('input[data-ad-group-search]')) {
         groupSearch(input);
     }
