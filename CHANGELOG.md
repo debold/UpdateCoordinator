@@ -65,6 +65,12 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Server list: the ring column is called "Ring and groups" and shows each server group as a tag below the ring tag; the "manual" note is gone (the server's Configuration tab shows it).
+- Support phases use Microsoft's lifecycle words: "Mainstream", "Extended", "End of support soon", "ESU", "End of support" and "Out of support". The tooltip names the phase with its date ("Extended Support ends 2027-01-12 (in 77 days)") and the ESU source; the server list shows only the phases that need attention (Mainstream and Extended no longer appear there).
+- Vulnerability lists on the update page (now below "Progress by ring" and "All servers") and in the Security tab of the server page are lists like every other: search, sorting, filters on severity and exploit, and pages.
+- The search of the update list also takes CVE numbers and lists the updates that fix them, with the matching CVEs below the title.
+- Column filters and multi-selects float above the page like the menus, so the scroll container of a table or dialog no longer cuts them off.
+- Help: a navigation of all topics next to every help page (the current topic with its sections), the article uses more of the width, and screenshots of pages and boxes on nine topics. The column "Rings" of the update list was described at the very top of its help page and the "×" of a filter chip was garbled; both fixed.
 - Azure Arc alone no longer counts as Extended Security Updates (it is shown as information on the server page); a server past its end of support counts as ESU through a licensed key, as Azure virtual machine, or once it installs the security updates released after the end.
 - The lifecycle table carries the expected date of the next Windows Server release; a test fails once that date has passed without a newer version in the table, so every release reviews it.
 - Donut legends everywhere: sorted by count, the largest first (the donut in the same order), without empty parts, one line each with the count right-aligned, at most four lines ("+N more" with the rest as tooltip). Tiles with two values split them into equal halves.

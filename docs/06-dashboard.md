@@ -171,7 +171,7 @@ Every list (Marc, 2026-10-25), built on the shared list components.
 - **Row actions:** last column, fixed width: at most one icon for the most common action plus "⋯" for the rest; the menu shows an icon per entry, dangerous entries red at the bottom behind a separator. A row that expands shows ▾ there instead.
 - **Expanded row:** the details open right below the row, indented and lightly shaded, the row stays tinted. A table inside works like every table, compact: sorting, filters (as chips), and above 10 rows a search and pages of 10, with a note how many the filter hides. Outer and inner state both live in the address.
 - **Grouping:** a group row with the value and the count above each group; columns stay aligned. One shared implementation for every list that offers "Group by" (`TablePaging.Groups`, `GroupRow`); a list may be grouped by default (accounts by source), and "No grouping" stays chosen in the address.
-- **Row menus** ("⋯" and every drop-down in a table) float above the page while open, so the scroll container of the table never cuts them off; near the bottom of the window they open upwards.
+- **Pop-ups** (row menus "⋯", drop-down buttons, column filters and multi-selects) float above the page while open, so the scroll container of the table never cuts them off; near the bottom of the window they open upwards.
 - **Footer:** count ("1–10 of 48 servers"), rows per page (10, 25, 50, 100) and pages.
 - **Empty states:** "nothing there yet" explains what belongs here and offers the action to add it; "nothing matches" says how many entries search and filters hide and offers to clear them.
 
