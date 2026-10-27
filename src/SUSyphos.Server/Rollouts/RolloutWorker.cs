@@ -64,6 +64,7 @@ internal sealed partial class RolloutWorker(
         var changes = await rollouts.AutoStartWaitingAsync(cancellationToken).ConfigureAwait(false);
         // Holds that reached their end are gone before the rings advance and the releases are planned again.
         changes += await scope.ServiceProvider.GetRequiredService<UpdateHolds>().DeleteEndedAsync(cancellationToken).ConfigureAwait(false);
+        await scope.ServiceProvider.GetRequiredService<SUSyphos.Server.Assignment.OneTimeWindows>().DeleteOldAsync(cancellationToken).ConfigureAwait(false);
         changes += await rollouts.AdvanceAsync(cancellationToken).ConfigureAwait(false);
         // The daily statistics evaluate every server: recorded every 15 minutes, not every cycle.
         var now = timeProvider.GetUtcNow();

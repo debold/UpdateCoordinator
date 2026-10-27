@@ -7,6 +7,9 @@
 @inject AssignmentAdministration Administration
 @inject SUSyphos.Server.Agents.BlackoutPeriods Blackouts
 @inject TimeProvider Time
+@inject OneTimeWindows OneTime
+@inject SUSyphos.Server.Data.ServerDbContext Db
+@using Microsoft.EntityFrameworkCore
 
 <PageTitle>Maintenance windows</PageTitle>
 
@@ -79,6 +82,51 @@
     </form>
     </div>
 </div>
+
+<form method="post" @formname="one-time" @onsubmit="ChangeOneTimeAsync" class="box">
+    <AntiforgeryToken />
+    <header class="box-head"><h2>One-time windows<HelpLink To="maintenance-windows#one-time" Label="One-time windows" /></h2><span class="hint">Installations may start in these times too, in addition to the weekly windows; for all servers, a ring, a group or a server</span></header>
+    <div class="scroll">
+        <table>
+            <thead><tr><th>Start</th><th>End</th><th>For</th><th>Reason</th><th>State</th><th class="n">Actions</th></tr></thead>
+            <tbody>
+                @if (_oneTime.Count == 0)
+                {
+                    <tr><td colspan="6" class="note">No one-time window planned.</td></tr>
+                }
+                @foreach (var window in _oneTime)
+                {
+                    var now = Time.GetUtcNow().UtcDateTime;
+                    <tr>
+                        <td class="nowrap">@Format(window.StartUtc)</td>
+                        <td class="nowrap">@Format(window.EndUtc)</td>
+                        <td>@if (window.Scope == SUSyphos.Server.Assignment.WindowScope.All) { <span>All servers</span> } else { <span class="tag">@(window.Scope switch { SUSyphos.Server.Assignment.WindowScope.Ring => "Ring", SUSyphos.Server.Assignment.WindowScope.Group => "Group", _ => "Server" })</span> @window.ScopeName }</td>
+                        <td>@window.Reason</td>
+                        <td><span class="pill @(window.EndUtc <= now ? "neutral" : window.StartUtc <= now ? "ok" : "queue")">@(window.EndUtc <= now ? "ended" : window.StartUtc <= now ? "open" : "planned")</span></td>
+                        <td class="n"><ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for the window from {Format(window.StartUtc)}")"><MenuItem Name="OneTimeAction" Value="@($"remove:{window.Id}")" Icon="trash-2" Danger="true">Remove window</MenuItem></ActionMenu></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <AddEntry>
+        <ChildContent>
+            <label class="field"><span>For</span>
+                <select name="OneTimeScope">
+                    <option value="All">All servers</option>
+                    @foreach (var ring in _rings) { <option value="@($"Ring:{ring.Id}")">Ring @ring.Order @ring.Name</option> }
+                    @foreach (var group in _groups) { <option value="@($"Group:{group.Id}")">Group @group.Name</option> }
+                    @foreach (var (id, name) in _servers) { <option value="@($"Server:{id}")">Server @name</option> }
+                </select>
+            </label>
+            <div class="field"><span class="field-label">Start</span><span class="date-time"><input name="OneTimeStartDate" type="date" aria-label="Start date" /><select name="OneTimeStartTime" aria-label="Start time">@foreach (var time in WindowPickerForm.Times(null, includeEndOfDay: false)) { <option value="@WindowPickerForm.Format(time)">@WindowPickerForm.Format(time)</option> }</select></span></div>
+            <div class="field"><span class="field-label">End</span><span class="date-time"><input name="OneTimeEndDate" type="date" aria-label="End date" /><select name="OneTimeEndTime" aria-label="End time">@foreach (var time in WindowPickerForm.Times(null, includeEndOfDay: false)) { <option value="@WindowPickerForm.Format(time)">@WindowPickerForm.Format(time)</option> }</select></span></div>
+            <label class="field"><span>Reason</span><input name="OneTimeReason" maxlength="@OneTimeWindowEntity.MaxReasonLength" placeholder="e.g. patch weekend" /></label>
+            <button type="submit" name="OneTimeAction" value="add"><Icon Name="plus" Size="16" />Add one-time window</button>
+        </ChildContent>
+        <Note>Times in the time zone of the central server; at most @OneTimeWindowEntity.MaxLength.TotalDays days each. Blackout periods and the global pause still win. A single update outside the windows is planned by hand (Install now on the server page).</Note>
+    </AddEntry>
+</form>
 
 <form method="post" @formname="blackouts" @onsubmit="ChangeBlackoutAsync" class="box">
     <AntiforgeryToken />
@@ -246,8 +294,52 @@
 
     private string? Kept(string? posted) => _keepBlackoutInput ? posted : null;
 
+    [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeAction { get; set; }
+    [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeScope { get; set; }
+    [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeStartDate { get; set; }
+    [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeStartTime { get; set; }
+    [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeEndDate { get; set; }
+    [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeEndTime { get; set; }
+    [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeReason { get; set; }
+
+    private List<SUSyphos.Server.Assignment.OneTimeWindowView> _oneTime = [];
+    private List<RingEntity> _rings = [];
+    private List<GroupEntity> _groups = [];
+    private List<(Guid Id, string Name)> _servers = [];
+
+    private async Task ChangeOneTimeAsync()
+    {
+        var actor = await GetActorAsync();
+        Outcome outcome;
+        if (OneTimeAction == "add")
+        {
+            var parts = (OneTimeScope ?? string.Empty).Split(':', 2);
+            outcome = !Enum.TryParse<SUSyphos.Server.Assignment.WindowScope>(parts[0], out var scope) || !Enum.IsDefined(scope)
+                ? new Outcome("Choose all servers, a ring, a group or a server for the window.")
+                : ParseLocal(OneTimeStartDate, OneTimeStartTime) is { } start && ParseLocal(OneTimeEndDate, OneTimeEndTime) is { } end
+                    ? await OneTime.AddAsync(scope, parts.Length > 1 ? parts[1] : null, start, end, OneTimeReason, actor, CancellationToken.None)
+                    : new Outcome("Enter start and end as date and time.");
+        }
+        else if (OneTimeAction?.StartsWith("remove:", StringComparison.Ordinal) == true && int.TryParse(OneTimeAction["remove:".Length..], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id))
+        {
+            outcome = await OneTime.RemoveAsync(id, actor, CancellationToken.None);
+        }
+        else
+        {
+            outcome = new Outcome("Invalid request.");
+        }
+
+        ShowResult(outcome.Error, OneTimeAction == "add" ? "The one-time window was added and is delivered to the agents." : "The one-time window was removed.");
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
+        _oneTime = await OneTime.ListAsync(CancellationToken.None);
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        _servers = [.. (await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).Select(c => new { c.Id, c.HostName }).ToListAsync())
+            .OrderBy(c => c.HostName, StringComparer.OrdinalIgnoreCase).Select(c => (c.Id, c.HostName))];
         _blackouts = await Blackouts.ListAsync(CancellationToken.None);
         _current = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
         _reboot = await Assignment.GetSystemRebootPolicyAsync(CancellationToken.None);

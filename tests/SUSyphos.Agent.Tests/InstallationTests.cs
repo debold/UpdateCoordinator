@@ -750,6 +750,24 @@ public sealed class InstallationRunnerTests
         Assert.Equal([false], _client.LeaseReleases);
     }
 
+    [Fact]
+    public async Task OneTimeWindow_OpensAnInstallationOutsideTheWeeklyWindows()
+    {
+        // Tuesday 10:00 UTC: outside the default weekly windows.
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 27, 10, 0, 0, TimeSpan.Zero));
+        var due = new Release(Guid.NewGuid(), 1, _time.GetUtcNow().AddHours(-1));
+        _updates.LastMissingUpdates = new HashSet<(Guid, int)> { (due.UpdateId, due.Revision) };
+        _releases.Current = new ReleaseList(1, [due]);
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Empty(_installer.Batches);
+
+        _releases.Current = new ReleaseList(2, [due], OneTimeWindows: [new OneTimeWindow(_time.GetUtcNow().AddHours(-1), _time.GetUtcNow().AddHours(3))]);
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_installer.Batches);
+    }
+
     private static AgentAction Uninstall(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow, Guid.NewGuid(), 1, "5040434");
 
     private static InstallReport Report() => new()

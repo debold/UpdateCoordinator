@@ -50,6 +50,15 @@ Groups can override the default; "leave unchanged" in one group wins. **Save** s
 
 Groups can override the default; "Windows Update only" in one group wins.
 
+## One-time windows {#one-time}
+
+A one-time window lets installations start at a date and time in addition to the weekly windows, for example a patch weekend or a night for one server. It is valid for every released update; a single update outside the windows is planned by hand (**Install updates now…** on the server page).
+
+- The table lists the windows with **Start**, **End**, **For** (all servers, or a ring, group or server), **Reason** and **State** (planned, open, ended); **Remove window** in the ⋯ menu of a row deletes one.
+- To add one: choose **For** (all servers, a ring, a group or a server), **Start** and **End** as date and time in the time zone of the central server, an optional **Reason**, then **Add one-time window**. A window lasts at most 7 days and must not start in the past.
+
+The servers concerned get the window with their next heartbeat (they fetch a new release list) and use it like a weekly window, also for restarts; the time is converted to the time zone of each server. Blackout periods and the global pause still win. Ended windows disappear from the list 30 days after their end; the audit log keeps every change.
+
 ## Blackout periods {#blackouts}
 
 Times in which no installation starts anywhere, for example a year-end freeze: like a planned global pause. Searches, inventory and reporting continue; running installations finish. Times are in the time zone of the central server.

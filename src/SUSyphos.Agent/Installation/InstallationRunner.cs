@@ -168,9 +168,20 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             && await ReleaseLeaseIfDoneAsync(identity, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Maintenance windows from the central server, or the local ones while it sends none.</summary>
-    private IReadOnlyList<MaintenanceWindow> EffectiveWindows =>
-        _releases.Current.MaintenanceWindows is { Count: > 0 } central ? central : _options.Value.LocalWindows;
+    /// <summary>
+    /// Maintenance windows from the central server, or the local ones while it sends none; one-time windows of the central
+    /// server come on top, one entry per local day, so every calculation on windows sees them.
+    /// </summary>
+    private IReadOnlyList<MaintenanceWindow> EffectiveWindows
+    {
+        get
+        {
+            var weekly = _releases.Current.MaintenanceWindows is { Count: > 0 } central ? central : _options.Value.LocalWindows;
+            return _releases.Current.OneTimeWindows is { Count: > 0 } once
+                ? [.. weekly, .. once.Where(w => w.IsValid).SelectMany(w => w.ToLocalDays(_timeProvider.LocalTimeZone))]
+                : weekly;
+        }
+    }
 
     /// <summary>
     /// True if the server may install or reboot now: no coordination needed, a lease is already held or one was granted.

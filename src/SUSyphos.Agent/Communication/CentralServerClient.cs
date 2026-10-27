@@ -88,6 +88,7 @@ internal sealed class CentralServerClient(HttpClient httpClient) : ICentralServe
             || body.Releases.Count > MaxReleases
             || body.Releases.Any(r => r is null || r.UpdateId == Guid.Empty || r.Revision < 0)
             || (body.MaintenanceWindows is { } windows && (windows.Count > MaintenanceWindow.MaxWindows || windows.Any(w => !IsValid(w))))
+            || (body.OneTimeWindows is { } once && (once.Count > OneTimeWindow.MaxWindows || once.Any(w => w is null || !w.IsValid)))
             || (body.RebootPolicy is { } policy && !Enum.IsDefined(policy)))
         {
             throw new InvalidDataException("The central server returned an invalid release list.");

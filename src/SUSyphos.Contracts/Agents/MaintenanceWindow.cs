@@ -17,6 +17,38 @@ public enum WeekOfMonth
 }
 
 /// <summary>
+/// A maintenance window for one span of time (Marc, 2026-10-27), in addition to the weekly windows: start and end in UTC,
+/// at most <see cref="MaxLength"/> long. The agent turns it into one <see cref="MaintenanceWindow"/> per local day.
+/// </summary>
+public sealed record OneTimeWindow(DateTimeOffset Start, DateTimeOffset End)
+{
+    /// <summary>Upper bound for one-time windows in a release list.</summary>
+    public const int MaxWindows = 30;
+
+    /// <summary>Longest one-time window.</summary>
+    public static readonly TimeSpan MaxLength = TimeSpan.FromDays(7);
+
+    public bool IsValid => End > Start && End - Start <= MaxLength;
+
+    /// <summary>The window as weekly-window entries for the local days it covers (local time of <paramref name="zone"/>).</summary>
+    public IEnumerable<MaintenanceWindow> ToLocalDays(TimeZoneInfo zone)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+        var start = TimeZoneInfo.ConvertTime(Start, zone).DateTime;
+        var end = TimeZoneInfo.ConvertTime(End, zone).DateTime;
+        for (var day = start.Date; day < end; day = day.AddDays(1))
+        {
+            var from = day == start.Date ? start.TimeOfDay : TimeSpan.Zero;
+            var to = day == end.Date ? end.TimeOfDay : TimeSpan.FromDays(1);
+            if (to > from)
+            {
+                yield return new MaintenanceWindow { Days = [day.DayOfWeek], Start = from, End = to, On = DateOnly.FromDateTime(day) };
+            }
+        }
+    }
+}
+
+/// <summary>
 /// A maintenance window on the given weekdays in local server time (docs/04-central-server.md, section 4).
 /// If <see cref="End"/> is not after <see cref="Start"/>, the window runs over midnight into the next day.
 /// <see cref="Weeks"/> limits it to some occurrences of the weekday in the month (e.g. the second Tuesday),
@@ -48,9 +80,21 @@ public sealed record MaintenanceWindow : IValidatableObject
     [JsonIgnore]
     public bool HasWeekRule => Weeks is { Count: > 0 } || ExceptWeeks is { Count: > 0 };
 
-    /// <summary>True if a window of this kind starts on <paramref name="date"/>: the weekday and the week rule match.</summary>
+    /// <summary>
+    /// Only on this local date: one day of a one-time window (<see cref="OneTimeWindow"/>), built by the agent from the
+    /// release list and never sent over the wire, so every calculation on windows treats it like a weekly window.
+    /// </summary>
+    [JsonIgnore]
+    public DateOnly? On { get; init; }
+
+    /// <summary>True if a window of this kind starts on <paramref name="date"/>: the weekday and the week rule match, or the date of a one-time window.</summary>
     public bool StartsOn(DateTime date)
     {
+        if (On is { } on)
+        {
+            return DateOnly.FromDateTime(date) == on;
+        }
+
         if (!Days.Contains(date.DayOfWeek))
         {
             return false;
