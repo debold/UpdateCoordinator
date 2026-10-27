@@ -218,6 +218,10 @@ td.nowrap { white-space: nowrap; }
 
 /* Sortable and filterable column headers. */
 .th-inner { display: inline-flex; align-items: center; gap: 0.3rem; }
+/* A long header over a narrow column may wrap onto two lines (Ring and groups). */
+th.wrap-head { white-space: normal; } th.wrap-head .th-inner { max-width: 6.5rem; }
+/* Lists with many columns (server list) keep a little less room around the cells, so they fit 1280 px windows. */
+table.dense th, table.dense td { padding-left: 0.65rem; padding-right: 0.65rem; }
 a.sort { color: var(--muted); display: inline-flex; align-items: center; gap: 0.25rem; }
 a.sort:hover { color: var(--text); text-decoration: none; }
 a.sort.active { color: var(--text); }
@@ -673,7 +677,7 @@ fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: cent
 .radio-list tr:has(input:checked) { background: var(--accent-soft); }
 
 /* Several tags below a value (server groups below the ring): they wrap, with a small gap. */
-.tag-list { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.3rem; max-width: 16rem; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.3rem; max-width: 9rem; }
 
 /* Category tags tell kinds apart with a tint of the categorical palette (not a status colour). */
 .cat-tag { --cat: var(--series-1); display: inline-flex; align-items: center; height: 20px; padding: 0 0.5rem; border: 1px solid color-mix(in srgb, var(--cat) 45%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--cat) 14%, var(--surface)); color: var(--text); font-size: 0.78rem; white-space: nowrap; vertical-align: middle; }

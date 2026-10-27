@@ -54,13 +54,13 @@
         }
     </TableTools>
     <div class="scroll">
-        <table>
+        <table class="dense">
             <thead>
                 <tr>
                     <th class="select"><input type="checkbox" data-select-all="Selected" data-help="tables#select" data-help-term="Select all" aria-label="Select all servers shown" hidden /></th>
                     <SortHeader Table="_table" Column="name" Label="Server" FilterColumn="domain" FilterLabel="Domain" Options="@Options("domain")" />
                     <SortHeader Table="_table" Column="os" Label="Operating system" Options="@Options("os")" />
-                    <SortHeader Table="_table" Column="ring" Label="Ring and groups" Options="@Options("ring")" />
+                    <SortHeader Table="_table" Column="ring" Label="Ring and groups" Class="wrap-head" Options="@Options("ring")" />
                     <SortHeader Table="_table" Column="security" Label="Security" Options="@Options("security")" />
                     <SortHeader Table="_table" Column="agent" Label="Agent" Options="@Options("agent")" />
                     <SortHeader Table="_table" Column="status" Label="Status" Options="@Options("status")" />

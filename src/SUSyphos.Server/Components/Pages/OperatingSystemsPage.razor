@@ -70,7 +70,7 @@ else if (_status.LastError is { } error)
                         <td class="nowrap">@if (version.Baseline is { } baseline) { <span class="mono">@baseline.Build.@baseline.Revision</span> <div class="note"><KbLinks Kb="@baseline.Kb" /> · @baseline.Month</div> } else { <span class="note">–</span> }</td>
                         <td>@if (version.Open.Count == 0) { <span class="note">@(version.Baseline is null ? "–" : "none")</span> } else { <span>@DisplayNumber.Format(version.Open.Count)</span> @if (version.Critical > 0) { <span class="pill fail">@version.Critical critical</span> } @if (version.Exploited > 0) { <span class="pill fail">@version.Exploited exploited</span> } }</td>
                         <td class="n">@(version.MedianDays is { } days ? $"{days:0.#} days" : "–")</td>
-                        <td class="nowrap"><StatusTag Text="@version.Support.Label" Kind="@SupportLifecycle.Class(version.Support.State)" /><div class="note">@SupportLifecycle.Describe(version.Support)</div></td>
+                        <td><StatusTag Text="@version.Support.Label" Kind="@SupportLifecycle.Class(version.Support.State)" /><div class="note">@SupportLifecycle.Describe(version.Support)</div></td>
                     </tr>
                 }
             </tbody>
