@@ -11,27 +11,38 @@ public sealed class AutomaticUpdatesReaderTests
     private readonly FakeSystemProbe _probe = new();
 
     [Fact]
-    public void NothingConfigured_IsNotConfiguredAndKeepsCoordination()
+    public void NothingConfigured_IsNotConfigured()
     {
         var info = AutomaticUpdatesReader.Read(_probe);
 
         Assert.Equal(AutomaticUpdateMode.NotConfigured, info.Mode);
         Assert.False(info.ByPolicy);
-        Assert.False(info.BypassesCoordination());
     }
 
     [Theory]
     [InlineData("WinNT", true)]
     [InlineData("ServerNT", false)]
     [InlineData("LanmanNT", false)]
-    public void NothingConfigured_OnWindows10Or11_InstallsOnItsOwn(string productType, bool bypasses)
+    public void NothingConfigured_InstallsOnItsOwn_AlsoOnWindowsServer(string productType, bool client)
     {
+        // Lab, Marc 2026-10-28: on Server 2019 without a setting the Update Orchestrator installed a cumulative update after its scheduled scan.
         _probe.Values[(AutomaticUpdatesReader.ProductOptionsPath, "ProductType")] = productType;
 
         var info = AutomaticUpdatesReader.Read(_probe);
 
-        Assert.Equal(bypasses, info.ClientOperatingSystem);
-        Assert.Equal(bypasses, info.BypassesCoordination());
+        Assert.Equal(client, info.ClientOperatingSystem);
+        Assert.True(info.BypassesCoordination());
+    }
+
+    [Theory]
+    [InlineData("DeferQualityUpdates", true)]
+    [InlineData("DeferFeatureUpdates", true)]
+    [InlineData("TargetGroupEnabled", false)]
+    public void UpdateForBusinessDeferrals_AreReported(string policy, bool reported)
+    {
+        _probe.Values[(AutomaticUpdatesReader.PolicyPath, policy)] = "1";
+
+        Assert.Equal(reported, AutomaticUpdatesReader.Read(_probe).UpdateForBusiness);
     }
 
     [Fact]
@@ -135,6 +146,22 @@ public sealed class AutomaticUpdatesReaderTests
         _probe.Values[(AutomaticUpdatesReader.PolicyAuPath, "AUOptions")] = "3";
 
         Assert.Equal(HealthStatus.Ok, Check().Status);
+    }
+
+    [Fact]
+    public void PreFlight_WarnsOnWindowsServerWithoutASetting_AndAboutUpdateForBusiness()
+    {
+        var check = Check();
+        Assert.Equal(HealthStatus.Warning, check.Status);
+        Assert.Contains("Update Orchestrator", check.Detail, StringComparison.Ordinal);
+
+        _probe.Values[(AutomaticUpdatesReader.PolicyAuPath, "NoAutoUpdate")] = "1";
+        Assert.Equal(HealthStatus.Ok, Check().Status);
+
+        _probe.Values[(AutomaticUpdatesReader.PolicyPath, "DeferQualityUpdates")] = "1";
+        check = Check();
+        Assert.Equal(HealthStatus.Warning, check.Status);
+        Assert.Contains("Windows Update for Business", check.Detail, StringComparison.Ordinal);
     }
 
     private HealthCheckResult Check() =>

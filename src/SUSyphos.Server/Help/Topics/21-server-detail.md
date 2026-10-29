@@ -97,7 +97,7 @@ The agent applies a change with its next heartbeat; each change also appears in 
 
 Like the reboot policy, both settings can be set for this server alone; "Inherit from groups or system" (the default) shows what currently applies.
 
-- **Windows Automatic Updates**: "Leave unchanged, only warn" or "Keep Windows from installing on its own" (the agent sets "Configure Automatic Updates" to option 3 where no group policy controls it). See [Maintenance windows](help/maintenance-windows) for the details.
+- **Windows Automatic Updates**: "Leave unchanged, only warn" or "Keep Windows from installing on its own" (the agent turns Windows Automatic Updates off, NoAutoUpdate = 1, where no group policy controls them). See [Maintenance windows](help/maintenance-windows) for the details.
 - **Other Microsoft products**: "Windows Update only" or "Microsoft Update" (the agent registers the Microsoft Update service, so SQL Server, Exchange, Office and other Microsoft products are updated through the rings too).
 
 A value set here wins over the groups and the system default; among groups "Leave unchanged" and "Windows Update only" win. The agent picks a change up with its next heartbeat.

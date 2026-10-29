@@ -47,6 +47,7 @@ public sealed class PreFlightCheckTests
     public PreFlightCheckTests()
     {
         _probe.Values[(WuauservPath, "Start")] = "3";
+        _probe.Values[(SUSyphos.Agent.Inventory.AutomaticUpdatesReader.PolicyAuPath, "NoAutoUpdate")] = "1";
     }
 
     [Fact]

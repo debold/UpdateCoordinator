@@ -169,6 +169,13 @@ Check 'agent keeps its identity' { Test-Path "$env:ProgramData\SUSyphos\Agent\id
 Check 'agent runs after upgrade' { Wait-Until { (Get-Service SUSyphos.Agent).Status -eq 'Running' } 60 }
 
 # --- Uninstall: services, files, settings and firewall rule are gone; data stays ---------------------------------
+# The agent turned Windows Automatic Updates off on request of the central server (as SUSyphos writes it, service stopped
+# so it cannot change it meanwhile): uninstalling takes the value back.
+$auKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
+Stop-Service SUSyphos.Agent
+New-Item -Path $auKey -Force | Out-Null
+New-ItemProperty -Path $auKey -Name NoAutoUpdate -PropertyType DWord -Value 1 -Force | Out-Null
+New-ItemProperty -Path $agentKey -Name ManagedAutomaticUpdates -PropertyType String -Value 'NoAutoUpdate' -Force | Out-Null
 Check 'agent uninstalls' { (Invoke-Msi "/x `"$Version2Directory\SUSyphos.Agent.msi`"" 'agent-uninstall.log') -eq 0 }
 Check 'server uninstalls' { (Invoke-Msi "/x `"$Version2Directory\SUSyphos.Server.msi`"" 'server-uninstall.log') -eq 0 }
 Check 'services removed' { -not (Get-Service SUSyphos.Agent, SUSyphos.Server -ErrorAction SilentlyContinue) }
@@ -177,6 +184,7 @@ Check 'installer settings removed' { -not (Test-Path $agentKey) -and -not (Test-
 Check 'firewall rule removed' { -not (Get-NetFirewallRule -DisplayName 'SUSyphos Central Server (HTTPS)' -ErrorAction SilentlyContinue) }
 Check 'start menu entry removed' { -not (Test-Path $dashboardShortcut) }
 Check 'data under ProgramData kept' { Test-Path "$env:ProgramData\SUSyphos\Server\server.db" }
+Check 'agent took back NoAutoUpdate' { $null -eq (Get-ItemProperty $auKey -ErrorAction SilentlyContinue).NoAutoUpdate }
 
 Remove-Item -Path "Cert:\LocalMachine\My\$($certificate.Thumbprint)"
 

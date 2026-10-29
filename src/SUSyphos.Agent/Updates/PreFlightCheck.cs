@@ -103,20 +103,17 @@ internal sealed class PreFlightCheck(ISystemProbe probe, IDiskSpace disk, IOptio
     {
         var automatic = AutomaticUpdatesReader.Read(probe);
         var origin = automatic.ByPolicy ? "group policy" : "local setting";
-        if (!automatic.BypassesCoordination())
-        {
-            return new HealthCheckResult { Name = AutomaticUpdatesCheck, Status = HealthStatus.Ok, Detail = $"Windows does not install on its own ({automatic.Mode}, {origin})." };
-        }
-
         var reasons = new List<string>();
         if (automatic.Mode == AutomaticUpdateMode.ScheduledInstall)
         {
             reasons.Add($"Automatic Updates installs on its own schedule (AUOptions 4, {origin})");
         }
 
-        if (automatic.Mode == AutomaticUpdateMode.NotConfigured && automatic.ClientOperatingSystem)
+        if (automatic.Mode == AutomaticUpdateMode.NotConfigured)
         {
-            reasons.Add("Windows 10 and 11 install updates on their own while \"Configure Automatic Updates\" is not set");
+            reasons.Add(automatic.ClientOperatingSystem
+                ? "Windows 10 and 11 install updates on their own while \"Configure Automatic Updates\" is not set"
+                : "the Update Orchestrator installs updates after its scheduled scan while \"Configure Automatic Updates\" is not set");
         }
 
         if (automatic.ScheduledRestart)
@@ -129,7 +126,19 @@ internal sealed class PreFlightCheck(ISystemProbe probe, IDiskSpace disk, IOptio
             reasons.Add("a compliance deadline forces installation and restart");
         }
 
-        var detail = string.Join("; ", reasons) + ". Updates may be installed outside rings and maintenance windows; recommended: Configure Automatic Updates 3 or 7, or disabled.";
+        if (reasons.Count == 0 && !automatic.UpdateForBusiness)
+        {
+            return new HealthCheckResult { Name = AutomaticUpdatesCheck, Status = HealthStatus.Ok, Detail = $"Windows does not install on its own ({automatic.Mode}, {origin})." };
+        }
+
+        var detail = reasons.Count > 0
+            ? string.Join("; ", reasons) + ". Updates may be installed outside rings and maintenance windows; recommended: let SUSyphos keep Windows from installing on its own, or disable Automatic Updates by group policy."
+            : string.Empty;
+        if (automatic.UpdateForBusiness)
+        {
+            detail = (detail + " Windows Update for Business deferrals are set by policy: Windows holds updates back for the deferral days, also from the agent's search.").TrimStart();
+        }
+
         return new HealthCheckResult { Name = AutomaticUpdatesCheck, Status = HealthStatus.Warning, Detail = detail.Length <= 512 ? detail : detail[..512] };
     }
 }

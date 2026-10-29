@@ -109,8 +109,16 @@
     -->
     <SetProperty Id="SetFailureFlag" Value="&quot;[System64Folder]sc.exe&quot; failureflag SUSyphos.Agent 1" Before="SetFailureFlag" Sequence="execute" />
     <CustomAction Id="SetFailureFlag" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec" Execute="deferred" Impersonate="no" Return="ignore" />
+    <!--
+      Uninstalling (not upgrading) takes back the Windows settings the agent changed: its NoAutoUpdate value and its
+      Microsoft Update registration, each only where its marker shows the agent made the change (Marc, 2026-10-28). Runs
+      after the service stopped, so it cannot apply them again, and before the files go. A failure never blocks the removal.
+    -->
+    <SetProperty Id="CleanupAgentSettings" Value="&quot;[INSTALLFOLDER]SUSyphos.Agent.exe&quot; --cleanup" Before="CleanupAgentSettings" Sequence="execute" />
+    <CustomAction Id="CleanupAgentSettings" BinaryRef="Wix4UtilCA_X64" DllEntry="WixQuietExec" Execute="deferred" Impersonate="no" Return="ignore" />
     <InstallExecuteSequence>
       <Custom Action="SetFailureFlag" After="InstallServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="CleanupAgentSettings" After="StopServices" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
 
     <Component Id="CentralServerUrl" Directory="INSTALLFOLDER" Condition="SERVERURL" Guid="2A8F4F0B-5C1D-4C77-9E1D-6B3F7A9C0E14">

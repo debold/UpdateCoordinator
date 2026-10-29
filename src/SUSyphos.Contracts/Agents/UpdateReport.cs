@@ -120,7 +120,7 @@ public sealed record AvailableUpdate : UpdateInfo
 /// <param name="MaintenanceWindows">Effective maintenance windows (server, group or system default); null lets the agent use its local configuration.</param>
 /// <param name="RebootPolicy">Effective reboot policy (server, group or system default); null means the agent never reboots.</param>
 /// <param name="RequiresLease">The server is in a coordinated group: it installs and reboots only with a lease.</param>
-/// <param name="ManageAutomaticUpdates">Keep Windows from installing updates on its own: the agent sets "Configure Automatic Updates" to option 3 unless group policy controls it (docs/05-agent-design.md, section 3).</param>
+/// <param name="ManageAutomaticUpdates">Keep Windows from installing updates on its own: the agent turns Windows Automatic Updates off (NoAutoUpdate = 1) unless group policy controls them (docs/05-agent-design.md, section 3).</param>
 /// <param name="UseMicrosoftUpdate">Search and install through Microsoft Update, so updates for other Microsoft products are included; the agent registers the service if needed (docs/05-agent-design.md, section 3).</param>
 /// <param name="AgentSettings">Effective central agent settings by key (<see cref="Agents.AgentSettings"/>); settings not listed keep the agent's own value.</param>
 /// <param name="OneTimeWindows">One-time maintenance windows of the server (global, ring, groups, server) that have not ended, in addition to <paramref name="MaintenanceWindows"/>.</param>

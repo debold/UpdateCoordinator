@@ -11,6 +11,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- "Keep Windows from installing on its own" turns Windows Automatic Updates off (`NoAutoUpdate = 1`, as Azure Update Manager does for manual patching) instead of setting option 3: in the lab Windows still downloaded the cumulative update with option 3 and offered it for installation. An option 3 written by an earlier agent is replaced.
+- Windows without an Automatic Updates setting is reported as installing on its own on Windows Server too (warning): in the lab the Update Orchestrator of Server 2019 installed a cumulative update a minute after its scheduled scan. Windows Update for Business deferrals set by group policy are reported (`updateForBusiness`) and warned about, because they also hold back what the agent's search finds.
+- Uninstalling the agent takes back its own changes to Windows: the installer runs `SUSyphos.Agent.exe --cleanup`, which removes the agent's `NoAutoUpdate` value and its Microsoft Update registration where its markers show it made them (group policy values are never touched); a failure never blocks the removal.
 - New remote action "uninstall agent" (`UninstallAgent`), sent when an administrator removes the server: the agent confirms it and then uninstalls its own MSI package (msiexec /x of the product found by the package's upgrade code, log in its data folder); an agent not installed with its package refuses it.
 - Uninstallations wait like installations: in a coordinated group an uninstallation and the restart after it run only while the agent holds a lease. New remote action "uninstall in the next maintenance window" (`UninstallInWindow`): the agent keeps the request and uninstalls once a window is open. Held uninstallations survive a service restart; their results are reported when they ran.
 - One-time maintenance windows from the release list (`oneTimeWindows`, UTC, at most 30 of at most 7 days each) open installations and restarts at those times in addition to the weekly windows; they are converted to the local time of the server.
@@ -68,6 +71,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- "Installation outside SUSyphos" notifications are sent once per installation: they were keyed by the history row, which every inventory replaces, so one installation was announced again after each inventory for a day.
 - An update installed before and reported missing again (uninstalled by SUSyphos, by hand or by Windows) counts as pending again: it shows "Missing again after the installation of …" instead of "Successful", leaves "Completed" on the Updates list and is released again (installed in the next maintenance window unless held or blocked).
 - Uninstall dialog of the server page: the KB number below each update was shown as the literal "KB@candidate.Kb".
 - Updates list: rollouts released to every ring that no server needs any more (0/0) count as completed and are hidden by default; KB and Catalog are link chips below the title; Microsoft Defender updates link Microsoft's Defender update page instead of a missing support article; titles no longer repeat their KB number; ▾ at the end of a row opens details (links, superseding update, fixed vulnerabilities, servers, update ID).

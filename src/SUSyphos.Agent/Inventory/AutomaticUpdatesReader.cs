@@ -21,8 +21,12 @@ internal static class AutomaticUpdatesReader
         var scheduledRestart = probe.GetRegistryValue(PolicyAuPath, "AlwaysAutoRebootAtScheduledTime") == "1";
         var deadline = probe.GetRegistryValue(PolicyPath, "SetComplianceDeadline") == "1";
         var (mode, byPolicy) = ReadMode(probe);
-        return new AutomaticUpdatesInfo { Mode = mode, ByPolicy = byPolicy, ScheduledRestart = scheduledRestart, Deadline = deadline, ManagedByAgent = AutomaticUpdatesManager.IsManagedByAgent(probe), ClientOperatingSystem = IsClientOperatingSystem(probe) };
+        return new AutomaticUpdatesInfo { Mode = mode, ByPolicy = byPolicy, ScheduledRestart = scheduledRestart, Deadline = deadline, ManagedByAgent = AutomaticUpdatesManager.IsManagedByAgent(probe), ClientOperatingSystem = IsClientOperatingSystem(probe), UpdateForBusiness = HasUpdateForBusinessDeferrals(probe) };
     }
+
+    /// <summary>"Select when Quality/Feature Updates are received" (Windows Update for Business): Windows withholds updates for the deferral days, also from the agent's search.</summary>
+    private static bool HasUpdateForBusinessDeferrals(ISystemProbe probe) =>
+        probe.GetRegistryValue(PolicyPath, "DeferQualityUpdates") == "1" || probe.GetRegistryValue(PolicyPath, "DeferFeatureUpdates") == "1";
 
     private static (AutomaticUpdateMode Mode, bool ByPolicy) ReadMode(ISystemProbe probe)
     {

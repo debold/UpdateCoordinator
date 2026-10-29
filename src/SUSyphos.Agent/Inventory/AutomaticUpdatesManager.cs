@@ -9,6 +9,8 @@ internal interface IRegistryWriter
 {
     void SetDword(string path, string name, int value);
 
+    void SetString(string path, string name, string value);
+
     void DeleteValue(string path, string name);
 }
 
@@ -21,6 +23,13 @@ internal sealed class WindowsRegistryWriter : IRegistryWriter
         key.SetValue(name, value, RegistryValueKind.DWord);
     }
 
+    public void SetString(string path, string name, string value)
+    {
+        using var root = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+        using var key = root.CreateSubKey(path, writable: true);
+        key.SetValue(name, value, RegistryValueKind.String);
+    }
+
     public void DeleteValue(string path, string name)
     {
         using var root = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
@@ -31,17 +40,21 @@ internal sealed class WindowsRegistryWriter : IRegistryWriter
 
 /// <summary>
 /// Keeps Windows from installing updates on its own when the central server asks for it (opt-in, decided by Marc on
-/// 2026-10-20; docs/05-agent-design.md, section 3): sets "Configure Automatic Updates" to option 3 (download, notify before
-/// install) in the policy registry key, the way sconfig does, but only where no group policy controls the setting. A marker
-/// in the agent key records the value the agent wrote, so it only ever restores its own change and never touches a value
-/// set by group policy.
+/// 2026-10-20; docs/05-agent-design.md, section 3): turns Windows Automatic Updates off (NoAutoUpdate = 1 in the policy
+/// registry key, as Azure Update Manager does for manual patching; Marc, 2026-10-29), but only where no group policy controls
+/// the setting. The agent still searches and installs through the Windows Update API. Option 3 (download, notify), used
+/// before, let Windows download the update and offer it for installation. A marker in the agent key records the value the
+/// agent wrote, so it only ever removes its own change and never touches a value set by group policy.
 /// </summary>
 internal sealed partial class AutomaticUpdatesManager(ISystemProbe probe, IRegistryWriter registry, ILogger<AutomaticUpdatesManager> logger)
 {
-    /// <summary>Option 3: download automatically, notify before installation.</summary>
-    internal const int NotifyBeforeInstall = 3;
-
     internal const string MarkerName = "ManagedAutomaticUpdates";
+
+    /// <summary>Marker value: the agent wrote NoAutoUpdate = 1.</summary>
+    internal const string NoAutoUpdateMarker = "NoAutoUpdate";
+
+    /// <summary>Marker value of agents up to 0.7.13, which wrote AUOptions = 3; replaced on the next cycle.</summary>
+    internal const string OptionThreeMarker = "3";
 
     private bool _policyLogged;
 
@@ -49,15 +62,25 @@ internal sealed partial class AutomaticUpdatesManager(ISystemProbe probe, IRegis
     public static bool IsManagedByAgent(ISystemProbe probe)
     {
         ArgumentNullException.ThrowIfNull(probe);
-        var marker = probe.GetRegistryValue(AgentRegistry.InstallerKeyPath, MarkerName);
-        return marker == "3"
-            && probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "AUOptions") == marker
-            && probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "NoAutoUpdate") != "1";
+        return probe.GetRegistryValue(AgentRegistry.InstallerKeyPath, MarkerName) == NoAutoUpdateMarker
+            && probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "NoAutoUpdate") == "1";
     }
+
+    /// <summary>True if the policy holds the option 3 an earlier agent version wrote.</summary>
+    private bool HasOwnOptionThree() =>
+        probe.GetRegistryValue(AgentRegistry.InstallerKeyPath, MarkerName) == OptionThreeMarker
+        && probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "AUOptions") == OptionThreeMarker;
 
     /// <summary>Applies the central setting; cheap to call every cycle, it only writes when the registry differs.</summary>
     public void Apply(bool manage)
     {
+        // The option 3 of an earlier version goes first; switched on, NoAutoUpdate takes its place below.
+        if (HasOwnOptionThree())
+        {
+            registry.DeleteValue(AutomaticUpdatesReader.PolicyAuPath, "AUOptions");
+            registry.DeleteValue(AgentRegistry.InstallerKeyPath, MarkerName);
+        }
+
         var ours = IsManagedByAgent(probe);
         if (manage)
         {
@@ -77,8 +100,8 @@ internal sealed partial class AutomaticUpdatesManager(ISystemProbe probe, IRegis
                 return;
             }
 
-            registry.SetDword(AutomaticUpdatesReader.PolicyAuPath, "AUOptions", NotifyBeforeInstall);
-            registry.SetDword(AgentRegistry.InstallerKeyPath, MarkerName, NotifyBeforeInstall);
+            registry.SetDword(AutomaticUpdatesReader.PolicyAuPath, "NoAutoUpdate", 1);
+            registry.SetString(AgentRegistry.InstallerKeyPath, MarkerName, NoAutoUpdateMarker);
             LogApplied();
         }
         else if (probe.GetRegistryValue(AgentRegistry.InstallerKeyPath, MarkerName) is not null)
@@ -86,7 +109,7 @@ internal sealed partial class AutomaticUpdatesManager(ISystemProbe probe, IRegis
             // Only the agent's own value is removed; if group policy replaced it meanwhile, just the marker goes.
             if (ours)
             {
-                registry.DeleteValue(AutomaticUpdatesReader.PolicyAuPath, "AUOptions");
+                registry.DeleteValue(AutomaticUpdatesReader.PolicyAuPath, "NoAutoUpdate");
             }
 
             registry.DeleteValue(AgentRegistry.InstallerKeyPath, MarkerName);
@@ -104,7 +127,7 @@ internal sealed partial class AutomaticUpdatesManager(ISystemProbe probe, IRegis
             || (options is not null && options != "5");
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Windows Automatic Updates set to option 3 (download, notify before install) as configured on the central server.")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Windows Automatic Updates turned off (NoAutoUpdate = 1) as configured on the central server; the agent installs through the Windows Update API.")]
     private partial void LogApplied();
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Windows Automatic Updates restored: the agent removed the value it had set.")]

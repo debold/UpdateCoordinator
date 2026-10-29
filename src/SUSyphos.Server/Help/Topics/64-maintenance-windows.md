@@ -38,8 +38,10 @@ A server's own policy wins; otherwise its groups decide, and one group with "Nev
 
 Windows can install updates and restart on its own (Automatic Updates), outside rings and maintenance windows. The **System default** decides what the agent does about it:
 
-- **Leave unchanged, only warn**: the agent does not touch the setting; servers on which Windows may install by itself get a warning.
-- **Keep Windows from installing on its own**: on servers where no group policy controls Automatic Updates, the agent sets "Configure Automatic Updates" to option 3 (download and notify, but do not install) and restores the previous setting when this is switched off again. A group policy always wins.
+- **Leave unchanged, only warn**: the agent does not touch the setting; servers on which Windows may install by itself get a warning. That includes Windows Server without any setting: its Update Orchestrator installs updates after its scheduled scan.
+- **Keep Windows from installing on its own**: on servers where no group policy controls Automatic Updates, the agent turns them off (NoAutoUpdate = 1, as Azure Update Manager does for manual patching). Windows then neither downloads nor installs nor offers updates by itself; SUSyphos keeps searching and installing through the Windows Update API. The agent removes its value when this is switched off again or the agent is uninstalled. A group policy always wins.
+
+Windows Update for Business deferrals set by group policy ("Select when Quality Updates are received") hold updates back for the deferral days, also from the agent's search; the pre-flight check warns about them.
 
 Groups can override the default; "leave unchanged" in one group wins. **Save** stores this box (together with the Microsoft Update setting).
 

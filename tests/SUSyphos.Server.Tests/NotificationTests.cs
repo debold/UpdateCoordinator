@@ -154,6 +154,17 @@ public sealed class NotificationTests
         Assert.Contains(events, e => e.Kind == NotificationKind.NewUpdatesDaily && e.Text.Contains("KB5040888", StringComparison.Ordinal));
         Assert.Contains(events, e => e.Kind == NotificationKind.DailySummary && e.Text.Contains("patch compliance 50 %", StringComparison.Ordinal));
         Assert.Equal(events.Count, events.Select(e => e.Key).Distinct().Count());
+
+        // The next inventory replaces the history rows: the same installation keeps its key, so it is announced once (Marc, 2026-10-28).
+        await factory.WithDbAsync(async db =>
+        {
+            var rows = await db.ClientUpdateHistory.AsNoTracking().ToListAsync();
+            await db.ClientUpdateHistory.ExecuteDeleteAsync();
+            db.ClientUpdateHistory.AddRange(rows.Select(r => new ClientUpdateHistoryEntity { ClientId = r.ClientId, UpdateId = r.UpdateId, Revision = r.Revision, Title = r.Title, DateUtc = r.DateUtc, Operation = r.Operation, ResultCode = r.ResultCode, ClientApplicationId = r.ClientApplicationId }));
+            return await db.SaveChangesAsync();
+        });
+        var again = await WithScopeAsync(factory, s => s.GetRequiredService<NotificationEvents>().CollectAsync(CancellationToken.None));
+        Assert.Equal(events.Single(e => e.Kind == NotificationKind.InstalledOutside).Key, again.Single(e => e.Kind == NotificationKind.InstalledOutside).Key);
     }
 
     [Fact]

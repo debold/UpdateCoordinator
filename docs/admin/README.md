@@ -531,24 +531,26 @@ The coordination only works if Windows does not install updates on its own. The 
 
 | Setting on the server | Effect | Shown as |
 |---|---|---|
-| Not configured | Windows Server 2016 and later downloads and notifies; Windows 10 and 11 install on their own | OK on Windows Server, warning on Windows 10 and 11 |
+| Not configured | Windows installs on its own: Windows 10 and 11, and Windows Server through the scheduled scan of its Update Orchestrator (seen in the lab, 2026-10-28) | Warning |
 | Configure Automatic Updates: disabled, 2, 3 or 7 | Windows notifies or only downloads; the agent installs | OK |
 | Configure Automatic Updates: 4 (auto download and schedule the install) | Windows installs on its own schedule, outside rings and maintenance windows | Warning |
 | Always automatically restart at the scheduled time | Windows restarts on its own | Warning |
 | Compliance deadlines (Windows Update for Business) | Windows forces installation and restart after the deadline | Warning |
+| Deferrals (Windows Update for Business: "Select when Quality/Feature Updates are received") | Windows holds updates back for the deferral days, also from the agent's search | Warning |
 
 Where to see it: server detail ("Automatic updates" in the System box, tag "bypasses rings"), pre-flight check `AutomaticUpdates`, server status "Warning" and the overview tile "Servers with warnings".
 
-**Letting the agent change it** (Administration → Maintenance windows, box "Windows Automatic Updates", role `Admin`; groups can override it in the group dialog): with "Keep Windows from installing on its own" the agent sets "Configure Automatic Updates" to option 3 (`AUOptions = 3` under `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU`, as sconfig does) on servers where no group policy controls the setting, and records this in `ManagedAutomaticUpdates` under its own key. Group policy always wins: a value it did not write is never changed. Switched off (or the server is no longer approved), the agent removes only its own value again. Among groups, one group with "Leave unchanged" wins. The server detail page then shows "(set by SUSyphos)". Uninstalling the agent leaves an applied option 3 in place; remove the value by hand or by group policy if needed. Default: off.
+**Letting the agent change it** (Administration → Maintenance windows, box "Windows Automatic Updates", role `Admin`; groups can override it in the group dialog): with "Keep Windows from installing on its own" the agent turns Windows Automatic Updates off (`NoAutoUpdate = 1` under `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU`, as Azure Update Manager does for manual patching; 2026-10-29) on servers where no group policy controls the setting, and records this in `ManagedAutomaticUpdates` under its own key. Windows then neither downloads, installs nor offers updates by itself; SUSyphos keeps installing through the Windows Update API. Group policy always wins: a value it did not write is never changed. Switched off (or the server is no longer approved), the agent removes only its own value again, and so does uninstalling the agent (the installer runs `SUSyphos.Agent.exe --cleanup`, which also removes the agent's own Microsoft Update registration). Among groups, one group with "Leave unchanged" wins. The server detail page then shows "(set by SUSyphos)". Agents up to 0.7.13 wrote option 3 instead; a newer agent replaces it. Default: off.
 
 **Recommended group policy** for servers managed by SUSyphos (Computer Configuration > Administrative Templates > Windows Components > Windows Update):
 
-- **Configure Automatic Updates**: enabled, option **3 – Auto download and notify for install** (Defender signatures keep updating) or **7 – Notify for install and notify for restart**.
+- **Configure Automatic Updates**: **disabled** (or leave it not configured and let SUSyphos keep Windows from installing on its own). Not configured, Windows Server installs updates itself after the scheduled scan of its Update Orchestrator (seen in the lab, 2026-10-28). Options 3 and 7 keep Windows from installing but still download and offer updates.
+- **Windows Update for Business** ("Select when Quality Updates / Feature Updates are received"): not configured; deferrals also hold back what the agent finds (pre-flight warning).
 - **Always automatically restart at the scheduled time**: not configured or disabled.
 - No compliance deadlines for these servers.
 - **Specify intranet Microsoft update service location**: not configured, unless WSUS is used on purpose (reported as a warning, see `Updates:Source`).
 
-Note: on Windows Server 2016 and 2019 a group policy refresh can briefly reset the setting to the Windows default (Microsoft known issue "Windows unexpectedly installs updates when automatic updates are disabled by Group Policy"). With option 3 or 7 and no configured schedule this has no effect.
+Note: on Windows Server 2016 and 2019 a group policy refresh can briefly reset the setting to the Windows default (Microsoft known issue "Windows unexpectedly installs updates when automatic updates are disabled by Group Policy"); the agent writes its value again with its next cycle.
 
 **Microsoft Update (other Microsoft products):** Administration → Maintenance windows, box "Windows Automatic Updates and update source", sets the system default "Windows Update only" or "Microsoft Update"; groups can override it, and "Windows Update only" in one group wins. With Microsoft Update the agent registers the Microsoft Update service and searches and installs through it (also on servers that use WSUS), so SQL Server, Office and other Microsoft products are updated by the rings as well. Switched off, the agent removes only a registration it made itself (registry marker `RegisteredMicrosoftUpdate` under `HKLM\SOFTWARE\SUSyphos\Agent`).
 

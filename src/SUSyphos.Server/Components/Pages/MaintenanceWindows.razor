@@ -72,8 +72,9 @@
                 </select>
             </label>
             <p class="note">
-                With "keep Windows from installing on its own" the agent sets "Configure Automatic Updates" to option 3 (download, notify before
-                install) on servers where no group policy controls it, and restores the setting when it is switched off. Group policy always wins.
+                With "keep Windows from installing on its own" the agent turns Windows Automatic Updates off (NoAutoUpdate = 1) on servers where
+                no group policy controls them, and removes its value when this is switched off or the agent is uninstalled; SUSyphos keeps
+                installing through the Windows Update API. Group policy always wins.
                 Groups can override this default ("leave unchanged" in one group wins).
             </p>
             <label class="field"><span>Other Microsoft products</span>

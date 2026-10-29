@@ -17,6 +17,12 @@ internal sealed class FakeRegistryWriter(FakeSystemProbe probe) : IRegistryWrite
         probe.Values[(path, name)] = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    public void SetString(string path, string name, string value)
+    {
+        Writes++;
+        probe.Values[(path, name)] = value;
+    }
+
     public void DeleteValue(string path, string name)
     {
         Writes++;
@@ -49,17 +55,19 @@ public sealed class AutomaticUpdatesManagerTests
     }
 
     [Fact]
-    public void On_SetsOptionThreeWhereNoGroupPolicyControlsIt_AndOnlyOnce()
+    public void On_TurnsAutomaticUpdatesOffWhereNoGroupPolicyControlsIt_AndOnlyOnce()
     {
+        // NoAutoUpdate = 1 (Marc, 2026-10-29): with option 3 Windows still downloaded the update and offered it.
         _probe.Values[(AutomaticUpdatesReader.LocalAuPath, "AUOptions")] = "4";
 
         _manager.Apply(true);
         _manager.Apply(true);
 
-        Assert.Equal("3", _probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "AUOptions"));
+        Assert.Equal("1", _probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "NoAutoUpdate"));
+        Assert.Null(_probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "AUOptions"));
         Assert.Equal(2, _registry.Writes);
         var info = AutomaticUpdatesReader.Read(_probe);
-        Assert.Equal(AutomaticUpdateMode.AutoDownloadNotifyInstall, info.Mode);
+        Assert.Equal(AutomaticUpdateMode.Disabled, info.Mode);
         Assert.True(info.ManagedByAgent);
         Assert.False(info.BypassesCoordination());
     }
@@ -85,7 +93,7 @@ public sealed class AutomaticUpdatesManagerTests
 
         _manager.Apply(true);
 
-        Assert.Equal("3", _probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "AUOptions"));
+        Assert.Equal("1", _probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "NoAutoUpdate"));
     }
 
     [Fact]
@@ -94,7 +102,7 @@ public sealed class AutomaticUpdatesManagerTests
         _manager.Apply(true);
         _manager.Apply(false);
 
-        Assert.Null(_probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "AUOptions"));
+        Assert.Null(_probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "NoAutoUpdate"));
         Assert.Null(_probe.GetRegistryValue(AgentRegistry.InstallerKeyPath, AutomaticUpdatesManager.MarkerName));
     }
 
@@ -108,6 +116,21 @@ public sealed class AutomaticUpdatesManagerTests
 
         Assert.Equal("4", _probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "AUOptions"));
         Assert.Null(_probe.GetRegistryValue(AgentRegistry.InstallerKeyPath, AutomaticUpdatesManager.MarkerName));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void OptionThreeOfAnEarlierVersion_IsReplaced_OrRemoved(bool manage)
+    {
+        _probe.Values[(AutomaticUpdatesReader.PolicyAuPath, "AUOptions")] = "3";
+        _probe.Values[(AgentRegistry.InstallerKeyPath, AutomaticUpdatesManager.MarkerName)] = "3";
+
+        _manager.Apply(manage);
+
+        Assert.Null(_probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "AUOptions"));
+        Assert.Equal(manage ? "1" : null, _probe.GetRegistryValue(AutomaticUpdatesReader.PolicyAuPath, "NoAutoUpdate"));
+        Assert.Equal(manage, AutomaticUpdatesManager.IsManagedByAgent(_probe));
     }
 
     [Fact]

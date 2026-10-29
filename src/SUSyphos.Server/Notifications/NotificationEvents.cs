@@ -257,12 +257,14 @@ internal sealed class NotificationEvents(
         var outside = await db.ClientUpdateHistory.AsNoTracking()
             .Where(h => h.DateUtc >= since && h.Operation == UpdateOperation.Installation && h.ClientApplicationId != UpdateHistoryEntry.AgentClientApplicationId
                 && (h.ResultCode == InstallResultCode.Succeeded || h.ResultCode == InstallResultCode.SucceededWithErrors))
-            .Select(h => new { h.Id, h.ClientId, h.UpdateId, h.Title, h.ClientApplicationId })
+            .Select(h => new { h.ClientId, h.UpdateId, h.DateUtc, h.Title, h.ClientApplicationId })
             .Take(200)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var definitions = await Rollouts.DefinitionUpdates.CatalogIdsAsync(db, outside.Select(h => h.UpdateId), cancellationToken).ConfigureAwait(false);
         events.AddRange(outside.Where(h => names.ContainsKey(h.ClientId) && !Rollouts.DefinitionUpdates.Is(h.UpdateId, h.Title, definitions)).Select(h => new NotificationEvent(
-            $"installation.outside:{h.Id}",
+            // Keyed by what the installation is, not by the history row: the inventory replaces the rows, so an ID would
+            // announce the same installation again after every inventory (Marc, 2026-10-28).
+            string.Create(CultureInfo.InvariantCulture, $"installation.outside:{h.ClientId}:{h.UpdateId}:{h.DateUtc.Ticks}"),
             NotificationKind.InstalledOutside,
             $"{h.Title} was installed on {names[h.ClientId]} outside SUSyphos by {Agents.UpdateHistoryText.Source(h.ClientApplicationId)}.",
             Components.ServerPage.Path(h.ClientId, "windows-history"),

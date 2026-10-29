@@ -67,7 +67,7 @@ internal sealed class ClientEntity
 
     public bool AutomaticUpdatesByPolicy { get; set; }
 
-    /// <summary>The agent itself set Automatic Updates to option 3 on request of the central server.</summary>
+    /// <summary>The agent itself turned Automatic Updates off (NoAutoUpdate = 1) on request of the central server.</summary>
     public bool AutomaticUpdatesManagedByAgent { get; set; }
 
     /// <summary>Windows installs or restarts on its own (scheduled install, scheduled restart or compliance deadline).</summary>
