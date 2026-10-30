@@ -67,11 +67,11 @@ public sealed class SupersedenceTests
 
         var list = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.DoesNotContain("1.461.115.0", list, StringComparison.Ordinal);
-        Assert.Contains("superseded (1)</a>", list, StringComparison.Ordinal);
+        Assert.Matches("Superseded or withdrawn</span>\\s*<span class=\"count\">1</span>", list);
 
-        var all = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates?superseded=1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var all = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates?view=all")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("1.461.115.0", all, StringComparison.Ordinal);
-        var details = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/updates?superseded=1&open={old.UpdateId:D}:1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var details = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/updates?view=all&open={old.UpdateId:D}:1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains($"<dt>Superseded by</dt><dd><a href=\"/updates/{newer.UpdateId}/1\">KB2267602 (Version 1.461.144.0)</a></dd>", details, StringComparison.Ordinal);
     }
 

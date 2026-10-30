@@ -58,8 +58,8 @@ public sealed class UiFixture : IAsyncLifetime
         AdminState = await context.StorageStateAsync();
     }
 
-    /// <summary>A browser context signed in as administrator with the given window size.</summary>
-    public async Task<IBrowserContext> NewContextAsync(int width = 1440, int height = 900)
+    /// <summary>A browser context signed in as administrator with the given window size, with or without script.</summary>
+    public async Task<IBrowserContext> NewContextAsync(int width = 1440, int height = 900, bool script = true)
     {
         Assert.SkipWhen(Unavailable is not null, Unavailable ?? string.Empty);
         return await Browser.NewContextAsync(new BrowserNewContextOptions
@@ -68,6 +68,7 @@ public sealed class UiFixture : IAsyncLifetime
             BaseURL = BaseAddress.ToString(),
             StorageState = AdminState,
             ViewportSize = new ViewportSize { Width = width, Height = height },
+            JavaScriptEnabled = script,
         });
     }
 

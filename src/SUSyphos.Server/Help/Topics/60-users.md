@@ -14,7 +14,7 @@ The roles build on each other:
 
 ## Accounts {#accounts}
 
-The list shows every account with its **Source**, **Role** and **State** (Active, Locked by an administrator, or Locked out after five failed sign-ins for 15 minutes). **Source** tells "Active Directory" accounts (they sign in with Windows; their role comes from their AD groups and is set at every sign-in) from "Local" accounts in two colours. The list is grouped by source; **Group by** switches it off ("No grouping"), and the column filter shows one kind only.
+The list shows every account with its **Source**, **Role** and **State** (Active, Locked by an administrator, or Locked out after five failed sign-ins for 15 minutes). **Source** tells "Active Directory" accounts (they sign in with Windows; their role comes from their AD groups and is set at every sign-in) from "Local" accounts in two colours. The list is grouped by source; **Group** switches it off ("No grouping"), and the column filter shows one kind only. **View** offers **All accounts** (default) and **Locked**.
 
 - **New user**: opens the [dialog](#new-user) for a local account.
 - **Edit** (the pencil at the end of the row): change role or password of a local account. The other actions are under **More** (⋯):

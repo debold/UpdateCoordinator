@@ -146,7 +146,7 @@ The band of actions below the page title.
 - The main group or action of the page is blue and first. Plain page actions (Refresh) are single buttons.
 - Dangerous actions are red and stand on the right, grouped the same way (e.g. "Remove ▼" with Remove and Delete, "Block ▼"). Opposite actions (approve / reject) stay separate buttons.
 - An action that does not fit the current state is greyed out with the reason as tooltip, not hidden.
-- Views are not actions: switches that show or hide list entries belong to the list's "Show:" switches, not to the band.
+- Views are not actions: what a list shows is chosen in its View menu (see "Table tools and views"), not in the band.
 - Menus open without script (like the column filters); with script they close on a click elsewhere or Esc.
 
 ### Tabs
@@ -164,16 +164,30 @@ Pages with much content are split into tabs (Marc, 2026-10-25): server details (
 Every list (Marc, 2026-10-25), built on the shared list components.
 
 - **Box:** the table sits in a box with title, "?" and a short hint on the right.
-- **Toolbar** above the header: search field, optional "Group by", active filters as chips with × and "Clear all"; on the right the "Show:" switches for hidden entries (an active switch is outlined in blue). The toolbar stays visible when everything is hidden, so the switches can be turned off again.
-- **Header:** sortable columns show ▲/▼ on the sorted column; filterable columns have a filter symbol, blue while the filter is active. A column filter opens below its header with a search in the values, the count per value, Clear and Apply.
+- **Toolbar** above the header, laid out as in "Table tools" below: wide search on the left, View and Group menus on the right, active filters as chips on a line below. The toolbar stays visible when a view hides every row, so the view can be changed back.
+- **Header:** sortable columns show ▲/▼ on the sorted column; filterable columns have a filter symbol, blue while the filter is active. A column filter opens below its header with a search in the values, the count per value, All and Apply; a checked value is shown, so without a filter every value is checked.
 - **Columns:** fixed widths per list (no jumping while paging or filtering); numbers right-aligned; long text cut with "…" and shown in full as tooltip; tags (ring) and pills (state) follow the status pattern.
 - **Selection:** a checkbox per row and "Select all" in the header (all, none or some). While rows are selected a bar appears above the header with the count, the actions for the selection (action band pattern) and "Clear selection"; selected rows are tinted.
 - **Row actions:** last column, fixed width: at most one icon for the most common action plus "⋯" for the rest; the menu shows an icon per entry, dangerous entries red at the bottom behind a separator. A row that expands shows ▾ there instead.
 - **Expanded row:** the details open right below the row, indented and lightly shaded, the row stays tinted. A table inside works like every table, compact: sorting, filters (as chips), and above 10 rows a search and pages of 10, with a note how many the filter hides. Outer and inner state both live in the address.
-- **Grouping:** a group row with the value and the count above each group; columns stay aligned. One shared implementation for every list that offers "Group by" (`TablePaging.Groups`, `GroupRow`); a list may be grouped by default (accounts by source), and "No grouping" stays chosen in the address.
+- **Grouping:** a group row with the value and the count above each group; columns stay aligned. One shared implementation for every list that offers the Group menu (`TablePaging.Groups`, `GroupRow`); a list may be grouped by default (accounts by source), and "No grouping" stays chosen in the address.
 - **Pop-ups** (row menus "⋯", drop-down buttons, column filters and multi-selects) float above the page while open, so the scroll container of the table never cuts them off; near the bottom of the window they open upwards.
 - **Footer:** count ("1–10 of 48 servers"), rows per page (10, 25, 50, 100) and pages.
 - **Empty states:** "nothing there yet" explains what belongs here and offers the action to add it; "nothing matches" says how many entries search and filters hide and offers to clear them.
+
+### Table tools and views
+
+The bar above a table and the fixed views of a table (Marc, 2026-10-30, mockup https://claude.ai/artifact/3UzxJ1Cv3KHxRZEv6SkxPY), one shared component (`TableTools`, `TableView`, `TableFilter`). There are no separate switches that show or hide entries next to the search.
+
+- **Layout:** on the left a wide search field (growing up to about 24rem) with a magnifier inside; Enter searches, there is no visible Apply button (a visually hidden one stays for assistive technology). On the right, as compact drop-down menus like the action bands: **View** (only where the table has views) and **Group** (only where it can be grouped). Below, on a line of its own: every active filter as a chip, and "Reset to <default view>" when the view is not the default. Chips from a link that are no column filter (e.g. "Assignment rule 3" on the server list) sit there too.
+- **Icons in the default state:** while the default view applies, View shows only its icon; tooltip and hidden text name the view ("View: Open updates (default)"). Otherwise it reads "View: Needs attention 4 ▾", or "View: Custom" in amber. Group shows only its icon while nothing is grouped, and "Group: Severity" in the accent colour while grouped; its menu lists "No grouping" and the columns.
+- **A view is a fixed set of column filters**, defined in code: no views of one's own, none saved, and the page does not remember the last view; every page opens with its default view, the first in the list. Search, sort, grouping and page size stay independent of the view.
+- **The name follows the filters:** when the filters in effect match a view exactly (compared among the values that occur), the menu shows that view, however the filters were set. Otherwise the table shows "Custom", and the menu adds "Custom: filters changed from <default>" and "Reset to <default>".
+- **A checked filter value is shown.** Without a filter every value is checked. A filter that keeps more than half of the values is written as an exclusion (`f.rollout=!Superseded`), so "everything except" stays right when new values appear.
+- **Chips show every active filter**, also those a view sets (dashed outline while the filters match a view). × removes the filter of that column, which usually turns the view into Custom. An exclusion reads "Rollout: not Superseded, Completed, +3"; the tooltip lists every value.
+- **The menu** lists each view with its row count (without search), a one-line description and a "default" tag on the default view; the current view is ticked.
+- **Address, no script needed:** `view=<key>` selects a view; without it the default view applies, so "all rows" needs a view of its own (`view=all`). Changing a filter writes every filter in effect as `f.*` and drops `view`; the page then works out the view name itself. `view=custom` stands for "no filter" where an empty address would mean the default view; filter forms always send it.
+- **When a table gets views:** only for real, recurring questions ("what needs attention", "what failed", "what is done"), always with one view without filter. Small tables and tables already split by purpose get none (groups, rules, approvals, AD coverage, timelines, missing updates, recent activity, Windows versions).
 
 ### Dialogs
 

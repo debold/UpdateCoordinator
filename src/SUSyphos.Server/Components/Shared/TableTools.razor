@@ -1,30 +1,108 @@
-@* Search, optional grouping and the active filters as removable chips. *@
+@* The tools above a table (docs/06-dashboard.md, section 8 "Table tools"): a wide search on the left (Enter searches),
+   the View and Group menus on the right, and below them every active filter as a removable chip. Both menus show only
+   an icon while the default applies and their choice as text otherwise. All links and GET forms, no script needed. *@
 <div class="table-tools" data-help="tables#tools">
-    <form method="get" role="search">
-        @foreach (var field in Table.HiddenFieldsExcept(Table.SearchField, Table.GroupField))
+    <form method="get" role="search" class="table-search">
+        @foreach (var field in Table.HiddenFieldsExcept(Table.SearchField))
         {
             <input type="hidden" name="@field.Key" value="@field.Value" />
         }
         <label class="visually-hidden" for="@(Table.IdPrefix)table-search">Search</label>
+        <Icon Name="search" Size="15" Class="search-icon" />
         <input id="@(Table.IdPrefix)table-search" type="search" name="@Table.SearchField" value="@Table.Search" maxlength="@TableQuery.MaxSearchLength" placeholder="@Placeholder" />
-        @if (GroupOptions is { Count: > 0 })
-        {
-            <label class="visually-hidden" for="@(Table.IdPrefix)table-group">Group by</label>
-            <select id="@(Table.IdPrefix)table-group" name="@Table.GroupField">
-                <option value="">No grouping</option>
-                @foreach (var (key, label) in GroupOptions)
-                {
-                    <option value="@key" selected="@(Table.Group == key)">Group by @label.ToLowerInvariant()</option>
-                }
-            </select>
-        }
-        <button type="submit">Apply</button>
+        <button type="submit" class="visually-hidden">Search</button>
     </form>
-    @foreach (var (column, value) in Table.ActiveFilters)
+    @if (View is not null || GroupOptions is { Count: > 0 })
     {
-        <span class="chip">@(Labels?.GetValueOrDefault(column) ?? column): @(value.Length == 0 ? "(none)" : value)<a href="@Table.WithoutFilter(column, value)" aria-label="Remove filter @value">×</a></span>
+        <div class="tools-right">
+            @if (View is { } view)
+            {
+                var label = view.Current?.Name ?? "Custom";
+                <details class="menu align-right view-menu @(view.Current is null ? "custom" : null) @(view.IsDefault ? null : "changed")" data-menu data-help="tables#views">
+                    <summary class="btn @(view.IsDefault ? "compact" : null)" aria-haspopup="menu" title="@(view.IsDefault ? $"View: {label} (default)" : $"View: {label}")" data-help-term="View">
+                        <Icon Name="layers" Size="16" />
+                        @if (view.IsDefault)
+                        {
+                            <span class="visually-hidden">View: @label</span>
+                        }
+                        else
+                        {
+                            <span>View: <b>@label</b></span>
+                            @if (view.Current is { } current)
+                            {
+                                <span class="count">@DisplayNumber.Format(view.Counts.GetValueOrDefault(current.Key))</span>
+                            }
+                            <Icon Name="chevron-down" Size="14" Class="caret" />
+                        }
+                    </summary>
+                    <div class="menu-pop view-pop" role="menu">
+                        @if (view.Current is null)
+                        {
+                            <span class="menu-item view-item custom" role="menuitem" aria-disabled="true"><span class="check">✓</span><span class="name">Custom</span><span class="desc">Filters changed from @view.Default.Name</span></span>
+                            <MenuSeparator />
+                        }
+                        @foreach (var item in view.Views)
+                        {
+                            var on = item == view.Current;
+                            <a class="menu-item view-item @(on ? "current" : null)" role="menuitemradio" aria-checked="@(on ? "true" : "false")" href="@Table.ViewLink(item)">
+                                <span class="check">@(on ? "✓" : null)</span>
+                                <span class="name">@item.Name@if (item == view.Default) { <span class="default-tag">default</span> }</span>
+                                <span class="count">@DisplayNumber.Format(view.Counts.GetValueOrDefault(item.Key))</span>
+                                <span class="desc">@item.Description</span>
+                            </a>
+                        }
+                        @if (!view.IsDefault)
+                        {
+                            <MenuSeparator />
+                            <a class="menu-item" role="menuitem" href="@Table.ViewLink(view.Default)"><Icon Name="rotate-ccw" Size="16" /><span>Reset to @view.Default.Name</span></a>
+                        }
+                    </div>
+                </details>
+            }
+            @if (GroupOptions is { Count: > 0 })
+            {
+                var grouped = GroupOptions.FirstOrDefault(o => o.Key == Table.Group);
+                <details class="menu align-right group-menu @(grouped.Key is null ? null : "active")" data-menu data-help="tables#group">
+                    <summary class="btn @(grouped.Key is null ? "compact" : null)" aria-haspopup="menu" title="@(grouped.Key is null ? "Group rows" : $"Grouped by {grouped.Label.ToLowerInvariant()}")" data-help-term="Group">
+                        <Icon Name="list-tree" Size="16" />
+                        @if (grouped.Key is null)
+                        {
+                            <span class="visually-hidden">Group rows</span>
+                        }
+                        else
+                        {
+                            <span>Group: <b>@grouped.Label</b></span><Icon Name="chevron-down" Size="14" Class="caret" />
+                        }
+                    </summary>
+                    <div class="menu-pop" role="menu">
+                        <a class="menu-item view-item @(grouped.Key is null ? "current" : null)" role="menuitemradio" aria-checked="@(grouped.Key is null ? "true" : "false")" href="@Table.GroupLink(null)"><span class="check">@(grouped.Key is null ? "✓" : null)</span><span class="name">No grouping</span></a>
+                        @foreach (var (key, optionLabel) in GroupOptions)
+                        {
+                            var on = key == grouped.Key;
+                            <a class="menu-item view-item @(on ? "current" : null)" role="menuitemradio" aria-checked="@(on ? "true" : "false")" href="@Table.GroupLink(key)"><span class="check">@(on ? "✓" : null)</span><span class="name">@optionLabel</span></a>
+                        }
+                    </div>
+                </details>
+            }
+        </div>
     }
-    @ChildContent
+    @if (Filters.Count > 0 || ChildContent is not null || View is { IsDefault: false })
+    {
+        <div class="chips">
+            @foreach (var (column, filter) in Filters)
+            {
+                var name = Labels?.GetValueOrDefault(column) ?? column;
+                var values = filter.Values.Select(v => v.Length == 0 ? "(none)" : v).ToList();
+                var text = (filter.Exclude ? "not " : null) + string.Join(", ", values.Take(2)) + (values.Count > 2 ? $", +{values.Count - 2}" : null);
+                <span class="chip @(View?.Current is not null ? "from-view" : null)" title="@($"{name}: {(filter.Exclude ? "all except " : null)}{string.Join(", ", values)}")">@name: @text<a href="@Table.WithFilter(column, null)" aria-label="Remove the @name filter">×</a></span>
+            }
+            @ChildContent
+            @if (View is { IsDefault: false } changed)
+            {
+                <a class="reset" href="@Table.ViewLink(changed.Default)">Reset to @changed.Default.Name</a>
+            }
+        </div>
+    }
 </div>
 
 @code {
@@ -42,6 +120,20 @@
     [Parameter]
     public IReadOnlyDictionary<string, string>? Labels { get; set; }
 
+    /// <summary>The views of the table with the current one and their row counts; null for a table without views.</summary>
+    [Parameter]
+    public TableViewState? View { get; set; }
+
+    /// <summary>Further chips, e.g. a filter from a link that is no column filter.</summary>
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Filter values with counts, to write the chips of a table without views in their shortest form.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, IReadOnlyList<FilterOption>>? Options { get; set; }
+
+    /// <summary>The active filters in their shortest form ("not Superseded" rather than every other value).</summary>
+    private IReadOnlyDictionary<string, TableFilter> Filters =>
+        View?.Filters
+        ?? (Options is null ? Table.EffectiveFilters : TableViewState.Normalize(Table.EffectiveFilters, Options.ToDictionary(o => o.Key, o => (IReadOnlyList<string>)[.. o.Value.Select(v => v.Value)], StringComparer.Ordinal)));
 }

@@ -70,7 +70,7 @@ In the **Security** tab: the **State** of the server against the security baseli
 
 ## Open vulnerabilities of the server {#vulnerabilities}
 
-Every vulnerability fixed in a later build than the server runs: **CVE** (opens Microsoft's description), **Title**, **Severity**, **CVSS**, **Exploit** (Exploited, Disclosed) and the update that fixes it (**Fixed by**). Exploited first; search, sorting, the filters on **Severity** and **Exploit** and the pages work as described in [Working with lists](help/tables). The tab shows how many are open, red when one is exploited.
+Every vulnerability fixed in a later build than the server runs: **CVE** (opens Microsoft's description), **Title**, **Severity**, **CVSS**, **Exploit** (Exploited, Disclosed) and the update that fixes it (**Fixed by**). Exploited first; search, sorting, the filters on **Severity** and **Exploit** and the pages work as described in [Working with lists](help/tables); **View** offers **All vulnerabilities** (default), **Exploited** and **Critical**. The tab shows how many are open, red when one is exploited.
 
 ## Assignment {#assignment}
 
@@ -148,11 +148,11 @@ Before each update run the agent checks: **Disk space**, **Windows Update servic
 
 Installations done by SUSyphos: when they finished, which update, its **Category** (classification, with a filter), **Started by** (always SUSyphos here), the **Result** and the **Restart**. Results and restarts are coloured tags, the same on every page: green for Succeeded, Already installed (0x80070103, nothing to do), No restart and Restarted (with the time); yellow for Succeeded with errors and Restart pending; red for Failed (with the error code and a plain explanation next to it); grey for Aborted.
 
-Both histories hide antivirus definition updates, which arrive several times a day and would bury the other installations; the switch **definition updates** after **Show:** shows them with their number (it applies to both lists). The ⋯ at the end of a row offers **Uninstall…** for updates the server can uninstall: it opens [Uninstall an update](#uninstall) with that update chosen (administrators only).
+Both histories hide antivirus definition updates by default, which arrive several times a day and would bury the other installations. **View** (see [Working with lists](help/tables#views)) offers here **Without definition updates** (default), **Failed or with errors** and **All installations**; each list has its own view. The ⋯ at the end of a row offers **Uninstall…** for updates the server can uninstall: it opens [Uninstall an update](#uninstall) with that update chosen (administrators only).
 
 ## All installations on the server {#windows-history}
 
-The Windows Update history Windows itself keeps for the last 90 days, sent with the inventory: every installation on the server, whoever started it. **Category** is the classification of the update (Security Updates, Definition Updates and so on; "Unknown" when the catalog does not know it). **Operation** (Installation or Uninstallation) and **Result** are tags as in "Installed by SUSyphos"; **Started by** tells installations by SUSyphos (green) from those started outside SUSyphos (yellow) (Windows Automatic Updates, Settings, Defender, wusa or another tool, named where Windows records it). Antivirus definition updates are grey **expected**: Defender or Windows often installs them before SUSyphos does, which is normal; they do not count as outside installations. Installations outside SUSyphos bypass rings and maintenance windows; they are a reason to check the Automatic Updates setting.
+The Windows Update history Windows itself keeps for the last 90 days, sent with the inventory: every installation on the server, whoever started it. **Category** is the classification of the update (Security Updates, Definition Updates and so on; "Unknown" when the catalog does not know it). **Operation** (Installation or Uninstallation) and **Result** are tags as in "Installed by SUSyphos"; **Started by** tells installations by SUSyphos (green) from those started outside SUSyphos (yellow) (Windows Automatic Updates, Settings, Defender, wusa or another tool, named where Windows records it). Antivirus definition updates are grey **expected**: Defender or Windows often installs them before SUSyphos does, which is normal; they do not count as outside installations. Installations outside SUSyphos bypass rings and maintenance windows; they are a reason to check the Automatic Updates setting. Its views: **Without definition updates** (default), **Failed or with errors**, **Started outside SUSyphos**, **Definition updates only** and **All entries**.
 
 ## Recent activity {#activity}
 
@@ -160,7 +160,7 @@ What the agent did and reported, newest first, kept for 90 days: registration, a
 
 ## Remote actions {#remote-actions}
 
-All actions requested for this server: when, which, by whom, the state (Queued: waits for the next heartbeat; Delivered: the agent has it; Succeeded; Failed; Rejected: the agent refused it, for example a restart vetoed locally; Cancelled; Expired: not picked up or not confirmed in time) and details. Log uploads offer a **Download** link. A queued action can be withdrawn with **Cancel** until the agent picks it up.
+All actions requested for this server: when, which, by whom, the state (Queued: waits for the next heartbeat; Delivered: the agent has it; Succeeded; Failed; Rejected: the agent refused it, for example a restart vetoed locally; Cancelled; Expired: not picked up or not confirmed in time) and details. Log uploads offer a **Download** link. A queued action can be withdrawn with **Cancel** until the agent picks it up. **View** offers **All actions** (default), **Open** (Queued or Delivered) and **Failed** (Failed, Rejected or Expired).
 
 ## Install updates now {#install-now}
 

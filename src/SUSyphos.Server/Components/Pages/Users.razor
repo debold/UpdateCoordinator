@@ -228,6 +228,13 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
 
     private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("source", "Source")];
 
+    /// <summary>The views of the account list, default first.</summary>
+    private static readonly IReadOnlyList<TableView> Views =
+    [
+        new("all", "All accounts", "No filter"),
+        new("locked", "Locked", "Locked after too many failed sign-ins", ("state", TableFilter.In("Locked"))),
+    ];
+
     private static readonly IReadOnlyList<TableColumn<UserSummary>> Columns =
     [
         new("account", "Account", u => u.UserName),
@@ -247,7 +254,7 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
     private async Task LoadAsync()
     {
         _users = await Administration.ListAsync(CancellationToken.None);
-        _table = TableQuery.From(Navigation, "account", prefix: "acc.", defaultGroup: "source");
+        _table = TableQuery.From(Navigation, "account", prefix: "acc.", defaultGroup: "source", views: Views);
         _page = TablePaging.Apply(_users, _table, Columns, u => u.UserName);
         _mappings = await Windows.GetMappingsAsync(CancellationToken.None);
         _windowsEnabled = await Windows.IsEnabledAsync(CancellationToken.None);

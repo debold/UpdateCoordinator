@@ -27,15 +27,6 @@
 
 <Box Title="Certificates" Help="certificate#available" Hint="LocalMachine\My: usable certificates first; ▾ shows the details" Flush="true">
     <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search certificate" Noun="certificates" ExtraColumns="1" RowKey="@(c => c.Thumbprint)" Empty="No suitable certificate found.">
-        <Tools>
-            @if (_unusableCount > 0)
-            {
-                <span class="view-toggles" data-help="certificate#available">
-                    <span class="note">Show:</span>
-                    <a class="btn ghost toggle @(ShowUnusable ? "on" : null)" href="@Navigation.GetUriWithQueryParameter("unusable", ShowUnusable ? null : "1")" aria-pressed="@(ShowUnusable ? "true" : "false")" data-help-term="not usable" title="@(ShowUnusable ? "Hide certificates that cannot be used" : "Show certificates that cannot be used")">not usable (@_unusableCount)</a>
-                </span>
-            }
-        </Tools>
         <ExtraHeader><th class="n">Actions</th></ExtraHeader>
         <Row Context="candidate">
             <tr class="@(candidate.Unusable is null ? null : "unusable") @(_table.Open == candidate.Thumbprint ? "expanded" : null)">
@@ -94,20 +85,21 @@
     private IReadOnlyList<CertificateCandidate> _candidates = [];
     private TableQuery _table = default!;
     private TablePage<CertificateCandidate> _page = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
-    private int _unusableCount;
+    private const string NotUsable = "Not usable";
 
-    private static readonly IReadOnlyList<TableColumn<CertificateCandidate>> Columns =
+    private IReadOnlyList<TableColumn<CertificateCandidate>> Columns =>
     [
         new("name", "Certificate", c => Name(c)),
         new("until", "Valid until", c => c.NotAfterUtc),
-        new("state", "State", c => c.Unusable is null ? 0 : 1, c => [c.Unusable is null ? "Usable" : "Not usable"]),
+        new("state", "State", c => IsInUse(c) ? 0 : c.Unusable is null ? 1 : 2, c => [State(c).Text]),
     ];
 
-    /// <summary>Certificates that cannot be used are hidden unless "1".</summary>
-    [SupplyParameterFromQuery(Name = "unusable")]
-    public string? Unusable { get; set; }
-
-    private bool ShowUnusable => Unusable == "1";
+    /// <summary>The views of the certificate list, default first: certificates that cannot be used are out of the way.</summary>
+    private static readonly IReadOnlyList<TableView> Views =
+    [
+        new("usable", "Usable certificates", "The certificate in use and those the central server could switch to", ("state", TableFilter.Not(NotUsable))),
+        new("all", "All certificates", "Also those that cannot be used, e.g. without a private key or expired"),
+    ];
     private long? _serial;
     private int _daysLeft;
     private bool _switched;
@@ -134,10 +126,9 @@
     {
         _current = Administration.Current;
         _candidates = Administration.ListAll();
-        _unusableCount = _candidates.Count(c => c.Unusable is not null);
-        _table = TableQuery.From(Navigation, "state", prefix: "cert.");
-        // Usable first (the store lists them so), the in-use one always shown.
-        _page = TablePaging.Apply([.. _candidates.Where(c => ShowUnusable || c.Unusable is null || IsInUse(c))], _table, Columns, c => $"{c.Subject} {string.Join(' ', c.DnsNames)} {c.Thumbprint}");
+        _table = TableQuery.From(Navigation, "state", prefix: "cert.", views: Views);
+        // In use first, then the usable ones; the default view hides those that cannot be used.
+        _page = TablePaging.Apply(_candidates, _table, Columns, c => $"{c.Subject} {string.Join(' ', c.DnsNames)} {c.Thumbprint}");
         _daysLeft = (int)Math.Floor((_current.NotAfter.ToUniversalTime() - Time.GetUtcNow().UtcDateTime).TotalDays);
         _serial = (await Bindings.GetCurrentAsync(CancellationToken.None))?.Serial;
     }
@@ -147,7 +138,7 @@
         candidate.DnsNames.FirstOrDefault() ?? (candidate.Subject.StartsWith("CN=", StringComparison.OrdinalIgnoreCase) ? candidate.Subject[3..].Split(',')[0] : candidate.Subject);
 
     private (string Text, string Kind) State(CertificateCandidate candidate) =>
-        IsInUse(candidate) ? ("In use", "ok") : candidate.Unusable is null ? ("Usable", "pend") : ("Not usable", "neutral");
+        IsInUse(candidate) ? ("In use", "ok") : candidate.Unusable is null ? ("Usable", "pend") : (NotUsable, "neutral");
 
     private bool IsInUse(CertificateCandidate candidate) => string.Equals(candidate.Thumbprint, _current.Thumbprint, StringComparison.OrdinalIgnoreCase);
 

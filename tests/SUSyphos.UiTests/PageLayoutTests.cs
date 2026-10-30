@@ -122,7 +122,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         Assert.True(broken.Count == 0, $"{path} has broken links:\n{string.Join('\n', broken)}");
     }
 
-    /// <summary>Every "Group by" a list offers shows group rows (it once did nothing on the update list).</summary>
+    /// <summary>Every choice of a Group menu shows group rows (grouping once did nothing on the update list).</summary>
     [Theory]
     [MemberData(nameof(Pages))]
     public async Task EveryGrouping_ShowsGroupRows(string path)
@@ -132,23 +132,20 @@ public sealed class PageLayoutTests(UiFixture ui)
         var url = await ResolveAsync(path);
         await page.GotoAsync(url);
 
+        // Each entry of a Group menu except "No grouping" (an empty value), with the index of its menu on the page.
         var choices = await page.EvalOnSelectorAllAsync<string[][]>(
-            "main select[id$='table-group']",
-            "selects => selects.flatMap(s => [...s.options].filter(o => o.value).map(o => [s.name, o.value]))");
+            "main details.group-menu",
+            "menus => menus.flatMap((m, i) => [...m.querySelectorAll('a.menu-item')].filter(a => !/group=(&|$)/.test(a.href)).map(a => [String(i), a.getAttribute('href')]))");
         var missing = new List<string>();
         foreach (var choice in choices)
         {
-            var grouped = new UriBuilder(new Uri(ui.BaseAddress, url));
-            var query = System.Web.HttpUtility.ParseQueryString(grouped.Query);
-            query[choice[0]] = choice[1];
-            grouped.Query = query.ToString();
-            await page.GotoAsync(grouped.Uri.ToString());
-            var select = page.Locator($"main select[name='{choice[0]}']");
-            var groups = await select.EvaluateAsync<int>("s => (s.closest('section, .box') ?? document).querySelectorAll('tr.group-row').length");
-            var rows = await select.EvaluateAsync<int>("s => (s.closest('section, .box') ?? document).querySelectorAll('tbody tr:not(.group-row)').length");
+            await page.GotoAsync(new Uri(ui.BaseAddress, choice[1]).ToString());
+            var menu = page.Locator("main details.group-menu").Nth(int.Parse(choice[0], System.Globalization.CultureInfo.InvariantCulture));
+            var groups = await menu.EvaluateAsync<int>("m => (m.closest('section, .box') ?? document).querySelectorAll('tr.group-row').length");
+            var rows = await menu.EvaluateAsync<int>("m => (m.closest('section, .box') ?? document).querySelectorAll('tbody tr:not(.group-row)').length");
             if (rows > 0 && groups == 0)
             {
-                missing.Add($"{choice[0]}={choice[1]}");
+                missing.Add(choice[1]);
             }
         }
 

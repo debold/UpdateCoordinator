@@ -12,7 +12,7 @@
 
 <PageTitle>Updates</PageTitle>
 
-<PageHeader Icon="@PageIcons.Updates" Title="@(ShowArchived ? "Archived updates" : "Updates")" Subtitle="@(ShowArchived ? "Updates no server has needed for a while. They return to the list when a server reports them as missing again." : "Updates reported as missing by approved servers or in a rollout. Each update runs through the rings on its own.")" Help="updates" />
+<PageHeader Icon="@PageIcons.Updates" Title="Updates" Subtitle="Updates reported as missing by approved servers or in a rollout. Each update runs through the rings on its own." Help="updates" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <form id="bulk" method="post" @formname="updates-bulk" @onsubmit="BulkAsync" class="detached"><AntiforgeryToken /></form>
@@ -32,15 +32,7 @@
 </AuthorizeView>
 
 <Box Flush="true">
-    <TableTools Table="_table" Placeholder="Search KB, title or CVE" Labels="Labels" GroupOptions="GroupOptions">
-        <span class="view-toggles" data-help="updates#toggles">
-                <span class="note">Show:</span>
-                @foreach (var (name, label, on, count) in Toggles.Where(t => !ShowArchived || t.Name == "archived"))
-                {
-                    <a class="btn ghost toggle @(on ? "on" : null)" href="@Navigation.GetUriWithQueryParameter(name, on ? null : "1")" aria-pressed="@(on ? "true" : "false")" data-help-term="@label" title="@(on ? $"Hide {label} updates" : $"Show {label} updates")">@label (@count)</a>
-                }
-            </span>
-    </TableTools>
+    <TableTools Table="_table" Placeholder="Search KB, title or CVE" Labels="Labels" GroupOptions="GroupOptions" View="_page.View" />
     <div class="scroll">
         <table>
             <thead>
@@ -134,49 +126,27 @@
         new("installed", "Installed", r => r.Counts.Total == 0 ? 0 : (double)r.Counts.Successful / r.Counts.Total),
     ];
 
-    /// <summary>True lists the archived updates: no server needed them for a while; they return when a server needs them again.</summary>
-    [SupplyParameterFromQuery(Name = "archived")]
-    private string? Archived { get; set; }
+    private const string SupersededLabel = "Superseded";
+    private const string CompletedLabel = "Completed";
+    private const string OutsideLabel = "Installed outside SUSyphos";
 
-    private bool ShowArchived => Archived == "1";
+    /// <summary>Archived: no server needed the update for a while; it returns when a server reports it as missing again.</summary>
+    private const string ArchivedLabel = "Archived";
 
-    /// <summary>Superseded updates (replaced by a newer known update, no running rollout) are hidden unless "1".</summary>
-    [SupplyParameterFromQuery(Name = "superseded")]
-    private string? Superseded { get; set; }
+    /// <summary>What is done or out of the way: hidden by the default view, which lists what is still being worked on.</summary>
+    private static readonly string[] Finished = [SupersededLabel, CompletedLabel, WithdrawnLabel, OutsideLabel, ArchivedLabel];
 
-    /// <summary>Completed updates (released to every ring, nothing pending or failed) are hidden unless "1".</summary>
-    [SupplyParameterFromQuery(Name = "completed")]
-    private string? Completed { get; set; }
-
-    private bool ShowSuperseded => Superseded == "1";
-
-    /// <summary>Updates that look withdrawn by Microsoft are hidden unless "1".</summary>
-    [SupplyParameterFromQuery(Name = "withdrawn")]
-    private string? Withdrawn { get; set; }
-
-    /// <summary>Updates only installed outside SUSyphos (Windows Update history, no rollout, missing nowhere) are listed only with "1".</summary>
-    [SupplyParameterFromQuery(Name = "outside")]
-    private string? Outside { get; set; }
-
-    private bool ShowCompleted => Completed == "1";
-
-    private bool ShowWithdrawn => Withdrawn == "1";
-
-    private bool ShowOutside => Outside == "1";
-
-    private int _hiddenSuperseded;
-    private int _hiddenCompleted;
-    private int _hiddenWithdrawn;
-    private int _hiddenOutside;
-    private int _archived;
-
-    private IEnumerable<(string Name, string Label, bool On, int Count)> Toggles =>
+    /// <summary>The views of the update list (docs/06-dashboard.md, section 8 "Table tools"), default first.</summary>
+    private static readonly IReadOnlyList<TableView> Views =
     [
-        ("superseded", "superseded", ShowSuperseded, _hiddenSuperseded),
-        ("completed", "completed", ShowCompleted, _hiddenCompleted),
-        ("withdrawn", "withdrawn", ShowWithdrawn, _hiddenWithdrawn),
-        ("outside", "installed outside SUSyphos", ShowOutside, _hiddenOutside),
-        ("archived", "archived", ShowArchived, _archived),
+        new("open", "Open updates", "Everything still being worked on: hides superseded, completed, withdrawn, outside and archived updates", ("rollout", TableFilter.Not(Finished))),
+        new("attention", "Needs attention", "Alarm, stopped, blocked, withdrawn or waiting at a manual gate", ("rollout", TableFilter.In("Alarm", "Stopped", "Blocked", WithdrawnLabel, "Waiting at gate"))),
+        new("security", "Open security updates", "Open updates rated critical or important", ("rollout", TableFilter.Not(Finished)), ("severity", TableFilter.In("Critical", "Important"))),
+        new("completed", CompletedLabel, "Released to every ring, nothing pending", ("rollout", TableFilter.In(CompletedLabel))),
+        new("retired", "Superseded or withdrawn", "Replaced by a newer update or pulled by Microsoft", ("rollout", TableFilter.In(SupersededLabel, WithdrawnLabel))),
+        new("outside", OutsideLabel, "Installed by Automatic Updates, Settings or wusa and missing nowhere", ("rollout", TableFilter.In(OutsideLabel))),
+        new("archived", ArchivedLabel, "No server has needed them for a while; they return when a server reports them as missing again", ("rollout", TableFilter.In(ArchivedLabel))),
+        new("all", "All updates", "No filter, archived updates included"),
     ];
 
     [SupplyParameterFromForm(FormName = "updates-bulk")]
@@ -242,7 +212,7 @@
     private async Task LoadAsync()
     {
         // Newest first unless the address asks for another order.
-        _table = TableQuery.From(Navigation, "seen", defaultDescending: true);
+        _table = TableQuery.From(Navigation, "seen", defaultDescending: true, views: Views);
 
         var rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         var rollouts = await Db.Rollouts.AsNoTracking().ToDictionaryAsync(r => (r.UpdateId, r.Revision));
@@ -255,17 +225,15 @@
             .ToDictionaryAsync(g => (g.UpdateId, g.Revision), g => g.Servers);
         var keys = rollouts.Keys.Concat(missing.Keys).Distinct().ToHashSet();
         var ids = keys.Select(k => k.Item1).Distinct().ToList();
-        var updates = ShowArchived
-            ? await Db.Updates.AsNoTracking().Where(u => u.ArchivedAtUtc != null).Take(MaxRows).ToListAsync()
-            : await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId) && u.ArchivedAtUtc == null).ToListAsync();
+        var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId) && u.ArchivedAtUtc == null).ToListAsync();
+        updates.AddRange(await Db.Updates.AsNoTracking().Where(u => u.ArchivedAtUtc != null).OrderByDescending(u => u.ArchivedAtUtc).Take(MaxRows).ToListAsync());
         var counts = (await Deployment.GetAsync(null, null, null, CancellationToken.None)).ToLookup(e => (e.UpdateId, e.Revision));
         var listedIds = updates.Select(u => u.UpdateId).ToList();
-        _archived = await Db.Updates.CountAsync(u => u.ArchivedAtUtc != null);
         var supersededBy = await Supersedence.NewerAsync(Db, listedIds);
         var heldRings = (await UpdateHolds.ActiveAsync(Db, DateTime.UtcNow, CancellationToken.None)).Where(h => h.RingId is not null).ToLookup(h => (h.UpdateId, h.Revision), h => h.RingId!.Value);
 
         List<Row> rows = [.. updates
-            .Where(u => ShowArchived || keys.Contains((u.UpdateId, u.Revision)))
+            .Where(u => u.ArchivedAtUtc is not null || keys.Contains((u.UpdateId, u.Revision)))
             .Take(MaxRows)
             .Select(u =>
             {
@@ -278,10 +246,14 @@
                 var completed = nothingPending && ((cls == "ok" && rollouts.GetValueOrDefault(key) is { State: RolloutState.Active }) || (u.WithdrawnAtUtc is not null && deployment.Total > 0));
                 if (completed)
                 {
-                    (rollout, detail) = ("Completed", "released to every ring, nothing pending");
+                    (rollout, detail) = (CompletedLabel, "released to every ring, nothing pending");
                 }
 
-                if (u.BlockedAtUtc is not null)
+                if (u.ArchivedAtUtc is not null)
+                {
+                    (rollout, cls, detail, completed) = (ArchivedLabel, "neutral", $"since {DisplayTime.FormatDate(u.ArchivedAtUtc.Value)}", false);
+                }
+                else if (u.BlockedAtUtc is not null)
                 {
                     (rollout, cls) = ("Blocked", "fail");
                 }
@@ -295,7 +267,7 @@
                     newerUpdate = newer;
                     if (rollouts.GetValueOrDefault(key) is not { State: RolloutState.Active })
                     {
-                        (rollout, cls, detail) = ("Superseded", "neutral", null);
+                        (rollout, cls, detail) = (SupersededLabel, "neutral", null);
                     }
                 }
 
@@ -319,16 +291,8 @@
                     Stages: Stages(rollouts.GetValueOrDefault(key), ringStates[key], rings, counts[key], [.. heldRings[key]]));
             })];
 
-        // Superseded, completed, withdrawn and outside updates are out of the way unless asked for; the toggles say how many.
-        if (!ShowArchived)
-        {
-            rows.AddRange(await OutsideRowsAsync(keys));
-            _hiddenSuperseded = rows.Count(r => r.Rollout == "Superseded");
-            _hiddenCompleted = rows.Count(r => r.Completed);
-            _hiddenWithdrawn = rows.Count(r => r.Rollout == WithdrawnLabel);
-            _hiddenOutside = rows.Count(r => r.Outside);
-            rows = [.. rows.Where(r => (ShowSuperseded || r.Rollout != "Superseded") && (ShowCompleted || !r.Completed) && (ShowWithdrawn || r.Rollout != WithdrawnLabel) && (ShowOutside || !r.Outside))];
-        }
+        // Superseded, completed, withdrawn, outside and archived updates are values of the rollout filter; the default view hides them.
+        rows.AddRange(await OutsideRowsAsync([.. keys, .. rows.Select(r => (r.UpdateId, r.Revision))]));
 
         // The search also finds CVEs: an update matches when its KB fixes one (security data from Microsoft).
         _cves = (await Baseline.LoadAsync(CancellationToken.None)).CvesByKb();
@@ -379,7 +343,7 @@
                 known?.Classification ?? "Unclassified",
                 known?.MsrcSeverity ?? string.Empty,
                 g.Min(e => e.DateUtc),
-                "Installed outside SUSyphos",
+                OutsideLabel,
                 "queue",
                 $"on {servers} {(servers == 1 ? "server" : "servers")}, by {starters}",
                 0,

@@ -56,13 +56,14 @@ public sealed class CertificateAdministrationTests
         {
         }
 
-        // Hidden by default, behind the "Show: not usable" switch; the reason is in the details of the row.
+        // Hidden by the default view "Usable certificates"; the reason is in the details of the row.
         var html = await (await browser.GetAsync("/administration/certificate")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("uc01.lab.local", html, StringComparison.Ordinal);
         Assert.DoesNotContain("old.lab.local", html, StringComparison.Ordinal);
-        Assert.Contains("not usable (1)", html, StringComparison.Ordinal);
+        Assert.Contains("View: Usable certificates (default)", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/administration/certificate?cert.view=all\"", html, StringComparison.Ordinal);
 
-        var all = await (await browser.GetAsync($"/administration/certificate?unusable=1&cert.open={expired.Thumbprint}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var all = await (await browser.GetAsync($"/administration/certificate?cert.view=all&cert.open={expired.Thumbprint}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Not usable", all, StringComparison.Ordinal);
         Assert.Contains("Expired", all, StringComparison.Ordinal);
         Assert.Contains(expired.Thumbprint, all, StringComparison.Ordinal);

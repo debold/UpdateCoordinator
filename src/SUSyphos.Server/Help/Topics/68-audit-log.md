@@ -11,4 +11,4 @@ The log is append-only: the database refuses changes and deletions, and every en
 
 ## Entries {#entries}
 
-Newest first, 50 per page, times to the second in the time zone of the central server. Search in target and details; filter by **Actor**, **Action** and **Target** with the column filters, as described in [Working with lists](help/tables). Long values are shortened.
+Newest first, 50 per page, times to the second in the time zone of the central server. Search in target and details; filter by **Actor**, **Action** and **Target** with the column filters, as described in [Working with lists](help/tables). **View** offers **All entries** (default), **Sign-ins** (sign-ins, sign-outs, refused sign-ins and the first setup), **Rollouts and approvals** (rollouts, ring approvals, held and blocked updates, approved servers, released agent versions) and **Settings changes** (rings, rules, groups, maintenance windows, notifications, accounts and other settings); each sets the **Action** filter to the actions of that area. Long values are shortened.

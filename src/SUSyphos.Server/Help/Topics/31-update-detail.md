@@ -95,6 +95,8 @@ Every server concerned, with **Ring**, **Status**, **Earliest installation** and
 - **Installed**: installed, by SUSyphos or outside it (reported by the inventory).
 - **Not needed**: the server does not need it.
 
+**View** (see [Working with lists](help/tables#views)) offers **Still to do** (default; hides Installed and Not needed), **Failed**, **Installed** and **All servers**.
+
 ## Installed outside SUSyphos {#outside}
 
 Shown when approved servers installed this update outside SUSyphos according to their Windows Update history: the server (opens its Windows Update history), the date and who started it (**Started by**, for example Windows Automatic Updates, Settings or wusa). Such installations bypass rings and maintenance windows; they are a reason to check the Automatic Updates setting of those servers. For a definition update the tag is grey **expected**: Defender or Windows installing signatures before SUSyphos is normal.

@@ -535,7 +535,7 @@ public sealed class RolloutPageTests
         await scenario.Factory.WithDbAsync(db => db.Clients.ExecuteUpdateAsync(s => s.SetProperty(c => c.State, RegistrationState.Deleted), TestContext.Current.CancellationToken));
 
         Assert.DoesNotContain("KB5040000", await (await browser.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
-        Assert.Contains("KB5040000", await (await browser.GetAsync("/updates?completed=1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains("KB5040000", await (await browser.GetAsync("/updates?view=completed")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
     [Fact]

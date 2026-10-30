@@ -74,9 +74,6 @@ main > * { margin-top: 0; margin-bottom: 0; }
 /* A form whose fields sit in a list further down (form="id"): takes no room and adds no gap. */
 form.detached { display: contents; }
 p.warning { color: var(--fail); margin: 0.25rem 0 0; }
-.view-toggles { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; align-items: center; margin-left: auto; }
-.view-toggles .btn.toggle { min-height: 1.9rem; padding: 0 0.65rem; font-size: 0.85rem; }
-.view-toggles .btn.toggle.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 tr.unusable td { color: var(--muted); }
 .list-head-tools { display: flex; justify-content: flex-end; padding: 0.5rem 1.15rem 0; }
 
@@ -207,12 +204,31 @@ th.n, td.n { text-align: right; }
 td.wrap { min-width: 16rem; }
 td.nowrap { white-space: nowrap; }
 
-/* Table tools: search, group by, active filter chips. */
+/* Table tools (docs/06-dashboard.md, section 8 "Table tools"): wide search left, View and Group menus right, chips below. */
 .table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.65rem 1.15rem; border-bottom: 1px solid var(--line); }
-.table-tools form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.table-tools input[type="search"], .table-tools select { margin: 0; min-width: 0; width: auto; }
-.table-tools input[type="search"] { width: 16rem; max-width: 100%; }
-.chip { display: inline-flex; align-items: center; gap: 0.3rem; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 0.2rem 0.3rem 0.2rem 0.7rem; font-size: 0.8rem; }
+.table-search { position: relative; flex: 1 1 14rem; max-width: 24rem; min-width: 0; display: flex; }
+.table-search input[type="search"] { margin: 0; width: 100%; min-width: 0; padding-left: 2rem; }
+.table-search .search-icon { position: absolute; left: 0.65rem; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.tools-right { margin-left: auto; display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.tools-right details.menu > summary .count { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.tools-right details.menu > summary b { font-weight: 650; }
+details.view-menu.custom > summary { border-color: var(--queue); }
+details.view-menu.custom > summary b { color: var(--queue); }
+details.group-menu.active > summary { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.view-pop { width: 21rem; max-width: calc(100vw - 48px); }
+.menu-item.view-item { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr) auto; gap: 0 0.45rem; align-items: baseline; white-space: normal; }
+.view-item .check { color: var(--accent); font-weight: 700; }
+.view-item .name { font-weight: 600; }
+.view-item .count { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.view-item .desc { grid-column: 2 / 4; color: var(--muted); font-size: 0.78rem; }
+.view-item.current { background: var(--accent-soft); }
+.view-item.custom { cursor: default; background: var(--queue-soft); }
+.view-item.custom .check, .view-item.custom .name { color: var(--queue); }
+.default-tag { margin-left: 0.4rem; font-size: 0.68rem; font-weight: 600; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 0.4rem; vertical-align: 1px; }
+.table-tools .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; flex-basis: 100%; }
+.table-tools .chips .reset { font-size: 0.8rem; }
+.chip { display: inline-flex; align-items: center; gap: 0.3rem; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 0.2rem 0.3rem 0.2rem 0.7rem; font-size: 0.8rem; max-width: 100%; }
+.chip.from-view { background: transparent; border: 1px dashed var(--accent); }
 .chip a { color: var(--accent); padding: 0 0.35rem; border-radius: 999px; font-weight: 700; }
 .chip a:hover { background: var(--surface); text-decoration: none; }
 

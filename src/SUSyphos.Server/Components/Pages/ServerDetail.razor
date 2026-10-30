@@ -257,7 +257,6 @@ else
     {
     <Box Title="Installed by SUSyphos" Anchor="history" Help="server-detail#history" Hint="installations the agent ran, with result and restart" Flush="true">
         <ListTable Table="_historyTable" Page="_historyPage" Columns="HistoryColumns" Search="Search update" Noun="installations" Empty="No installation reported yet.">
-            <Tools><DefinitionsToggle Show="@ShowDefinitions" Count="@_definitionCounts.Installations" Href="@DefinitionsLink" /></Tools>
             <ExtraHeader><th class="n"><span class="visually-hidden">Actions</span></th></ExtraHeader>
             <Row Context="row">
                 <tr>
@@ -275,7 +274,6 @@ else
 
     <Box Title="All installations on the server" Anchor="windows-history" Help="server-detail#windows-history" Hint="@($"Windows Update history of the last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days, from any source: SUSyphos, Windows, Defender, administrators; updated with the inventory")" Flush="true">
         <ListTable Table="_windowsTable" Page="_windowsPage" Columns="WindowsColumns" Search="Search update" Noun="entries" Empty="Nothing reported yet; agents from version 0.7 send the history with their inventory.">
-            <Tools><DefinitionsToggle Show="@ShowDefinitions" Count="@_definitionCounts.Windows" Href="@DefinitionsLink" /></Tools>
             <ExtraHeader><th class="n"><span class="visually-hidden">Actions</span></th></ExtraHeader>
             <Row Context="entry">
                         <tr>
@@ -596,20 +594,42 @@ else
 
     private Guid? PreselectedUpdate => Guid.TryParse(PreselectedUpdateParam, out var id) ? id : null;
 
-    /// <summary>Shows antivirus definition updates in the histories; hidden by default so they do not bury the rest (Marc, 2026-10-27).</summary>
-    [SupplyParameterFromQuery(Name = "definitions")]
-    private string? Definitions { get; set; }
+    private const string FailedResult = "Failed";
+    private const string ErrorsResult = "Succeeded with errors";
 
-    private bool ShowDefinitions => Definitions == "1";
+    /// <summary>
+    /// Views of the SUSyphos installations, default first: antivirus definition updates arrive several times a day and
+    /// would bury the rest, so the default view hides them (Marc, 2026-10-27).
+    /// </summary>
+    private static readonly IReadOnlyList<TableView> HistoryViews =
+    [
+        new("updates", "Without definition updates", "Antivirus definitions arrive several times a day and are hidden", ("category", TableFilter.Not(DefinitionUpdates.Classification))),
+        new("problems", "Failed or with errors", "Installations that did not fully succeed", ("result", TableFilter.In(FailedResult, ErrorsResult))),
+        new("all", "All installations", "No filter, definition updates included"),
+    ];
 
-    private string DefinitionsLink => Navigation.GetUriWithQueryParameter("definitions", ShowDefinitions ? null : "1");
+    /// <summary>Views of the Windows Update history, default first; definition updates are hidden as in the installations.</summary>
+    private static readonly IReadOnlyList<TableView> WindowsViews =
+    [
+        new("updates", "Without definition updates", "Antivirus definitions arrive several times a day and are hidden", ("category", TableFilter.Not(DefinitionUpdates.Classification))),
+        new("problems", "Failed or with errors", "Entries that did not fully succeed", ("result", TableFilter.In(FailedResult, ErrorsResult))),
+        new("outside", "Started outside SUSyphos", "Installed by Windows Update, an administrator or another tool; definition updates are expected and not counted", ("started", TableFilter.In("outside SUSyphos"))),
+        new("definitions", "Definition updates only", "Antivirus signatures and the Defender platform", ("category", TableFilter.In(DefinitionUpdates.Classification))),
+        new("all", "All entries", "No filter"),
+    ];
+
+    /// <summary>Views of the remote actions, default first.</summary>
+    private static readonly IReadOnlyList<TableView> ActionViews =
+    [
+        new("all", "All actions", "No filter"),
+        new("open", "Open", "Queued or delivered, no result yet", ("state", TableFilter.In(nameof(AgentActionState.Queued), nameof(AgentActionState.Delivered)))),
+        new("failed", "Failed", "Failed, refused by the agent or expired", ("state", TableFilter.In(nameof(AgentActionState.Failed), nameof(AgentActionState.Rejected), nameof(AgentActionState.Expired)))),
+    ];
 
     private string UninstallLink(Guid updateId) => $"{DialogLink("uninstall")}&update={updateId:D}";
 
     private bool IsUninstallable(Guid updateId) => _installed.Any(c => c.UpdateId == updateId);
 
-    /// <summary>Definition updates in each history, shown on the switches.</summary>
-    private (int Installations, int Windows) _definitionCounts;
 
     private Dictionary<Guid, string> _categories = [];
 
@@ -1055,7 +1075,7 @@ else
         _memberships = await Db.ClientGroups.AsNoTracking().Where(m => m.ClientId == Id).ToListAsync();
         _pendingRemoval = await Removal.PendingAsync(Id, CancellationToken.None);
         _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(MaxHistory).ToListAsync();
-        _actionTable = TableQuery.From(Navigation, "requested", defaultDescending: true, prefix: "ra.", defaultPageSize: 10);
+        _actionTable = TableQuery.From(Navigation, "requested", defaultDescending: true, prefix: "ra.", defaultPageSize: 10, views: ActionViews);
         _actionPage = TablePaging.Apply(_actions, _actionTable, ActionColumns, a => $"{SUSyphos.Server.Agents.AgentActionText.Label(a.Kind)} {a.RequestedBy} {a.Detail}");
         if (_client is null)
         {
@@ -1100,12 +1120,10 @@ else
             .Where(e => available.Any(a => a.UpdateId == e.UpdateId && a.Revision == e.Revision) || (e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful))
             .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
             .Select(e => (e, Title(e.UpdateId, e.Revision)))];
-        var history = installations.Select(i => (Installation: i, Title: Title(i.UpdateId, i.Revision), Category: ClassificationOf(i.UpdateId, i.Revision))).ToList();
-        _history = ShowDefinitions ? history : [.. history.Where(h => !DefinitionUpdates.IsClassification(h.Category))];
-        _definitionCounts.Installations = history.Count(h => DefinitionUpdates.IsClassification(h.Category));
+        _history = [.. installations.Select(i => (Installation: i, Title: Title(i.UpdateId, i.Revision), Category: ClassificationOf(i.UpdateId, i.Revision)))];
         _openTable = TableQuery.From(Navigation, "status", defaultDescending: true, prefix: "mu.", defaultPageSize: 10);
         _openPage = TablePaging.Apply(_open, _openTable, OpenColumns, o => o.Title);
-        _historyTable = TableQuery.From(Navigation, "finished", defaultDescending: true, prefix: "hist.", defaultPageSize: 10);
+        _historyTable = TableQuery.From(Navigation, "finished", defaultDescending: true, prefix: "hist.", defaultPageSize: 10, views: HistoryViews);
         _historyPage = TablePaging.Apply(_history, _historyTable, HistoryColumns, h => h.Title);
         _liveUpdates = [.. liveIds.Select(id => updates.Where(u => u.UpdateId == id).MaxBy(u => u.Revision) is { } update ? (id, update.Revision, UpdateText.Title(update, id)) : (id, 0, UpdateText.Title(null, id)))];
 
@@ -1115,7 +1133,7 @@ else
         _securityHasData = securitySnapshot.HasData;
         _serverSecurity = securitySnapshot.Of(_client);
         _securityFixes = _serverSecurity.Build is { } securityBuild ? _serverSecurity.Open.ToDictionary(v => v.Cve, v => securitySnapshot.FixesOf(v.Cve).Where(f => f.Build == securityBuild).OrderByDescending(f => f.Revision).Select(f => f.Kb).FirstOrDefault()) : [];
-        _cveTable = TableQuery.From(Navigation, SUSyphos.Server.Security.VulnerabilityColumns.DefaultSort, defaultDescending: true, prefix: "cve.", defaultPageSize: 10);
+        _cveTable = TableQuery.From(Navigation, SUSyphos.Server.Security.VulnerabilityColumns.DefaultSort, defaultDescending: true, prefix: "cve.", defaultPageSize: 10, views: SUSyphos.Server.Security.VulnerabilityColumns.Views);
         _cvePage = TablePaging.Apply([.. _serverSecurity.Open], _cveTable, VulnerabilityTable, SUSyphos.Server.Security.VulnerabilityColumns.SearchText);
         _window = NextWindowUtc();
         _planned = _window is { } window
@@ -1137,13 +1155,7 @@ else
         var historyIds = _windowsHistory.Select(h => h.UpdateId).Distinct().ToList();
         _categories = (await Db.Updates.AsNoTracking().Where(u => historyIds.Contains(u.UpdateId) && u.Classification != null).Select(u => new { u.UpdateId, u.Revision, u.Classification }).ToListAsync())
             .GroupBy(u => u.UpdateId).ToDictionary(g => g.Key, g => g.MaxBy(u => u.Revision)!.Classification!);
-        _definitionCounts.Windows = _windowsHistory.Count(h => DefinitionUpdates.IsClassification(Category(h)));
-        if (!ShowDefinitions)
-        {
-            _windowsHistory = [.. _windowsHistory.Where(h => !DefinitionUpdates.IsClassification(Category(h)))];
-        }
-
-        _windowsTable = TableQuery.From(Navigation, "date", defaultDescending: true, prefix: "wu.", defaultPageSize: 10);
+        _windowsTable = TableQuery.From(Navigation, "date", defaultDescending: true, prefix: "wu.", defaultPageSize: 10, views: WindowsViews);
         _windowsPage = TablePaging.Apply(_windowsHistory, _windowsTable, WindowsColumns, h => h.Title);
         _activityTable = TableQuery.From(Navigation, "time", defaultDescending: true, prefix: "act.", defaultPageSize: 10);
         _activityPage = TablePaging.Apply(_activities, _activityTable, ActivityColumns, a => $"{ClientActivityLog.Label(a.Kind)} {a.Detail}");

@@ -391,4 +391,46 @@ public sealed class InteractionTests(UiFixture ui)
         await Assertions.Expect(tasks.Locator(".pill", new LocatorLocatorOptions { HasTextString = "Update search" })).ToBeVisibleAsync();
         await Assertions.Expect(tasks.Locator(".pill", new LocatorLocatorOptions { HasTextString = "Remote action" })).ToBeVisibleAsync();
     }
+
+    /// <summary>
+    /// The View menu of a list, with and without script: a view sets the column filters and its name shows on the button,
+    /// removing a chip turns it into Custom, and Reset brings back the default view (icon only, nothing in the address).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Views_SetTheFilters_TurnCustom_AndReset(bool script)
+    {
+        await using var context = await ui.NewContextAsync(1280, 800, script);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync("/updates");
+
+        var menu = page.Locator("main details.view-menu");
+        await Assertions.Expect(menu).Not.ToHaveClassAsync(new System.Text.RegularExpressions.Regex("changed"));
+        await Assertions.Expect(menu.Locator("summary")).ToHaveAttributeAsync("title", "View: Open updates (default)");
+        await Assertions.Expect(page.Locator("main .chips .chip.from-view")).ToContainTextAsync("Rollout: not ");
+
+        await menu.Locator("summary").ClickAsync();
+        await menu.Locator("a.view-item", new LocatorLocatorOptions { HasTextString = "All updates" }).ClickAsync();
+        await page.WaitForURLAsync(url => url.Contains("view=all", StringComparison.Ordinal));
+        await Assertions.Expect(menu.Locator("summary")).ToContainTextAsync("View: All updates");
+
+        await menu.Locator("summary").ClickAsync();
+        await menu.Locator("a.view-item", new LocatorLocatorOptions { HasTextString = "Open security updates" }).ClickAsync();
+        await page.WaitForURLAsync(url => url.Contains("view=security", StringComparison.Ordinal));
+        await page.Locator("main .chips .chip", new PageLocatorOptions { HasTextString = "Severity" }).Locator("a").ClickAsync();
+        await page.WaitForURLAsync(url => !url.Contains("view=security", StringComparison.Ordinal));
+        Assert.Contains("f.rollout=%21", page.Url, StringComparison.Ordinal);
+        await Assertions.Expect(menu.Locator("summary")).ToHaveAttributeAsync("title", "View: Open updates (default)");
+
+        await page.Locator("main .chips .chip", new PageLocatorOptions { HasTextString = "Rollout" }).Locator("a").ClickAsync();
+        await Assertions.Expect(menu.Locator("summary")).ToContainTextAsync("View: All updates");
+        await page.GotoAsync("/updates?f.severity=Critical");
+        await Assertions.Expect(menu).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("custom"));
+        await Assertions.Expect(menu.Locator("summary")).ToContainTextAsync("View: Custom");
+
+        await page.Locator("main .chips a.reset").ClickAsync();
+        await page.WaitForURLAsync(url => new Uri(url).Query.Length == 0);
+        await Assertions.Expect(menu.Locator("summary")).ToHaveAttributeAsync("title", "View: Open updates (default)");
+    }
 }

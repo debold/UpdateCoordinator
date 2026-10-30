@@ -27,8 +27,7 @@ The upgrade keeps database, trust anchor, settings, port and certificate. The da
 
 Every agent package the central server has:
 
-- **Version** and **Source**: "with central server" (shipped in the central server installer) or "GitHub" (found by the check).
-- **Added**: when the package arrived.
+- **Version**, with its source and the day it was added below: "with central server" (shipped in the central server installer) or "from GitHub" (found by the check).
 - **Released for**: the rings the version is released to, "all rings", or "not released".
 - **Servers**: how many approved servers run this version (opens the server list).
 
@@ -38,7 +37,7 @@ Actions (administrators):
 - **Release to all rings now**: releases it everywhere at once.
 - **Withdraw**: stops further updates to this version; agents that already updated keep it.
 
-Versions older than the newest released one cannot be released any more (agents never go back to an older version); they keep only **Withdraw** while released. Older versions that no server runs are hidden; **Show older versions** lists them, **Hide older versions** hides them again.
+Versions older than the newest released one cannot be released any more (agents never go back to an older version); they keep only **Withdraw** while released. The **Status** column says Released, Not released, Older, in use (older than the newest released version, still on servers) or Older, unused (on no server). **View** (see [Working with lists](help/tables#views)) offers **Current versions** (default; hides older versions no server runs), **On servers** and **All versions**.
 
 The packages are not code-signed yet, so nothing is released automatically. An agent below the minimum version gets the package shipped with the central server even without a release, because it might not understand the central server any more.
 

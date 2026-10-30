@@ -201,10 +201,10 @@ public sealed class WithdrawnUpdateTests
         var list = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.DoesNotContain("Faulty update", list, StringComparison.Ordinal);
         Assert.DoesNotContain("Some tool update", list, StringComparison.Ordinal);
-        Assert.Contains("withdrawn (1)</a>", list, StringComparison.Ordinal);
-        Assert.Contains("installed outside SUSyphos (1)</a>", list, StringComparison.Ordinal);
+        Assert.Matches("Superseded or withdrawn</span>\\s*<span class=\"count\">1</span>", list);
+        Assert.Matches("Installed outside SUSyphos</span>\\s*<span class=\"count\">1</span>", list);
 
-        var all = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates?withdrawn=1&outside=1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var all = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates?view=all")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("Faulty update", all, StringComparison.Ordinal);
         Assert.Contains("<span>Some tool update (KB5040999)</span>", all, StringComparison.Ordinal);
         Assert.Contains("on 1 server, by Standalone installer (wusa)", all, StringComparison.Ordinal);

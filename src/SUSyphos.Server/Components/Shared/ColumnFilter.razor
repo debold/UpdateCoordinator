@@ -1,9 +1,9 @@
 @* Filter icon in a column header: a disclosure with clickable criteria and their counts, applied by a GET form. *@
-<details class="col-filter @(_selected.Count > 0 ? "active" : null)" data-help="tables#filter" data-help-term="Filter">
+<details class="col-filter @(_filter is null ? null : "active")" data-help="tables#filter" data-help-term="Filter">
     <summary aria-label="Filter @Label" title="Filter @Label"><svg class="funnel" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1.5 2h13a.5.5 0 0 1 .4.8L10 9v4.5a.5.5 0 0 1-.28.45l-3 1.5A.5.5 0 0 1 6 15V9L1.1 2.8A.5.5 0 0 1 1.5 2z"/></svg></summary>
     <div class="filter-pop">
         <form method="get">
-            @foreach (var field in Table.HiddenFieldsExcept(Table.FilterField(Column)))
+            @foreach (var field in Table.FilterFormFields(Column))
             {
                 <input type="hidden" name="@field.Key" value="@field.Value" />
             }
@@ -15,11 +15,11 @@
             <div class="filter-options">
                 @foreach (var option in Options)
                 {
-                    <label><input type="checkbox" name="@Table.FilterField(Column)" value="@option.Value" checked="@_selected.Contains(option.Value)" /> @(option.Value.Length == 0 ? "(none)" : option.Value)<span class="count">@option.Count</span></label>
+                    <label><input type="checkbox" name="@Table.FilterField(Column)" value="@option.Value" checked="@(_filter?.Matches([option.Value]) ?? true)" /> @(option.Value.Length == 0 ? "(none)" : option.Value)<span class="count">@option.Count</span></label>
                 }
             </div>
             <div class="pop-foot">
-                <a class="btn ghost" href="@Table.WithFilter(Column)">Clear</a>
+                <a class="btn ghost" href="@Table.WithFilter(Column, null)" title="Show every value">All</a>
                 <button type="submit" class="primary">Apply</button>
             </div>
         </form>
@@ -30,7 +30,8 @@
     /// <summary>Lists longer than this get a search box.</summary>
     private const int SearchFrom = 6;
 
-    private IReadOnlyList<string> _selected = [];
+    /// <summary>The filter of the column; a checked value is shown, so without a filter every value is checked.</summary>
+    private TableFilter? _filter;
 
     [Parameter, EditorRequired]
     public TableQuery Table { get; set; } = default!;
@@ -44,5 +45,5 @@
     [Parameter, EditorRequired]
     public IReadOnlyList<FilterOption> Options { get; set; } = [];
 
-    protected override void OnParametersSet() => _selected = Table.Filter(Column);
+    protected override void OnParametersSet() => _filter = Table.Filter(Column);
 }

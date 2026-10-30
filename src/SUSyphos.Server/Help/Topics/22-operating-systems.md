@@ -31,7 +31,7 @@ One row per Windows version of the approved servers:
 
 ## Open vulnerabilities {#vulnerabilities}
 
-Every vulnerability open on at least one approved server: **CVE** (opens Microsoft's description in a new tab), **Title**, **Severity**, **CVSS** base score, **Exploit** (Exploited: attacks are known; Disclosed: published before the fix), **Servers** affected, and the update that fixes it (**Fixed by**). Exploited first, then by CVSS score. Search, sorting and filters work as described in [Working with lists](help/tables).
+Every vulnerability open on at least one approved server: **CVE** (opens Microsoft's description in a new tab), **Title**, **Severity**, **CVSS** base score, **Exploit** (Exploited: attacks are known; Disclosed: published before the fix), **Servers** affected, and the update that fixes it (**Fixed by**). Exploited first, then by CVSS score. Search, sorting and filters work as described in [Working with lists](help/tables); **View** offers **All vulnerabilities** (default), **Exploited** and **Critical**.
 
 ## Patch day to installation {#duration}
 

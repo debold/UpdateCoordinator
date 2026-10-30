@@ -3,7 +3,7 @@
    the cells of each row. Headers come from the columns, so a list is declared once. *@
 @if ((Page.Total > 0 || Tools is not null) && Search is not null)
 {
-    <TableTools Table="Table" Placeholder="@Search" Labels="TablePaging.Labels(Columns)" GroupOptions="GroupOptions">@Tools</TableTools>
+    <TableTools Table="Table" Placeholder="@Search" Labels="TablePaging.Labels(Columns)" GroupOptions="GroupOptions" View="Page.View" Options="Page.Options">@Tools</TableTools>
 }
 <div class="scroll">
     <table>

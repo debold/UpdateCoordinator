@@ -8,7 +8,7 @@ namespace SUSyphos.Server.Components;
 
 /// <summary>
 /// State of a dashboard table taken from the address: search (<c>q</c>), sort (<c>sort</c>, <c>dir</c>), page
-/// (<c>page</c>), grouping (<c>group</c>) and column filters (<c>f.&lt;column&gt;</c>, repeatable) and page size (<c>size</c>). Every view is a
+/// (<c>page</c>), grouping (<c>group</c>), view (<c>view</c>), column filters (<c>f.&lt;column&gt;</c>, repeatable) and page size (<c>size</c>). Every state is a
 /// link that can be bookmarked and shared, and no script is needed. A page with several tables gives each a prefix
 /// (e.g. <c>hist.</c>), so each keeps its own view and the links of one keep the view of the others. Values are only compared with known values,
 /// never interpreted, so an unknown or manipulated value simply matches nothing.
@@ -19,6 +19,9 @@ public sealed class TableQuery
     public const int MaxSearchLength = 200;
     private const string FilterPrefix = "f.";
 
+    /// <summary>Value of <c>view</c> that takes the filters from the address even when there are none.</summary>
+    public const string CustomView = "custom";
+
     /// <summary>Page sizes offered below every table.</summary>
     public static readonly IReadOnlyList<int> PageSizes = [10, 25, 50, 100];
 
@@ -26,7 +29,7 @@ public sealed class TableQuery
     private readonly Dictionary<string, StringValues> _values;
     private readonly string _prefix;
 
-    private TableQuery(string path, Dictionary<string, StringValues> values, string defaultSort, bool defaultDescending, string prefix, int defaultPageSize, string? defaultGroup = null)
+    private TableQuery(string path, Dictionary<string, StringValues> values, string defaultSort, bool defaultDescending, string prefix, int defaultPageSize, string? defaultGroup = null, IReadOnlyList<TableView>? views = null)
     {
         if (prefix.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(prefix, "^[a-z]{1,10}\\.$"))
         {
@@ -47,7 +50,30 @@ public sealed class TableQuery
         Search = string.IsNullOrEmpty(search) ? null : search.Length > MaxSearchLength ? search[..MaxSearchLength] : search;
         // A list grouped by default stays ungrouped once "No grouping" was chosen (an empty value in the address).
         Group = values.ContainsKey(Key("group")) ? Get(Key("group")) is { Length: > 0 } group ? group : null : defaultGroup;
+        Views = views ?? [];
+        var view = Get(Key("view"));
+        var custom = view == CustomView || values.Keys.Any(k => k.StartsWith(_prefix + FilterPrefix, StringComparison.Ordinal));
+        RequestedView = custom || Views.Count == 0 ? null : Views.FirstOrDefault(v => v.Key == view) ?? Views[0];
+        EffectiveFilters = RequestedView?.Filters ?? values.Keys
+            .Where(k => k.StartsWith(_prefix + FilterPrefix, StringComparison.Ordinal))
+            .Select(k => (Column: k[(_prefix.Length + FilterPrefix.Length)..], Filter: TableFilter.FromAddress(values[k])))
+            .Where(f => f.Column.Length > 0 && f.Filter is not null)
+            .ToDictionary(f => f.Column, f => f.Filter!, StringComparer.Ordinal);
     }
+
+    /// <summary>The views of the table, default first; empty for a table without views.</summary>
+    public IReadOnlyList<TableView> Views { get; }
+
+    /// <summary>
+    /// The view the address asks for (<c>view=&lt;key&gt;</c>, else the default view); null when the address sets the
+    /// filters itself (any <c>f.*</c> value or <c>view=custom</c>) or the table has no views.
+    /// </summary>
+    public TableView? RequestedView { get; }
+
+    /// <summary>The filters in effect by column: those of the requested view, else those in the address.</summary>
+    public IReadOnlyDictionary<string, TableFilter> EffectiveFilters { get; }
+
+    public string ViewField => Key("view");
 
     /// <summary>Rows per page: one of <see cref="PageSizes"/>.</summary>
     public int PageSize { get; }
@@ -94,33 +120,28 @@ public sealed class TableQuery
     /// <param name="prefix">Prefix of the address values when a page has several tables, e.g. "hist."; empty for one table.</param>
     /// <param name="defaultPageSize">Rows per page when the address names none.</param>
     /// <param name="defaultGroup">Column the list is grouped by when the address names no grouping.</param>
-    public static TableQuery From(NavigationManager navigation, string defaultSort, bool defaultDescending = false, string prefix = "", int defaultPageSize = DefaultPageSize, string? defaultGroup = null)
+    /// <param name="views">The views of the table, default first (see <see cref="TableView"/>).</param>
+    public static TableQuery From(NavigationManager navigation, string defaultSort, bool defaultDescending = false, string prefix = "", int defaultPageSize = DefaultPageSize, string? defaultGroup = null, IReadOnlyList<TableView>? views = null)
     {
         ArgumentNullException.ThrowIfNull(navigation);
         var uri = new Uri(navigation.Uri);
-        return new TableQuery(uri.AbsolutePath, QueryHelpers.ParseQuery(uri.Query), defaultSort, defaultDescending, prefix, defaultPageSize, defaultGroup);
+        return new TableQuery(uri.AbsolutePath, QueryHelpers.ParseQuery(uri.Query), defaultSort, defaultDescending, prefix, defaultPageSize, defaultGroup, views);
     }
 
     /// <summary>For tests and pages that build a query from known values.</summary>
-    public static TableQuery Parse(string pathAndQuery, string defaultSort, string prefix = "")
+    public static TableQuery Parse(string pathAndQuery, string defaultSort, string prefix = "", IReadOnlyList<TableView>? views = null)
     {
         ArgumentNullException.ThrowIfNull(pathAndQuery);
         var index = pathAndQuery.IndexOf('?', StringComparison.Ordinal);
         return index < 0
-            ? new TableQuery(pathAndQuery, [], defaultSort, false, prefix, DefaultPageSize)
-            : new TableQuery(pathAndQuery[..index], QueryHelpers.ParseQuery(pathAndQuery[index..]), defaultSort, false, prefix, DefaultPageSize);
+            ? new TableQuery(pathAndQuery, [], defaultSort, false, prefix, DefaultPageSize, views: views)
+            : new TableQuery(pathAndQuery[..index], QueryHelpers.ParseQuery(pathAndQuery[index..]), defaultSort, false, prefix, DefaultPageSize, views: views);
     }
 
     public string? Get(string key) => _values.TryGetValue(key, out var value) ? value.ToString() : null;
 
-    /// <summary>Selected values of a column filter; empty means no filter.</summary>
-    public IReadOnlyList<string> Filter(string column) =>
-        _values.TryGetValue(FilterField(column), out var values) ? [.. values.Where(v => !string.IsNullOrEmpty(v)).Select(v => v!).Distinct(StringComparer.Ordinal)] : [];
-
-    public IEnumerable<(string Column, string Value)> ActiveFilters =>
-        _values.Where(p => p.Key.StartsWith(_prefix + FilterPrefix, StringComparison.Ordinal))
-            .Select(p => p.Key[(_prefix.Length + FilterPrefix.Length)..])
-            .SelectMany(column => Filter(column).Select(v => (column, v)));
+    /// <summary>The filter of a column in effect (from the view or the address); null means no filter.</summary>
+    public TableFilter? Filter(string column) => EffectiveFilters.GetValueOrDefault(column);
 
     /// <summary>Name of a column filter in the address.</summary>
     public string FilterField(string column) => _prefix + FilterPrefix + column;
@@ -136,29 +157,55 @@ public sealed class TableQuery
 
     public string PageLink(int page) => With(values => values[Key("page")] = page.ToString(CultureInfo.InvariantCulture));
 
-    public string WithoutFilter(string column, string value) =>
+    /// <summary>The filters in effect with the filter of one column replaced (null removes it); this leaves the view.</summary>
+    public string WithFilter(string column, TableFilter? filter) =>
         With(values =>
         {
-            var key = FilterField(column);
-            var remaining = Filter(column).Where(v => v != value).ToArray();
-            if (remaining.Length == 0)
+            var filters = new Dictionary<string, TableFilter>(EffectiveFilters, StringComparer.Ordinal);
+            if (filter is null)
             {
-                values.Remove(key);
+                filters.Remove(column);
             }
             else
             {
-                values[key] = remaining;
+                filters[column] = filter;
             }
 
+            WriteFilters(values, filters);
+        });
+
+    /// <summary>Shows a view: its filters replace those in the address; the default view needs no value.</summary>
+    public string ViewLink(TableView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        return With(values =>
+        {
+            RemoveFilters(values);
+            if (Views.Count == 0 || view != Views[0])
+            {
+                values[Key("view")] = view.Key;
+            }
+        });
+    }
+
+    /// <summary>Groups by a column, or ungroups with null (an empty value, so a list grouped by default stays ungrouped).</summary>
+    public string GroupLink(string? column) =>
+        With(values =>
+        {
+            values[Key("group")] = column ?? string.Empty;
             values.Remove(Key("page"));
         });
 
-    public string WithFilter(string column, params string[] filterValues) =>
-        With(values =>
-        {
-            values[FilterField(column)] = filterValues;
-            values.Remove(Key("page"));
-        });
+    /// <summary>
+    /// Hidden fields of the filter form of a column: the rest of the address and the other filters in effect (also
+    /// those of a view), so the checked values of the column replace only its own filter.
+    /// </summary>
+    public IEnumerable<KeyValuePair<string, string>> FilterFormFields(string column)
+    {
+        var values = new Dictionary<string, StringValues>(_values, StringComparer.Ordinal);
+        WriteFilters(values, EffectiveFilters.Where(f => f.Key != column).ToDictionary(StringComparer.Ordinal), form: true);
+        return values.SelectMany(p => p.Value.Where(v => v is not null).Select(v => new KeyValuePair<string, string>(p.Key, v!)));
+    }
 
     public string With(string key, string? value) =>
         With(values =>
@@ -184,6 +231,34 @@ public sealed class TableQuery
 
     private string Key(string name) => _prefix + name;
 
+    private void RemoveFilters(Dictionary<string, StringValues> values)
+    {
+        foreach (var key in values.Keys.Where(k => k.StartsWith(_prefix + FilterPrefix, StringComparison.Ordinal)).ToList())
+        {
+            values.Remove(key);
+        }
+
+        values.Remove(Key("view"));
+        values.Remove(Key("page"));
+    }
+
+    /// <summary>Writes filters into the address and drops the view; <c>view=custom</c> keeps "no filter" apart from "default view".</summary>
+    private void WriteFilters(Dictionary<string, StringValues> values, Dictionary<string, TableFilter> filters, bool form = false)
+    {
+        RemoveFilters(values);
+        foreach (var (column, filter) in filters)
+        {
+            values[FilterField(column)] = filter.ToAddress().ToArray();
+        }
+
+        // A form always keeps it: unchecking every value of the only filter must not bring back the default view. Without
+        // filters it is needed only when the default view filters.
+        if (Views.Count > 0 && (form || (filters.Count == 0 && Views[0].Filters.Count > 0)))
+        {
+            values[Key("view")] = CustomView;
+        }
+    }
+
     private string With(Action<Dictionary<string, StringValues>> change)
     {
         var values = new Dictionary<string, StringValues>(_values, StringComparer.Ordinal);
@@ -206,8 +281,8 @@ public sealed record TableColumn<T>(string Key, string Label, Func<T, IComparabl
     public string GroupKey(T row) => FilterValues?.Invoke(row) is [var first, ..] ? first : string.Empty;
 }
 
-/// <summary>One page of rows after search, filters and sorting, with the filter options and their counts.</summary>
-public sealed record TablePage<T>(IReadOnlyList<T> Rows, int Matching, int Total, int Page, int Pages, IReadOnlyDictionary<string, IReadOnlyList<FilterOption>> Options, int PageSize = TableQuery.DefaultPageSize);
+/// <summary>One page of rows after search, filters and sorting, with the filter options and their counts and the current view (null for a table without views).</summary>
+public sealed record TablePage<T>(IReadOnlyList<T> Rows, int Matching, int Total, int Page, int Pages, IReadOnlyDictionary<string, IReadOnlyList<FilterOption>> Options, int PageSize = TableQuery.DefaultPageSize, TableViewState? View = null);
 
 public sealed record FilterOption(string Value, int Count);
 
@@ -228,10 +303,9 @@ public static class TablePaging
 
         foreach (var column in columns.Where(c => c.FilterValues is not null))
         {
-            var selected = query.Filter(column.Key);
-            if (selected.Count > 0)
+            if (query.Filter(column.Key) is { } filter)
             {
-                filtered = filtered.Where(r => column.FilterValues!(r).Any(v => selected.Contains(v, StringComparer.Ordinal)));
+                filtered = filtered.Where(r => filter.Matches(column.FilterValues!(r)));
             }
         }
 
@@ -253,7 +327,9 @@ public static class TablePaging
             c => c.Key,
             c => (IReadOnlyList<FilterOption>)[.. rows.SelectMany(r => c.FilterValues!(r).Distinct(StringComparer.Ordinal)).GroupBy(v => v, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.CurrentCulture).Select(g => new FilterOption(g.Key, g.Count()))]);
 
-        return new TablePage<T>([.. matching.Skip((page - 1) * pageSize).Take(pageSize)], matching.Count, rows.Count, page, pages, options, pageSize);
+        var known = options.ToDictionary(o => o.Key, o => (IReadOnlyList<string>)[.. o.Value.Select(v => v.Value)], StringComparer.Ordinal);
+        var view = TableViewState.Of(query, known, v => rows.Count(r => v.Matches(r, columns)));
+        return new TablePage<T>([.. matching.Skip((page - 1) * pageSize).Take(pageSize)], matching.Count, rows.Count, page, pages, options, pageSize, view);
     }
 
     /// <summary>

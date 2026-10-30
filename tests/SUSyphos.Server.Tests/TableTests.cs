@@ -56,7 +56,7 @@ public sealed class TableTests
         var query = TableQuery.Parse("/servers?q=sql&f.ring=Pilot&f.ring=Test&sort=name&page=3", "name");
 
         Assert.Equal("/servers?q=sql&f.ring=Pilot&f.ring=Test&sort=name&dir=desc", query.SortLink("name"));
-        Assert.Equal("/servers?q=sql&f.ring=Test&sort=name", query.WithoutFilter("ring", "Pilot"));
+        Assert.Equal("/servers?q=sql&sort=name&f.ring=Test", query.WithFilter("ring", TableFilter.In("Test")));
         Assert.Contains("page=4", query.PageLink(4), StringComparison.Ordinal);
         Assert.DoesNotContain(query.HiddenFieldsExcept("q"), f => f.Key is "q" or "page");
         Assert.Equal(2, query.HiddenFieldsExcept("q").Count(f => f.Key == "f.ring"));
@@ -97,11 +97,11 @@ public sealed class TableTests
         Assert.Equal("sql", main.Search);
         Assert.Equal(2, main.Page);
         Assert.Equal(TableQuery.DefaultPageSize, main.PageSize);
-        Assert.Empty(main.ActiveFilters);
+        Assert.Empty(main.EffectiveFilters);
         Assert.Equal("kb5", history.Search);
         Assert.Equal(3, history.Page);
         Assert.Equal(10, history.PageSize);
-        Assert.Equal([("result", "Failed")], history.ActiveFilters);
+        Assert.Equal(["Failed"], Assert.Single(history.EffectiveFilters, f => f.Key == "result").Value.Values);
 
         var link = history.PageLink(4);
         Assert.Contains("hist.page=4", link, StringComparison.Ordinal);

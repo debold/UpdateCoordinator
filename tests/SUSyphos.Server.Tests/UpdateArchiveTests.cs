@@ -90,10 +90,10 @@ public sealed class UpdateArchiveTests
         }
 
         var current = await (await browser.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var archived = await (await browser.GetAsync("/updates?archived=1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var archived = await (await browser.GetAsync("/updates?view=archived")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.DoesNotContain("KB5040000", current, StringComparison.Ordinal);
-        Assert.Contains("Show archived updates", current, StringComparison.Ordinal);
+        Assert.Matches("Archived</span>\\s*<span class=\"count\">1</span>", current);
         Assert.Contains("KB5040000", archived, StringComparison.Ordinal);
     }
 

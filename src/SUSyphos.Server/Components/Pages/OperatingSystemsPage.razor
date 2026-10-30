@@ -149,7 +149,7 @@ else if (_status.LastError is { } error)
         _known = states.Count(s => s.State != BaselineState.Unknown);
         _current = states.Count(s => s.State == BaselineState.Current);
         _exploitedServers = states.Count(s => s.Exploited > 0);
-        _table = TableQuery.From(Navigation, "exploit", defaultDescending: true, prefix: "cve.", defaultPageSize: 10);
+        _table = TableQuery.From(Navigation, "exploit", defaultDescending: true, prefix: "cve.", defaultPageSize: 10, views: VulnerabilityColumns.Views);
         _page = TablePaging.Apply(_open, _table, Columns, o => VulnerabilityColumns.SearchText(o.Vulnerability));
         _durationChart = SUSyphos.Server.Rollouts.DashboardStatistics.DurationChart(_versions);
     }

@@ -2,7 +2,7 @@
 
 All updates that approved servers reported as missing, or that are in a rollout. Each update runs through the rings on its own ([How SUSyphos works](help/concepts#rollouts)). Click a title to open the [update details](help/update-detail). Search, grouping, sorting and column filters work as described in [Working with lists](help/tables).
 
-![The update list with search, grouping, the "Show:" switches and the rings column](help-images/update-list.png)
+![The update list with search, the View and Group buttons, the filter chip of the default view and the rings column](help-images/update-list.png)
 
 The search takes a KB number, words of the title or a CVE number, in full or in part (for example CVE-2026-100201): with a CVE it lists the updates that fix it, according to Microsoft's security data (see [Operating systems](help/operating-systems#data)), and names the matching CVEs below their titles.
 
@@ -18,17 +18,20 @@ Operators and administrators tick updates in the list (**Select**) and then use 
 
 All actions are recorded in the update's timeline and the [audit log](help/audit-log).
 
-## Hidden updates {#toggles}
+## Views {#views}
 
-To keep the list on what still needs attention, these kinds of updates are hidden by default. The switches after **Show:** next to the search show them, with their number; a highlighted switch is on, select it again to hide them:
+**View** (see [Working with lists](help/tables#views)) chooses what the list shows. Each view sets the **Rollout** filter (and for security updates also **Severity**); the number of updates is next to each view:
 
-- **superseded**: updates a newer known update replaces and that have no running rollout (Windows Update offers the newer one instead).
-- **completed**: updates with nothing pending, failed or queued on any server: released to every ring (the rollout column shows "Completed"), also when no approved server needs them any more (0/0, for example after the only server that missed it was removed), or withdrawn by Microsoft after every server installed them. An update uninstalled from a server is pending there again and leaves this group.
-- **withdrawn**: updates that look withdrawn by Microsoft (see [Release rules](help/release-rules#withdrawn)).
-- **installed outside SUSyphos**: updates approved servers installed outside SUSyphos according to their Windows Update history (Windows Automatic Updates, Settings, wusa or another tool) that are missing nowhere and have no rollout. Antivirus definition updates are left out: Defender installing them on its own is expected. The rollout column shows "Installed outside SUSyphos" with the number of servers and who started it; the title opens the update page when the catalog knows the update. They cannot be selected for rollout actions.
-- **archived**: switches to the updates no server has needed for 90 days, and back (the other switches are not offered there). An archived update returns to the list when a server reports it as missing again; it is deleted one year after archiving.
+- **Open updates** (default): everything still being worked on. It hides the following rollout values, which the filter chip lists as "Rollout: not Superseded, Completed, +3".
+- **Needs attention**: Alarm, Stopped, Blocked, Withdrawn by Microsoft or Waiting at gate.
+- **Open security updates**: open updates rated Critical or Important.
+- **Completed**: updates with nothing pending, failed or queued on any server: released to every ring, also when no approved server needs them any more (0/0, for example after the only server that missed it was removed), or withdrawn by Microsoft after every server installed them. An update uninstalled from a server is pending there again and leaves this view.
+- **Superseded or withdrawn**: updates a newer known update replaces and that have no running rollout (Windows Update offers the newer one instead), and updates that look withdrawn by Microsoft (see [Release rules](help/release-rules#withdrawn)).
+- **Installed outside SUSyphos**: updates approved servers installed outside SUSyphos according to their Windows Update history (Windows Automatic Updates, Settings, wusa or another tool) that are missing nowhere and have no rollout. Antivirus definition updates are left out: Defender installing them on its own is expected. The rollout column shows "Installed outside SUSyphos" with the number of servers and who started it; the title opens the update page when the catalog knows the update. They cannot be selected for rollout actions.
+- **Archived**: updates no server has needed for 90 days (the rollout column shows since when). An archived update returns to the open updates when a server reports it as missing again; it is deleted one year after archiving.
+- **All updates**: no filter, archived updates included.
 
-The choices are part of the address, like search and filters.
+The view is part of the address, like search and filters.
 
 ## Columns {#columns}
 

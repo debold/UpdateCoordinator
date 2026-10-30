@@ -18,7 +18,7 @@ else
 }
 
 <Box Title="Entries" Help="audit-log#entries" Flush="true">
-    <TableTools Table="_table" Placeholder="Search target or details" Labels="Labels" />
+    <TableTools Table="_table" Placeholder="Search target or details" Labels="Labels" View="_view" Options="_options" />
     <div class="scroll">
         <table>
             <thead>
@@ -59,33 +59,18 @@ else
     private IReadOnlyList<FilterOption> _actors = [];
     private IReadOnlyList<FilterOption> _actions = [];
     private IReadOnlyList<FilterOption> _targets = [];
+    private TableViewState? _view;
+    private Dictionary<string, IReadOnlyList<FilterOption>> _options = [];
     private PageInfo _pageInfo = new(1, 1, 0, 0);
     private long? _broken;
 
     protected override async Task OnInitializedAsync()
     {
-        _table = TableQuery.From(Navigation, "time", defaultDescending: true, defaultPageSize: 50);
-
         // The audit log grows without limit, so filtering and paging run in the database; values are parameters.
         var all = Db.AuditEntries.AsNoTracking();
-        var query = all;
-        var actors = _table.Filter("actor");
-        var actions = _table.Filter("action");
-        var targets = _table.Filter("target");
-        if (actors.Count > 0)
-        {
-            query = query.Where(e => actors.Contains(e.Actor));
-        }
-
-        if (actions.Count > 0)
-        {
-            query = query.Where(e => actions.Contains(e.Action));
-        }
-
-        if (targets.Count > 0)
-        {
-            query = query.Where(e => e.Target != null && targets.Contains(e.Target));
-        }
+        _actions = await all.GroupBy(e => e.Action).OrderBy(g => g.Key).Select(g => new FilterOption(g.Key, g.Count())).ToListAsync();
+        _table = TableQuery.From(Navigation, "time", defaultDescending: true, defaultPageSize: 50, views: Views([.. _actions.Select(a => a.Value)]));
+        var query = Filtered(all, _table.EffectiveFilters);
 
         if (_table.Search is { } search)
         {
@@ -101,10 +86,54 @@ else
         _entries = await query.OrderByDescending(e => e.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
         _pageInfo = new PageInfo(page, pages, matching, total, pageSize);
         _actors = await all.GroupBy(e => e.Actor).OrderBy(g => g.Key).Select(g => new FilterOption(g.Key, g.Count())).Take(200).ToListAsync();
-        _actions = await all.GroupBy(e => e.Action).OrderBy(g => g.Key).Select(g => new FilterOption(g.Key, g.Count())).Take(200).ToListAsync();
         // The most frequent targets; others are found with the search.
         _targets = await all.Where(e => e.Target != null).GroupBy(e => e.Target!).OrderByDescending(g => g.Count()).Select(g => new FilterOption(g.Key, g.Count())).Take(200).ToListAsync();
         _targets = [.. _targets.OrderBy(t => t.Value, StringComparer.OrdinalIgnoreCase)];
+        _options = new Dictionary<string, IReadOnlyList<FilterOption>>(StringComparer.Ordinal) { ["actor"] = _actors, ["action"] = _actions, ["target"] = _targets };
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var view in _table.Views)
+        {
+            counts[view.Key] = await Filtered(all, view.Filters).CountAsync();
+        }
+
+        _view = TableViewState.Of(_table, _options.ToDictionary(o => o.Key, o => (IReadOnlyList<string>)[.. o.Value.Select(v => v.Value)], StringComparer.Ordinal), v => counts[v.Key]);
         _broken = await Audit.FindFirstBrokenEntryAsync();
+    }
+
+    /// <summary>The views of the audit log; the areas take the actions that occur (AuditAreas), so new actions need no list.</summary>
+    private static IReadOnlyList<TableView> Views(IReadOnlyList<string> actions)
+    {
+        TableFilter Area(string area) => TableFilter.In([.. actions.Where(a => AuditAreas.Of(a) == area)]);
+        return
+        [
+            new("all", "All entries", "No filter"),
+            new("sign-ins", AuditAreas.SignIns, "Sign-ins, sign-outs, refused sign-ins and the first setup", ("action", Area(AuditAreas.SignIns))),
+            new("rollouts", AuditAreas.Rollouts, "Rollouts, ring approvals, held and blocked updates, approved servers, released agent versions", ("action", Area(AuditAreas.Rollouts))),
+            new("settings", AuditAreas.Settings, "Rings, rules, groups, maintenance windows, notifications, accounts and other settings", ("action", Area(AuditAreas.Settings))),
+        ];
+    }
+
+    /// <summary>Applies column filters in the database; the values are parameters, an exclusion keeps entries without a value.</summary>
+    private static IQueryable<AuditEntryEntity> Filtered(IQueryable<AuditEntryEntity> query, IReadOnlyDictionary<string, TableFilter> filters)
+    {
+        if (filters.GetValueOrDefault("actor") is { } actor)
+        {
+            var values = actor.Values.ToList();
+            query = actor.Exclude ? query.Where(e => !values.Contains(e.Actor)) : query.Where(e => values.Contains(e.Actor));
+        }
+
+        if (filters.GetValueOrDefault("action") is { } action)
+        {
+            var values = action.Values.ToList();
+            query = action.Exclude ? query.Where(e => !values.Contains(e.Action)) : query.Where(e => values.Contains(e.Action));
+        }
+
+        if (filters.GetValueOrDefault("target") is { } target)
+        {
+            var values = target.Values.ToList();
+            query = target.Exclude ? query.Where(e => e.Target == null || !values.Contains(e.Target)) : query.Where(e => e.Target != null && values.Contains(e.Target));
+        }
+
+        return query;
     }
 }

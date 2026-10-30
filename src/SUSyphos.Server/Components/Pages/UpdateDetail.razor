@@ -241,7 +241,7 @@ else
     else if (_tab == "servers")
     {
     <Box Title="Servers" Help="update-detail#servers" Flush="true">
-        <TableTools Table="_table" Placeholder="Search server" Labels="ServerLabels" />
+        <TableTools Table="_table" Placeholder="Search server" Labels="ServerLabels" View="_serverPage.View" />
         <div class="scroll">
             <table>
                 <thead>
@@ -361,6 +361,15 @@ else
     public int Revision { get; set; }
 
     private static readonly IReadOnlyDictionary<string, string> ServerLabels = new Dictionary<string, string> { ["ring"] = "Ring", ["status"] = "Status" };
+
+    /// <summary>The views of the server list of an update, default first.</summary>
+    private static readonly IReadOnlyList<TableView> ServerViews =
+    [
+        new("todo", "Still to do", "Servers that have not installed it yet and need it", ("status", TableFilter.Not(StatusLabel(ServerUpdateStatus.Installed), StatusLabel(ServerUpdateStatus.NotNeeded)))),
+        new("failed", "Failed", "The installation failed", ("status", TableFilter.In(StatusLabel(ServerUpdateStatus.Failed)))),
+        new("installed", "Installed", "Installed by SUSyphos or found in the inventory", ("status", TableFilter.In(StatusLabel(ServerUpdateStatus.Installed)))),
+        new("all", "All servers", "Every approved server, also those that do not need it"),
+    ];
 
     private static readonly IReadOnlyList<TableColumn<ServerRow>> ServerColumns =
     [
@@ -656,7 +665,7 @@ else
         var byClient = entries.ToDictionary(e => e.ClientId);
         var ringNames = rings.ToDictionary(r => r.Id, r => r.Name);
         var now = Time.GetUtcNow().UtcDateTime;
-        _table = TableQuery.From(Navigation, "status");
+        _table = TableQuery.From(Navigation, "status", views: ServerViews);
         List<ServerRow> servers = [.. clients.Select(c =>
         {
             var entry = byClient.GetValueOrDefault(c.Id);

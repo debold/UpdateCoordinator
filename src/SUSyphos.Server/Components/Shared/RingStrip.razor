@@ -38,8 +38,11 @@
     [Parameter, EditorRequired]
     public TableQuery Table { get; set; } = default!;
 
-    private IReadOnlyList<string> Selected => Table.Filter("ring");
+    /// <summary>Rings named in the ring filter; an exclusion or no filter selects none of the tags.</summary>
+    private IReadOnlyList<string> Selected => Table.Filter("ring") is { Exclude: false } filter ? filter.Values : [];
 
     private string Toggle(string name) =>
-        Selected.Contains(name) ? Table.WithoutFilter("ring", name) : Table.WithFilter("ring", [.. Selected, name]);
+        Selected.Contains(name)
+            ? Table.WithFilter("ring", Selected.Count == 1 ? null : TableFilter.In([.. Selected.Where(s => s != name)]))
+            : Table.WithFilter("ring", TableFilter.In([.. Selected, name]));
 }

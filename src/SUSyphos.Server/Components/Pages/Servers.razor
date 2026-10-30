@@ -47,7 +47,7 @@
 
 <Box Flush="true">
     <RingStrip Rings="@_ringCounts" Transitions="@_transitions" Table="_table" />
-    <TableTools Table="_table" Placeholder="Search name or domain" GroupOptions="GroupOptions" Labels="Labels">
+    <TableTools Table="_table" Placeholder="Search name or domain" GroupOptions="GroupOptions" Labels="Labels" View="_page.View">
         @if (_rule is not null)
         {
             <span class="chip" data-help="servers#rule">Assignment rule @_rule.Priority<a href="@Navigation.GetUriWithQueryParameter("rule", (string?)null)" aria-label="Remove the rule filter">×</a></span>
@@ -138,6 +138,17 @@
         new("security", "Security baseline", r => (int)r.Security.State, r => r.Security.Exploited > 0 ? [SUSyphos.Server.Security.SecuritySnapshot.Label(r.Security.State), "Exploited"] : [SUSyphos.Server.Security.SecuritySnapshot.Label(r.Security.State)]),
         new("pending", "Pending updates", r => r.Pending, r => [r.Pending > 0 ? PendingYes : PendingNo]),
         new("seen", "Last heartbeat", r => r.LastHeartbeat, r => [ServerIndicators.Label(r.Freshness)]),
+    ];
+
+    /// <summary>The views of the server list (docs/06-dashboard.md, section 8 "Table tools"), default first.</summary>
+    private static readonly IReadOnlyList<TableView> Views =
+    [
+        new("all", "All servers", "No filter"),
+        new("attention", "Needs attention", "Failed, offline, warning or waiting for a restart", ("status", TableFilter.In(ServerHealth.Label(ServerHealthState.Failed), ServerHealth.Label(ServerHealthState.Offline), ServerHealth.Label(ServerHealthState.Warning), ServerHealth.Label(ServerHealthState.RebootPending)))),
+        new("pending", "Updates pending", "Approved servers that still miss released updates", ("pending", TableFilter.In(PendingYes)), ("status", TableFilter.Not(ServerHealth.Label(ServerHealthState.NotApproved)))),
+        new("behind", "Behind security baseline", "Build older than the current security baseline of Microsoft", ("security", TableFilter.In(SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.OneBehind), SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.TwoBehind)))),
+        new("agent", "Outdated agent", "A newer agent version is released for the ring of the server", ("agent", TableFilter.In(ServerIndicators.Label(AgentState.UpdateAvailable), ServerIndicators.Label(AgentState.Failed)))),
+        new("unapproved", "Waiting for approval", "Registered, not approved yet", ("status", TableFilter.In(ServerHealth.Label(ServerHealthState.NotApproved)))),
     ];
 
     /// <summary>Shows only the approved servers an assignment rule matches (link from the assignment rules).</summary>
@@ -237,7 +248,7 @@
 
     private async Task LoadAsync()
     {
-        _table = TableQuery.From(Navigation, "name");
+        _table = TableQuery.From(Navigation, "name", views: Views);
         var rings = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id);
         _canAdminister = await IsAuthorizedAsync(AdminRoles.Policies.Administer);
         _rings = [.. rings.Values.OrderBy(r => r.Order)];

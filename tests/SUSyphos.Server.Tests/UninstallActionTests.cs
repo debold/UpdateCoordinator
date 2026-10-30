@@ -214,11 +214,12 @@ public sealed class UninstallActionTests
         Assert.Contains("2026-09 Cumulative Update (KB5065432)", history, StringComparison.Ordinal);
         Assert.Contains("Security Updates", history, StringComparison.Ordinal);
         Assert.DoesNotContain("Security Intelligence Update", history, StringComparison.Ordinal);
-        Assert.Contains("definition updates (1)", history, StringComparison.Ordinal);
+        Assert.Contains("View: Without definition updates (default)", history, StringComparison.Ordinal);
+        Assert.Contains("Definition updates only", history, StringComparison.Ordinal);
         Assert.Contains($"dialog=uninstall&update={update:D}", history, StringComparison.Ordinal);
         Assert.DoesNotContain($"update={signature:D}", history, StringComparison.Ordinal);
 
-        var all = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync(path + "?tab=history&definitions=1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var all = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync(path + "?tab=history&hist.view=all&wu.view=all")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("Security Intelligence Update", all, StringComparison.Ordinal);
 
         var dialog = await (await admin.GetAsync($"{path}?tab=history&dialog=uninstall&update={update:D}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
