@@ -8,7 +8,7 @@ public static class PageIcons
     public const string Servers = "server";
     public const string Updates = "package";
     public const string Approvals = "user-check";
-    public const string Agents = "bot";
+    public const string Susyphos = "hard-drive-download";
     public const string Coverage = "scan-search";
     public const string Identity = "users";
     public const string ServerGroups = "boxes";

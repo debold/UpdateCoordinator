@@ -1,0 +1,29 @@
+@* What is new in a release: the notes of the GitHub release (stored by the check, shown without HTML, see ReleaseNotes)
+   and a link to the release page. *@
+<div class="release-notes-body">
+    @if (Notes is { Length: > 0 })
+    {
+        @((MarkupString)SUSyphos.Server.AgentPackages.ReleaseNotes.ToHtml(Notes))
+    }
+    else
+    {
+        <p class="note">No release notes known for @DisplayNumber.Version(Version); the check reads them from GitHub.</p>
+    }
+    @if (Page is not null)
+    {
+        <p><a href="@Page" target="_blank" rel="noopener noreferrer">Release on GitHub ↗</a></p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Version { get; set; } = string.Empty;
+
+    /// <summary>The Markdown of the release; null when the check has not read it.</summary>
+    [Parameter]
+    public string? Notes { get; set; }
+
+    /// <summary>The release page on GitHub; null when unknown.</summary>
+    [Parameter]
+    public string? Page { get; set; }
+}

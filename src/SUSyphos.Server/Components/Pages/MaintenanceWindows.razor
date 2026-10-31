@@ -53,15 +53,14 @@
                 </select>
             </label>
             <p class="note">
-                Agents never restart a server unless its effective policy allows it: the server's own policy, otherwise its groups (one group with "Never" wins),
-                otherwise this default. Inside the maintenance window the agent restarts only while the window stays open for 30 more minutes, warns 5 minutes ahead and
-                restarts at most once per 6 hours. A server can always forbid reboots locally with the registry value AllowReboot = 0.
+                Applies where neither the server nor its groups set a policy ("Never" in one group wins). The agent restarts inside the window with at least
+                30 minutes left, after a 5-minute warning, at most every 6 hours; AllowReboot = 0 in the registry forbids it on a server.
             </p>
         </div>
         <footer class="box-foot"><span></span><button type="submit" class="primary">Save reboot policy</button></footer>
     </form>
 
-    <form method="post" @formname="automatic-updates" @onsubmit="SaveAutomaticUpdatesAsync" class="box">
+    <form method="post" @formname="automatic-updates" @onsubmit="SaveAutomaticUpdatesAsync" class="box" id="automatic-updates">
         <AntiforgeryToken />
         <header class="box-head"><h2>Windows Automatic Updates and update source<HelpLink To="maintenance-windows#automatic-updates" Label="Windows Automatic Updates and update source" /></h2></header>
         <div class="box-body form">
@@ -72,10 +71,8 @@
                 </select>
             </label>
             <p class="note">
-                With "keep Windows from installing on its own" the agent turns Windows Automatic Updates off (NoAutoUpdate = 1) on servers where
-                no group policy controls them, and removes its value when this is switched off or the agent is uninstalled; SUSyphos keeps
-                installing through the Windows Update API. Group policy always wins.
-                Groups can override this default ("leave unchanged" in one group wins).
+                "Keep Windows from installing on its own" turns Automatic Updates off (NoAutoUpdate = 1) where no group policy sets them; the agent takes it
+                back when switched off or uninstalled. Group policy always wins; "leave unchanged" in one group wins.
             </p>
             <label class="field"><span>Other Microsoft products</span>
                 <select name="MicrosoftUpdate">
@@ -84,9 +81,8 @@
                 </select>
             </label>
             <p class="note">
-                With Microsoft Update the agent registers the Microsoft Update service (like "Receive updates for other Microsoft products") and
-                searches and installs through it, also on servers that otherwise use WSUS. Switched off, it removes only a registration it made itself.
-                Groups can override this default ("Windows Update only" in one group wins).
+                Microsoft Update also covers SQL Server, Office and other Microsoft products, also on servers that use WSUS. Switched off, the agent removes
+                only its own registration; "Windows Update only" in one group wins.
             </p>
         </div>
         <footer class="box-foot"><span></span><button type="submit" class="primary">Save</button></footer>

@@ -11,6 +11,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- The pre-flight check on Windows Automatic Updates is short and says only what Windows does; the dashboard adds what to do.
 - "Keep Windows from installing on its own" turns Windows Automatic Updates off (`NoAutoUpdate = 1`, as Azure Update Manager does for manual patching) instead of setting option 3: in the lab Windows still downloaded the cumulative update with option 3 and offered it for installation. An option 3 written by an earlier agent is replaced.
 - Windows without an Automatic Updates setting is reported as installing on its own on Windows Server too (warning): in the lab the Update Orchestrator of Server 2019 installed a cumulative update a minute after its scheduled scan. Windows Update for Business deferrals set by group policy are reported (`updateForBusiness`) and warned about, because they also hold back what the agent's search finds.
 - Uninstalling the agent takes back its own changes to Windows: the installer runs `SUSyphos.Agent.exe --cleanup`, which removes the agent's `NoAutoUpdate` value and its Microsoft Update registration where its markers show it made them (group policy values are never touched); a failure never blocks the removal.
@@ -71,6 +72,12 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- The Agents page is now **SUSyphos** under Administration (Marc, 2026-10-31; /agents still leads there): version tiles for agent and central server with a pill for the state and the version ("v0.7.13 → v0.7.14"), a donut of the servers by agent version with the AD server accounts without agent and those older than Windows Server 2016, ring tags under "Released for", the release notes of each version under ▾ and of a newer central server under "What's new", and a narrow central server box next to the installer for new agents. The table "Agent versions on the servers" is gone.
+- Release notes: the check stores the text of the GitHub releases and the dashboard shows it without HTML, images or links other than https; the release workflow writes the changelog section of the version into the release (`build/Get-ReleaseNotes.ps1`).
+- Tiles spread over equally full rows (seven tiles: 7, 4 + 3, 3 + 2 + 2, then two columns), pure CSS written by `build/New-TileLayout.ps1`.
+- The Windows Automatic Updates warning says what to do: the SUSyphos setting with a link, or the group policy where a policy rules, and what to remove for Windows Update for Business deferrals; the System tab shows it as Warning (amber) like the pre-flight check, and its link opens the check on the Overview tab.
+- Navigation sorted: Overview, Servers, Updates, Operating systems, Approvals; under Administration first the rollout settings, then SUSyphos, Identity, Notifications, TLS certificate, Backup, Audit log.
+- Consistency: "Show" links of tiles and donut legends on the SUSyphos, Operating systems and AD coverage pages stayed on the overview (bare "#anchor" links against the base address; a browser test now refuses them); pre-flight results read OK, Warning, Failed like elsewhere; AD coverage says "not known yet" before Active Directory was read; icons on the remaining action band buttons; shorter explanations on the maintenance page; the save button of withdrawn updates like all others.
 - Tables get fixed **views** instead of the separate "Show:" switches (Marc, 2026-10-30): a View menu sets the existing column filters, for example "Open updates" (default), "Needs attention", "Completed", "Archived" or "All updates" on the update list; the view name follows the filters ("Custom" when they were changed, with "Reset to …"), and every filter shows as a chip, also those of a view. Views on the updates, servers, server histories, remote actions, open vulnerabilities, server list of an update, agent versions, certificates, accounts and audit log; no saved or own views, every page opens with its default view. A checked filter value now means "shown", and filters that keep most values are written as exclusions (`f.rollout=!Superseded`). The parameters `archived`, `superseded`, `completed`, `withdrawn`, `outside`, `definitions`, `unusable` and `older` are gone; archived updates are a value of the Rollout filter. The table bar puts a wide search on the left (Enter searches, no Apply button) and compact View and Group menus on the right, icons only while the default applies.
 - "Installation outside SUSyphos" notifications are sent once per installation: they were keyed by the history row, which every inventory replaces, so one installation was announced again after each inventory for a day.
 - An update installed before and reported missing again (uninstalled by SUSyphos, by hand or by Windows) counts as pending again: it shows "Missing again after the installation of …" instead of "Successful", leaves "Completed" on the Updates list and is released again (installed in the next maintenance window unless held or blocked).
@@ -246,6 +253,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Installers and CI
 
+- Packages updated: .NET 10.0.14, MailKit 4.18.2, Markdig 1.5.1, Playwright 1.64.1.
 - The agent MSI no longer runs the validation ICE46, which sporadically failed release builds of unchanged commits.
 - Browser tests of the dashboard (`tests/SUSyphos.UiTests`, Playwright with Microsoft Edge): every page in four window sizes against the layout rules, plus dialogs, filters and script features.
 

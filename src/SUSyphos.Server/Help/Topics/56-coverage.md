@@ -9,7 +9,7 @@ Compares the server accounts in Active Directory with the registered agents, so 
 
 ## Supported servers without agent {#missing}
 
-The accounts behind "Without agent", with account name, DNS name, operating system and build from Active Directory. Install the agent on them ([Agents](help/agents#install)), or disable stale accounts in Active Directory.
+The accounts behind "Without agent", with account name, DNS name, operating system and build from Active Directory. Install the agent on them ([SUSyphos](help/susyphos#install)), or disable stale accounts in Active Directory.
 
 ## Not supported {#unsupported}
 

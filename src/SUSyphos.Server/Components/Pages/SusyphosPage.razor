@@ -1,0 +1,341 @@
+@page "/administration/susyphos"
+@page "/agents"
+@attribute [Authorize(Policy = AdminRoles.Policies.Operate)]
+@inherits DashboardPageBase
+@using SUSyphos.Contracts.Agents
+@using SUSyphos.Server.AgentPackages
+@using SUSyphos.Server.Approval
+@inject ServerDbContext Db
+@inject AgentPackageStore Store
+@inject AgentPackageAdministration Administration
+@inject DirectoryCoverage Coverage
+@inject Microsoft.Extensions.Options.IOptions<AgentPackageOptions> PackageOptions
+@inject NavigationManager Navigation
+
+<PageTitle>SUSyphos</PageTitle>
+
+<PageHeader Title="SUSyphos" Icon="@PageIcons.Susyphos" Subtitle="Versions of the central server and the agents, and new agent installations. New versions come from the GitHub releases of the project; agents get them only after an administrator released them." Help="susyphos" Crumbs="@([("Administration", null), ("SUSyphos", null)])" />
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
+    <ActionBand>
+        <form method="post" @formname="agents-check" @onsubmit="CheckAsync">
+            <AntiforgeryToken />
+            <button type="submit" class="primary"><Icon Name="refresh-cw" Size="16" />Check for new versions now</button>
+        </form>
+        <div class="spacer"></div>
+        <span class="note">@(_lastCheck is { } check ? $"Last check {Format(check.AtUtc)}: {check.Describe()}" : "Not checked yet")</span>
+    </ActionBand>
+</AuthorizeView>
+
+<section class="tiles" aria-label="Versions">
+    <Tile Title="Agents on the servers" Href="/servers" Footer="@AgentsFooter">
+        <TileDonut Parts="@_agentParts" />
+    </Tile>
+    <VersionTile Title="Agent version" Href="@($"{Route}#versions")" State="@_agentTile.State" Kind="@_agentTile.Kind" Current="@_agentTile.Current" Available="@_agentTile.Available" Footer="@_agentTile.Footer" />
+    <CentralServerTile Update="@_serverUpdate" />
+</section>
+
+<div class="grid-side">
+    <Box Title="Agent versions" Anchor="versions" Help="susyphos#versions" Hint="Agents update to the newest version released for their ring; ▾ shows what is new" Flush="true">
+        <form id="agents-release" method="post" @formname="agents-release" @onsubmit="ReleaseAsync" class="detached"><AntiforgeryToken /></form>
+        <ListTable Table="_versionTable" Page="_versionPage" Columns="VersionColumns" Search="Search version" Noun="versions" ExtraColumns="1" RowKey="@(p => p.Version)" Empty="No agent package yet. The central server installer ships one; a check finds newer ones.">
+            <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+            <Row Context="package">
+                <tr class="@(_versionTable.Open == package.Version ? "expanded" : null)">
+                    <td><span class="mono">@DisplayNumber.Version(package.Version)</span><div class="note">@(package.Source == AgentPackageSource.Bundled ? "with central server" : "from GitHub"), added @DisplayTime.FormatDate(package.AddedAtUtc)</div></td>
+                    <td>
+                        @if (package.ReleasedThroughRingOrder is null)
+                        {
+                            <span class="note">–</span>
+                        }
+                        else
+                        {
+                            @foreach (var ring in _rings.Where(r => r.Order <= package.ReleasedThroughRingOrder))
+                            {
+                                <RingTag Name="@ring.Name" Order="@ring.Order" />
+                            }
+                        }
+                    </td>
+                    <td class="n">@if (_serversByVersion.GetValueOrDefault(package.Version) is > 0 and var onVersion) { <a href="@Servers.Link("agent", AgentVersion.ShortForm(package.Version))">@onVersion</a> } else { <span>0</span> }</td>
+                    <td>@{ var status = Status(package); }<StatusTag Text="@status.Text" Kind="@status.Class" /></td>
+                    <td class="n">
+                        <span class="row-actions">
+                            <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
+                                @if (package.ReleasedThroughRingOrder != AgentPackageEntity.AllRings && !IsOlderThanReleased(package))
+                                {
+                                    @if (NextRing(package) is { } next)
+                                    {
+                                        <button type="submit" form="agents-release" name="Action" value="next:@package.Version" data-help-term="Release to">Release to @next</button>
+                                    }
+                                    <button type="submit" form="agents-release" name="Action" value="all:@package.Version" class="primary">Release to all rings</button>
+                                }
+                                @if (package.ReleasedThroughRingOrder is not null)
+                                {
+                                    <button type="submit" form="agents-release" name="Action" value="withdraw:@package.Version" class="danger">Withdraw</button>
+                                }
+                            </AuthorizeView>
+                            <ExpandToggle Table="_versionTable" Key="@package.Version" Label="@($"agent {package.Version}")" />
+                        </span>
+                    </td>
+                </tr>
+            </Row>
+            <Details Context="package">
+                <ReleaseNotesView Version="@package.Version" Notes="@_notes.GetValueOrDefault(package.Version)" Page="@ReleasePage(package.Version)" />
+            </Details>
+        </ListTable>
+    </Box>
+
+    <div class="stack">
+        <Box Title="Central server" Anchor="server" Help="susyphos#server" Hint="An administrator installs a new version; the central server never updates itself">
+            <Header><StatusTag Text="@(_serverUpdate is null ? "Up to date" : "Update available")" Kind="@(_serverUpdate is null ? "ok" : "queue")" /></Header>
+            <ChildContent>
+                <dl class="facts">
+                    <dt>Running</dt><dd class="mono">@DisplayNumber.Version(SUSyphos.Server.Administration.ServerVersion.Display)</dd>
+                    @if (_serverUpdate is { } update)
+                    {
+                        <dt>Available</dt><dd><span class="mono">@DisplayNumber.Version(update.Version)</span> <span class="note">found @DisplayTime.FormatDate(update.FoundAtUtc)</span></dd>
+                    }
+                </dl>
+                @if (_serverUpdate is { } available)
+                {
+                    <details class="release-notes">
+                        <summary>What's new in @DisplayNumber.Version(available.Version)</summary>
+                        <ReleaseNotesView Version="@available.Version" Notes="@_notes.GetValueOrDefault(available.Version)" Page="@(available.Page ?? ReleasePage(available.Version))" />
+                    </details>
+                    @if (available.Package is { } serverMsi)
+                    {
+                        <div class="actions"><a class="btn primary" href="@serverMsi" target="_blank" rel="noopener noreferrer"><Icon Name="download" Size="16" />Download SUSyphos.Server-@(available.Version).msi</a></div>
+                    }
+                    <p class="note">Run it as administrator on the central server and check it against SHA256SUMS.txt of the release. The dashboard is away for about a minute; data, trust anchor and settings stay. <HelpLink To="susyphos#server" Label="How to upgrade" /></p>
+                }
+                else
+                {
+                    <p class="note">The newest release. The daily check of the GitHub releases (or "Check for new versions now") finds newer ones.</p>
+                }
+            </ChildContent>
+        </Box>
+
+        <form method="get" action="@AgentInstallerEndpoints.Route" class="box">
+            <header class="box-head"><h2>Install new agents<HelpLink To="susyphos#install" Label="Install new agents" /></h2>@if (_newest is not null) { <span class="pill neutral">@DisplayNumber.Version(_newest.Version)</span> }</header>
+            <div class="box-body form">
+                <label class="field"><span>Central server address for the agents</span><input name="address" type="url" required maxlength="2048" value="@_address" /><span class="help">How the servers reach this central server</span></label>
+                <p class="note">The unchanged agent MSI; its file name carries the address and the fingerprint of the trust anchor, so the agent trusts only this central server from the first contact. Run it interactively or with <code>msiexec /i &lt;file&gt;.msi /qn</code>; with another file name add <code>SERVERURL=@_address</code>.</p>
+            </div>
+            <footer class="box-foot"><span class="note">Recorded in the audit log.</span><button type="submit" class="primary" disabled="@(_newest is null)"><Icon Name="download" Size="16" />Download installer</button></footer>
+        </form>
+    </div>
+</div>
+
+@if (_failed.Count > 0)
+{
+    <Box Title="Failed agent updates" Help="susyphos#failed" Hint="The agent tries again after six hours; the msiexec log is on the server" Flush="true">
+        <ListTable Table="_failedTable" Page="_failedPage" Columns="FailedColumns" Search="Search server or error" Noun="servers">
+            <Row Context="client">
+                <tr><td><a href="/servers/@client.Id">@client.HostName</a></td><td class="mono" title="@client.AgentVersion">@AgentVersion.ShortForm(client.AgentVersion)</td><td>@client.AgentUpdateError</td></tr>
+            </Row>
+        </ListTable>
+    </Box>
+}
+
+@code {
+    /// <summary>Address of the page; /agents leads here too (the page was called Agents before 2026-10-31).</summary>
+    public const string Route = "/administration/susyphos";
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    /// <summary>"next:&lt;version&gt;", "all:&lt;version&gt;" or "withdraw:&lt;version&gt;" from the pressed button.</summary>
+    [SupplyParameterFromForm(FormName = "agents-release")]
+    private string? Action { get; set; }
+
+    private List<AgentPackageEntity> _packages = [];
+
+    private const string OlderUnused = "Older, unused";
+    private const string OnServers = "On servers";
+
+    private TableQuery _versionTable = default!;
+    private TablePage<AgentPackageEntity> _versionPage = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
+
+    private IReadOnlyList<TableColumn<AgentPackageEntity>> VersionColumns =>
+    [
+        new("version", "Version", p => AgentVersion.SortKey(p.Version)),
+        new("released", "Released for", p => p.ReleasedThroughRingOrder ?? -1),
+        new("servers", "Servers", p => _serversByVersion.GetValueOrDefault(p.Version), p => [_serversByVersion.GetValueOrDefault(p.Version) > 0 ? OnServers : "On no server"], Class: "n"),
+        new("status", "Status", p => Status(p).Text, p => [Status(p).Text]),
+    ];
+
+    /// <summary>The views of the version list, default first: versions agents never return to and no server runs are out of the way.</summary>
+    private static readonly IReadOnlyList<TableView> VersionViews =
+    [
+        new("current", "Current versions", "Hides versions older than the newest released one that no server runs", ("status", TableFilter.Not(OlderUnused))),
+        new("servers", "On servers", "Versions at least one approved server runs", ("servers", TableFilter.In(OnServers))),
+        new("all", "All versions", "No filter"),
+    ];
+
+    /// <summary>Released, not released, or older than the newest released version (on servers or on none).</summary>
+    private (string Text, string Class) Status(AgentPackageEntity package) =>
+        IsOlderThanReleased(package) ? (_serversByVersion.GetValueOrDefault(package.Version) > 0 ? ("Older, in use", "queue") : (OlderUnused, "neutral"))
+        : package.ReleasedThroughRingOrder is null ? ("Not released", "pend")
+        : ("Released", "ok");
+
+    /// <summary>Older than the newest released version: agents never go back to it, so it cannot be released any more.</summary>
+    private bool IsOlderThanReleased(AgentPackageEntity package) =>
+        _newestReleased is not null
+        && AgentVersion.TryParse(package.Version, out var version)
+        && AgentVersion.TryParse(_newestReleased.Version, out var released)
+        && version < released;
+
+    private List<RingEntity> _rings = [];
+    private Dictionary<string, int> _serversByVersion = [];
+    private AgentPackageEntity? _newest;
+    private ServerUpdate? _serverUpdate;
+    private AgentPackageEntity? _newestReleased;
+    private AgentPackageCheck? _lastCheck;
+    private IReadOnlyList<SUSyphos.Server.Rollouts.DonutPart> _agentParts = [];
+    private IReadOnlyDictionary<string, string> _notes = new Dictionary<string, string>();
+    private (string State, string Kind, string? Current, string? Available, string Footer) _agentTile = ("Not released", "neutral", null, null, string.Empty);
+    private bool _coverageRead;
+
+    /// <summary>Colours of agent versions older than the newest released one, newest first (categorical, never green or red).</summary>
+    private static readonly string[] OlderColors = ["s1", "s2", "s4", "s5", "s7"];
+
+    private string AgentsFooter => _coverageRead ? "approved servers by agent version, AD server accounts without agent" : "approved servers by agent version";
+
+    private string ReleasePage(string version) => $"https://github.com/{PackageOptions.Value.Repository}/releases/tag/release/v{Uri.EscapeDataString(version)}";
+
+    /// <summary>
+    /// The state of the agent version tile: a downloaded version newer than the released one, failed agent updates, a
+    /// release still on its way through the rings, or up to date.
+    /// </summary>
+    private (string, string, string?, string?, string) AgentTileState(int approved)
+    {
+        var released = _newestReleased?.Version;
+        var onReleased = released is null ? 0 : _serversByVersion.GetValueOrDefault(released);
+        if (_newest is not null && (_newestReleased is null || IsNewer(_newest.Version, _newestReleased.Version)))
+        {
+            return ("Update available", "queue", released, _newest.Version, $"{DisplayNumber.Version(_newest.Version)} downloaded, not released yet");
+        }
+
+        if (_newestReleased is null)
+        {
+            return ("Not released", "neutral", null, null, "no agent package yet");
+        }
+
+        if (_failed.Count > 0)
+        {
+            return ("Update failed", "fail", released, null, $"failed on {_failed.Count} {(_failed.Count == 1 ? "server" : "servers")}, see Failed agent updates");
+        }
+
+        if (_newestReleased.ReleasedThroughRingOrder != AgentPackageEntity.AllRings)
+        {
+            var ring = _rings.FirstOrDefault(r => r.Order == _newestReleased.ReleasedThroughRingOrder)?.Name;
+            return ("Rolling out", "pend", released, null, $"released up to {ring} · on {onReleased} of {approved} servers");
+        }
+
+        return ("Up to date", "ok", released, null, onReleased == approved ? $"on all {approved} servers" : $"on {onReleased} of {approved} servers");
+    }
+
+    private static bool IsNewer(string version, string than) =>
+        AgentVersion.TryParse(version, out var a) && AgentVersion.TryParse(than, out var b) && a > b;
+    private string _address = string.Empty;
+    private List<ClientEntity> _failed = [];
+    private TableQuery _failedTable = default!;
+    private TablePage<ClientEntity> _failedPage = default!;
+
+    private static readonly IReadOnlyList<TableColumn<ClientEntity>> FailedColumns =
+    [
+        new("name", "Server", c => c.HostName),
+        new("agent", "Agent", c => AgentVersion.SortKey(c.AgentVersion), c => [AgentVersion.ShortForm(c.AgentVersion)]),
+        new("error", "Error", c => c.AgentUpdateError, Sortable: false),
+    ];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task CheckAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators can check for new agent versions.", string.Empty);
+            return;
+        }
+
+        var result = await Administration.CheckAsync(await GetActorAsync(), CancellationToken.None);
+        ShowResult(result.Error is null ? null : $"The check {result.Describe()}.", $"Check finished: {result.Describe()}.");
+        await LoadAsync();
+    }
+
+    private async Task ReleaseAsync()
+    {
+        // The page is open to operators; releasing is for administrators, checked again in the handler.
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators can release agent versions.", string.Empty);
+            return;
+        }
+
+        var actor = await GetActorAsync();
+        var (scope, version) = Action?.Split(':', 2) is [var s, var v] ? (s, v) : (null, null);
+        var outcome = scope switch
+        {
+            "next" => await Administration.ReleaseAsync(version, AgentPackageAdministration.ReleaseScope.NextRing, actor, CancellationToken.None),
+            "all" => await Administration.ReleaseAsync(version, AgentPackageAdministration.ReleaseScope.AllRings, actor, CancellationToken.None),
+            "withdraw" => await Administration.WithdrawAsync(version, actor, CancellationToken.None),
+            _ => new Outcome("Unknown action."),
+        };
+        ShowResult(outcome.Error, scope == "withdraw" ? "The agent version was withdrawn; agents already on it stay there." : "The agent version was released; agents update after their next heartbeat.");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _packages = [.. (await Store.ListAsync(CancellationToken.None)).OrderByDescending(p => AgentVersion.TryParse(p.Version, out var v) ? v : null)];
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        _newest = AgentPackageStore.Newest(_packages);
+        _newestReleased = AgentPackageStore.Newest(_packages.Where(p => p.ReleasedThroughRingOrder is not null));
+        _lastCheck = await Administration.GetLastCheckAsync(CancellationToken.None);
+        _serverUpdate = await Administration.GetServerUpdateAsync(CancellationToken.None);
+        _failed = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved && c.AgentUpdateError != null).OrderBy(c => c.HostName).Take(1000).ToListAsync();
+        _failedTable = TableQuery.From(Navigation, "name", prefix: "fail.", defaultPageSize: 10);
+        _failedPage = TablePaging.Apply(_failed, _failedTable, FailedColumns, c => $"{c.HostName} {c.AgentUpdateError}");
+        var approved = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).ToListAsync();
+        var versions = approved.Select(c => c.AgentVersion).ToList();
+        _serversByVersion = versions
+            .GroupBy(v => AgentVersion.TryParse(v, out var parsed) ? parsed.ToString() : v ?? string.Empty)
+            .ToDictionary(g => g.Key, g => g.Count());
+        _notes = await ReleaseNotes.LoadAsync(Db, CancellationToken.None);
+        _agentTile = AgentTileState(approved.Count);
+
+        // Servers by agent version (the newest released green, older ones in categorical colours), and from Active
+        // Directory the server accounts without agent and those older than Windows Server 2016.
+        var older = 0;
+        var parts = _serversByVersion
+            .OrderByDescending(v => AgentVersion.TryParse(v.Key, out var parsed) ? parsed : null)
+            .Select(v => new SUSyphos.Server.Rollouts.DonutPart(
+                v.Key == _newestReleased?.Version ? "ok" : OlderColors[Math.Min(older++, OlderColors.Length - 1)],
+                v.Key.Length == 0 ? "unknown" : DisplayNumber.Version(v.Key),
+                v.Value,
+                v.Key.Length == 0 ? null : Servers.Link("agent", AgentVersion.ShortForm(v.Key))))
+            .ToList();
+        var coverage = await Coverage.GetReportAsync(CancellationToken.None);
+        _coverageRead = coverage.ReadAtUtc is not null;
+        if (_coverageRead)
+        {
+            parts.Add(new("neutral", "No agent", coverage.Missing.Count, "/coverage"));
+            parts.Add(new("fail", "Unsupported", coverage.Unsupported.Count, "/coverage"));
+        }
+
+        _agentParts = parts;
+        _versionTable = TableQuery.From(Navigation, "version", defaultDescending: true, prefix: "ver.", views: VersionViews);
+        _versionPage = TablePaging.Apply(_packages, _versionTable, VersionColumns, p => p.Version);
+        if (HttpContext is not null)
+        {
+            _address = await AgentInstallerEndpoints.SuggestAddressAsync(HttpContext.Request, CancellationToken.None);
+        }
+    }
+
+    private string? NextRing(AgentPackageEntity package) =>
+        _rings.FirstOrDefault(r => package.ReleasedThroughRingOrder is not { } current || r.Order > current)?.Name;
+
+    private static string Format(DateTime value) => DisplayTime.Format(value);
+}

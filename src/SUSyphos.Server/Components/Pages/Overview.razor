@@ -339,7 +339,7 @@
 
         if (_serverUpdate is { } serverUpdate)
         {
-            _attention.Add(new AttentionItem("Update", "queue", $"Central server {serverUpdate.Version} is available", $"This central server runs {SUSyphos.Server.Administration.ServerVersion.Display}.", "/agents#server", "Show"));
+            _attention.Add(new AttentionItem("Update", "queue", $"Central server {serverUpdate.Version} is available", $"This central server runs {SUSyphos.Server.Administration.ServerVersion.Display}.", SusyphosPage.Route + "#server", "Show"));
         }
 
         var pending = await Db.Clients.CountAsync(c => c.State == RegistrationState.Pending);

@@ -200,8 +200,8 @@ else
                         {
                             <tr>
                                 <td class="nowrap">@CheckName(check.Name)</td>
-                                <td><span class="pill @CheckClass(check.Status)">@((SUSyphos.Contracts.Agents.HealthStatus)check.Status)</span></td>
-                                <td class="wrap">@check.Detail</td>
+                                <td><span class="pill @CheckClass(check.Status)">@CheckLabel(check.Status)</span></td>
+                                <td class="wrap">@check.Detail@if (check.Name == AutomaticUpdatesCheck && check.Status != (int)SUSyphos.Contracts.Agents.HealthStatus.Ok) { <AutomaticUpdatesFix Bypass="@_client.AutomaticUpdatesBypass" ByPolicy="@_client.AutomaticUpdatesByPolicy" UpdateForBusiness="@(check.Detail?.Contains(AutomaticUpdatesFix.UpdateForBusinessMarker, StringComparison.Ordinal) == true)" /> }</td>
                             </tr>
                         }
                     </tbody>
@@ -385,7 +385,7 @@ else
             {
                 <dt>Move</dt><dd><span class="pill fail">not moved</span> <span>@moveError</span> <a href="/administration/backup#move" title="The announced move to a new central server">Move to a new server</a></dd>
             }
-            <dt>Automatic updates</dt><dd>@if (_client.AutoUpdateMode is null) { <span class="note">reported by agents from version 0.3</span> } else if (_client.AutomaticUpdatesBypass) { <span class="pill fail">problem</span> <span>Windows may install or restart on its own, outside rings and windows (<a href="@ServerPage.Link(Id, "checks")">details</a>); setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> } else { <span class="pill ok">OK</span> <span>Windows does not install on its own; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> }</dd>
+            <dt>Automatic updates</dt><dd>@if (_client.AutoUpdateMode is null) { <span class="note">reported by agents from version 0.3</span> } else if (_client.AutomaticUpdatesBypass) { <span class="pill queue">Warning</span> <span>Windows installs updates on its own, outside rings and maintenance windows; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent) (<a href="@($"/servers/{Id}?tab={ServerPage.Overview}#checks")">pre-flight check</a>)</span><AutomaticUpdatesFix Bypass="true" ByPolicy="@_client.AutomaticUpdatesByPolicy" /> } else { <span class="pill ok">OK</span> <span>Windows does not install on its own; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> }</dd>
             <dt>Restart</dt><dd>@if (_client.RestartAnnouncedAtUtc is { } restartAt) { <span class="pill pend">restarting</span> <span>at @Format(restartAt), announced to Windows by the agent</span> } else if (!_client.RebootPending) { <span class="pill ok">not pending</span> } else if (_client.RebootWait is { } wait) { <span class="pill queue">pending</span> <span>@LiveStatus.RebootWaitText(wait) (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> } else { <span class="pill queue">pending</span> <span>the agent reports why it waits from version 0.7 (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> }</dd>
             <dt>Outside SUSyphos</dt><dd>@if (_externalInstalls > 0) { <span class="pill queue">@_externalInstalls</span> <span>installations in the last @SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays days were started by Windows or an administrator, not by SUSyphos (<a href="@ServerPage.Link(Id, "windows-history")">history</a>)</span> } else { <span>none in the reported history</span> }</dd>
             <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
@@ -1397,14 +1397,24 @@ else
 
     private static DateTime ToUtc(DateTime local, TimeZoneInfo zone) => TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), zone);
 
+    /// <summary>Name of the pre-flight check on Windows Automatic Updates (agent PreFlightCheck.AutomaticUpdatesCheck).</summary>
+    private const string AutomaticUpdatesCheck = "AutomaticUpdates";
+
 
     private static string CheckName(string name) => name switch
     {
         "DiskSpace" => "Disk space",
         "UpdateService" => "Windows Update service",
         "UpdateSource" => "Update source",
-        "AutomaticUpdates" => "Windows Automatic Updates",
+        AutomaticUpdatesCheck => "Windows Automatic Updates",
         _ => name,
+    };
+
+    private static string CheckLabel(int status) => status switch
+    {
+        (int)SUSyphos.Contracts.Agents.HealthStatus.Ok => "OK",
+        (int)SUSyphos.Contracts.Agents.HealthStatus.Warning => "Warning",
+        _ => "Failed",
     };
 
     private static string CheckClass(int status) => status switch

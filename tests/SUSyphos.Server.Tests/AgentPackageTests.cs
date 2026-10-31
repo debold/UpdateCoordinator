@@ -159,7 +159,7 @@ internal sealed class FakeAgentReleaseSource : IAgentReleaseSource
 
     public int Downloads { get; private set; }
 
-    public void Add(string version, byte[] package, string? checksum = null, bool prerelease = false, bool withServer = false)
+    public void Add(string version, byte[] package, string? checksum = null, bool prerelease = false, bool withServer = false, string? notes = null)
     {
         Assert.True(AgentVersion.TryParse(version, out var parsed));
         var packageUrl = new Uri($"https://github.com/debold/UpdateCoordinator/releases/download/release/v{version}/SUSyphos.Agent-{version}.msi");
@@ -172,7 +172,8 @@ internal sealed class FakeAgentReleaseSource : IAgentReleaseSource
             sumsUrl,
             prerelease,
             withServer ? new Uri($"https://github.com/debold/UpdateCoordinator/releases/download/release/v{version}/SUSyphos.Server-{version}.msi") : null,
-            withServer ? new Uri($"https://github.com/debold/UpdateCoordinator/releases/tag/release/v{version}") : null));
+            withServer ? new Uri($"https://github.com/debold/UpdateCoordinator/releases/tag/release/v{version}") : null,
+            notes));
     }
 
     public Task<IReadOnlyList<AgentRelease>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AgentRelease>>(Releases);
@@ -244,7 +245,7 @@ public sealed class AgentPackageTests : IAsyncDisposable
     [Fact]
     public async Task Check_NotesANewerCentralServer_ShowsAndNotifiesIt()
     {
-        _factory.Releases.Add("1.2.0", Package, withServer: true);
+        _factory.Releases.Add("1.2.0", Package, withServer: true, notes: "### Central server\n\n- Faster **overview**");
         _factory.Releases.Add("1.1.0", Package, withServer: true);
 
         var result = await WithAsync<AgentPackageAdministration, AgentPackageCheck>(a => a.CheckAsync(null, CancellationToken.None));
@@ -265,8 +266,12 @@ public sealed class AgentPackageTests : IAsyncDisposable
         }
 
         var overview = await (await browser.GetAsync("/")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var agents = await (await browser.GetAsync("/agents")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var agents = await (await browser.GetAsync("/administration/susyphos")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Central server 1.2.0 is available", overview, StringComparison.Ordinal);
+        Assert.Contains("href=\"/administration/susyphos#server\"", overview, StringComparison.Ordinal);
+        Assert.Contains("What's new in v1.2.0", System.Net.WebUtility.HtmlDecode(agents), StringComparison.Ordinal);
+        Assert.Contains("<li>Faster <strong>overview</strong></li>", agents, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"new\">v1.2.0</span>", agents, StringComparison.Ordinal);
         Assert.Contains("1.2.0 available</a>", overview, StringComparison.Ordinal);
         Assert.Contains("href=\"https://github.com/debold/UpdateCoordinator/releases/download/release/v1.2.0/SUSyphos.Server-1.2.0.msi\" target=\"_blank\" rel=\"noopener noreferrer\"", agents, StringComparison.Ordinal);
     }
@@ -561,8 +566,21 @@ public sealed class AgentPackageTests : IAsyncDisposable
             var html = await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.Contains("1.3.0", html, StringComparison.Ordinal);
             Assert.Contains("Download installer", html, StringComparison.Ordinal);
-            Assert.DoesNotContain("Release to all rings now", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("Release to all rings</button>", html, StringComparison.Ordinal);
+            Assert.Contains("Update available", html, StringComparison.Ordinal);
+            Assert.Contains("v1.3.0 downloaded, not released yet", html, StringComparison.Ordinal);
         }
+
+        // The notes of the release open below the version; a manipulated text stays harmless.
+        await _factory.WithDbAsync(db =>
+        {
+            db.Settings.Add(new SettingEntity { Key = ReleaseNotes.Setting, Value = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string> { ["1.3.0"] = "- Ring tags <script>alert(1)</script>" }) });
+            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        var notes = await (await operatorBrowser.GetAsync("/administration/susyphos?ver.open=1.3.0")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("<li>Ring tags", notes, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script>alert", notes, StringComparison.Ordinal);
+        Assert.Contains("releases/tag/release/v1.3.0", notes, StringComparison.Ordinal);
 
         using (await operatorBrowser.PostFormAsync("/agents", new Dictionary<string, string> { ["_handler"] = "agents-release", ["Action"] = "all:1.3.0" }))
         {
@@ -582,6 +600,9 @@ public sealed class AgentPackageTests : IAsyncDisposable
         }
 
         Assert.Equal(AgentPackageEntity.AllRings, await _factory.WithDbAsync(db => db.AgentPackages.Select(p => p.ReleasedThroughRingOrder).SingleAsync(TestContext.Current.CancellationToken)));
+        var current = await (await admin.GetAsync("/administration/susyphos")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Up to date", current, StringComparison.Ordinal);
+        Assert.Contains("class=\"ring-tag", current, StringComparison.Ordinal);
 
         using (var bad = await admin.PostFormAsync("/agents", new Dictionary<string, string> { ["_handler"] = "agents-release", ["Action"] = "nonsense" }))
         {

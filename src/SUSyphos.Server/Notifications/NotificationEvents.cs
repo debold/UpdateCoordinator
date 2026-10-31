@@ -119,7 +119,7 @@ internal sealed class NotificationEvents(
         var packages = await db.AgentPackages.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
         if (SUSyphos.Server.AgentPackages.AgentPackageStore.Newest(packages) is { ReleasedThroughRingOrder: null } waiting)
         {
-            events.Add(new NotificationEvent($"agent.available:{waiting.Version}", NotificationKind.AgentVersionAvailable, $"Agent version {waiting.Version} is available and waits for release.", "agents"));
+            events.Add(new NotificationEvent($"agent.available:{waiting.Version}", NotificationKind.AgentVersionAvailable, $"Agent version {waiting.Version} is available and waits for release.", "administration/susyphos#versions"));
         }
 
         var failedUpdates = await db.Clients.AsNoTracking()
@@ -132,7 +132,7 @@ internal sealed class NotificationEvents(
         var serverUpdate = await db.Settings.AsNoTracking().Where(s => s.Key == AgentPackages.AgentPackageAdministration.ServerUpdateSetting).Select(s => s.Value).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
         if (serverUpdate is not null && System.Text.Json.JsonSerializer.Deserialize<AgentPackages.ServerUpdate>(serverUpdate) is { } server)
         {
-            events.Add(new NotificationEvent($"server.available:{server.Version}", NotificationKind.ServerVersionAvailable, $"Central server version {server.Version} is available; install it on the central server.", "agents#server"));
+            events.Add(new NotificationEvent($"server.available:{server.Version}", NotificationKind.ServerVersionAvailable, $"Central server version {server.Version} is available; install it on the central server.", "administration/susyphos#server"));
         }
 
         // The last scheduled backup failed: reported until a later run succeeds.

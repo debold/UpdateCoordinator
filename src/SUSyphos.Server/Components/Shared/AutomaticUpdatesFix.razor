@@ -1,0 +1,37 @@
+@* What an administrator does when Windows may install updates on its own or Windows Update for Business holds them back
+   (pre-flight check "Windows Automatic Updates" and the System tab): the SUSyphos setting first, group policy as the
+   alternative or where a policy rules. *@
+@if (Bypass)
+{
+    <p class="fix">
+        @if (ByPolicy)
+        {
+            <span>Fix: a group policy sets Automatic Updates, so SUSyphos cannot change it; set "Configure Automatic Updates" to Disabled in that policy.</span>
+        }
+        else
+        {
+            <span>Fix: in <a href="/administration/maintenance#automatic-updates">Maintenance windows › Windows Automatic Updates</a> choose "Keep Windows from installing on its own" for all servers or for a group of this server, or set the group policy "Configure Automatic Updates" to Disabled.</span>
+        }
+    </p>
+}
+@if (UpdateForBusiness)
+{
+    <p class="fix">Fix: remove "Select when Quality Updates are received" and "Select when Preview Builds and Feature Updates are received" from the group policy (or set the deferral to 0 days).</p>
+}
+
+@code {
+    /// <summary>Windows may install or restart on its own.</summary>
+    [Parameter]
+    public bool Bypass { get; set; }
+
+    /// <summary>A group policy sets Automatic Updates, so the agent may not change it.</summary>
+    [Parameter]
+    public bool ByPolicy { get; set; }
+
+    /// <summary>Windows Update for Business deferrals are set by group policy.</summary>
+    [Parameter]
+    public bool UpdateForBusiness { get; set; }
+
+    /// <summary>The words the agent uses in the check for deferrals (agent PreFlightCheck).</summary>
+    public const string UpdateForBusinessMarker = "Windows Update for Business";
+}

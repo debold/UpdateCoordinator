@@ -68,7 +68,9 @@ internal sealed partial class AgentPackageAdministration(
         AgentPackageCheck result;
         try
         {
-            var candidates = (await releases.ListAsync(cancellationToken).ConfigureAwait(false))
+            var listed = await releases.ListAsync(cancellationToken).ConfigureAwait(false);
+            await ReleaseNotes.SaveAsync(db, listed, cancellationToken).ConfigureAwait(false);
+            var candidates = listed
                 .Where(r => options.Value.IncludePrereleases || !r.Prerelease && r.Version.Prerelease is null)
                 .ToList();
             var server = await NoteServerUpdateAsync(candidates, now, cancellationToken).ConfigureAwait(false);

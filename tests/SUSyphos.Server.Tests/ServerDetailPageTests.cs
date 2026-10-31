@@ -365,9 +365,9 @@ public sealed class ServerDetailPageTests
     }
 
     [Theory]
-    [InlineData(true, "pill fail\">problem")]
+    [InlineData(true, "pill queue\">Warning")]
     [InlineData(false, "pill ok\">OK")]
-    public async Task AutomaticUpdates_ShowClearlyWhetherThereIsAProblem(bool bypass, string expected)
+    public async Task AutomaticUpdates_ShowClearlyWhetherThereIsAProblem_AndWhatToDo(bool bypass, string expected)
     {
         await using var scenario = await RolloutScenario.CreateAsync();
         var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
@@ -384,6 +384,35 @@ public sealed class ServerDetailPageTests
 
         Assert.Contains(expected, page, StringComparison.Ordinal);
         Assert.DoesNotContain("bypasses rings", page, StringComparison.Ordinal);
+        Assert.Equal(bypass, page.Contains("href=\"/administration/maintenance#automatic-updates\"", StringComparison.Ordinal));
+        Assert.Equal(bypass, page.Contains($"href=\"/servers/{client.ClientId}?tab=overview#checks\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task PreFlightCheck_NamesTheGroupPolicy_WhenAPolicyRulesAutomaticUpdates_AndTheDeferrals()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            var stored = await db.Clients.SingleAsync(c => c.Id == client.ClientId, TestContext.Current.CancellationToken);
+            stored.AutoUpdateMode = AutomaticUpdateMode.ScheduledInstall;
+            stored.AutomaticUpdatesByPolicy = true;
+            stored.AutomaticUpdatesBypass = true;
+            stored.HealthChecks = [new HealthCheckEntry { Name = "AutomaticUpdates", Status = (int)HealthStatus.Warning, Detail = "Windows installs updates on its own schedule (AUOptions 4, group policy). Windows Update for Business deferrals are set by group policy: updates are held back for the deferral days, also from SUSyphos." }];
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        var page = System.Net.WebUtility.HtmlDecode(await (await reader.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("a group policy sets Automatic Updates, so SUSyphos cannot change it", page, StringComparison.Ordinal);
+        Assert.Contains("Select when Quality Updates are received", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/administration/maintenance#automatic-updates\"", page, StringComparison.Ordinal);
     }
 
     [Fact]

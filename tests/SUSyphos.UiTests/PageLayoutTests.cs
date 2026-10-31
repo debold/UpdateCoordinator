@@ -39,7 +39,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/updates/{update}?tab=timeline",
         "/updates/{update}?dialog=uninstall",
         "/approvals",
-        "/agents",
+        "/administration/susyphos",
         "/coverage",
         "/administration/users",
         "/administration/users?dialog=new",
@@ -110,6 +110,9 @@ public sealed class PageLayoutTests(UiFixture ui)
 
         var links = await page.EvalOnSelectorAllAsync<string[]>("main a[href]", "links => links.map(a => a.href)");
         var broken = new List<string>();
+        // The dashboard sets <base href="/">, so a bare "#anchor" opens the overview instead of a part of this page.
+        var anchors = await page.EvalOnSelectorAllAsync<string[]>("main a[href^='#']", "links => links.map(a => a.getAttribute('href'))");
+        broken.AddRange(new Uri(page.Url).AbsolutePath == "/" ? [] : anchors.Select(a => $"bare anchor (leads to the overview) {a}"));
         foreach (var link in links.Distinct().Where(l => l.StartsWith(ui.BaseAddress.ToString(), StringComparison.Ordinal) && !l.Contains("/logout", StringComparison.Ordinal) && !l.Contains("/download", StringComparison.Ordinal)))
         {
             var response = await context.APIRequest.GetAsync(link, new APIRequestContextOptions { MaxRedirects = 0 });

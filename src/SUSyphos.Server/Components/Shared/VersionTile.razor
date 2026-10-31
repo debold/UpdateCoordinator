@@ -1,0 +1,50 @@
+@* A version tile (docs/06-dashboard.md, section 8 "Tiles", versions): the state as a pill above the version; an available
+   update shows both versions, "v0.7.13 → v0.7.14". Everything else goes to the footer. *@
+<Tile Title="@Title" Href="@Href" Edge="@(Kind is "queue" or "fail" ? Kind : null)" Footer="@Footer">
+    <div class="tile-version">
+        <StatusTag Text="@State" Kind="@Kind" />
+        <span class="version-line" title="@VersionTitle">
+            @if (Current is not null)
+            {
+                @DisplayNumber.Version(Current)
+            }
+            @if (Available is not null)
+            {
+                @if (Current is not null)
+                {
+                    <span class="arrow" aria-label="to">→</span>
+                }
+                <span class="new">@DisplayNumber.Version(Available)</span>
+            }
+        </span>
+    </div>
+</Tile>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Href { get; set; }
+
+    /// <summary>The state in a few words: Up to date, Update available, Rolling out, Update failed.</summary>
+    [Parameter, EditorRequired]
+    public string State { get; set; } = string.Empty;
+
+    /// <summary>Status class of the pill (ok, pend, queue, fail, neutral); queue and fail also colour the edge.</summary>
+    [Parameter, EditorRequired]
+    public string Kind { get; set; } = "neutral";
+
+    /// <summary>The version running or released now; null when there is none yet.</summary>
+    [Parameter]
+    public string? Current { get; set; }
+
+    /// <summary>A newer version that is available; null when none is.</summary>
+    [Parameter]
+    public string? Available { get; set; }
+
+    [Parameter]
+    public string? Footer { get; set; }
+
+    private string VersionTitle => string.Join(" → ", new[] { Current, Available }.Where(v => v is not null).Select(v => DisplayNumber.Version(v)));
+}

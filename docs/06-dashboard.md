@@ -99,7 +99,7 @@ Implemented (2026-10-22): page Administration → Agent settings with the system
 
 Visibility of agent versions, state of the internal agent rollout, minimum version.
 
-Implemented (2026-10-20): page Agents (role Operator; Admin for checking and releasing) with the agent versions the central server holds (source, release state per ring as tags, servers per version), release actions, "Check for new versions now", the installer download with address and anchor fingerprint in the file name, the agent versions reported by the servers and failed self-updates. The server detail shows the agent update state.
+Implemented (2026-10-20): page Agents (role Operator; Admin for checking and releasing) with the agent versions the central server holds (source, release state per ring as tags, servers per version), release actions, "Check for new versions now", the installer download with address and anchor fingerprint in the file name, the agent versions reported by the servers and failed self-updates. The server detail shows the agent update state. Since 2026-10-31 the page is called SUSyphos and sits under Administration (`/administration/susyphos`, /agents leads there): version tiles for agent and central server, a donut of the servers by agent version with AD accounts without agent and unsupported ones, release notes per version, a narrow central server box and the installer.
 
 ### Integrated help
 
@@ -136,6 +136,8 @@ Key figures at the top of a page (overview, server details, AD coverage, agents,
 - **Footer:** one line of small text below a thin separator, always at the bottom (unit, context, time reference); longer text is cut with "…" and shown in full as tooltip.
 - **Edge:** a tile whose state needs attention gets a coloured left edge (red failure, amber warning); the edge never carries information the text does not say.
 - All tiles of a row have the same height. Version numbers carry a "v" prefix (v0.7.7).
+- **Rows:** the tiles of a row spread over equally full rows (Marc, 2026-10-31): seven tiles stand in one row where there is room, else 4 + 3, 3 + 2 + 2, then in two columns; a tile never stands alone in a row while others are wider. Pure CSS, from the number of tiles and the width of the page (`build/New-TileLayout.ps1` writes the rules), for every row of tiles.
+- **Versions** (agent, central server; Marc, 2026-10-31): a pill for the state (Up to date, Update available, Rolling out, Update failed) above the version; an available update shows both, "v0.7.13 → v0.7.14". Nothing else in the main part; what to do or when it was checked goes to the footer.
 
 ### Action bands
 

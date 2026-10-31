@@ -106,19 +106,19 @@ internal sealed class PreFlightCheck(ISystemProbe probe, IDiskSpace disk, IOptio
         var reasons = new List<string>();
         if (automatic.Mode == AutomaticUpdateMode.ScheduledInstall)
         {
-            reasons.Add($"Automatic Updates installs on its own schedule (AUOptions 4, {origin})");
+            reasons.Add($"Windows installs updates on its own schedule (AUOptions 4, {origin})");
         }
 
         if (automatic.Mode == AutomaticUpdateMode.NotConfigured)
         {
             reasons.Add(automatic.ClientOperatingSystem
-                ? "Windows 10 and 11 install updates on their own while \"Configure Automatic Updates\" is not set"
-                : "the Update Orchestrator installs updates after its scheduled scan while \"Configure Automatic Updates\" is not set");
+                ? "Windows installs updates on its own: \"Configure Automatic Updates\" is not set"
+                : "Windows installs updates on its own: \"Configure Automatic Updates\" is not set, so the Update Orchestrator installs after its scheduled scan");
         }
 
         if (automatic.ScheduledRestart)
         {
-            reasons.Add("restarts automatically at the scheduled time");
+            reasons.Add("Windows restarts at a scheduled time");
         }
 
         if (automatic.Deadline)
@@ -131,12 +131,11 @@ internal sealed class PreFlightCheck(ISystemProbe probe, IDiskSpace disk, IOptio
             return new HealthCheckResult { Name = AutomaticUpdatesCheck, Status = HealthStatus.Ok, Detail = $"Windows does not install on its own ({automatic.Mode}, {origin})." };
         }
 
-        var detail = reasons.Count > 0
-            ? string.Join("; ", reasons) + ". Updates may be installed outside rings and maintenance windows; recommended: let SUSyphos keep Windows from installing on its own, or disable Automatic Updates by group policy."
-            : string.Empty;
+        // Short: what Windows does; the dashboard adds what to do about it.
+        var detail = reasons.Count > 0 ? string.Join("; ", reasons) + "." : string.Empty;
         if (automatic.UpdateForBusiness)
         {
-            detail = (detail + " Windows Update for Business deferrals are set by policy: Windows holds updates back for the deferral days, also from the agent's search.").TrimStart();
+            detail = (detail + " Windows Update for Business deferrals are set by group policy: updates are held back for the deferral days, also from SUSyphos.").TrimStart();
         }
 
         return new HealthCheckResult { Name = AutomaticUpdatesCheck, Status = HealthStatus.Warning, Detail = detail.Length <= 512 ? detail : detail[..512] };

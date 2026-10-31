@@ -26,7 +26,7 @@ Each tile has a title, the values in the middle and one line of context at the b
 | **Compliance** | Released installed (patch compliance): share of approved servers that have every update released for their ring installed. Fully patched: share whose update search reports no missing update at all, also none the rings still hold back. The difference is what the rings deliberately hold back. |
 | **Security baseline** | Servers on the newest security build of their Windows version, of all servers it can be checked for, and how many have a vulnerability Microsoft knows to be exploited (red edge then); **Show ›** opens [Operating systems](help/operating-systems). |
 | **AD coverage** | Only when the directory was read: supported server accounts in Active Directory that run an agent, of all supported accounts. Opens the [AD coverage](help/coverage) list. |
-| **Central server** | Up to date or Update available, with the version this central server runs; **Show ›** opens it on the [Agents](help/agents#server) page with the download. |
+| **Central server** | Up to date or Update available, with the version this central server runs; **Show ›** opens it on the [SUSyphos](help/susyphos#server) page with the download. |
 
 ## Deployment by ring {#rings}
 
@@ -49,7 +49,7 @@ Everything that waits for a human decision or points to a problem, each with a b
 - **Failed** and **Offline**: servers with a failed installation or without a heartbeat for over an hour.
 - **Support**: servers without Extended Security Updates after the end of support (red, "Out of support"), servers past the end without ESU found yet (amber, "End of support") and servers whose support ends within 180 days (amber); **Show servers** opens the server list filtered to them.
 - **Security**: servers with a vulnerability Microsoft knows to be exploited (red), servers missing a security baseline released longer ago than the way through the rings takes (amber; the maximum waits of all transitions plus a week, or `Security:BehindDays`), and a share of servers behind the baseline of at least 20 % (amber, `Security:BehindPercent`); see [Operating systems](help/operating-systems).
-- **Update**: a newer version of the central server is available; **Show** opens it on the [Agents](help/agents#server) page with the download.
+- **Update**: a newer version of the central server is available; **Show** opens it on the [SUSyphos](help/susyphos#server) page with the download.
 
 "Nothing waits for a human decision" means the list is empty.
 

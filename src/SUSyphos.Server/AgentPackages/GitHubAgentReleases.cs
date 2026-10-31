@@ -7,9 +7,9 @@ namespace SUSyphos.Server.AgentPackages;
 
 /// <summary>
 /// A release of the project offered by the release source: version, agent MSI, checksum file and, when published, the
-/// central server MSI and the release page.
+/// central server MSI, the release page and its notes (Markdown, as written on GitHub).
 /// </summary>
-internal sealed record AgentRelease(AgentVersion Version, Uri Package, Uri Checksums, bool Prerelease, Uri? ServerPackage = null, Uri? Page = null);
+internal sealed record AgentRelease(AgentVersion Version, Uri Package, Uri Checksums, bool Prerelease, Uri? ServerPackage = null, Uri? Page = null, string? Notes = null);
 
 /// <summary>Where new agent versions come from; replaced by a fake in tests.</summary>
 internal interface IAgentReleaseSource
@@ -57,7 +57,8 @@ internal sealed partial class GitHubAgentReleases(HttpClient http, IOptions<Agen
                     checksumUrl,
                     release.Prerelease,
                     server?.Url is { } serverUrl && IsRepositoryAsset(serverUrl, repository) ? serverUrl : null,
-                    release.Page is { } page && IsReleasePage(page, repository) ? page : null));
+                    release.Page is { } page && IsReleasePage(page, repository) ? page : null,
+                    ReleaseNotes.Limit(release.Body)));
             }
         }
 
@@ -104,7 +105,8 @@ internal sealed partial class GitHubAgentReleases(HttpClient http, IOptions<Agen
         [property: JsonPropertyName("draft")] bool Draft,
         [property: JsonPropertyName("prerelease")] bool Prerelease,
         [property: JsonPropertyName("assets")] List<GitHubAsset>? Assets,
-        [property: JsonPropertyName("html_url")] Uri? Page = null);
+        [property: JsonPropertyName("html_url")] Uri? Page = null,
+        [property: JsonPropertyName("body")] string? Body = null);
 
     internal sealed record GitHubAsset(
         [property: JsonPropertyName("name")] string? Name,

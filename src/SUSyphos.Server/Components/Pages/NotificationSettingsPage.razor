@@ -15,8 +15,8 @@
 <form method="post" @formname="notifications" @onsubmit="HandleAsync" class="stack">
     <AntiforgeryToken />
     <ActionBand>
-        <button type="submit" name="Action" value="save" class="primary">Save</button>
-        <button type="submit" name="Action" value="test">Send a test notification</button>
+        <button type="submit" name="Action" value="save" class="primary"><Icon Name="check" Size="16" />Save</button>
+        <button type="submit" name="Action" value="test"><Icon Name="send" Size="16" />Send a test notification</button>
         <div class="spacer"></div>
         <span class="note">The test uses the saved settings.</span>
     </ActionBand>

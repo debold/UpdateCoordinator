@@ -131,7 +131,7 @@ What the agent reported about the server:
 - **Agent update**: installed agent version (opens all servers with this version), a failed agent update with its error, or "below minimum" when the agent is older than the minimum version.
 - **Agent settings**: whether the agent applies the central agent settings as set, how many it has not received yet, or how many the server sets differently itself (registry or group policy). **Show** opens the [agent settings](#agent-settings) in the Configuration tab, where each one is marked.
 - **Move**: shown while a [move to a new server](help/backup#move) is announced and this agent could not move, with the reason; the link opens the move box.
-- **Automatic updates**: whether Windows could install or restart on its own, outside rings and windows (problem), or not (OK), with the current setting.
+- **Automatic updates**: whether Windows installs or restarts on its own, outside rings and maintenance windows (Warning), or not (OK), with the current setting, what to do about it and a link to the pre-flight check.
 - **Restart**: whether a restart is pending and why the agent waits.
 - **Outside SUSyphos**: installations of the last 90 days that Windows or an administrator started, not SUSyphos (see the Windows Update history).
 - **Time zone** (maintenance windows are local to the server), **Uptime**, **Last update search** (OK or failed with the error), **Registered**.
@@ -142,7 +142,7 @@ Where the title carries a KB number, the KB links to Microsoft's release notes a
 
 ## Pre-flight checks {#checks}
 
-Before each update run the agent checks: **Disk space**, **Windows Update service**, **Update source** (WSUS) and **Windows Automatic Updates**. Each is OK, Warning or Failed, with details. A failed check stops installations on this server until it is fixed. If the last update search failed, its error code and explanation are shown below the table.
+Before each update run the agent checks: **Disk space**, **Windows Update service**, **Update source** (WSUS) and **Windows Automatic Updates**. Each is OK, Warning or Failed, with details. A failed check stops installations on this server until it is fixed. For **Windows Automatic Updates** a line "Fix:" says what to do: choose "Keep Windows from installing on its own" under [Maintenance windows](help/maintenance-windows#automatic-updates) (for all servers or a group of the server), or, where a group policy sets Automatic Updates, set "Configure Automatic Updates" to Disabled in that policy; Windows Update for Business deferrals are removed from the group policy. If the last update search failed, its error code and explanation are shown below the table.
 
 ## Installed by SUSyphos {#history}
 

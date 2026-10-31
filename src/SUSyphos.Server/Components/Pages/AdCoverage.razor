@@ -19,7 +19,7 @@
 </section>
 
 <Box Title="Supported servers without agent" Anchor="missing" Help="coverage#missing" Hint="enabled server accounts no registered agent reports for" Flush="true">
-    <ListTable Table="_missingTable" Page="_missingPage" Columns="Columns" Search="Search account or DNS name" Noun="accounts" Empty="Every supported server account has an agent.">
+    <ListTable Table="_missingTable" Page="_missingPage" Columns="Columns" Search="Search account or DNS name" Noun="accounts" Empty="@(_report.ReadAtUtc is null ? NotRead : "Every supported server account has an agent.")">
         <Row Context="computer">
             <tr><td>@computer.Name</td><td>@computer.DnsHostName</td><td>@computer.OperatingSystem</td><td>@computer.Build</td></tr>
         </Row>
@@ -27,7 +27,7 @@
 </Box>
 
 <Box Title="Not supported" Anchor="unsupported" Help="coverage#unsupported" Hint="older than Windows Server 2016, not counted" Flush="true">
-    <ListTable Table="_unsupportedTable" Page="_unsupportedPage" Columns="Columns" Search="Search account or DNS name" Noun="accounts" Empty="None.">
+    <ListTable Table="_unsupportedTable" Page="_unsupportedPage" Columns="Columns" Search="Search account or DNS name" Noun="accounts" Empty="@(_report.ReadAtUtc is null ? NotRead : "None.")">
         <Row Context="computer">
             <tr><td>@computer.Name</td><td>@computer.DnsHostName</td><td>@computer.OperatingSystem</td><td>@(computer.Build?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown")</td></tr>
         </Row>
@@ -48,13 +48,15 @@
     private IReadOnlyList<SUSyphos.Server.Rollouts.DonutPart> Parts =>
     [
         new("ok", "With agent", _report.Covered),
-        new("queue", "Without agent", _report.Missing.Count, "#missing"),
-        new("neutral", "Not supported", _report.Unsupported.Count, "#unsupported"),
+        new("queue", "Without agent", _report.Missing.Count, "/coverage#missing"),
+        new("neutral", "Not supported", _report.Unsupported.Count, "/coverage#unsupported"),
     ];
     private TableQuery _missingTable = default!;
     private TablePage<DirectoryComputerEntity> _missingPage = default!;
     private TableQuery _unsupportedTable = default!;
     private TablePage<DirectoryComputerEntity> _unsupportedPage = default!;
+
+    private const string NotRead = "Not known yet: Active Directory has not been read.";
 
     private string CoverageSubtitle => _report.ReadAtUtc is { } read
         ? $"Server accounts read from Active Directory at {DisplayTime.Format(read)}"
