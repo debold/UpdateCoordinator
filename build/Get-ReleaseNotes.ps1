@@ -20,7 +20,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $lines = Get-Content (Join-Path $root 'CHANGELOG.md') -Encoding utf8
 $heading = "## [$Version]"
 $start = [Array]::FindIndex($lines, [Predicate[string]] { param($l) $l.StartsWith($heading, [StringComparison]::Ordinal) })
-$notes = @('Unsigned test build: the packages are not code-signed yet.', '')
+$notes = @('Beta: the packages are not code-signed yet.', '')
 if ($start -ge 0) {
     $end = [Array]::FindIndex($lines, $start + 1, [Predicate[string]] { param($l) $l.StartsWith('## ', [StringComparison]::Ordinal) })
     if ($end -lt 0) { $end = $lines.Count }
@@ -30,5 +30,5 @@ else {
     $notes += 'See CHANGELOG.md and docs/admin/test-guide.md.'
 }
 
-[IO.File]::WriteAllText($OutputFile, (($notes -join "`n").Trim() + "`n"), (New-Object Text.UTF8Encoding($false)))
+[IO.File]::WriteAllText($OutputFile, ((($notes -join "`n") -replace "`n{3,}", "`n`n").Trim() + "`n"), (New-Object Text.UTF8Encoding($false)))
 Write-Host "Wrote the notes of $Version to $OutputFile"

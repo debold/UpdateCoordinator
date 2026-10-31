@@ -4,6 +4,10 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-31
+
+First beta. Everything below was built up to this release; from here on each release lists its own changes.
+
 ### Both
 
 - Maintenance windows can be limited to weeks of the month ("only in" the 1st–4th or last week, or "all except" some of them), for monthly windows such as the second Tuesday or every Saturday except the last.

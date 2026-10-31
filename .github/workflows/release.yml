@@ -63,6 +63,6 @@ jobs:
           # The release text is the changelog section of the version; the central server shows it under "What's new".
           ./build/Get-ReleaseNotes.ps1 -Version '${{ steps.version.outputs.version }}' -OutputFile artifacts/release-notes.md
           $arguments = @('release', 'create', '${{ github.ref_name }}', 'artifacts/release/SUSyphos.Agent-${{ steps.version.outputs.version }}.msi', 'artifacts/release/SUSyphos.Server-${{ steps.version.outputs.version }}.msi', 'artifacts/release/SHA256SUMS.txt',
-            '--title', 'SUSyphos ${{ steps.version.outputs.version }}', '--notes-file', 'artifacts/release-notes.md')
+            '--title', "SUSyphos ${{ steps.version.outputs.version }}$(if ('${{ steps.version.outputs.version }}' -match '^0\.([89]|\d{2,})\.') { ' Beta' })", '--notes-file', 'artifacts/release-notes.md')
           if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $arguments += '--prerelease' }
           gh @arguments
