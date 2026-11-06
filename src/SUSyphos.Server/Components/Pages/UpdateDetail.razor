@@ -102,12 +102,12 @@ else
                     <p>Servers of the target do not get the update while the hold lasts; where it is installed already it stays. A ring on hold does not count as done, so the next ring waits. Elsewhere the rollout goes on.</p>
                     <fieldset class="choices">
                         <legend>For</legend>
-                        <div class="choice"><input type="radio" id="hold-target-ring" name="HoldTarget" value="Ring" checked data-help-term="Ring" /> <span><label for="hold-target-ring"><b>Ring</b></label><select name="HoldRing" aria-label="Ring">@foreach (var ring in _rings) { <option value="@ring.Id">@ring.Order @ring.Name</option> }</select></span></div>
+                        <div class="choice"><input type="radio" id="hold-target-ring" name="HoldTarget" value="Ring" checked="@(PreselectedServer is null)" data-help-term="Ring" /> <span><label for="hold-target-ring"><b>Ring</b></label><select name="HoldRing" aria-label="Ring">@foreach (var ring in _rings) { <option value="@ring.Id">@ring.Order @ring.Name</option> }</select></span></div>
                         @if (_allGroups.Count > 0)
                         {
                             <div class="choice"><input type="radio" id="hold-target-group" name="HoldTarget" value="Group" data-help-term="Server group" /> <span><label for="hold-target-group"><b>Server group</b></label><select name="HoldGroup" aria-label="Server group">@foreach (var group in _allGroups) { <option value="@group.Id">@group.Name</option> }</select></span></div>
                         }
-                        <div class="choice"><input type="radio" id="hold-target-server" name="HoldTarget" value="Server" data-help-term="Server" /> <span><label for="hold-target-server"><b>Server</b></label><select name="HoldServer" aria-label="Server">@foreach (var (id, name) in _holdServers) { <option value="@id">@name</option> }</select></span></div>
+                        <div class="choice"><input type="radio" id="hold-target-server" name="HoldTarget" value="Server" checked="@(PreselectedServer is not null)" data-help-term="Server" /> <span><label for="hold-target-server"><b>Server</b></label><select name="HoldServer" aria-label="Server">@foreach (var (id, name) in _holdServers) { <option value="@id" selected="@(id == PreselectedServer)">@name</option> }</select></span></div>
                     </fieldset>
                     <label class="field"><span>Reason <span class="note">optional</span></span><input name="HoldReason" maxlength="@UpdateHoldEntity.MaxReasonLength" autocomplete="off" placeholder="e.g. Exchange crashes after installing it" /></label>
                     <DateTimeField Label="Hold until" DateName="HoldUntilDate" TimeName="HoldUntilTime" Optional="true" />
@@ -152,7 +152,7 @@ else
         </Dialog>
     }
 
-    <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => TabLink(tab))" />
+    <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => TabLink(tab))">
 
     @if (_tab == "overview")
     {
@@ -185,8 +185,8 @@ else
         }
     </Box>
 
-    <div class="grid-side">
-        <Box Title="Progress by ring" Help="update-detail#progress" Flush="true">            <div class="scroll">
+    <div class="grid-side wide-only">
+        <Box Title="Progress by ring" Help="update-detail#progress" Flush="true" Footer="@ShowAllServers">            <div class="scroll">
                 <table>
                     <thead><tr><th>Ring</th><th>State</th><th>Released</th><th class="n">Feedback</th><th class="n">Success</th><th>Status (servers)</th></tr></thead>
                     <tbody>
@@ -219,7 +219,7 @@ else
             </div>
         </Box>
 
-        <Box Title="All servers" Help="update-detail#all-servers" Hint="servers that reported this update">
+        <Box Title="All servers" Help="update-detail#all-servers" Hint="servers that reported this update" Header="@ShowServersLink">
             <div class="ring-status">
                 <Donut Parts="@(Charts.Sorted(Charts.Labeled(_total)).Select(p => (p.Class, p.Value)).ToList())" />
                 <DonutLegend Parts="@Charts.Labeled(_total)" />
@@ -241,32 +241,47 @@ else
     else if (_tab == "servers")
     {
     <Box Title="Servers" Help="update-detail#servers" Flush="true">
-        <TableTools Table="_table" Placeholder="Search server" Labels="ServerLabels" View="_serverPage.View" />
+        <TableTools Table="_table" Placeholder="Search server" Labels="ServerLabels" View="_serverPage.View" GroupOptions="ServerGroupOptions" />
         <div class="scroll">
             <table>
                 <thead>
                     <tr>
-                        <SortHeader Table="_table" Column="name" Label="Server" />
-                        <SortHeader Table="_table" Column="ring" Label="Ring" Options="@_serverPage.Options.GetValueOrDefault("ring")" />
+                        <SortHeader Table="_table" Column="name" Label="Server" FilterColumn="os" FilterLabel="Operating system" Options="@_serverPage.Options.GetValueOrDefault("os")" />
+                        <SortHeader Table="_table" Column="ring" Label="Ring and groups" Class="wrap-head" Options="@_serverPage.Options.GetValueOrDefault("ring")" />
                         <SortHeader Table="_table" Column="status" Label="Status" Options="@_serverPage.Options.GetValueOrDefault("status")" />
                         <SortHeader Table="_table" Column="earliest" Label="Earliest installation" />
+                        <SortHeader Table="_table" Column="installed" Label="Installed" />
                         <th>Result</th>
+                        <th class="n"><span class="visually-hidden">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody>
                     @if (_serverPage.Rows.Count == 0)
                     {
-                        <tr><td colspan="5" class="note">No server matches.</td></tr>
+                        <tr><td colspan="7" class="note">No server matches.</td></tr>
                     }
-                    @foreach (var row in _serverPage.Rows)
+                    @foreach (var (group, rows) in TablePaging.Groups(_serverPage, _table, ServerColumns))
                     {
-                        <tr>
-                            <td><a href="/servers/@row.ClientId">@row.HostName</a></td>
-                            <td>@row.Ring</td>
-                            <td><span class="pill @StatusClass(row.Status)">@StatusLabel(row.Status)</span></td>
-                            <td class="nowrap">@Format(row.Entry?.EarliestInstallAtUtc)</td>
-                            <td>@(row.Entry is { } entry ? DeploymentText.Result(entry) : row.Status == ServerUpdateStatus.Installed ? "Installed outside a release (reported by the inventory)" : null)</td>
-                        </tr>
+                        <GroupRow Name="@group" Count="@rows.Count" Columns="7" />
+                        @foreach (var row in rows)
+                        {
+                            <tr>
+                                <td><a href="/servers/@row.ClientId">@row.HostName</a><div class="note">@row.Os</div></td>
+                                <td>@if (row.RingOrder > 0) { <RingTag Name="@row.Ring" Order="@row.RingOrder" /> } else { <span class="note">–</span> }@if (row.Groups.Count > 0) { <div>@foreach (var member in row.Groups) { <span class="tag">@member</span> }</div> }</td>
+                                <td><span class="pill @StatusClass(row.Status)">@StatusLabel(row.Status)</span></td>
+                                <td class="nowrap">@Format(row.Entry?.EarliestInstallAtUtc)</td>
+                                <td class="nowrap">@if (row.InstalledAtUtc is { } installedAt) { <span>@Format(installedAt)</span> }@if (row.InstalledBy is { } by) { <div class="note">@by</div> }</td>
+                                <td>@(row.Entry is { } entry && row.Status != ServerUpdateStatus.Installed ? DeploymentText.Result(entry) : null)</td>
+                                <td class="n">
+                                    <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {row.HostName}")">
+                                        <MenuItem Href="@($"/servers/{row.ClientId}?dialog=install")" Icon="download" Disabled="@(!_canAdminister || row.Status is not (ServerUpdateStatus.Pending or ServerUpdateStatus.Planned or ServerUpdateStatus.Failed))" Reason="@(!_canAdminister ? "Only administrators can do this" : row.Status is ServerUpdateStatus.Pending or ServerUpdateStatus.Planned or ServerUpdateStatus.Failed ? "Install the released updates on this server now, outside its maintenance window" : "Only for a released update the server has not installed")">Install now…</MenuItem>
+                                        <MenuItem Href="@($"/updates/{UpdateId}/{Revision}?dialog=hold&server={row.ClientId:D}")" Icon="pause" Disabled="@(!_canOperate || row.Status is ServerUpdateStatus.Installed or ServerUpdateStatus.NotNeeded)" Reason="@(!_canOperate ? "Only operators and administrators can do this" : row.Status is ServerUpdateStatus.Installed or ServerUpdateStatus.NotNeeded ? "The server does not need it" : "Keep the update from this server for a while")">Hold for this server…</MenuItem>
+                                        <MenuSeparator />
+                                        <MenuItem Href="@($"/servers/{row.ClientId}?tab=history&dialog=uninstall&update={UpdateId:D}")" Icon="undo-2" Danger="true" Disabled="@(!_canAdminister || !Removable || row.Status != ServerUpdateStatus.Installed)" Reason="@(!_canAdminister ? "Only administrators can do this" : !Removable ? "Windows cannot uninstall this update this way" : row.Status != ServerUpdateStatus.Installed ? "Not installed on this server" : "Uninstall it on this server")">Uninstall…</MenuItem>
+                                    </ActionMenu>
+                                </td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>
@@ -301,6 +316,7 @@ else
         </ListTable>
     </Box>
     }
+    </TabBar>
 }
 
 @code {
@@ -321,7 +337,8 @@ else
         NotNeeded,
     }
 
-    private sealed record ServerRow(Guid ClientId, string HostName, string Ring, ServerUpdateStatus Status, DeploymentEntry? Entry);
+    /// <summary>One server in the server list of the update: where it is, its state for the update and when and by whom it was installed.</summary>
+    private sealed record ServerRow(Guid ClientId, string HostName, string Ring, int RingOrder, IReadOnlyList<string> Groups, string Os, ServerUpdateStatus Status, DeploymentEntry? Entry, DateTime? InstalledAtUtc, string? InstalledBy);
 
     private static string StatusLabel(ServerUpdateStatus status) => status switch
     {
@@ -360,7 +377,9 @@ else
     [Parameter]
     public int Revision { get; set; }
 
-    private static readonly IReadOnlyDictionary<string, string> ServerLabels = new Dictionary<string, string> { ["ring"] = "Ring", ["status"] = "Status" };
+    private static readonly IReadOnlyDictionary<string, string> ServerLabels = new Dictionary<string, string> { ["ring"] = "Ring", ["status"] = "Status", ["os"] = "Operating system", ["group"] = "Group" };
+
+    private static readonly IReadOnlyList<(string Key, string Label)> ServerGroupOptions = [("ring", "Ring"), ("status", "Status"), ("os", "Operating system"), ("group", "Group")];
 
     /// <summary>The views of the server list of an update, default first.</summary>
     private static readonly IReadOnlyList<TableView> ServerViews =
@@ -375,8 +394,11 @@ else
     [
         new("status", "Status", r => (int)r.Status, r => [StatusLabel(r.Status)]),
         new("name", "Server", r => r.HostName),
-        new("ring", "Ring", r => r.Ring, r => [r.Ring]),
+        new("ring", "Ring", r => r.RingOrder, r => [r.Ring]),
+        new("os", "Operating system", r => r.Os, r => [r.Os]),
+        new("group", "Groups", r => r.Groups.FirstOrDefault(), r => r.Groups.Count == 0 ? [string.Empty] : r.Groups),
         new("earliest", "Earliest installation", r => r.Entry?.EarliestInstallAtUtc),
+        new("installed", "Installed", r => r.InstalledAtUtc),
     ];
 
     private TableQuery _table = default!;
@@ -410,8 +432,24 @@ else
 
     private string TabLink(string tab) => tab == "overview" ? $"/updates/{UpdateId}/{Revision}" : $"/updates/{UpdateId}/{Revision}?tab={tab}";
 
-    /// <summary>The tabs; the servers tab counts the failed installations.</summary>
-    private IReadOnlyList<TabItem> TabItems => [.. Tabs.Select(t => t.Key == "servers" && _total.Failed > 0 ? new TabItem(t.Key, t.Label, DisplayNumber.Format(_total.Failed), "fail") : new TabItem(t.Key, t.Label))];
+    /// <summary>The tabs; the servers tab says how many failed, else how many servers still have to install it.</summary>
+    private IReadOnlyList<TabItem> TabItems => [.. Tabs.Select(t => t.Key != "servers" ? new TabItem(t.Key, t.Label)
+        : _failedServers > 0 ? new TabItem(t.Key, t.Label, $"{DisplayNumber.Format(_failedServers)} failed", "fail")
+        : _toDo > 0 ? new TabItem(t.Key, t.Label, $"{DisplayNumber.Format(_toDo)} to do", "queue")
+        : new TabItem(t.Key, t.Label))];
+
+    private int _toDo;
+    private int _failedServers;
+
+    /// <summary>A server preselected in the hold dialog (from the server list).</summary>
+    [SupplyParameterFromQuery(Name = "server")]
+    private string? ServerParam { get; set; }
+
+    private Guid? PreselectedServer => Guid.TryParse(ServerParam, out var id) ? id : null;
+
+    private RenderFragment ShowServersLink => @<a class="tile-show" href="@TabLink("servers")">Show ›</a>;
+
+    private RenderFragment ShowAllServers => @<a href="@TabLink("servers")">Show all servers ›</a>;
 
     [SupplyParameterFromQuery(Name = "dialog")]
     private string? Dialog { get; set; }
@@ -659,11 +697,16 @@ else
         // Every approved server gets a row: from its deployment entry, else installed per inventory, else not needed.
         var clients = await Db.Clients.AsNoTracking()
             .Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved)
-            .Select(c => new { c.Id, c.HostName, c.RingId })
+            .Select(c => new { c.Id, c.HostName, c.RingId, c.OsProductName, c.OsVersion, c.OsEditionId })
             .ToListAsync();
+        var groupNames = await Db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, g => g.Name);
+        var memberships = (await Db.ClientGroups.AsNoTracking().ToListAsync()).ToLookup(m => m.ClientId, m => m.GroupId);
+        var reported = await Db.ClientUpdates.AsNoTracking().Where(u => u.UpdateId == UpdateId && u.Revision == Revision).ToDictionaryAsync(u => u.ClientId, u => u.ReportedAtUtc);
+        var outsideBy = _outside.GroupBy(o => o.ClientId).ToDictionary(g => g.Key, g => g.First());
         var installed = (await Db.ClientUpdates.AsNoTracking().Where(u => u.UpdateId == UpdateId && u.Revision == Revision).Select(u => u.ClientId).ToListAsync()).ToHashSet();
         var byClient = entries.ToDictionary(e => e.ClientId);
         var ringNames = rings.ToDictionary(r => r.Id, r => r.Name);
+        var ringOrders = rings.ToDictionary(r => r.Id, r => r.Order);
         var now = Time.GetUtcNow().UtcDateTime;
         _table = TableQuery.From(Navigation, "status", views: ServerViews);
         List<ServerRow> servers = [.. clients.Select(c =>
@@ -677,8 +720,25 @@ else
                 DeploymentState.Queued => ServerUpdateStatus.WaitingForRelease,
                 _ => installed.Contains(c.Id) ? ServerUpdateStatus.Installed : ServerUpdateStatus.NotNeeded,
             };
-            return new ServerRow(c.Id, c.HostName, c.RingId is { } r ? ringNames.GetValueOrDefault(r) ?? "–" : "–", status, entry);
+            // Installed by SUSyphos: the time of its result; otherwise Windows or an administrator (history) or found in the inventory.
+            var (installedAt, installedBy) = status != ServerUpdateStatus.Installed ? ((DateTime?)null, (string?)null)
+                : entry is { State: DeploymentState.Successful } ? (entry.LastResultAtUtc, "by SUSyphos")
+                : outsideBy.TryGetValue(c.Id, out var outside) ? (outside.DateUtc, $"by {UpdateHistoryText.Source(outside.ClientApplicationId)}")
+                : (reported.TryGetValue(c.Id, out var seen) ? seen : null, "found in the inventory");
+            return new ServerRow(
+                c.Id,
+                c.HostName,
+                c.RingId is { } r ? ringNames.GetValueOrDefault(r) ?? "–" : "–",
+                c.RingId is { } o ? ringOrders.GetValueOrDefault(o) : 0,
+                [.. memberships[c.Id].Where(groupNames.ContainsKey).Select(g => groupNames[g]).Order(StringComparer.CurrentCulture)],
+                OperatingSystems.Name(c.OsProductName, c.OsVersion, c.OsEditionId),
+                status,
+                entry,
+                installedAt,
+                installedBy);
         })];
+        _toDo = servers.Count(s => s.Status is not (ServerUpdateStatus.Installed or ServerUpdateStatus.NotNeeded));
+        _failedServers = servers.Count(s => s.Status == ServerUpdateStatus.Failed);
         _serverPage = TablePaging.Apply(servers, _table, ServerColumns, s => s.HostName);
 
         _startRule = RolloutService.FindStartRule(await Db.StartRules.AsNoTracking().ToListAsync(), _update);

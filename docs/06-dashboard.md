@@ -158,8 +158,9 @@ Pages with much content are split into tabs (Marc, 2026-10-25): server details (
 - Title, action band and tiles stay above the tabs on every tab; the tabs hold the boxes below.
 - The first tab is an overview of what matters now and links to the details in the other tabs.
 - Tabs are plain links with the tab in the address (`?tab=…`): they work without script, survive a reload and can be linked to; "Show ›" on a tile opens the matching tab.
-- A tab shows a count or a coloured badge when something waits there (e.g. missing updates, a failed check), so nobody has to open every tab.
-- One shared tab bar component for every page.
+- A tab shows a count or a coloured badge when something waits there (e.g. missing updates, a failed check, "3 to do" or "1 failed" on the update page), so nobody has to open every tab.
+- **Folder tabs** (Marc, 2026-11-06, mockup https://claude.ai/artifact/KjvTwGC3qBG5SRKwvUrsJ1): the tabs stand like index cards on a surface that encloses the boxes of the current tab; the current tab merges with the surface and carries an accent line on top, the others sit slightly darker behind it. The boxes on the surface have no shadow. On narrow windows the row of tabs scrolls sideways instead of wrapping.
+- One shared component for every page (`TabBar` with the content of the tab inside).
 
 ### Tables
 

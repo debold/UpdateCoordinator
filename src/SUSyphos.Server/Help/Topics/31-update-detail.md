@@ -86,7 +86,7 @@ All approved servers by their state for this update: successful, pending (releas
 
 ## Servers {#servers}
 
-Every server concerned, with **Ring**, **Status**, **Earliest installation** and **Result**. The status:
+Every approved server, with the **Server** and its operating system below (the funnel filters by operating system), **Ring and groups**, **Status**, **Earliest installation**, **Installed** (when, and below it by whom: by SUSyphos, by Windows Update or another tool from the Windows Update history, or found in the inventory) and **Result** (for a failed installation the error code and an explanation). The tab names the work left: "1 failed" in red when an installation failed, else "3 to do" for the servers that still have to install it. **Show ›** on the box "All servers" and **Show all servers ›** below "Progress by ring" open it. The status:
 
 - **Failed**: the last installation failed (the result shows the error code and an explanation).
 - **Pending: window or installing**: released and due; installs in the current or next maintenance window.
@@ -95,7 +95,9 @@ Every server concerned, with **Ring**, **Status**, **Earliest installation** and
 - **Installed**: installed, by SUSyphos or outside it (reported by the inventory).
 - **Not needed**: the server does not need it.
 
-**View** (see [Working with lists](help/tables#views)) offers **Still to do** (default; hides Installed and Not needed), **Failed**, **Installed** and **All servers**.
+**View** (see [Working with lists](help/tables#views)) offers **Still to do** (default; hides Installed and Not needed), **Failed**, **Installed** and **All servers**; **Group** groups the rows by ring, status, operating system or group.
+
+**More** (⋯) at the end of a row: **Install now…** opens the dialog of the server that installs its released updates at once (administrators; only for a released update the server has not installed), **Hold for this server…** opens [Hold](#hold) with the server chosen (operators and administrators), and **Uninstall…** opens the uninstall dialog of the server with this update chosen (administrators; only where it is installed and Windows can remove it).
 
 ## Installed outside SUSyphos {#outside}
 

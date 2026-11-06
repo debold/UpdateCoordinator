@@ -21,7 +21,7 @@
         <span class="note">The test uses the saved settings.</span>
     </ActionBand>
 
-    <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => tab == "events" ? "/administration/notifications?tab=events" : "/administration/notifications")" />
+    <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => tab == "events" ? "/administration/notifications?tab=events" : "/administration/notifications")">
 
     @* One form for both tabs: the other tab stays in the page, hidden, so saving keeps its values. *@
     <div class="stack" hidden="@(_tab != "channels")">
@@ -116,6 +116,7 @@
         </div>
     </Box>
     </div>
+    </TabBar>
 </form>
 
 @code {

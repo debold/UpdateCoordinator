@@ -118,7 +118,7 @@ else
         </Tile>
     </section>
 
-    <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => "/" + ServerPage.TabPath(Id, tab))" />
+    <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => "/" + ServerPage.TabPath(Id, tab))">
 
     @if (IsBusy && Dialog is null && _tab is ServerPage.Overview or ServerPage.Activity && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
     {
@@ -436,6 +436,7 @@ else
         </ListTable>
     </Box>
     }
+    </TabBar>
 
     @if (Dialog == "uninstall")
     {

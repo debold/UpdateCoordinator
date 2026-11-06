@@ -21,7 +21,7 @@
     </ActionMenu>
 </ActionBand>
 
-<TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => tab == "rings" ? RingsPath : Path)" />
+<TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => tab == "rings" ? RingsPath : Path)">
 
 @if (_tab == "rings")
 {
@@ -113,6 +113,7 @@ else
     <footer class="box-foot"><span></span><button type="submit" class="primary">Save</button></footer>
 </form>
 }
+</TabBar>
 
 @if (_dialog is "rule-new" or "rule" && (_dialog == "rule-new" || EditingRule is not null))
 {

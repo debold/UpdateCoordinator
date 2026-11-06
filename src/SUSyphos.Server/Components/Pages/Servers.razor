@@ -86,7 +86,7 @@
                             <td class="nowrap" title="@SecurityTitle(row.Security)"><StatusTag Text="@SUSyphos.Server.Security.SecuritySnapshot.Label(row.Security.State)" Kind="@SUSyphos.Server.Security.SecuritySnapshot.Class(row.Security.State)" />@if (row.Security.Exploited > 0) { <div><span class="pill fail">Exploited</span></div> }</td>
                             <td class="mono nowrap" title="@row.AgentVersion"><span class="mark @ServerIndicators.Class(row.Agent)" title="@AgentTitle(row)">@ServerIndicators.Symbol(row.Agent)</span> @AgentVersion.ShortForm(row.AgentVersion)</td>
                             <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span>@if (row.RestartAt is { } restartAt) { <div class="note nowrap">restart @DisplayTime.Format(restartAt)</div> }</td>
-                            <td class="nowrap"><span class="donut-cell" title="@($"{row.Pending} pending, {row.Counts.Failed} failed, {row.Counts.Successful} installed")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Pending</span></span></td>
+                            <td class="nowrap"><span class="donut-cell" title="@($"{row.Pending} released and pending, {row.Counts.Failed} failed, {row.Counts.Successful} installed; {row.Missing} missing in all, released or not")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Pending</span></span>@if (row.Missing > 0) { <div class="note">@row.Missing missing</div> }</td>
                             <td class="nowrap"><span class="dot @ServerIndicators.Class(row.Freshness)" title="@ServerIndicators.Label(row.Freshness)"></span>@(row.LastHeartbeat is { } seen ? DisplayTime.FormatDate(seen) : "–")@if (row.LastHeartbeat is { } seenAt) { <div class="note">@DisplayTime.ToLocal(seenAt).ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)</div> }</td>
                         </tr>
                     }
@@ -105,11 +105,19 @@
     public const string PendingYes = "Updates pending";
     public const string PendingNo = "Up to date";
 
+    /// <summary>The update search still reports a missing update, released or not (the "fully patched" share of the overview).</summary>
+    public const string NotFullyPatched = "Not fully patched";
+
+    public const string FullyPatched = "Fully patched";
+
+    /// <summary>Address of the view with the servers that are not fully patched.</summary>
+    public const string NotFullyPatchedLink = "/servers?view=unpatched";
+
     /// <summary>Address of the server list filtered to the given values of one column.</summary>
     public static string Link(string column, params string[] values) =>
         "/servers?" + string.Join("&", values.Select(v => $"{Uri.EscapeDataString("f." + column)}={Uri.EscapeDataString(v)}"));
 
-    private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, string AgentVersion, ServerHealthState Health, int Pending, DateTime? LastHeartbeat, AgentState Agent, string? AgentTarget, string? AgentError, DeploymentCounts Counts, Freshness Freshness, DateTime? RestartAt, SUSyphos.Server.Lifecycle.SupportInfo Support, SUSyphos.Server.Security.ServerSecurity Security);
+    private sealed record Row(Guid Id, string HostName, string Domain, string Os, string Build, int BuildNumber, string Ring, int RingOrder, bool ManualRing, IReadOnlyList<string> Groups, string AgentVersion, ServerHealthState Health, int Pending, DateTime? LastHeartbeat, AgentState Agent, string? AgentTarget, string? AgentError, DeploymentCounts Counts, Freshness Freshness, DateTime? RestartAt, SUSyphos.Server.Lifecycle.SupportInfo Support, SUSyphos.Server.Security.ServerSecurity Security, int Missing = 0);
 
     /// <summary>Build against baseline and open vulnerabilities, as tooltip of the security cell.</summary>
     private static string SecurityTitle(SUSyphos.Server.Security.ServerSecurity security) => security.Target is { } target
@@ -136,7 +144,7 @@
         new("agent", "Agent", r => AgentVersion.SortKey(r.AgentVersion), r => [AgentVersion.ShortForm(r.AgentVersion), ServerIndicators.Label(r.Agent)]),
         new("status", "Status", r => (int)r.Health, r => [ServerHealth.Label(r.Health)]),
         new("security", "Security baseline", r => (int)r.Security.State, r => r.Security.Exploited > 0 ? [SUSyphos.Server.Security.SecuritySnapshot.Label(r.Security.State), "Exploited"] : [SUSyphos.Server.Security.SecuritySnapshot.Label(r.Security.State)]),
-        new("pending", "Pending updates", r => r.Pending, r => [r.Pending > 0 ? PendingYes : PendingNo]),
+        new("pending", "Pending updates", r => r.Pending, r => [r.Pending > 0 ? PendingYes : PendingNo, r.Missing > 0 ? NotFullyPatched : FullyPatched]),
         new("seen", "Last heartbeat", r => r.LastHeartbeat, r => [ServerIndicators.Label(r.Freshness)]),
     ];
 
@@ -146,6 +154,7 @@
         new("all", "All servers", "No filter"),
         new("attention", "Needs attention", "Failed, offline, warning or waiting for a restart", ("status", TableFilter.In(ServerHealth.Label(ServerHealthState.Failed), ServerHealth.Label(ServerHealthState.Offline), ServerHealth.Label(ServerHealthState.Warning), ServerHealth.Label(ServerHealthState.RebootPending)))),
         new("pending", "Updates pending", "Approved servers that still miss released updates", ("pending", TableFilter.In(PendingYes)), ("status", TableFilter.Not(ServerHealth.Label(ServerHealthState.NotApproved)))),
+        new("unpatched", NotFullyPatched, "Approved servers whose update search still reports a missing update, released or not", ("pending", TableFilter.In(NotFullyPatched)), ("status", TableFilter.Not(ServerHealth.Label(ServerHealthState.NotApproved)))),
         new("behind", "Behind security baseline", "Build older than the current security baseline of Microsoft", ("security", TableFilter.In(SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.OneBehind), SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.TwoBehind)))),
         new("agent", "Outdated agent", "A newer agent version is released for the ring of the server", ("agent", TableFilter.In(ServerIndicators.Label(AgentState.UpdateAvailable), ServerIndicators.Label(AgentState.Failed)))),
         new("unapproved", "Waiting for approval", "Registered, not approved yet", ("status", TableFilter.In(ServerHealth.Label(ServerHealthState.NotApproved)))),
@@ -269,6 +278,7 @@
         var security = await Baseline.LoadAsync(CancellationToken.None);
         var agents = await AgentUpdates.StatesAsync(clients, rings.ToDictionary(r => r.Key, r => r.Value.Order), CancellationToken.None);
         var counts = entries.ToLookup(e => e.ClientId);
+        var missing = await Db.ClientAvailableUpdates.AsNoTracking().GroupBy(a => a.ClientId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count);
 
         List<Row> rows = [.. clients.Select(c =>
         {
@@ -296,7 +306,8 @@
                 ServerIndicators.Heartbeat(c.LastHeartbeatAtUtc, now),
                 c.RestartAnnouncedAtUtc ?? (c.RestartRequested ? c.PlannedRestartAtUtc : null),
                 Lifecycle.Of(c, security.Of(c)),
-                security.Of(c));
+                security.Of(c),
+                missing.GetValueOrDefault(c.Id));
         })];
 
         _ringCounts = [.. _rings.Select(r => (r.Id, r.Order, r.Name, clients.Count(c => c.State == RegistrationState.Approved && c.RingId == r.Id)))];

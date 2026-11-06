@@ -1,12 +1,16 @@
-@* The tabs of a page (docs/06-dashboard.md, section 8 "Tabs"): plain links with the tab in the address (?tab=…), so they
-   work without script, survive a reload and can be linked to. A badge shows a count or that something waits there. *@
-<nav class="tabs" aria-label="@Label">
-    @foreach (var tab in Tabs)
-    {
-        var current = tab.Key == Current;
-        <a class="@(current ? "current" : null)" href="@Link(tab.Key)" aria-current="@(current ? "page" : null)">@tab.Label@if (tab.Badge is { } badge) { <span class="tab-badge @tab.BadgeKind">@badge</span> }</a>
-    }
-</nav>
+@* The tabs of a page (docs/06-dashboard.md, section 8 "Tabs"): folder tabs on a surface that encloses the content of the
+   current tab (Marc, 2026-11-06). Plain links with the tab in the address (?tab=…), so they work without script, survive
+   a reload and can be linked to. A badge shows a count or that something waits there. *@
+<div class="tab-folder">
+    <nav class="tabs" aria-label="@Label">
+        @foreach (var tab in Tabs)
+        {
+            var current = tab.Key == Current;
+            <a class="@(current ? "current" : null)" href="@Link(tab.Key)" aria-current="@(current ? "page" : null)">@tab.Label@if (tab.Badge is { } badge) { <span class="tab-badge @tab.BadgeKind">@badge</span> }</a>
+        }
+    </nav>
+    <div class="tab-panel">@ChildContent</div>
+</div>
 
 @code {
     [Parameter, EditorRequired]
@@ -21,4 +25,8 @@
 
     [Parameter]
     public string Label { get; set; } = "Sections of this page";
+
+    /// <summary>The content of the current tab, shown on the surface below the tabs.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
 }

@@ -30,7 +30,7 @@ A ring tag switches that ring on or off in the **Ring** filter of the list: seve
 
 ## Views {#views}
 
-**View** (see [Working with lists](help/tables#views)) offers **All servers** (default), **Needs attention** (Failed, Offline, Warning or Reboot pending), **Updates pending** (approved servers with released updates still to install), **Behind security baseline**, **Outdated agent** (a newer agent version is released for the ring) and **Waiting for approval**. Each sets the column filters of the list; the rings above stay a filter of their own.
+**View** (see [Working with lists](help/tables#views)) offers **All servers** (default), **Needs attention** (Failed, Offline, Warning or Reboot pending), **Updates pending** (approved servers with released updates still to install), **Behind security baseline**, **Outdated agent** (a newer agent version is released for the ring), **Not fully patched** (the last update search still reports a missing update, released or not; the servers behind "fully patched" on the overview) and **Waiting for approval**. Each sets the column filters of the list; the rings above stay a filter of their own.
 
 ## Servers of an assignment rule {#rule}
 
@@ -47,7 +47,7 @@ Opened from the **Servers** number of an assignment rule, the list shows only th
 | **Agent** | Version of the SUSyphos agent on the server (full version in the tooltip) with a mark before it: a green check means current (no newer version released for its ring), a blue arrow up means an update is available (it installs itself), a red dash means the last update failed, and grey dots mean the version is unknown or too old to update itself. The tooltip of the mark explains it; the filter offers the versions and these states. |
 | **Status** | See below. |
 | **Security** | The server against the security baseline of its Windows version: "Current", "1 behind", "2+ behind" or "Unknown" (no security data from Microsoft, see [Operating systems](help/operating-systems#data)), with "Exploited" below when a vulnerability Microsoft knows to be attacked is open. The tooltip names build, baseline and the open vulnerabilities; the filter offers the states and "Exploited". |
-| **Updates** | The updates of the server by state as a small ring (installed, pending, failed, queued), with the number of updates still pending next to it and the counts in the tooltip. Sorted by the pending number; its filter offers "Updates pending" and "Up to date". |
+| **Updates** | The updates of the server by state as a small ring (installed, pending, failed, queued), with the number of released updates still pending next to it and the counts in the tooltip; below, "N missing" counts every update the last search reported as missing, released or not. Sorted by the pending number; its filter offers "Updates pending", "Up to date", "Not fully patched" and "Fully patched". |
 | **Last heartbeat** | Time of the last heartbeat with a dot before it: green up to 5 minutes old, amber up to an hour, red older (the server counts as offline). Its filter offers "Current", "Older" and "Long ago". |
 
 ## Status {#status}

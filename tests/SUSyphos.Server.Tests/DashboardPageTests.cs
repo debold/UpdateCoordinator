@@ -539,6 +539,8 @@ public sealed class UpdateDetailTests
 
         Assert.Contains("PILOT01", failed, StringComparison.Ordinal);
         Assert.DoesNotContain("PILOT02", failed, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"tab-badge fail\">1 failed</span>", failed, StringComparison.Ordinal);
+        Assert.Contains("class=\"tab-panel\"", failed, StringComparison.Ordinal);
         // An unknown filter value matches no server instead of being ignored, so a filtered link never shows more than it names.
         Assert.Contains("No server matches.", unknown, StringComparison.Ordinal);
         Assert.DoesNotContain("<script>", unknown, StringComparison.Ordinal);
@@ -569,6 +571,48 @@ public sealed class UpdateDetailTests
         Assert.DoesNotContain("TEST01", notNeeded, StringComparison.Ordinal);
         Assert.Contains("PILOT01", installed, StringComparison.Ordinal);
         Assert.DoesNotContain("OTHER01", installed, StringComparison.Ordinal);
+        Assert.Contains("by SUSyphos", installed, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"tab-badge queue\">1 to do</span>", waiting, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ServerTable_OffersRowActions_AndPreselectsTheServerInTheHoldDialog()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var test = await scenario.AddClientAsync("TEST01", RingEntity.TestId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(test, update);
+        using var browser = await LoginAsync(scenario, AdminRoles.Operator);
+        var path = $"/updates/{update.UpdateId:D}/1";
+
+        // Not released for its ring yet: holding is offered, installing now is greyed with the reason.
+        var servers = System.Net.WebUtility.HtmlDecode(await GetHtmlAsync(browser, path + "?tab=servers"));
+        var hold = await GetHtmlAsync(browser, $"{path}?dialog=hold&server={test.ClientId:D}");
+        var malformed = await GetHtmlAsync(browser, $"{path}?dialog=hold&server=%27%3Bdrop");
+
+        Assert.Contains($"{path}?dialog=hold&server={test.ClientId:D}", servers, StringComparison.Ordinal);
+        Assert.Contains("title=\"Only administrators can do this\"><svg", servers, StringComparison.Ordinal);
+        Assert.Matches($"value=\"{test.ClientId}\"[^>]*selected", hold);
+        Assert.Matches("id=\"hold-target-server\"[^>]*checked", hold);
+        Assert.DoesNotMatch("id=\"hold-target-server\"[^>]*checked", malformed);
+    }
+
+    [Fact]
+    public async Task ServerList_ShowsTheServersThatAreNotFullyPatched()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var missing = await scenario.AddClientAsync("MISSING01", RingEntity.ProductionId);
+        await scenario.AddClientAsync("PATCHED01", RingEntity.ProductionId);
+        await scenario.ReportAsync(missing, RolloutScenario.Update("Updates"));
+        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
+
+        var view = await GetHtmlAsync(browser, "/servers?view=unpatched");
+        var overview = await GetHtmlAsync(browser, "/");
+
+        Assert.Contains("MISSING01", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("PATCHED01", view, StringComparison.Ordinal);
+        Assert.Contains("1 missing", view, StringComparison.Ordinal);
+        Assert.Contains("href=\"/servers?view=unpatched\"", overview, StringComparison.Ordinal);
     }
 
     [Fact]

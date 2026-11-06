@@ -40,7 +40,7 @@ The band below the title groups the actions by topic in drop-down buttons. Opera
 
 ## Tabs {#tabs}
 
-The boxes are split into tabs below the tiles; the tab is part of the address, so a link or a reload opens the same tab. A badge shows where something waits:
+The boxes are split into tabs below the tiles, shown as folder tabs on a surface that holds the boxes of the current tab; the tab is part of the address, so a link or a reload opens the same tab. A badge shows where something waits:
 
 - **Overview**: Tasks and pre-flight checks; "!" when a check failed.
 - **Updates**: the missing updates, with their count (red when one failed).
