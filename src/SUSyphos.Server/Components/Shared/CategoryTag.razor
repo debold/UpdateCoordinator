@@ -6,7 +6,7 @@
     [Parameter, EditorRequired]
     public string Text { get; set; } = string.Empty;
 
-    /// <summary>Position in the categorical palette (1 to 4), the same for the same kind on every page.</summary>
+    /// <summary>Position in the categorical palette (1 to 4, 0 for grey), the same for the same kind on every page.</summary>
     [Parameter]
     public int Index { get; set; } = 1;
 }

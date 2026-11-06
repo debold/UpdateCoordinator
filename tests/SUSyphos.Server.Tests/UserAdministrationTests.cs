@@ -50,6 +50,7 @@ public sealed class UserAdministrationTests
         Assert.Contains("<tr class=\"group-row\"><td colspan=\"5\">Local · 1</td></tr>", grouped, StringComparison.Ordinal);
         Assert.Contains("cat-tag c2\">Local", grouped, StringComparison.Ordinal);
         Assert.Contains("Group: <b>Source</b>", grouped, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"cat-tag c1\">Admin</span>", grouped, StringComparison.Ordinal);
         Assert.DoesNotContain("group-row", ungrouped, StringComparison.Ordinal);
     }
 

@@ -26,7 +26,7 @@
                     <tr>
                         <td>@user.UserName</td>
                         <td>@if (user.Windows) { <CategoryTag Text="Active Directory" Index="1" /> } else { <CategoryTag Text="Local" Index="2" /> }</td>
-                        <td>@user.Role @if (user.Windows) { <div class="note">from AD groups</div> }</td>
+                        <td>@if (user.Role is { Length: > 0 } role) { <CategoryTag Text="@role" Index="@RoleIndex(role)" /> } else { <span class="note">–</span> } @if (user.Windows) { <div class="note">from AD groups</div> }</td>
                         <td>
                             @if (user.LockedOut)
                             {
@@ -227,6 +227,14 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
     private TablePage<UserSummary> _page = default!;
 
     private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("source", "Source")];
+
+    /// <summary>Colour of a role tag, the same on every page.</summary>
+    private static int RoleIndex(string role) => role switch
+    {
+        AdminRoles.Admin => 1,
+        AdminRoles.Operator => 2,
+        _ => 3,
+    };
 
     /// <summary>The views of the account list, default first.</summary>
     private static readonly IReadOnlyList<TableView> Views =

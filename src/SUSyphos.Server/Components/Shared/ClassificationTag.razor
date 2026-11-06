@@ -1,0 +1,17 @@
+@* The classification of an update as a category tag (docs/06-dashboard.md, section 8 "Tags"), the same colour for the
+   same classification on every page: security and critical updates, definition updates and drivers stand out, the rest is grey. *@
+<CategoryTag Text="@(Text.Length == 0 ? "Unknown" : Text)" Index="@IndexOf(Text)" />
+
+@code {
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>Position in the categorical palette; 0 is grey.</summary>
+    public static int IndexOf(string classification) => classification switch
+    {
+        "Security Updates" or "Critical Updates" => 1,
+        "Definition Updates" => 3,
+        "Drivers" => 2,
+        _ => 0,
+    };
+}

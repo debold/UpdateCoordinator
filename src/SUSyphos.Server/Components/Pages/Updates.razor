@@ -64,7 +64,7 @@
                             <td>@if (!row.Outside) { <input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /> }</td>
 
                             <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }<div><KbLinks Kb="@row.Kb" /></div>@if (MatchingCves(row) is { Count: > 0 } fixedCves) { <div class="note">fixes @string.Join(", ", fixedCves.Take(3))@(fixedCves.Count > 3 ? $" and {fixedCves.Count - 3} more" : null)</div> }</td>
-                            <td>@row.Classification</td>
+                            <td><ClassificationTag Text="@row.Classification" /></td>
                             <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
                             <td class="nowrap">@row.Restart</td>
                             <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>

@@ -38,7 +38,7 @@ The view is part of the address, like search and filters.
 | Column | Meaning |
 |---|---|
 | **Title** | Title from Windows Update (the KB number is not repeated when the title names it). Below it two link chips: the KB number opens Microsoft's release notes (for Microsoft Defender updates, which have no support article, Microsoft's page on Defender updates), **Catalog** the Microsoft Update Catalog; both open in a new tab. |
-| **Classification** | Security Updates, Critical Updates, Updates, Update Rollups, Definition Updates, Drivers and so on. |
+| **Classification** | Security Updates, Critical Updates, Updates, Update Rollups, Definition Updates, Drivers and so on, as a tag: security and critical updates, definition updates and drivers each in their own colour, the rest grey (the same on the server page). |
 | **Severity** | Microsoft's severity (Critical, Important, Moderate, Low) where Microsoft gives one. |
 | **Restart** | Restart behaviour as Windows Update reports it: *No restart*, *May restart*, *Restart required*, or *Unknown* (reported before agents sent it). Start rules can use it as a condition. |
 | **First reported** | When a server reported it as missing for the first time. |

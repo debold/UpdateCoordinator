@@ -796,7 +796,9 @@ td .kb-links { margin-top: 0.2rem; }
 
 /* Category tags tell kinds apart with a tint of the categorical palette (not a status colour). */
 .cat-tag { --cat: var(--series-1); display: inline-flex; align-items: center; height: 20px; padding: 0 0.5rem; border: 1px solid color-mix(in srgb, var(--cat) 45%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--cat) 14%, var(--surface)); color: var(--text); font-size: 0.78rem; white-space: nowrap; vertical-align: middle; }
-.cat-tag.c1 { --cat: var(--series-5); } .cat-tag.c2 { --cat: var(--series-7); } .cat-tag.c3 { --cat: var(--series-3); } .cat-tag.c4 { --cat: var(--series-8); }
+/* In narrow table columns a long category may wrap instead of widening the table. */
+td .cat-tag { white-space: normal; height: auto; min-height: 20px; padding-block: 0.1rem; line-height: 1.2; }
+.cat-tag.c0 { --cat: var(--idle); } .cat-tag.c1 { --cat: var(--series-5); } .cat-tag.c2 { --cat: var(--series-7); } .cat-tag.c3 { --cat: var(--series-3); } .cat-tag.c4 { --cat: var(--series-8); }
 
 /* Expanded rows (ListTable Details): the row stays tinted, the details open right below it, indented and shaded. */
 tr.expanded > td { background: var(--accent-soft); }

@@ -262,7 +262,7 @@ else
                 <tr>
                     <td class="nowrap">@Format(row.Installation.FinishedAtUtc)</td>
                     <td class="wrap"><a href="/updates/@row.Installation.UpdateId/@row.Installation.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /></td>
-                    <td>@row.Category</td>
+                    <td><ClassificationTag Text="@row.Category" /></td>
                     <td><StatusTag Text="SUSyphos" Kind="ok" /></td>
                     <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Kind="@UpdateHistoryText.ResultClass((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Detail="@UpdateHistoryText.ResultDetail((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" /></td>
                     <td>@{ var reboot = RebootTag(row.Installation); }<StatusTag Text="@reboot.Text" Kind="@reboot.Kind" Detail="@reboot.Detail" /></td>
@@ -279,7 +279,7 @@ else
                         <tr>
                             <td class="nowrap">@Format(entry.DateUtc)</td>
                             <td class="wrap">@entry.Title <KbLinks Kb="@UpdateText.KbIn(entry.Title)" /></td>
-                            <td>@Category(entry)</td>
+                            <td><ClassificationTag Text="@Category(entry)" /></td>
                             <td><StatusTag Text="@entry.Operation.ToString()" /></td>
                             <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel(entry.ResultCode, entry.HResult)" Kind="@UpdateHistoryText.ResultClass(entry.ResultCode, entry.HResult)" Detail="@UpdateHistoryText.ResultDetail(entry.ResultCode, entry.HResult)" /></td>
                             <td>@{ var started = StartedBy(entry); }<StatusTag Text="@started.Text" Kind="@started.Kind" Detail="@started.Detail" /></td>
