@@ -51,9 +51,9 @@
     <Tile Title="Servers reporting" Href="@Servers.Link("status", ReportingStates)" Edge="@(_reporting < _approved ? "queue" : null)" Footer="approved servers with a heartbeat within the last hour">
         <TileValue>@DisplayNumber.Format(_reporting) <small>/ @DisplayNumber.Format(_approved)</small></TileValue>
     </Tile>
-    <Tile Title="Pending updates" Href="@Servers.Link("pending", Servers.PendingYes)" Footer="released, not installed yet; installed in the next maintenance window">
-        <TileValue Value="@DisplayNumber.Format(_pendingUpdates)" Caption="installations" />
-        <TileValue Value="@DisplayNumber.Format(_pendingServers)" Caption="servers" />
+    <Tile Title="Updates" Href="/updates" Footer="@($"released, waiting for the maintenance window on {DisplayNumber.Format(_pendingServers)} servers; rollouts still on their way through the rings")">
+        <TileValue Value="@DisplayNumber.Format(_pendingUpdates)" Caption="to install" />
+        <TileValue Value="@DisplayNumber.Format(_rollingOut)" Caption="rolling out" />
     </Tile>
     <Tile Title="Server status" Href="/servers" Edge="@(_failedServers > 0 || _offlineServers > 0 ? "fail" : _warningServers > 0 ? "queue" : null)" Footer="@WarningFooter">
         <TileDonut Parts="@_statusParts" />
@@ -87,7 +87,7 @@
                             <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@Servers.Link("ring", ring.Name)" Title="Show the servers of this ring" /></td>
                             <td class="n">@ring.Servers</td>
                             <td class="n">@ring.ActiveUpdates</td>
-                            <td><StackedBar Counts="@ring.Counts" /></td>
+                            <td><StackedBar Counts="@ring.Counts" />@if (ring.Counts.Queued + ring.Counts.Pending + ring.Counts.Failed > 0) { <div class="note">@OpenText(ring.Counts)</div> }</td>
                             <td><span class="pill @ring.HealthClass">@ring.Health</span></td>
                         </tr>
                     }
@@ -200,6 +200,9 @@
     private int _reporting;
     private int _pendingUpdates;
     private int _pendingServers;
+
+    /// <summary>Active rollouts of updates that are still missing somewhere.</summary>
+    private int _rollingOut;
     private int _wsus;
     private int _selfInstalling;
     private int _diskWarnings;
@@ -284,6 +287,8 @@
         _nextPage = TablePaging.Apply(_next, _nextTable, NextColumns, n => n.Title);
         _pendingUpdates = released.Count;
         _pendingServers = released.Select(e => e.ClientId).Distinct().Count();
+        var open = entries.Where(e => e.State != DeploymentState.Successful).Select(e => (e.UpdateId, e.Revision)).ToHashSet();
+        _rollingOut = (await Db.Rollouts.AsNoTracking().Where(r => r.State == RolloutState.Active).Select(r => new { r.UpdateId, r.Revision }).ToListAsync()).Count(r => open.Contains((r.UpdateId, r.Revision)));
         _wsus = clients.Count(c => c.WsusServer is not null);
         _selfInstalling = clients.Count(c => c.AutomaticUpdatesBypass);
         _diskWarnings = clients.Count(c => c.HealthChecks.Any(h => h.Name == "DiskSpace" && h.Status != (int)HealthStatus.Ok));
@@ -405,6 +410,14 @@
         }
     }
 
+    /// <summary>What is still open in a ring, counted per server and update: failed, to install, waiting for release.</summary>
+    private static string OpenText(DeploymentCounts counts) => string.Join(", ", new[]
+    {
+        counts.Failed > 0 ? $"{DisplayNumber.Format(counts.Failed)} failed" : null,
+        counts.Pending > 0 ? $"{DisplayNumber.Format(counts.Pending)} to install" : null,
+        counts.Queued > 0 ? $"{DisplayNumber.Format(counts.Queued)} waiting for release" : null,
+    }.OfType<string>());
+
     private async Task LoadRingsAsync(List<ClientEntity> clients, IReadOnlyList<DeploymentEntry> entries)
     {
         var rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
@@ -413,14 +426,18 @@
             .Select(r => new { r.RingId, r.State })
             .ToListAsync();
 
+        // Only updates that are still open somewhere count: completed ones (installed everywhere) would otherwise fill the bar
+        // green and hide the updates that still wait for their ring.
+        var open = entries.GroupBy(e => (e.UpdateId, e.Revision)).Where(g => g.Any(e => e.State != DeploymentState.Successful)).Select(g => g.Key).ToHashSet();
         _rings = [.. rings.Select(ring =>
         {
-            var counts = DeploymentCounts.Of(entries.Where(e => e.RingId == ring.Id));
+            var counts = DeploymentCounts.Of(entries.Where(e => e.RingId == ring.Id && open.Contains((e.UpdateId, e.Revision))));
             var mine = states.Where(s => s.RingId == ring.Id).ToList();
             var (label, cls) = mine.Any(s => s.State == RingRolloutState.Alarm) ? ("Alarm", "fail")
                 : mine.Any(s => s.State == RingRolloutState.AwaitingApproval) ? ("Awaiting approval", "queue")
                 : counts.Failed > 0 ? ("Failures", "fail")
                 : counts.Pending > 0 ? ("Rolling out", "pend")
+                : counts.Queued > 0 ? ("Waiting for release", "neutral")
                 : ("Healthy", "ok");
             return new RingRow(ring.Id, ring.Order, ring.Name, clients.Count(c => c.RingId == ring.Id), mine.Count(s => s.State == RingRolloutState.Released), counts, label, cls);
         })];

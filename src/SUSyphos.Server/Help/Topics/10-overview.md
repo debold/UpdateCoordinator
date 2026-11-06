@@ -21,7 +21,7 @@ Each tile has a title, the values in the middle and one line of context at the b
 | Tile | What it shows |
 |---|---|
 | **Servers reporting** | Approved servers that sent a heartbeat within the last hour, of all approved servers. A server that stays silent longer is "Offline". |
-| **Pending updates** | Released installations not done yet (server × update) and the servers that still miss at least one update released for their ring; they install in the next maintenance window of each server. |
+| **Updates** | **To install**: released installations not done yet (server × update); each server installs them in its next maintenance window (the footer says on how many servers). **Rolling out**: updates whose rollout is running and that are still missing somewhere, also those waiting for a later ring. **Show ›** opens the update list. |
 | **Server status** | Approved servers by status as a donut (OK, Updating, Reboot pending, Warning, Failed, Offline); each entry of the legend opens the server list filtered to that status. Failed means the last installation or a pre-flight check failed (for example not enough disk space or a stopped Windows Update service). The footer counts the warnings: update source WSUS, Windows installs updates on its own (Automatic Updates), low disk space, reboot pending. |
 | **Compliance** | Released installed (patch compliance): share of approved servers that have every update released for their ring installed. Fully patched: share whose update search reports no missing update at all, also none the rings still hold back. The difference is what the rings deliberately hold back. **Show ›** opens the servers that are not fully patched. |
 | **Security baseline** | Servers on the newest security build of their Windows version, of all servers it can be checked for, and how many have a vulnerability Microsoft knows to be exploited (red edge then); **Show ›** opens [Operating systems](help/operating-systems). |
@@ -34,8 +34,8 @@ One row per ring, in rollout order. The ring tag (number and name, outlined in t
 
 - **Servers**: approved servers in the ring.
 - **Active updates**: updates whose rollout currently includes this ring.
-- **Status (server × update)**: one bar segment per installation state, counting each server once per active update: successful (green), pending (blue, released and not installed yet), queued (amber, not released to this ring yet) and failed (red).
-- **State**: *Healthy* (nothing open), *Rolling out* (installations pending), *Failures* (at least one failed installation), *Awaiting approval* (a release gate waits for a person) or *Alarm* (the rollout stopped before this ring because a threshold was exceeded).
+- **Status (server × update)**: one bar segment per installation state, counting each server once per update that is still open somewhere (updates installed everywhere drop out, so the bar shows the work left), with a line below it naming what is open ("3 to install, 7 waiting for release"): successful (green), pending (blue, released and not installed yet), queued (amber, not released to this ring yet) and failed (red).
+- **State**: *Healthy* (nothing open), *Waiting for release* (updates wait until the rollout reaches this ring), *Rolling out* (installations pending), *Failures* (at least one failed installation), *Awaiting approval* (a release gate waits for a person) or *Alarm* (the rollout stopped before this ring because a threshold was exceeded).
 
 ## Needs attention {#attention}
 

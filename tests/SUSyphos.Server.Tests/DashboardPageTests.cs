@@ -599,6 +599,26 @@ public sealed class UpdateDetailTests
     }
 
     [Fact]
+    public async Task DeploymentByRing_ShowsWhatWaitsForTheRing()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var test = await scenario.AddClientAsync("TEST01", RingEntity.TestId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(pilot, update);
+        await scenario.ReportAsync(test, update);
+        await scenario.AdvanceAsync();
+        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Succeeded);
+        using var browser = await LoginAsync(scenario, AdminRoles.Reader);
+
+        var overview = await GetHtmlAsync(browser, "/");
+
+        Assert.Contains("<span class=\"pill neutral\">Waiting for release</span>", overview, StringComparison.Ordinal);
+        Assert.Contains("1 waiting for release", overview, StringComparison.Ordinal);
+        Assert.Matches("tile-number\">1</span>\\s*(<span class=\"tile-caption\">)rolling out", overview);
+    }
+
+    [Fact]
     public async Task ServerList_ShowsTheServersThatAreNotFullyPatched()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
