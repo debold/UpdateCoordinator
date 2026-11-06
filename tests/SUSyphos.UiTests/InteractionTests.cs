@@ -451,7 +451,8 @@ public sealed class InteractionTests(UiFixture ui)
         var mark = await info.Locator(".pill-i").BoundingBoxAsync();
         Assert.NotNull(text);
         Assert.NotNull(mark);
-        Assert.True(Math.Abs((text.Y + (text.Height / 2)) - (mark.Y + (mark.Height / 2))) <= 1.5, "text and i segment are not centred on one line");
+        // The text box is lifted 1.5 px on purpose, so its glyphs sit in the optical middle (app.css, ".pill-info .pill-text").
+        Assert.True(Math.Abs((text.Y + (text.Height / 2)) - (mark.Y + (mark.Height / 2))) <= 2.5, "text and i segment are not centred on one line");
 
         await info.Locator("summary").HoverAsync();
         var pop = info.Locator(".pill-pop");

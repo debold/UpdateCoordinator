@@ -252,9 +252,14 @@ main { container: page / inline-size; }
 .pill.queue { color: var(--queue); }
 .pill.fail { color: var(--fail); }
 .pill.neutral { color: var(--muted); }
+/* Segoe UI sits about 1.5 px low in a 20 px box with line-height 1: lift the text by the padding, keep the dot in the middle. */
+.pill { padding-bottom: 3px; }
+.pill::before { transform: translateY(1.5px); }
 /* A pill with a detail (StatusTag): an "i" segment inside the pill opens a small card that floats above the table. */
 details.pill-info { display: inline-block; position: relative; vertical-align: middle; }
-details.pill-info > summary { list-style: none; cursor: pointer; padding-right: 0; overflow: hidden; }
+details.pill-info > summary { list-style: none; cursor: pointer; padding-right: 0; padding-bottom: 0; overflow: hidden; }
+details.pill-info > summary::before { transform: none; }
+.pill-info .pill-text { position: relative; top: -1.5px; }
 details.pill-info > summary::-webkit-details-marker { display: none; }
 .pill-i { align-self: stretch; display: inline-flex; align-items: center; justify-content: center; width: 18px; margin-left: 0.1rem; border-left: 1px solid color-mix(in srgb, currentColor 30%, transparent); background: color-mix(in srgb, currentColor 10%, var(--surface)); font-family: Georgia, "Times New Roman", serif; font-size: 0.72rem; font-style: italic; font-weight: 700; line-height: 1; }
 details.pill-info > summary:hover .pill-i, details.pill-info[open] .pill-i { background: color-mix(in srgb, currentColor 22%, var(--surface)); }
@@ -735,7 +740,7 @@ a.ring-tag:hover { text-decoration: none; background: var(--surface-2); }
 .ring-tag.r5::before { background: var(--series-5); } .ring-tag.r6::before { background: var(--series-6); } .ring-tag.r7::before { background: var(--series-7); } .ring-tag.r8::before { background: var(--series-8); }
 
 /* Page tabs with badges (docs/06-dashboard.md, section 8 "Tabs"). */
-.tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.2rem; height: 1.2rem; margin-left: 0.4rem; padding: 0 0.35rem; border-radius: 999px; background: var(--line); color: var(--muted); font-size: 0.72rem; font-weight: 700; }
+.tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.2rem; height: 1.2rem; margin-left: 0.4rem; padding: 0 0.35rem 2px; border-radius: 999px; background: var(--line); color: var(--muted); font-size: 0.72rem; font-weight: 700; }
 .tab-badge.queue { background: var(--queue-soft); color: var(--queue); }
 .tab-badge.fail { background: var(--fail-soft); color: var(--fail); }
 .box-actions { margin-top: 0.9rem; justify-content: flex-end; }
@@ -802,9 +807,9 @@ td .kb-links { margin-top: 0.2rem; }
 .tag-list { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.3rem; max-width: 9rem; }
 
 /* Category tags tell kinds apart with a tint of the categorical palette (not a status colour). */
-.cat-tag { --cat: var(--series-1); display: inline-flex; align-items: center; height: 20px; padding: 0 0.5rem; border: 1px solid color-mix(in srgb, var(--cat) 45%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--cat) 14%, var(--surface)); color: var(--text); font-size: 0.78rem; white-space: nowrap; vertical-align: middle; }
+.cat-tag { --cat: var(--series-1); display: inline-flex; align-items: center; height: 20px; padding: 0 0.5rem 3px; border: 1px solid color-mix(in srgb, var(--cat) 45%, transparent); border-radius: 4px; background: color-mix(in srgb, var(--cat) 14%, var(--surface)); color: var(--text); font-size: 0.78rem; white-space: nowrap; vertical-align: middle; }
 /* In narrow table columns a long category may wrap instead of widening the table. */
-td .cat-tag { white-space: normal; height: auto; min-height: 20px; padding-block: 0.1rem; line-height: 1.2; }
+td .cat-tag { white-space: normal; height: auto; min-height: 20px; padding-block: 0.1rem 0.2rem; line-height: 1.2; }
 .cat-tag.c0 { --cat: var(--idle); } .cat-tag.c1 { --cat: var(--series-5); } .cat-tag.c2 { --cat: var(--series-7); } .cat-tag.c3 { --cat: var(--series-3); } .cat-tag.c4 { --cat: var(--series-8); }
 
 /* Expanded rows (ListTable Details): the row stays tinted, the details open right below it, indented and shaded. */

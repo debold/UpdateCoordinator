@@ -10,6 +10,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Update page, tab Servers: operating system, groups, when and by whom the update was installed, the result, a ⋯ menu per server (Install now…, Hold for this server…, Uninstall…) and grouping by ring, status, operating system or group; the tab names the work left ("3 to do", "1 failed"), and "Show ›" on "All servers" and "Show all servers ›" below "Progress by ring" open it.
 - Recent activity on the server page shows the kind of each entry as a coloured pill, like the tasks.
 - Pills with a detail (restart time, error code, who started an installation) show it behind an "i" segment inside the pill: hovering opens a small card that floats above the table, a click keeps it open; rows keep their height and nothing breaks between date and time.
+- The text of pills, category tags and tab counts sits in their optical middle (Segoe UI sat about 1.5 px low).
 - Category tags for the classification of updates (update list and both histories on the server page: security and critical updates, definition updates and drivers in their own colour, the rest grey) and for the role of an account.
 - Server list: the view "Not fully patched" lists the servers whose last update search still reports a missing update, released or not, and the Updates column shows how many are missing in all; the "Show ›" of the Compliance tile opens this view.
 
