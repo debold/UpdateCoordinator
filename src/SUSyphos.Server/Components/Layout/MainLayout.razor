@@ -31,7 +31,7 @@
                     <NavLink href="/administration/backup"><span class="nav-label"><Icon Name="@PageIcons.Backup" />Backup</span></NavLink>
                     <NavLink href="/administration/audit"><span class="nav-label"><Icon Name="@PageIcons.AuditLog" />Audit log</span></NavLink>
                 </AuthorizeView>
-                <NavLink href="/help" Match="NavLinkMatch.Prefix" class="nav-help"><span class="nav-label"><Icon Name="@PageIcons.Help" />Help</span></NavLink>
+                <NavLink href="/help" Match="NavLinkMatch.Prefix" class="nav-help" target="_blank" rel="noopener"><span class="nav-label"><Icon Name="@PageIcons.Help" />Help</span></NavLink>
                 <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="account">
                     <AntiforgeryToken />
                     <input type="hidden" name="_handler" value="logout" />

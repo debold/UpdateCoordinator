@@ -615,6 +615,8 @@ public sealed class UpdateDetailTests
 
         Assert.Contains("<span class=\"pill neutral\">Waiting for release</span>", overview, StringComparison.Ordinal);
         Assert.Contains("1 waiting for release", overview, StringComparison.Ordinal);
+        // Help from the navigation opens in a new tab, so the page one works on stays.
+        Assert.Matches("<a(?=[^>]*href=\"/help\")(?=[^>]*target=\"_blank\")(?=[^>]*rel=\"noopener\")[^>]*>", overview);
         Assert.Matches("tile-number\">1</span>\\s*(<span class=\"tile-caption\">)rolling out", overview);
     }
 

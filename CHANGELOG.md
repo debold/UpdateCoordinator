@@ -4,12 +4,15 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-06
+
 ### Central server
 
 - Folder tabs (Marc, 2026-11-06): the tabs of the server page, the update page, Release rules and Notifications stand like index cards on a surface that holds the boxes of the current tab, so they are easier to see.
 - Update page, tab Servers: operating system, groups, when and by whom the update was installed, the result, a ⋯ menu per server (Install now…, Hold for this server…, Uninstall…) and grouping by ring, status, operating system or group; the tab names the work left ("3 to do", "1 failed"), and "Show ›" on "All servers" and "Show all servers ›" below "Progress by ring" open it.
 - Recent activity on the server page shows the kind of each entry as a coloured pill, like the tasks.
 - Pills with a detail (restart time, error code, who started an installation) show it behind an "i" segment inside the pill: hovering opens a small card that floats above the table, a click keeps it open; rows keep their height and nothing breaks between date and time.
+- Help in the navigation opens in a new tab, so the page one works on stays open.
 - The overview tile "Pending updates" is now "Updates": the released installations still to do and the number of rollouts still on their way through the rings.
 - Deployment by ring on the overview counts only updates that are still open somewhere: before, updates installed everywhere filled the bar green and hid the updates waiting for the ring. A line below the bar names what is open ("3 to install, 7 waiting for release"), and a ring with only waiting updates shows "Waiting for release" instead of "Healthy".
 - The text of pills, category tags and tab counts sits in their optical middle (Segoe UI sat about 1.5 px low).
