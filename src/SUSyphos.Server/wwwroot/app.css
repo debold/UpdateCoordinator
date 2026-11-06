@@ -252,7 +252,14 @@ main { container: page / inline-size; }
 .pill.queue { color: var(--queue); }
 .pill.fail { color: var(--fail); }
 .pill.neutral { color: var(--muted); }
-.tag-detail { margin-left: 0.4rem; }
+/* A pill with a detail (StatusTag): an "i" segment inside the pill opens a small card that floats above the table. */
+details.pill-info { display: inline-block; position: relative; vertical-align: middle; }
+details.pill-info > summary { list-style: none; cursor: pointer; padding-right: 0; overflow: hidden; }
+details.pill-info > summary::-webkit-details-marker { display: none; }
+.pill-i { align-self: stretch; display: inline-flex; align-items: center; justify-content: center; width: 18px; margin-left: 0.1rem; border-left: 1px solid color-mix(in srgb, currentColor 30%, transparent); background: color-mix(in srgb, currentColor 10%, var(--surface)); font-family: Georgia, "Times New Roman", serif; font-size: 0.72rem; font-style: italic; font-weight: 700; line-height: 1; }
+details.pill-info > summary:hover .pill-i, details.pill-info[open] .pill-i { background: color-mix(in srgb, currentColor 22%, var(--surface)); }
+.pill-pop { min-width: 12rem; max-width: 22rem; gap: 0.15rem; padding: 0.5rem 0.7rem; color: var(--text); font-size: 0.82rem; font-weight: 400; line-height: 1.4; white-space: normal; }
+.pill-pop b { color: var(--muted); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 
 /* Messages. */
 .error { background: var(--fail-soft); color: var(--fail); padding: 0.65rem 0.9rem; border-radius: var(--r-sm); }

@@ -433,4 +433,40 @@ public sealed class InteractionTests(UiFixture ui)
         await page.WaitForURLAsync(url => new Uri(url).Query.Length == 0);
         await Assertions.Expect(menu.Locator("summary")).ToHaveAttributeAsync("title", "View: Open updates (default)");
     }
+
+    /// <summary>
+    /// A pill with a detail: text and "i" segment sit on one line, centred; hovering shows the card above everything (not cut
+    /// off by the table), and a click keeps it open.
+    /// </summary>
+    [Fact]
+    public async Task PillDetail_ShowsItsCardAboveTheTable_WhenHovered()
+    {
+        await using var context = await ui.NewContextAsync(1280, 800);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync($"/servers/{ui.MainServerId}?tab=history&wu.view=all&hist.view=all");
+
+        var info = page.Locator("main details.pill-info").First;
+        await Assertions.Expect(info).ToBeVisibleAsync();
+        var text = await info.Locator(".pill-text").BoundingBoxAsync();
+        var mark = await info.Locator(".pill-i").BoundingBoxAsync();
+        Assert.NotNull(text);
+        Assert.NotNull(mark);
+        Assert.True(Math.Abs((text.Y + (text.Height / 2)) - (mark.Y + (mark.Height / 2))) <= 1.5, "text and i segment are not centred on one line");
+
+        await info.Locator("summary").HoverAsync();
+        var pop = info.Locator(".pill-pop");
+        await Assertions.Expect(pop).ToBeVisibleAsync();
+        Assert.Equal("fixed", await pop.EvaluateAsync<string>("p => getComputedStyle(p).position"));
+        var box = await pop.BoundingBoxAsync();
+        Assert.NotNull(box);
+        Assert.True(box.X >= 0 && box.Y >= 0 && box.X + box.Width <= 1280 && box.Y + box.Height <= 800, "the card leaves the window");
+        // Nothing covers or clips it: the topmost element in its middle belongs to the card.
+        Assert.True(await pop.EvaluateAsync<bool>("p => { const r = p.getBoundingClientRect(); return p.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); }"));
+
+        await info.Locator("summary").ClickAsync();
+        await page.Mouse.MoveAsync(5, 5);
+        await Assertions.Expect(pop).ToBeVisibleAsync();
+        await page.Locator("main h1").ClickAsync();
+        await Assertions.Expect(pop).ToBeHiddenAsync();
+    }
 }

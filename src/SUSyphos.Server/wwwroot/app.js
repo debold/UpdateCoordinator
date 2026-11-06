@@ -456,6 +456,30 @@
         }
     });
 
+    // A pill with a detail opens its card while the pointer rests on it; a click keeps it open until a click elsewhere.
+    document.addEventListener('mouseover', (event) => {
+        const info = event.target instanceof Element ? event.target.closest('details.pill-info') : null;
+        if (info && !info.open) {
+            info.dataset.hover = '1';
+            info.open = true;
+        }
+    });
+    document.addEventListener('mouseout', (event) => {
+        const info = event.target instanceof Element ? event.target.closest('details.pill-info') : null;
+        if (info?.dataset.hover && !(event.relatedTarget instanceof Node && info.contains(event.relatedTarget))) {
+            delete info.dataset.hover;
+            info.open = false;
+        }
+    });
+    document.addEventListener('click', (event) => {
+        const summary = event.target instanceof Element ? event.target.closest('details.pill-info > summary') : null;
+        if (summary?.parentElement.dataset.hover) {
+            // Opened by hovering: the click pins it instead of closing it.
+            event.preventDefault();
+            delete summary.parentElement.dataset.hover;
+        }
+    }, true);
+
     // Hints while typing, from the same rules the server checks (minlength comes from the server's constant): how many
     // characters are missing, whether the repeated password matches, a weak password (only a hint, it is accepted) and
     // the form of a folder. The server still checks everything on saving.

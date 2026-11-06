@@ -469,7 +469,8 @@ public sealed class DashboardViewTests
         Assert.Contains("Disk space", html, StringComparison.Ordinal);
         Assert.Contains("Missing updates", updates, StringComparison.Ordinal);
         Assert.Contains("KB5040000", updates, StringComparison.Ordinal);
-        Assert.Contains("<span class=\"pill fail\">Failed</span><span class=\"tag-detail\">0x80070005", history, StringComparison.Ordinal);
+        Assert.Matches("<summary class=\"pill fail\"[^>]*><span class=\"pill-text\">Failed</span><span class=\"pill-i\"", history);
+        Assert.Matches("class=\"menu-pop pill-pop\" role=\"tooltip\"><b>Failed</b><span>0x80070005", history);
     }
 
     private static async Task<DashboardClient> LoginAsync(RolloutScenario scenario, string role)

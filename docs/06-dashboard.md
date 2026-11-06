@@ -226,6 +226,7 @@ How states are shown everywhere (Marc, 2026-10-25).
 - **One form per job:**
   - *Pill* (outlined, with a dot): the state of a thing; large in tiles.
   - *Tag* (filled grey, square corners): a category or origin, not a state (classification, "manual", "rule", "SUSyphos", "Installation").
+  - *Pill with a detail* (Marc, 2026-11-06, mockup https://claude.ai/artifact/Brf5riMxPZLx7wF2wm61E2, variant E): a detail of a state (time, error code, source) never stands as text next to the pill; it sits behind a tinted "i" segment at the right end of the pill, whose card opens on hover and stays open on click, floating above the page so no table clips it. Rows keep their height. Shared component `StatusTag` with `Detail`.
   - *Category tag* (tinted in the categorical palette, square corners; shared component `CategoryTag`, Marc 2026-10-26): where a column tells kinds apart, each kind gets its own fixed colour (account source: "Active Directory", "Local"; role: Admin, Operator, Reader; classification of an update: security and critical updates, definition updates and drivers in their own colour, the rest grey, shared component `ClassificationTag`; Marc 2026-11-06). Never a status colour, so it does not read as good or bad.
   - *Ring tag*: outlined in the ring's colour with the ring number ("1 Pilot"); one fixed colour per ring.
   - *Dot*: a small indicator next to a value, explained in its tooltip (e.g. heartbeat freshness).

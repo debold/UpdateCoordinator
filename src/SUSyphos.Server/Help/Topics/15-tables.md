@@ -24,6 +24,10 @@ Lists with recurring questions offer fixed views, for example "Open updates", "N
 
 **Group**: the button with the tree icon, where a list can be grouped. It puts the rows into groups with a heading row per value and the number of rows in it, for example by operating system. While nothing is grouped the button is only an icon; grouped it reads "Group:" with the column. **No grouping** shows a plain list.
 
+## States and their details {#pills}
+
+States are coloured pills: green for done or fine, blue for running or planned, amber for attention, red for failures, grey for neutral. A pill with an **i** at its right end has more to say, for example the time of a restart, an error code with its explanation, or which program started an installation: rest the pointer on it to see the details in a small card, or click (tap) it to keep the card open; a click elsewhere closes it.
+
 ## Sorting {#sort}
 
 Click a column title to sort by it; click again to reverse the order. A small arrow marks the column and direction. Columns without a link cannot be sorted.

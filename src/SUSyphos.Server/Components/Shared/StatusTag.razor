@@ -1,6 +1,17 @@
-@* A coloured tag for a state, the same on every page (green OK, yellow attention, red failure, grey neutral), with an
-   optional detail next to it such as an error code or a time. *@
-<span class="pill @Kind" title="@Title">@Text</span>@if (Detail is { Length: > 0 }) { <span class="tag-detail">@Detail</span> }
+@* A coloured tag for a state, the same on every page (green OK, yellow attention, red failure, grey neutral). A detail
+   such as an error code, a time or who started it sits in an "i" segment inside the pill (Marc, 2026-11-06): hovering
+   or clicking shows it in a small card that floats above the table, so rows keep their height and nothing is cut off. *@
+@if (Detail is { Length: > 0 })
+{
+    <details class="pill-info" data-menu data-help="tables#pills" data-help-term="i">
+        <summary class="pill @Kind" title="@Title" aria-label="@($"{Text}: {Detail}")"><span class="pill-text">@Text</span><span class="pill-i" aria-hidden="true">i</span></summary>
+        <div class="menu-pop pill-pop" role="tooltip"><b>@Text</b><span>@Detail</span></div>
+    </details>
+}
+else
+{
+    <span class="pill @Kind" title="@Title">@Text</span>
+}
 
 @code {
     [Parameter, EditorRequired]
@@ -10,6 +21,7 @@
     [Parameter]
     public string Kind { get; set; } = "neutral";
 
+    /// <summary>More about the state (an error code, a time, the source), shown in the card of the "i" segment.</summary>
     [Parameter]
     public string? Detail { get; set; }
 
