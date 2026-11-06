@@ -156,7 +156,7 @@ The Windows Update history Windows itself keeps for the last 90 days, sent with 
 
 ## Recent activity {#activity}
 
-What the agent did and reported, newest first, kept for 90 days: registration, approval, inventory, update searches, installations, remote actions, restarts, agent updates and changed agent settings the agent applies (with the values and their source). Heartbeats are not listed.
+What the agent did and reported, newest first, kept for 90 days: registration, approval, inventory, update searches, installations, remote actions, restarts, agent updates and changed agent settings the agent applies (with the values and their source). Heartbeats are not listed. The kind of each entry is a coloured pill like in the tasks: update searches, restarts and agent updates blue, installations and approvals green, remote actions amber, a rejection red, the rest grey.
 
 ## Remote actions {#remote-actions}
 

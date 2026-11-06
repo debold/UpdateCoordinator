@@ -402,7 +402,7 @@ else
             <Row Context="entry">
                 <tr>
                     <td class="nowrap">@Format(entry.AtUtc)</td>
-                    <td class="nowrap">@ClientActivityLog.Label(entry.Kind)</td>
+                    <td class="nowrap"><StatusTag Text="@ClientActivityLog.Label(entry.Kind)" Kind="@ClientActivityLog.Class(entry.Kind)" /></td>
                     <td class="wrap">@entry.Detail</td>
                 </tr>
             </Row>

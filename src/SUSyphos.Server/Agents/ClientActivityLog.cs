@@ -72,6 +72,16 @@ internal sealed class ClientActivityLog(ServerDbContext db, TimeProvider timePro
         return await db.ClientActivities.Where(a => a.AtUtc < cutoff).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Colour of the activity pill, the same as for the tasks of the server: searches blue, installations green, remote actions amber.</summary>
+    public static string Class(ClientActivityKind kind) => kind switch
+    {
+        ClientActivityKind.Search or ClientActivityKind.Restarted or ClientActivityKind.AgentUpdated => "pend",
+        ClientActivityKind.Installation or ClientActivityKind.Approved => "ok",
+        ClientActivityKind.RemoteAction => "queue",
+        ClientActivityKind.Rejected => "fail",
+        _ => "neutral",
+    };
+
     public static string Label(ClientActivityKind kind) => kind switch
     {
         ClientActivityKind.Registered => "Registered",

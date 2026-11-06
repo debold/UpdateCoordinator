@@ -144,6 +144,7 @@ public sealed class ClientActivityTests
         Assert.DoesNotContain("entry 07", searched, StringComparison.Ordinal);
         Assert.DoesNotContain("entry 12", searched, StringComparison.Ordinal);
         Assert.Contains("(filtered from 31)", searched, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"pill pend\">Update search</span>", searched, StringComparison.Ordinal);
 
         // Values outside the offered page sizes fall back to the default.
         var invalid = await PageAsync(reader, $"/servers/{client.ClientId}?tab=activity&act.size=100000&act.page=-1");
