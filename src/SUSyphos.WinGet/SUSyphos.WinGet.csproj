@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Access to the Windows Package Manager (WinGet) for the agent: the WinGet COM API in-proc (also under SYSTEM, where
+    winget.exe is not supported), the uninstall keys of the registry and the bootstrap of App Installer. Used by the
+    lab tool SUSyphos WinGet Probe first (tools/SUSyphos.WinGetProbe), later by the agent.
+  -->
+  <PropertyGroup>
+    <!-- The projection of the WinGet COM API needs a Windows SDK target; it still runs from Windows Server 2016 on. -->
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.14393.0</SupportedOSPlatformVersion>
+    <!-- The engine is activated by hand from its folder (WinGetEngine), never through the out-of-process factory. -->
+    <MicrosoftManagementDeployment-FactoryLinkage>none</MicrosoftManagementDeployment-FactoryLinkage>
+    <!-- Source-generated P/Invoke (LibraryImport) for loading the engine. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" />
+  </ItemGroup>
+
+</Project>

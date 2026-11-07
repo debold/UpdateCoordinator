@@ -11,6 +11,8 @@ Central coordination of Windows updates for Windows servers with ring deployment
 | `src/SUSyphos.Agent` | Windows service on every managed server (WUA API) |
 | `src/SUSyphos.Server` | Central server: Windows service with a web API for agents and the dashboard |
 | `src/SUSyphos.Contracts` | Shared message contracts and routes |
+| `src/SUSyphos.WinGet` | Access to WinGet (in-proc COM API, uninstall inventory, App Installer bootstrap), for the agent later |
+| `tools/SUSyphos.WinGetProbe` | Lab tool for the WinGet tests, not released ([guide](docs/admin/winget-probe.md)) |
 | `tests/*.Tests` | Automated tests per project (xUnit v3) |
 | `tests/SUSyphos.IntegrationTests` | End-to-end tests: real agent client against the in-memory central server |
 | `tests/SUSyphos.TestSupport` | Shared test infrastructure |
@@ -61,6 +63,7 @@ Agent and central server are versioned separately from git tags (`agent/v1.2.3`,
 
 - [CHANGELOG.md](CHANGELOG.md)
 - [Admin documentation](docs/admin/README.md)
+- [SUSyphos WinGet Probe](docs/admin/winget-probe.md) (lab tool)
 
 ## License
 

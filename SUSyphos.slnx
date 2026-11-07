@@ -4,6 +4,7 @@
     <Project Path="src/SUSyphos.Common/SUSyphos.Common.csproj" />
     <Project Path="src/SUSyphos.Contracts/SUSyphos.Contracts.csproj" />
     <Project Path="src/SUSyphos.Server/SUSyphos.Server.csproj" />
+    <Project Path="src/SUSyphos.WinGet/SUSyphos.WinGet.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SUSyphos.Agent.Tests/SUSyphos.Agent.Tests.csproj" />
@@ -13,5 +14,9 @@
     <Project Path="tests/SUSyphos.Server.Tests/SUSyphos.Server.Tests.csproj" />
     <Project Path="tests/SUSyphos.TestSupport/SUSyphos.TestSupport.csproj" />
     <Project Path="tests/SUSyphos.UiTests/SUSyphos.UiTests.csproj" />
+    <Project Path="tests/SUSyphos.WinGet.Tests/SUSyphos.WinGet.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/SUSyphos.WinGetProbe/SUSyphos.WinGetProbe.csproj" />
   </Folder>
 </Solution>

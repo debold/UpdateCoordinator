@@ -38,6 +38,31 @@ jobs:
       - name: Test
         run: dotnet test --solution SUSyphos.slnx -c Release --no-build
 
+  winget-probe:
+    # Lab tool for the WinGet tests (docs/admin/winget-probe.md); a build artifact only, never part of a release.
+    needs: build-and-test
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Publish SUSyphos WinGet Probe (self-contained, win-x64)
+        shell: pwsh
+        run: |
+          dotnet publish tools/SUSyphos.WinGetProbe -c Release -r win-x64 --self-contained -o artifacts/winget-probe
+          Copy-Item docs/admin/winget-probe.md artifacts/winget-probe/README.md
+
+      - name: Upload SUSyphos WinGet Probe
+        uses: actions/upload-artifact@v7
+        with:
+          name: susyphos-wingetprobe
+          path: artifacts/winget-probe/
+          if-no-files-found: error
+
   installers:
     needs: build-and-test
     runs-on: windows-latest

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SUSyphos WinGet Probe: lab tool that answers the questions of the WinGet test plan on real servers (SYSTEM in-proc,
+    bootstrap, bundled engine, inventory coverage, install and upgrade). Not part of the agent and not released; CI
+    publishes it self-contained for win-x64 as a build artifact (docs/admin/winget-probe.md).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <DebugType>embedded</DebugType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.14393.0</SupportedOSPlatformVersion>
+    <AssemblyName>susyphos-wingetprobe</AssemblyName>
+    <RootNamespace>SUSyphos.WinGetProbe</RootNamespace>
+    <Version>0.1.0</Version>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SUSyphos.WinGet\SUSyphos.WinGet.csproj" />
+    <!-- The bundled engine (engine\ next to the exe, for engine=bundled): only its files, nothing is linked. -->
+    <PackageReference Include="Microsoft.WindowsPackageManager.InProcCom" ExcludeAssets="all" GeneratePathProperty="true" NoWarn="NU1701" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Without the symbols of the engine (130 MB). -->
+    <None Include="$(PkgMicrosoft_WindowsPackageManager_InProcCom)\runtimes\win-x64\native\*" Exclude="$(PkgMicrosoft_WindowsPackageManager_InProcCom)\runtimes\win-x64\native\*.pdb" Link="engine\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SUSyphos.WinGet.Tests" />
+  </ItemGroup>
+
+</Project>
