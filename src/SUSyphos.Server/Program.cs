@@ -6,6 +6,7 @@ using SUSyphos.Server.Administration;
 using SUSyphos.Server.AgentPackages;
 using SUSyphos.Server.Agents;
 using SUSyphos.Server.Components;
+using SUSyphos.Server.Software;
 using SUSyphos.Server.Trust;
 
 if (args is [RestoreCommand.Verb, ..])
@@ -45,6 +46,7 @@ app.MapAgentLogEndpoints();
 app.MapBackupEndpoints();
 app.MapWindowsSignIn();
 app.MapAgentInstallerEndpoints();
+app.MapSoftwareSourceEndpoints();
 app.MapStaticAssets();
 app.MapRazorComponents<App>();
 

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Virus scan through the Antimalware Scan Interface (AMSI) of Windows: whichever antivirus product is registered
+    (Microsoft Defender or another vendor) answers. Taken over from GraphMailer.NET (same author) as a shared library,
+    so the central server scans the installers of its software cache with it.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SUSyphos.Amsi.Tests" />
+    <InternalsVisibleTo Include="SUSyphos.Server.Tests" />
+  </ItemGroup>
+
+</Project>

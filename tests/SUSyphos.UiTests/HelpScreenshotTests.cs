@@ -8,6 +8,7 @@ namespace SUSyphos.UiTests;
 /// that the committed image exists. With the environment variable SUSYPHOS_HELP_SCREENSHOTS=update the images under
 /// src/SUSyphos.Server/wwwroot/help-images are written anew (build/Update-HelpScreenshots.ps1); commit them afterwards.
 /// </summary>
+[Collection(ShowcaseLab.Name)]
 public sealed class HelpScreenshotTests(ShowcaseFixture ui)
 {
     /// <summary>Image name, page, optional element to click first, and the element the screenshot shows.</summary>

@@ -25,6 +25,17 @@ internal sealed class SoftwareOptions
 
     /// <summary>Address of the package index (source2.msix); the community source by default.</summary>
     public Uri IndexAddress { get; set; } = CommunityIndex.SourceAddress;
+
+    /// <summary>How often versions with a started rollout are downloaded into the installer cache.</summary>
+    [Range(typeof(TimeSpan), "00:01:00", "1.00:00:00")]
+    public TimeSpan CacheInterval { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Virus scan of the installers (Marc, 2026-11-08: Enforce by default).</summary>
+    public ScanMode ScanMode { get; set; } = ScanMode.Enforce;
+
+    /// <summary>Installers up to this size are scanned; larger ones count as not scanned (Enforce keeps them out).</summary>
+    [Range(1, 2047)]
+    public int MaxScanMegabytes { get; set; } = 256;
 }
 
 /// <summary>
@@ -41,6 +52,9 @@ internal interface ISoftwareSource
 
     /// <summary>The manifests of one version (names, links, licence, agreements, installers), without an installer.</summary>
     Task<CachedVersion> ReadManifestAsync(string packageId, string version, CancellationToken cancellationToken);
+
+    /// <summary>Downloads the installers of one version into a cache, each checked against the SHA-256 of the manifest.</summary>
+    Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -129,6 +143,12 @@ internal sealed partial class CommunitySoftwareSource(HttpClient http, IOptions<
 
     public Task<CachedVersion> ReadManifestAsync(string packageId, string version, CancellationToken cancellationToken) =>
         new CommunityManifests(http).ReadAsync(packageId, version, cancellationToken);
+
+    public Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, CancellationToken cancellationToken) =>
+        new CommunityManifests(http).CacheAsync(cache, packageId, version, line => LogDownload(line), cancellationToken);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "WinGet source: {Line}")]
+    private partial void LogDownload(string line);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "WinGet package index refreshed: {Count} packages, written by Microsoft {LastWrite}.")]
     private partial void LogIndexRefreshed(int count, DateTimeOffset? lastWrite);

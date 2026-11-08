@@ -1,9 +1,7 @@
 using System.Security.Cryptography.X509Certificates;
-using System.Text.Json.Nodes;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 using SUSyphos.WinGet;
@@ -17,9 +15,6 @@ public static class ProbeServe
     /// <summary>Where the source answers; files are served below <see cref="FilesPath"/>.</summary>
     public const string ApiPath = "/api/";
     public const string FilesPath = "/files/";
-
-    /// <summary>Upper bound for a manifestSearch request body; WinGet sends a few hundred bytes.</summary>
-    private const int MaxRequestBytes = 64 * 1024;
 
     public static string CacheFolder(ProbeArguments arguments) => arguments.CacheFolder ?? Path.Combine(AppContext.BaseDirectory, "winget-cache");
 
@@ -67,7 +62,7 @@ public static class ProbeServe
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
             kestrel.AddServerHeader = false;
-            kestrel.Limits.MaxRequestBodySize = MaxRequestBytes;
+            kestrel.Limits.MaxRequestBodySize = RestSourceEndpoints.MaxRequestBytes;
             kestrel.ListenAnyIP(port, listen => listen.UseHttps(certificate));
         });
         await using var app = builder.Build();
@@ -87,63 +82,10 @@ public static class ProbeServe
     public static void Map(WebApplication app, RestSourceResponder responder, PackageCache cache, ProbeOutput output)
     {
         ArgumentNullException.ThrowIfNull(app);
-        app.MapGet(ApiPath + "information", () => Answer(responder.Information()));
-        app.MapPost(ApiPath + "manifestSearch", async (HttpRequest request) =>
-        {
-            if (request.HttpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit)
-            {
-                limit.MaxRequestBodySize = MaxRequestBytes;
-            }
-
-            JsonObject? body;
-            try
-            {
-                body = await JsonNode.ParseAsync(request.Body) as JsonObject;
-            }
-            catch (System.Text.Json.JsonException)
-            {
-                return Results.BadRequest();
-            }
-            catch (BadHttpRequestException exception)
-            {
-                return Results.StatusCode(exception.StatusCode);
-            }
-
-            RestAnswer answer;
-            try
-            {
-                answer = responder.Search(body);
-            }
-            catch (Exception exception) when (exception is InvalidOperationException or FormatException)
-            {
-                // A field of the wrong JSON type (e.g. a number where text belongs).
-                return Results.BadRequest();
-            }
-
-            output.Log($"Search {body?.ToJsonString()} -> {answer.Status}");
-            return Answer(answer);
-        });
-        app.MapGet(ApiPath + "packageManifests/{id}", (string id, string? version) =>
-        {
-            var answer = responder.Manifest(id, version);
-            output.Log($"Manifest {id} {version} -> {answer.Status}");
-            return Answer(answer);
-        });
-        app.MapGet(FilesPath + "{name}", (string name) =>
-        {
-            if (!PackageCache.IsCacheFileName(name))
-            {
-                return Results.NotFound();
-            }
-
-            var path = Path.Combine(cache.FilesFolder, name);
-            output.Log($"File {name}");
-            return File.Exists(path) ? Results.File(path, "application/octet-stream", enableRangeProcessing: true) : Results.NotFound();
-        });
+        ArgumentNullException.ThrowIfNull(cache);
+        ArgumentNullException.ThrowIfNull(output);
+        RestSourceEndpoints.Map(app, ApiPath, FilesPath, _ => responder, () => cache.FilesFolder, output.Log);
     }
-
-    private static IResult Answer(RestAnswer answer) =>
-        answer.Body is null ? Results.StatusCode(answer.Status) : Results.Content(answer.Body.ToJsonString(), "application/json", statusCode: answer.Status);
 
     /// <summary>The certificate from LocalMachine\My, else from CurrentUser\My (a developer without administrator rights).</summary>
     private static X509Certificate2 FindCertificate(string thumbprint)

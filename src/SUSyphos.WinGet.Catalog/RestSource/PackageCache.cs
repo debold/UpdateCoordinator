@@ -92,6 +92,39 @@ public sealed partial class PackageCache
         ArgumentNullException.ThrowIfNull(version);
         _versions.RemoveAll(existing => Same(existing, version.PackageIdentifier, version.PackageVersion));
         _versions.Add(version);
+        Save();
+    }
+
+    /// <summary>
+    /// Removes a package version from the index and deletes its installer files that no other cached version uses.
+    /// Returns false when the version was not cached.
+    /// </summary>
+    public bool Remove(string id, string packageVersion)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(packageVersion);
+        var removed = _versions.Where(existing => Same(existing, id, packageVersion)).ToList();
+        if (removed.Count == 0)
+        {
+            return false;
+        }
+
+        _versions.RemoveAll(removed.Contains);
+        Save();
+        var used = _versions.SelectMany(Files).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in removed.SelectMany(Files).Where(file => !used.Contains(file) && IsCacheFileName(file)))
+        {
+            File.Delete(Path.Combine(FilesFolder, file));
+        }
+
+        return true;
+    }
+
+    private static IEnumerable<string> Files(CachedVersion version) =>
+        version.Installers.Select(installer => installer["CachedFile"]?.GetValue<string>()).OfType<string>();
+
+    private void Save()
+    {
         Directory.CreateDirectory(Folder);
         var index = new JsonArray(_versions.Select(entry => (JsonNode)new JsonObject
         {

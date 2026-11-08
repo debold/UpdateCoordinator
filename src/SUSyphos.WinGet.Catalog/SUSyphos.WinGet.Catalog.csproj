@@ -6,6 +6,8 @@
     manifests of github.com/microsoft/winget-pkgs, the installer cache and the WinGet REST source protocol.
   -->
   <ItemGroup>
+    <!-- The routes of the REST source (RestSourceEndpoints). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="YamlDotNet" />
   </ItemGroup>

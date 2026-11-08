@@ -169,6 +169,10 @@ internal static class DashboardServiceCollectionExtensions
         services.AddSingleton<Software.ISoftwareSource>(provider => provider.GetRequiredService<Software.CommunitySoftwareSource>());
         services.AddScoped<Software.SoftwareCatalog>();
         services.AddHostedService<Software.SoftwareCatalogWorker>();
+        services.AddSingleton<Software.IInstallerScanner, Software.AmsiInstallerScanner>();
+        services.AddSingleton<Software.SoftwareSourceCache>();
+        services.AddScoped<Software.SoftwareCacheService>();
+        services.AddHostedService<Software.SoftwareCacheWorker>();
 
         services.AddOptions<Security.MsrcOptions>()
             .Bind(configuration.GetSection(Security.MsrcOptions.Section))

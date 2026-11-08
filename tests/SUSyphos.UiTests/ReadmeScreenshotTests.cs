@@ -8,6 +8,7 @@ namespace SUSyphos.UiTests;
 /// checks that every page can still be shown and that the committed image exists; with SUSYPHOS_README_SCREENSHOTS=update
 /// (build/Update-HelpScreenshots.ps1 -Readme, at a release) the images are written anew.
 /// </summary>
+[Collection(ShowcaseLab.Name)]
 public sealed class ReadmeScreenshotTests(ShowcaseFixture ui)
 {
     private const int Width = 1440;

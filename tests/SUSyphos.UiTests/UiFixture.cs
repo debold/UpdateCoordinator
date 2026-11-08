@@ -3,7 +3,6 @@ using Microsoft.Playwright;
 using SUSyphos.TestSupport;
 
 [assembly: AssemblyFixture(typeof(SUSyphos.UiTests.UiFixture))]
-[assembly: AssemblyFixture(typeof(SUSyphos.UiTests.ShowcaseFixture))]
 
 namespace SUSyphos.UiTests;
 

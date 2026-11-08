@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/SUSyphos.Amsi/SUSyphos.Amsi.csproj" />
     <Project Path="src/SUSyphos.Agent/SUSyphos.Agent.csproj" />
     <Project Path="src/SUSyphos.Agent.WinGet/SUSyphos.Agent.WinGet.csproj" />
     <Project Path="src/SUSyphos.Common/SUSyphos.Common.csproj" />
