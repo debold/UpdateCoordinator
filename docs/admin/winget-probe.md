@@ -195,7 +195,8 @@ On 2022 with the bundled engine as SYSTEM, after GitHub delivered again:
 - A private REST source on the central server with an installer cache works, including without internet access on
   the servers. Many packages download from GitHub or SourceForge, which failed or hung during the tests; the cache on
   the central server removes that dependency.
-- Not tested yet: Windows Server 2025 Core.
+- Windows Server Core (tested: 2025 Core) is not supported: the WinGet COM API opens no catalog there, neither with
+  the bundled engine nor in Microsoft's own PowerShell module.
 
 ## Server 2025 Core (2026-11-08)
 
@@ -205,6 +206,9 @@ On 2022 with the bundled engine as SYSTEM, after GitHub delivered again:
   with desktop went on.
 - `info` works (engine loads, sources listed), but `search` fails the same way with the community source as with the
   private one, at the same place in the engine and without any network request: on Server Core the engine cannot open
-  any remote source. Cause not known yet; next checks: `inventory` (local list only), the same search as a local
-  administrator, and the engine of App Installer after `bootstrap --online`. Until then Server Core counts as not
-  supported for software updates.
+  any remote source.
+- `inventory` fails the same way, so not even the local list of installed programs opens. `bootstrap --online` fails
+  too: Microsoft's own module Microsoft.WinGet.Client stops with a TypeInitializationException in its
+  ManagementDeploymentCommand, which uses the same COM API in-proc. The WinGet COM API is not usable on Windows Server
+  2025 Core; Server Core is not supported for software updates (like Server 2016). The registry inventory of the
+  agent still works there.
