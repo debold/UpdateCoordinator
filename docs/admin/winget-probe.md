@@ -98,3 +98,24 @@ Matrix: Windows Server 2016, 2019 (central server), 2022, 2025 with desktop, and
 - The bundled engine needs no C++ runtime (statically linked); the one of App Installer needs `MSVCP140` and
   `CONCRT140`, which the probe takes from the VCLibs framework package unless the Visual C++ redistributable is
   installed.
+
+## Round 1 (2026-11-08)
+
+`info` and `inventory` as SYSTEM on Server 2016, 2019, 2022 and 2025 with desktop:
+
+| Server | App Installer | Installed engine | Bundled engine | Inventory |
+| --- | --- | --- | --- | --- |
+| 2016 (14393) | not installed | – | not loadable (error 126) | – |
+| 2019 (17763) | not installed | – | loads, sources listed | 20 of 20 matched, 11 known to WinGet |
+| 2022 (20348) | not installed | – | loads, sources listed | 5 of 5 matched, 3 known to WinGet |
+| 2025 (26100) | 1.29.380, registered only for two administrators | loads as SYSTEM (C++ runtime from VCLibs) | loads | 7 of 7 matched, 4 known to WinGet |
+
+- The bundled engine works as SYSTEM in-proc without App Installer on 2019 and later, so the agent does not depend on
+  App Installer being installed or registered for anyone.
+- On 2016 a system library the engine imports is missing; most likely the Windows ICU libraries (`icuuc.dll`,
+  `icuin.dll`), which Windows only has since version 1703. Since probe 0.1.0+ (after round 1) the report lists the
+  missing libraries itself (`engine.missingLibraries`).
+- Every uninstall entry was matched to WinGet's installed list. Programs WinGet does not know from a source (VMware
+  Tools, FortiClient, the SUSyphos packages) are listed, but cannot be updated through WinGet.
+- A source can be behind the installed version (Edge 157 installed, 156 in the source); the report now takes WinGet's
+  own "update available" instead of comparing version strings.

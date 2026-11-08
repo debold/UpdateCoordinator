@@ -17,6 +17,9 @@ public sealed class EngineReport(EngineChoice choice)
 
     public bool Loaded { get; set; }
 
+    /// <summary>System libraries the engine imports that Windows could not load (after error 126).</summary>
+    public IReadOnlyList<string>? MissingLibraries { get; set; }
+
     public ProbeError? LoadError { get; set; }
 }
 
@@ -88,6 +91,13 @@ public static class ProbeCommands
         catch (Exception exception)
         {
             report.LoadError = ProbeError.From(exception);
+            if (exception is System.ComponentModel.Win32Exception { NativeErrorCode: 126 } && report.Folder is not null)
+            {
+                // "Module not found": name the system libraries the engine needs that this Windows does not have.
+                report.MissingLibraries = DependencyCheck.MissingSystemLibraries(report.Folder);
+                output.Log("Missing system libraries: " + (report.MissingLibraries.Count == 0 ? "none found" : string.Join(", ", report.MissingLibraries)));
+            }
+
             throw;
         }
     }
@@ -123,7 +133,7 @@ public static class ProbeCommands
             Matched = comparison.Matches.Count,
             MatchedByKind = comparison.Matches.GroupBy(match => match.Kind).ToDictionary(group => group.Key.ToString(), group => group.Count()),
             Updatable = comparison.Updatable,
-            UpdateAvailable = comparison.Matches.Count(match => match.Package.AvailableVersion is not null && match.Package.AvailableVersion != match.Package.InstalledVersion),
+            UpdateAvailable = comparison.Matches.Count(match => match.Package.UpdateAvailable),
         };
         output.Log($"Inventory: {summary.UninstallEntries} uninstall entries, {summary.WinGetInstalled} in WinGet ({summary.WinGetNotCompared} MSIX or per user), matched {summary.Matched}, WinGet could update {summary.Updatable}");
         return new
@@ -137,6 +147,7 @@ public static class ProbeCommands
                 match.Entry.View,
                 match.Package.Id,
                 match.Package.AvailableVersion,
+                match.Package.UpdateAvailable,
                 match.Package.Source,
             }),
             comparison.OnlyInRegistry,

@@ -80,7 +80,7 @@ public sealed class InventoryTests
         {
             new WinGetInstalledPackage(@"ARP\Machine\X64\7-Zip", "7-Zip", "24.08", null, null, []),
             new WinGetInstalledPackage("Microsoft.VCRedist.2015+.x64", "Microsoft Visual C++ 2015-2022 Redistributable (x64)", "14.32", "14.44", "winget", ["{b}"]),
-            new WinGetInstalledPackage("Notepad++.Notepad++", "Notepad++", "8.6", "8.7", "winget", [], InstalledName: "Notepad++ (64-bit x64)"),
+            new WinGetInstalledPackage("Notepad++.Notepad++", "Notepad++", "8.6", "8.7", "winget", [], InstalledName: "Notepad++ (64-bit x64)", UpdateAvailable: true),
             new WinGetInstalledPackage(@"ARP\Machine\X64\Gone", "Leftover", "1.0", null, null, []),
         };
 

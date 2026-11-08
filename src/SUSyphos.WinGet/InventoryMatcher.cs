@@ -12,6 +12,8 @@ namespace SUSyphos.WinGet;
 /// <param name="InstalledName">Name of the installed program as the uninstall key gives it.</param>
 /// <param name="Scope">Installed scope as WinGet reports it (Machine, User), if it knows.</param>
 /// <param name="PackageFamilyNames">Package family names, set for packaged apps (MSIX).</param>
+/// <param name="UpdateAvailable">True when WinGet would upgrade it: the source has a newer version than the installed
+/// one (by WinGet's version comparison; a source behind the installed version is no update).</param>
 public sealed record WinGetInstalledPackage(
     string Id,
     string Name,
@@ -21,7 +23,8 @@ public sealed record WinGetInstalledPackage(
     IReadOnlyList<string> ProductCodes,
     string? InstalledName = null,
     string? Scope = null,
-    IReadOnlyList<string>? PackageFamilyNames = null)
+    IReadOnlyList<string>? PackageFamilyNames = null,
+    bool UpdateAvailable = false)
 {
     /// <summary>True when WinGet found the program in a source, so it could update it.</summary>
     public bool Correlated => Source is not null;

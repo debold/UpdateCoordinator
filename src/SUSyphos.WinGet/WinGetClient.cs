@@ -131,7 +131,8 @@ public sealed class WinGetClient(WinGetEngine engine)
                     installed?.ProductCodes.ToList() ?? [],
                     installed?.DisplayName,
                     Metadata(installed, PackageVersionMetadataField.InstalledScope),
-                    installed?.PackageFamilyNames.ToList());
+                    installed?.PackageFamilyNames.ToList(),
+                    package.IsUpdateAvailable);
             })
             .ToList();
     }
