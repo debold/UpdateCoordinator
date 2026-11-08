@@ -60,6 +60,39 @@ public sealed class ProbeOutput
     /// <summary>Folder for the logs WinGet writes during install and upgrade.</summary>
     public string WinGetLogFolder => Path.Combine(Folder, "winget-logs");
 
+    /// <summary>
+    /// Copies the diagnostic logs the in-proc engine wrote since <paramref name="sinceUtc"/> (WinGetCOM-*.log in
+    /// <c>%TEMP%\WinGet\defaultState</c>, for SYSTEM <c>C:\Windows\SystemTemp</c>) into <see cref="WinGetLogFolder"/>,
+    /// so a failure such as a download error can be read without searching the server.
+    /// </summary>
+    /// <returns>The copied files.</returns>
+    public IReadOnlyList<string> CollectWinGetDiagnostics(DateTime sinceUtc, string? tempFolder = null)
+    {
+        var state = Path.Combine(tempFolder ?? Path.GetTempPath(), "WinGet", "defaultState");
+        if (!Directory.Exists(state))
+        {
+            return [];
+        }
+
+        var copied = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(state, "WinGetCOM-*.log").Where(file => File.GetLastWriteTimeUtc(file) >= sinceUtc))
+        {
+            Directory.CreateDirectory(WinGetLogFolder);
+            var target = Path.Combine(WinGetLogFolder, Path.GetFileName(file));
+            try
+            {
+                File.Copy(file, target, overwrite: true);
+                copied.Add(target);
+            }
+            catch (IOException exception)
+            {
+                Log($"Could not copy {file}: {exception.Message}");
+            }
+        }
+
+        return copied;
+    }
+
     public void Log(string message)
     {
         var line = $"{_time.GetUtcNow():yyyy-MM-dd HH:mm:ss}Z {message}";

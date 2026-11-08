@@ -8,6 +8,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 - SUSyphos WinGet Probe (lab tool, not released): `susyphos-wingetprobe.exe` tests WinGet on the lab servers before it goes into the agent: SYSTEM in-proc access to the WinGet COM API (engine of App Installer or shipped with the tool), unattended installation of App Installer online and offline, inventory of the uninstall keys compared with WinGet's installed list, install and upgrade for the machine with duration, exit codes and restart request. CI builds it as the artifact susyphos-wingetprobe; guide in `docs/admin/winget-probe.md`. The WinGet access is its own library (`src/SUSyphos.WinGet`) for the agent later.
 - WinGet Probe after lab round 1: names the system libraries Windows is missing when the engine cannot be loaded (error 126, Server 2016), and counts an update only when WinGet itself would upgrade (a source behind the installed version is no update).
+- WinGet Probe after lab round 2: copies WinGet's own diagnostic logs of each run into `winget-logs`, so a download error can be read from the results.
 
 ## [0.8.1] - 2026-11-06
 

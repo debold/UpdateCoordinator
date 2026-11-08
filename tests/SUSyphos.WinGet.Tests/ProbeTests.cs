@@ -110,6 +110,35 @@ public sealed class ProbeTests : IDisposable
     }
 
     [Fact]
+    public void Output_CollectsTheDiagnosticLogsOfThisRunOnly()
+    {
+        var temp = Path.Combine(_folder, "temp");
+        var state = Directory.CreateDirectory(Path.Combine(temp, "WinGet", "defaultState")).FullName;
+        var old = Path.Combine(state, "WinGetCOM-2026-11-01-10-00-00.000.log");
+        var current = Path.Combine(state, "WinGetCOM-2026-11-08-09-00-00.000.log");
+        File.WriteAllText(old, "old");
+        File.WriteAllText(current, "current");
+        File.WriteAllText(Path.Combine(state, "other.log"), "other");
+        File.SetLastWriteTimeUtc(old, new DateTime(2026, 11, 1, 10, 0, 0, DateTimeKind.Utc));
+        File.SetLastWriteTimeUtc(current, new DateTime(2026, 11, 8, 9, 0, 5, DateTimeKind.Utc));
+        var output = new ProbeOutput(Path.Combine(_folder, "results"), "SRV", TimeProvider.System);
+
+        var copied = output.CollectWinGetDiagnostics(new DateTime(2026, 11, 8, 9, 0, 0, DateTimeKind.Utc), temp);
+
+        Assert.Equal([Path.Combine(output.WinGetLogFolder, Path.GetFileName(current))], copied);
+        Assert.Equal("current", File.ReadAllText(copied[0]));
+    }
+
+    [Fact]
+    public void Output_CollectsNothingWithoutWinGetState()
+    {
+        var output = new ProbeOutput(Path.Combine(_folder, "results"), "SRV", TimeProvider.System);
+
+        Assert.Empty(output.CollectWinGetDiagnostics(DateTime.MinValue, Path.Combine(_folder, "missing")));
+        Assert.False(Directory.Exists(output.WinGetLogFolder));
+    }
+
+    [Fact]
     public void Error_UnwrapsASingleInnerException()
     {
         var error = ProbeError.From(new AggregateException(new UnauthorizedAccessException("denied")));

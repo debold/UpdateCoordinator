@@ -36,6 +36,11 @@ catch (Exception exception)
     output.Log($"Failed: {failure.Type} {failure.HResult} {failure.Message}");
 }
 
+foreach (var diagnostics in output.CollectWinGetDiagnostics(started.UtcDateTime))
+{
+    output.Log($"WinGet diagnostic log: {diagnostics}");
+}
+
 var report = new ProbeReport(tool, arguments.Command, args, started, watch.Elapsed, failure is null, failure, machine, engineReport, data);
 var file = output.Write(report);
 output.Log($"{(failure is null ? "Done" : "Failed")} after {watch.Elapsed.TotalSeconds:0.0} s; result in {file}");

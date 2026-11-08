@@ -112,10 +112,18 @@ Matrix: Windows Server 2016, 2019 (central server), 2022, 2025 with desktop, and
 
 - The bundled engine works as SYSTEM in-proc without App Installer on 2019 and later, so the agent does not depend on
   App Installer being installed or registered for anyone.
-- On 2016 a system library the engine imports is missing; most likely the Windows ICU libraries (`icuuc.dll`,
-  `icuin.dll`), which Windows only has since version 1703. Since probe 0.1.0+ (after round 1) the report lists the
-  missing libraries itself (`engine.missingLibraries`).
+- On 2016 the engine cannot load because Windows lacks the ICU libraries `icuuc.dll` and `icuin.dll` (confirmed in
+  round 2 by `engine.missingLibraries`); Windows has them only since version 1703. WinGet is therefore not usable on
+  Server 2016.
 - Every uninstall entry was matched to WinGet's installed list. Programs WinGet does not know from a source (VMware
   Tools, FortiClient, the SUSyphos packages) are listed, but cannot be updated through WinGet.
 - A source can be behind the installed version (Edge 157 installed, 156 in the source); the report now takes WinGet's
   own "update available" instead of comparing version strings.
+
+## Round 2 (2026-11-08)
+
+- Install of `7zip.7zip` 24.08 on 2022 with the bundled engine as SYSTEM: status Ok, MSI exit code 0, no restart, 6 s
+  (7.7 s with loading the engine). The installer ran silently for the machine (`ALLUSERS=1`, `REBOOT=ReallySuppress`).
+- Upgrade to 26.06 right after: `DownloadError` 0x801901F8, i.e. HTTP 504 (Gateway Timeout) from the download server
+  or a proxy on the way; the installer never started. Since then the probe copies WinGet's own diagnostic logs of the
+  run (`WinGetCOM-*.log` from `%TEMP%\WinGet\defaultState`, for SYSTEM `C:\Windows\SystemTemp`) into `winget-logs\`.
