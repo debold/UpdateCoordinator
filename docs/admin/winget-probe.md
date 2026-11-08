@@ -170,3 +170,11 @@ On 2022 with the bundled engine as SYSTEM, after GitHub delivered again:
 - Upgrade of Notepad++ 8.9.8 to 8.9.9 while the program was open in the signed-in session: Ok, exit code 0, 3.8 s, no
   restart request and no file replacement scheduled for a restart (no MSI message 1903); uninstall (1.0 to 1.7 s) and
   reinstall worked as SYSTEM too.
+
+## Round 4 (2026-11-08)
+
+- `cache` on the central server (2019, administrator): 7-Zip 24.08 from SourceForge in 6 s, 26.06 from GitHub in 1 s,
+  two x64 installers each (exe and MSI).
+- `serve` with the self-signed certificate of the central server (imported into the trusted roots of the 2022
+  server): WinGet as SYSTEM with the bundled engine added the source, called `information`, `manifestSearch` and
+  `packageManifests`, and found 7-Zip with both cached versions. WinGet accepts the REST source of the probe.
