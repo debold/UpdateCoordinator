@@ -12,6 +12,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - WinGet Probe: commands `cache` (manifests and installers of a package version from the community repository, checked against their SHA-256) and `serve` (the cache as a private WinGet REST source over https) for lab round 4.
 - WinGet Probe `cache`: a download that stalls (a hanging SourceForge mirror in the lab) is broken off after 60 s without data and tried again, progress is shown, and only x64 installers are cached when the package has them.
 - WinGet Probe: when a version is asked for that the source does not have, the error lists the versions it offers.
+- WinGet Probe: command `uninstall` (for the machine, silently), as an MSI refuses a downgrade over a newer version.
 
 ## [0.8.1] - 2026-11-06
 

@@ -130,6 +130,8 @@ public sealed partial class WinGetEngine : IDisposable
 
     public AddPackageCatalogOptions CreateAddCatalogOptions() => Create("AddPackageCatalogOptions", AddPackageCatalogOptions.FromAbi);
 
+    public UninstallOptions CreateUninstallOptions() => Create("UninstallOptions", UninstallOptions.FromAbi);
+
     public void Dispose()
     {
         // The engine stays loaded for the life of the process: objects of the API may still be referenced, and WinRT

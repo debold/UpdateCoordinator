@@ -143,6 +143,38 @@ public sealed class WinGetClient(WinGetEngine engine)
     public Task<WinGetOperationResult> UpgradeAsync(string id, string? version, PackageCatalogReference? source, bool acceptAgreements, string logFolder) =>
         RunAsync("upgrade", id, version, source, acceptAgreements, logFolder);
 
+    /// <summary>Uninstalls an installed package for the machine, silently.</summary>
+    public async Task<WinGetOperationResult> UninstallAsync(string id, PackageCatalogReference? source, string logFolder)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(logFolder);
+        Directory.CreateDirectory(logFolder);
+        var package = await FindByIdAsync(Composite(source, CompositeSearchBehavior.LocalCatalogs), id);
+        if (package.InstalledVersion is null)
+        {
+            throw new WinGetException($"{id} is not installed.");
+        }
+
+        var options = engine.CreateUninstallOptions();
+        options.PackageUninstallScope = PackageUninstallScope.System;
+        options.PackageUninstallMode = PackageUninstallMode.Silent;
+        var logFile = LogFile(logFolder, "uninstall", id);
+        options.LogOutputPath = logFile;
+        var watch = Stopwatch.StartNew();
+        var result = await _manager.UninstallPackageAsync(package, options);
+        watch.Stop();
+        return new WinGetOperationResult(
+            "uninstall",
+            id,
+            package.InstalledVersion.Version,
+            result.Status.ToString(),
+            result.ExtendedErrorCode is null ? null : Describe(result.ExtendedErrorCode),
+            result.UninstallerErrorCode,
+            result.RebootRequired,
+            watch.Elapsed,
+            logFile);
+    }
+
     private static string? Metadata(PackageVersionInfo? version, PackageVersionMetadataField field) =>
         version?.GetMetadata(field) is { Length: > 0 } value ? value : null;
 
@@ -156,22 +188,13 @@ public sealed class WinGetClient(WinGetEngine engine)
         Directory.CreateDirectory(logFolder);
 
         // Upgrade needs to know what is installed, install only the source; both find the package by its exact id.
-        var catalog = await ConnectAsync(Composite(source, operation == "upgrade" ? CompositeSearchBehavior.RemotePackagesFromAllCatalogs : CompositeSearchBehavior.RemotePackagesFromRemoteCatalogs));
-        var options = engine.CreateFindPackagesOptions();
-        var filter = engine.CreatePackageMatchFilter();
-        filter.Field = PackageMatchField.Id;
-        filter.Option = PackageFieldMatchOption.Equals;
-        filter.Value = id;
-        options.Filters.Add(filter);
-        var package = await FindAsync(catalog, options) is [var first, ..]
-            ? first
-            : throw new WinGetException($"No package with the id {id} in the source.");
+        var package = await FindByIdAsync(Composite(source, operation == "upgrade" ? CompositeSearchBehavior.RemotePackagesFromAllCatalogs : CompositeSearchBehavior.RemotePackagesFromRemoteCatalogs), id);
 
         var install = engine.CreateInstallOptions();
         install.PackageInstallScope = PackageInstallScope.System;
         install.PackageInstallMode = PackageInstallMode.Silent;
         install.AcceptPackageAgreements = acceptAgreements;
-        var logFile = Path.Combine(logFolder, $"winget-{operation}-{Sanitize(id)}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.log");
+        var logFile = LogFile(logFolder, operation, id);
         install.LogOutputPath = logFile;
         if (version is not null)
         {
@@ -194,6 +217,24 @@ public sealed class WinGetClient(WinGetEngine engine)
             result.RebootRequired,
             watch.Elapsed,
             logFile);
+    }
+
+    private static string LogFile(string folder, string operation, string id) =>
+        Path.Combine(folder, $"winget-{operation}-{Sanitize(id)}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.log");
+
+    /// <summary>The package with exactly this id in the catalog.</summary>
+    private async Task<CatalogPackage> FindByIdAsync(PackageCatalogReference reference, string id)
+    {
+        var catalog = await ConnectAsync(reference);
+        var options = engine.CreateFindPackagesOptions();
+        var filter = engine.CreatePackageMatchFilter();
+        filter.Field = PackageMatchField.Id;
+        filter.Option = PackageFieldMatchOption.Equals;
+        filter.Value = id;
+        options.Filters.Add(filter);
+        return await FindAsync(catalog, options) is [var first, ..]
+            ? first
+            : throw new WinGetException($"No package with the id {id} in the source.");
     }
 
     private PackageCatalogReference Composite(PackageCatalogReference? source, CompositeSearchBehavior behavior)

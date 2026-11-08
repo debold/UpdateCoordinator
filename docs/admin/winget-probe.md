@@ -43,6 +43,7 @@ susyphos-wingetprobe bootstrap --offline <folder>
 susyphos-wingetprobe search <text>                [--source <https url>] [--engine ...]
 susyphos-wingetprobe install <id> [--version <v>] [--source <https url>] [--accept-agreements] [--engine ...]
 susyphos-wingetprobe upgrade <id> [--version <v>] [--source <https url>] [--accept-agreements] [--engine ...]
+susyphos-wingetprobe uninstall <id> [--source <https url>] [--engine ...]
 susyphos-wingetprobe cache <id> [--version <v>] [--cache <folder>]
 susyphos-wingetprobe serve --certificate <thumbprint> [--port <port>] [--cache <folder>]
 ```
@@ -163,3 +164,6 @@ On 2022 with the bundled engine as SYSTEM, after GitHub delivered again:
 - Install `Notepad++.Notepad++` 8.9.9: Ok, exit code 0, 1.6 s (MSI from GitHub through Delivery Optimization).
 - The downgrade test asked for 8.6.9, which the source does not offer (it lists 8.8.9 to 8.9.9); since then the error
   names the versions the source offers.
+- Downgrade to 8.9.8 over 8.9.9: the Notepad++ MSI refuses it itself ("A newer version ... is already installed",
+  1603, WinGet status InstallError 0x8A150049); the running program was not touched. A downgrade needs an uninstall
+  first; the probe has an `uninstall` command since then.

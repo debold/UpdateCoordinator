@@ -62,10 +62,15 @@ public static class ProbeCommands
                 output.Log($"Search '{arguments.Target}': {found.Count} packages");
                 return found;
             default:
-                output.Log($"{arguments.Command} {arguments.Target} {arguments.Version ?? "(newest)"} from {arguments.Source?.ToString() ?? "winget"}, agreements accepted: {arguments.AcceptAgreements}");
-                var result = arguments.Command == "upgrade"
-                    ? await client.UpgradeAsync(arguments.Target!, arguments.Version, source, arguments.AcceptAgreements, output.WinGetLogFolder)
-                    : await client.InstallAsync(arguments.Target!, arguments.Version, source, arguments.AcceptAgreements, output.WinGetLogFolder);
+                output.Log(arguments.Command == "uninstall"
+                    ? $"uninstall {arguments.Target}"
+                    : $"{arguments.Command} {arguments.Target} {arguments.Version ?? "(newest)"} from {arguments.Source?.ToString() ?? "winget"}, agreements accepted: {arguments.AcceptAgreements}");
+                var result = arguments.Command switch
+                {
+                    "upgrade" => await client.UpgradeAsync(arguments.Target!, arguments.Version, source, arguments.AcceptAgreements, output.WinGetLogFolder),
+                    "uninstall" => await client.UninstallAsync(arguments.Target!, source, output.WinGetLogFolder),
+                    _ => await client.InstallAsync(arguments.Target!, arguments.Version, source, arguments.AcceptAgreements, output.WinGetLogFolder),
+                };
                 output.Log($"Result {result.Status}, installer exit code {result.InstallerErrorCode}, reboot required {result.RebootRequired}, {result.Duration.TotalSeconds:0.0} s {result.ExtendedError}");
                 if (!result.Succeeded)
                 {

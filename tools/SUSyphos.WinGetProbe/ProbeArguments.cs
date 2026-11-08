@@ -44,13 +44,14 @@ public sealed record ProbeArguments(
           search <text>                Search a source
           install <id>                 Install a package for the machine, silently
           upgrade <id>                 Upgrade an installed package, silently
+          uninstall <id>               Uninstall a package for the machine, silently
           cache <id>                   Put a package version (manifest and installers) into the cache
           serve                        Offer the cache as a private WinGet REST source over https
 
         Options:
           --engine installed|bundled   WinGet engine to load (default installed)
           --version <version>          install/upgrade/cache: this version instead of the newest
-          --source <https url>         search/install/upgrade: a private REST source instead of winget
+          --source <https url>         search/install/upgrade/uninstall: a private REST source instead of winget
           --accept-agreements          install/upgrade: accept the package's agreements (read them first)
           --out <folder>               Where results go (default probe-results next to the exe)
           --cache <folder>             cache/serve: the cache (default winget-cache next to the exe)
@@ -59,7 +60,7 @@ public sealed record ProbeArguments(
                                        servers trust
         """;
 
-    private static readonly string[] Commands = ["info", "inventory", "bootstrap", "search", "install", "upgrade", "cache", "serve"];
+    private static readonly string[] Commands = ["info", "inventory", "bootstrap", "search", "install", "upgrade", "uninstall", "cache", "serve"];
 
     /// <summary>Package ids of WinGet: Publisher.Name with dots, e.g. Microsoft.VCRedist.2015+.x64.</summary>
     private static readonly Regex PackageId = new(@"^[A-Za-z0-9][A-Za-z0-9.+_-]{0,127}$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
@@ -185,13 +186,13 @@ public sealed record ProbeArguments(
     private static string? Check(string command, string? target, string? version, Uri? source, bool accept, bool online, string? offline)
     {
         var installs = command is "install" or "upgrade";
-        var needsId = installs || command is "cache";
+        var needsId = installs || command is "cache" or "uninstall";
         if (command is "bootstrap" ? online == (offline is not null) : online || offline is not null)
         {
             return command is "bootstrap" ? "bootstrap needs either --online or --offline <folder>." : "--online and --offline belong to bootstrap.";
         }
 
-        if (command is "search" or "install" or "upgrade" or "cache" ? target is null : target is not null)
+        if (command is "search" or "install" or "upgrade" or "uninstall" or "cache" ? target is null : target is not null)
         {
             return target is null ? $"{command} needs {(command is "search" ? "a search text" : "a package id")}." : $"{command} takes no '{target}'.";
         }
@@ -206,11 +207,11 @@ public sealed record ProbeArguments(
             return "The search text is too long or contains control characters.";
         }
 
-        if (!needsId && version is not null || !installs && accept)
+        if (!(installs || command is "cache") && version is not null || !installs && accept)
         {
             return "--version belongs to install, upgrade and cache; --accept-agreements to install and upgrade.";
         }
 
-        return source is not null && command is not ("search" or "install" or "upgrade") ? "--source belongs to search, install and upgrade." : null;
+        return source is not null && command is not ("search" or "install" or "upgrade" or "uninstall") ? "--source belongs to search, install, upgrade and uninstall." : null;
     }
 }
