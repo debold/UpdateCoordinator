@@ -66,7 +66,7 @@ public sealed class PillAlignmentTests(UiFixture ui)
             await page.EvaluateAsync("f => { for (const e of [document.documentElement, ...document.querySelectorAll('*')]) e.style.setProperty('font-family', f, 'important'); }", $"\"{font}\", sans-serif");
         }
 
-        var json = await page.EvaluateAsync<string>(Measure, "main .pill, main .cat-tag, main .tab-badge");
+        var json = await page.EvaluateAsync<string>(Measure, "main .pill, main .cat-tag, main .tab-badge, main .ring-stage");
         var items = JsonSerializer.Deserialize<List<Measured>>(json, Options)!;
 
         Assert.NotEmpty(items);

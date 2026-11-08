@@ -10,6 +10,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Classification and other category tags are real pills on one line again, with short names (Security, Definitions, Driver, Rollup) and the full classification as tooltip.
 - Tabs wrap to a second row on narrow windows instead of scrolling (some systems showed a scroll bar beside them).
 - A pill in a line of text (e.g. "Outside SUSyphos" on the System tab) stands on the baseline of the text.
+- Update list, column Rings: a released ring is filled in its colour, a ring not reached yet is dashed and faded, done and failed rings carry a green check or a red "!", a waiting gate an amber dot, and a held ring is hatched (Marc, 2026-11-08, variant A). Before, a released ring was only tinted light green and easy to miss.
 
 ### Tools
 
