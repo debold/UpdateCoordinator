@@ -4,6 +4,13 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Central server
+
+- Pills, category tags and tab counts: the text sits in the optical middle with every font. The earlier fix used pixel offsets that only fit Segoe UI Variable (Windows 11) and put the text off centre with Segoe UI on Windows Server 2016 to 2022; the text is now trimmed to cap height and baseline (CSS text-box). A browser test checks it with three fonts.
+- Classification and other category tags are real pills on one line again, with short names (Security, Definitions, Driver, Rollup) and the full classification as tooltip.
+- Tabs wrap to a second row on narrow windows instead of scrolling (some systems showed a scroll bar beside them).
+- A pill in a line of text (e.g. "Outside SUSyphos" on the System tab) stands on the baseline of the text.
+
 ### Tools
 
 - SUSyphos WinGet Probe (lab tool, not released): `susyphos-wingetprobe.exe` tests WinGet on the lab servers before it goes into the agent: SYSTEM in-proc access to the WinGet COM API (engine of App Installer or shipped with the tool), unattended installation of App Installer online and offline, inventory of the uninstall keys compared with WinGet's installed list, install and upgrade for the machine with duration, exit codes and restart request. CI builds it as the artifact susyphos-wingetprobe; guide in `docs/admin/winget-probe.md`. The WinGet access is its own library (`src/SUSyphos.WinGet`) for the agent later.

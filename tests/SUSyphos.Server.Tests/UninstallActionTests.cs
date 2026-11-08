@@ -213,7 +213,7 @@ public sealed class UninstallActionTests
         var history = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync(path + "?tab=history")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("2026-09 Cumulative Update (KB5065432)", history, StringComparison.Ordinal);
         Assert.Contains("Security Updates", history, StringComparison.Ordinal);
-        Assert.Contains("<span class=\"cat-tag c1\">Security Updates</span>", history, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"cat-tag c1\" title=\"Security Updates\">Security</span>", history, StringComparison.Ordinal);
         Assert.DoesNotContain("Security Intelligence Update", history, StringComparison.Ordinal);
         Assert.Contains("View: Without definition updates (default)", history, StringComparison.Ordinal);
         Assert.Contains("Definition updates only", history, StringComparison.Ordinal);

@@ -1,6 +1,7 @@
 @* The classification of an update as a category tag (docs/06-dashboard.md, section 8 "Tags"), the same colour for the
-   same classification on every page: security and critical updates, definition updates and drivers stand out, the rest is grey. *@
-<CategoryTag Text="@(Text.Length == 0 ? "Unknown" : Text)" Index="@IndexOf(Text)" />
+   same classification on every page: security and critical updates, definition updates and drivers stand out, the rest is
+   grey. The tag shows a short name so it stays one pill on one line; the full classification is its tooltip. *@
+<CategoryTag Text="@ShortName(Text)" Title="@(Text.Length == 0 ? "Unknown" : Text)" Index="@IndexOf(Text)" />
 
 @code {
     [Parameter, EditorRequired]
@@ -13,5 +14,22 @@
         "Definition Updates" => 3,
         "Drivers" => 2,
         _ => 0,
+    };
+
+    /// <summary>The short name a tag shows for a Windows Update classification; unknown ones are shown as they are.</summary>
+    public static string ShortName(string classification) => classification switch
+    {
+        "" => "Unknown",
+        "Security Updates" => "Security",
+        "Critical Updates" => "Critical",
+        "Definition Updates" => "Definitions",
+        "Update Rollups" => "Rollup",
+        "Feature Packs" => "Feature pack",
+        "Service Packs" => "Service pack",
+        "Updates" => "Update",
+        "Drivers" => "Driver",
+        "Tools" => "Tool",
+        "Upgrades" => "Upgrade",
+        _ => classification,
     };
 }

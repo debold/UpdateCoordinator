@@ -1,10 +1,14 @@
 @* A tag that tells kinds apart (e.g. the source of an account): a categorical colour, not a status colour, so it never
    reads as good or bad (docs/06-dashboard.md, section 8 "Tags"). *@
-<span class="cat-tag c@(Index)">@Text</span>
+<span class="cat-tag c@(Index)" title="@Title">@Text</span>
 
 @code {
     [Parameter, EditorRequired]
     public string Text { get; set; } = string.Empty;
+
+    /// <summary>Tooltip, e.g. the full name when the tag shows a short one.</summary>
+    [Parameter]
+    public string? Title { get; set; }
 
     /// <summary>Position in the categorical palette (1 to 4, 0 for grey), the same for the same kind on every page.</summary>
     [Parameter]
