@@ -127,3 +127,7 @@ Matrix: Windows Server 2016, 2019 (central server), 2022, 2025 with desktop, and
 - Upgrade to 26.06 right after: `DownloadError` 0x801901F8, i.e. HTTP 504 (Gateway Timeout) from the download server
   or a proxy on the way; the installer never started. Since then the probe copies WinGet's own diagnostic logs of the
   run (`WinGetCOM-*.log` from `%TEMP%\WinGet\defaultState`, for SYSTEM `C:\Windows\SystemTemp`) into `winget-logs\`.
+- The retry with the diagnostic logs showed the cause: GitHub answered every release download with 504 at that time
+  (also from outside the lab, also for the version installed before, while github.com and its API worked). WinGet
+  tried Delivery Optimization (502) and WinINet (504) twice each. Many packages (7-Zip, Notepad++, PowerShell) are
+  downloaded from GitHub releases, which speaks for the installer cache on the central server (round 4).
