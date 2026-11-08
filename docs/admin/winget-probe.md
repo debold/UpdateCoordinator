@@ -178,3 +178,21 @@ On 2022 with the bundled engine as SYSTEM, after GitHub delivered again:
 - `serve` with the self-signed certificate of the central server (imported into the trusted roots of the 2022
   server): WinGet as SYSTEM with the bundled engine added the source, called `information`, `manifestSearch` and
   `packageManifests`, and found 7-Zip with both cached versions. WinGet accepts the REST source of the probe.
+- Install of 7-Zip 24.08 and upgrade to 26.06 on the 2022 server from that source, the upgrade with internet access
+  blocked by an outbound firewall rule: both Ok, exit code 0, 2.6 s and 4.1 s. WinGet downloaded the MSI from
+  `https://labvmd01…:7443/files/<hash>.msi` through Delivery Optimization (three requests per file), verified the
+  hash and contacted no other host for the upgrade.
+
+## Result of the spike
+
+- The agent can use WinGet in-proc as SYSTEM with the engine it brings along, on Windows Server 2019 and later,
+  without App Installer and without a signed-in user. Server 2016 is not supported (no Windows ICU).
+- The uninstall keys and WinGet's installed list match completely; programs WinGet does not know stay visible but
+  are not updated.
+- Install, upgrade and uninstall for the machine run silently; status, installer exit code and duration are reliable.
+  WinGet only reports a restart when the installer returns 3010; pending restarts must be detected by the agent as for
+  Windows updates. An MSI may refuse a downgrade (1603); a downgrade is uninstall plus install.
+- A private REST source on the central server with an installer cache works, including without internet access on
+  the servers. Many packages download from GitHub or SourceForge, which failed or hung during the tests; the cache on
+  the central server removes that dependency.
+- Not tested yet: Windows Server 2025 Core.
