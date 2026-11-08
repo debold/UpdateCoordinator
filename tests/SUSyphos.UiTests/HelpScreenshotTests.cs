@@ -8,7 +8,7 @@ namespace SUSyphos.UiTests;
 /// that the committed image exists. With the environment variable SUSYPHOS_HELP_SCREENSHOTS=update the images under
 /// src/SUSyphos.Server/wwwroot/help-images are written anew (build/Update-HelpScreenshots.ps1); commit them afterwards.
 /// </summary>
-public sealed class HelpScreenshotTests(UiFixture ui)
+public sealed class HelpScreenshotTests(ShowcaseFixture ui)
 {
     /// <summary>Image name, page, optional element to click first, and the element the screenshot shows.</summary>
     public static readonly TheoryData<string, string, string?, string> Shots = new()
@@ -49,7 +49,7 @@ public sealed class HelpScreenshotTests(UiFixture ui)
         }
         """;
 
-    private static readonly bool Update = Environment.GetEnvironmentVariable("SUSYPHOS_HELP_SCREENSHOTS") == "update";
+    internal static readonly bool Update = Environment.GetEnvironmentVariable("SUSYPHOS_HELP_SCREENSHOTS") == "update";
 
     [Theory]
     [MemberData(nameof(Shots))]
@@ -104,7 +104,7 @@ public sealed class HelpScreenshotTests(UiFixture ui)
 
     private static string ImageFolder => Path.Combine(Repository, "src", "SUSyphos.Server", "wwwroot", "help-images");
 
-    private static string Repository
+    internal static string Repository
     {
         get
         {

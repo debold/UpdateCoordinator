@@ -3,6 +3,7 @@ using Microsoft.Playwright;
 using SUSyphos.TestSupport;
 
 [assembly: AssemblyFixture(typeof(SUSyphos.UiTests.UiFixture))]
+[assembly: AssemblyFixture(typeof(SUSyphos.UiTests.ShowcaseFixture))]
 
 namespace SUSyphos.UiTests;
 
@@ -10,7 +11,7 @@ namespace SUSyphos.UiTests;
 /// One central server on a real HTTPS port with the demo lab, and one headless Microsoft Edge driven by Playwright, shared by
 /// all UI tests. Edge ships with Windows and the GitHub runners, so no browser is downloaded.
 /// </summary>
-public sealed class UiFixture : IAsyncLifetime
+public class UiFixture : IAsyncLifetime
 {
     public const string Password = "correct horse battery";
 
@@ -35,7 +36,7 @@ public sealed class UiFixture : IAsyncLifetime
         _server.AddDirectoryGroup(@"LAB\SUSyphos-Admins", "S-1-5-21-1-2-3-1100");
         _server.AddDirectoryGroup(@"LAB\SUSyphos-Operators", "S-1-5-21-1-2-3-1101");
         _server.AddDirectoryGroup(@"LAB\Domain Admins", "S-1-5-21-1-2-3-512");
-        MainServerId = await DemoData.SeedAsync(_server);
+        MainServerId = await SeedAsync(_server);
 
         try
         {
@@ -72,6 +73,9 @@ public sealed class UiFixture : IAsyncLifetime
         });
     }
 
+    /// <summary>Fills the central server with the lab the tests run against.</summary>
+    protected virtual Task<Guid> SeedAsync(KestrelServerFactory server) => DemoData.SeedAsync(server);
+
     public async ValueTask DisposeAsync()
     {
         if (Browser is not null)
@@ -81,5 +85,6 @@ public sealed class UiFixture : IAsyncLifetime
 
         _playwright?.Dispose();
         await _server.DisposeAsync();
+        GC.SuppressFinalize(this);
     }
 }
