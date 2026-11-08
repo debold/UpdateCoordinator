@@ -68,6 +68,14 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<SUSyphos.Server.AgentPackages.AgentPackageEntity> AgentPackages => Set<SUSyphos.Server.AgentPackages.AgentPackageEntity>();
 
+    public DbSet<PackageEntity> Packages => Set<PackageEntity>();
+
+    public DbSet<PackageVersionEntity> PackageVersions => Set<PackageVersionEntity>();
+
+    public DbSet<ClientSoftwareEntity> ClientSoftware => Set<ClientSoftwareEntity>();
+
+    public DbSet<PackageAssignmentEntity> PackageAssignments => Set<PackageAssignmentEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -127,9 +135,12 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         startRule.Property(r => r.MsrcSeverity).HasMaxLength(32);
         startRule.Property(r => r.StartRingIds).HasMaxLength(200);
         startRule.Property(r => r.TitlePattern).HasMaxLength(128);
+        startRule.Property(r => r.Kind).HasConversion<int?>();
+        startRule.Property(r => r.PackageIdPattern).HasMaxLength(PackageEntity.MaxIdLength);
+        startRule.Property(r => r.Publisher).HasMaxLength(StartRuleEntity.MaxPublisherLength);
 
         // Default: every update starts automatically and without delay (decided 2026-10-18).
-        startRule.HasData(new StartRuleEntity { Id = StartRuleEntity.CatchAllId, Priority = 1000, Mode = StartMode.Automatic, Delay = TimeSpan.Zero });
+        startRule.HasData(new StartRuleEntity { Id = StartRuleEntity.CatchAllId, Priority = 1000, Mode = StartMode.Automatic, Delay = TimeSpan.Zero, Kind = UpdateKind.WindowsUpdate });
 
         var computer = modelBuilder.Entity<SUSyphos.Server.Approval.DirectoryComputerEntity>();
         computer.ToTable("DirectoryComputers");
@@ -314,7 +325,11 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         update.Property(u => u.Classification).HasMaxLength(64);
         update.Property(u => u.MsrcSeverity).HasMaxLength(32);
         update.Property(u => u.BlockedBy).HasMaxLength(256);
+        update.Property(u => u.Kind).HasConversion<int>();
+        update.Property(u => u.PackageId).HasMaxLength(PackageEntity.MaxIdLength).UseCollation("NOCASE");
+        update.Property(u => u.PackageVersion).HasMaxLength(PackageVersionEntity.MaxVersionLength);
         update.HasIndex(u => u.KbArticle);
+        update.HasIndex(u => new { u.PackageId, u.PackageVersion });
 
         var supersedence = modelBuilder.Entity<UpdateSupersedenceEntity>();
         supersedence.ToTable("UpdateSupersedence");
@@ -364,5 +379,68 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         installation.HasIndex(i => new { i.UpdateId, i.Revision });
         installation.HasOne<ClientEntity>().WithMany().HasForeignKey(i => i.ClientId).OnDelete(DeleteBehavior.Cascade);
         installation.HasOne<UpdateEntity>().WithMany().HasForeignKey(i => new { i.UpdateId, i.Revision }).OnDelete(DeleteBehavior.Restrict);
+
+        // Software (WinGet, 0.9): the catalog of packages and versions, the software inventory of the servers and the
+        // assignments for new installations. Versions are entries of the update catalog (Kind = Software).
+        var softwarePackage = modelBuilder.Entity<PackageEntity>();
+        softwarePackage.ToTable("Packages");
+        softwarePackage.HasKey(p => p.PackageId);
+        softwarePackage.Property(p => p.PackageId).HasMaxLength(PackageEntity.MaxIdLength).UseCollation("NOCASE");
+        softwarePackage.Property(p => p.Name).HasMaxLength(PackageEntity.MaxNameLength).IsRequired();
+        softwarePackage.Property(p => p.Publisher).HasMaxLength(PackageEntity.MaxNameLength);
+        softwarePackage.Property(p => p.ShortDescription).HasMaxLength(512);
+        softwarePackage.Property(p => p.Description).HasMaxLength(10_000);
+        softwarePackage.Property(p => p.Moniker).HasMaxLength(64);
+        softwarePackage.Property(p => p.Tags).HasMaxLength(1024);
+        softwarePackage.Property(p => p.License).HasMaxLength(512);
+        softwarePackage.Property(p => p.LicenseUrl).HasMaxLength(PackageEntity.MaxUrlLength);
+        softwarePackage.Property(p => p.PackageUrl).HasMaxLength(PackageEntity.MaxUrlLength);
+        softwarePackage.Property(p => p.PublisherUrl).HasMaxLength(PackageEntity.MaxUrlLength);
+        softwarePackage.Property(p => p.ReleaseNotesUrl).HasMaxLength(PackageEntity.MaxUrlLength);
+        softwarePackage.Property(p => p.LogoFile).HasMaxLength(80);
+        softwarePackage.Property(p => p.AgreementsAcceptedBy).HasMaxLength(256);
+        softwarePackage.Property(p => p.AddedBy).HasMaxLength(256).IsRequired();
+
+        var packageVersion = modelBuilder.Entity<PackageVersionEntity>();
+        packageVersion.ToTable("PackageVersions");
+        packageVersion.HasKey(v => new { v.PackageId, v.Version });
+        packageVersion.Property(v => v.PackageId).HasMaxLength(PackageEntity.MaxIdLength).UseCollation("NOCASE");
+        packageVersion.Property(v => v.Version).HasMaxLength(PackageVersionEntity.MaxVersionLength);
+        packageVersion.Property(v => v.Manifest).HasMaxLength(200_000);
+        packageVersion.Property(v => v.InstallerFile).HasMaxLength(80);
+        packageVersion.Property(v => v.InstallerSha256).HasMaxLength(64);
+        packageVersion.Property(v => v.ScanState).HasConversion<int>();
+        packageVersion.Property(v => v.ScanDetail).HasMaxLength(512);
+        packageVersion.HasIndex(v => v.UpdateId).IsUnique();
+        packageVersion.HasOne<PackageEntity>().WithMany().HasForeignKey(v => v.PackageId).OnDelete(DeleteBehavior.Cascade);
+
+        var software = modelBuilder.Entity<ClientSoftwareEntity>();
+        software.ToTable("ClientSoftware");
+        software.HasKey(s => new { s.ClientId, s.View, s.KeyName });
+        software.Property(s => s.View).HasConversion<int>();
+        software.Property(s => s.KeyName).HasMaxLength(ClientSoftwareEntity.MaxKeyLength);
+        software.Property(s => s.DisplayName).HasMaxLength(ClientSoftwareEntity.MaxTextLength).IsRequired();
+        software.Property(s => s.DisplayVersion).HasMaxLength(PackageVersionEntity.MaxVersionLength);
+        software.Property(s => s.Publisher).HasMaxLength(ClientSoftwareEntity.MaxTextLength);
+        software.Property(s => s.PackageId).HasMaxLength(PackageEntity.MaxIdLength).UseCollation("NOCASE");
+        software.Property(s => s.InstalledVersion).HasMaxLength(PackageVersionEntity.MaxVersionLength);
+        software.Property(s => s.MatchKind).HasConversion<int>();
+        software.HasIndex(s => s.PackageId);
+        software.HasOne<ClientEntity>().WithMany().HasForeignKey(s => s.ClientId).OnDelete(DeleteBehavior.Cascade);
+
+        var packageAssignment = modelBuilder.Entity<PackageAssignmentEntity>();
+        packageAssignment.ToTable("PackageAssignments", t => t.HasCheckConstraint(
+            "CK_PackageAssignments_Target",
+            "(\"TargetKind\" = 0 AND \"GroupId\" IS NOT NULL AND \"ClientId\" IS NULL) OR (\"TargetKind\" = 1 AND \"ClientId\" IS NOT NULL AND \"GroupId\" IS NULL)"));
+        packageAssignment.HasKey(a => a.Id);
+        packageAssignment.Property(a => a.PackageId).HasMaxLength(PackageEntity.MaxIdLength).UseCollation("NOCASE");
+        packageAssignment.Property(a => a.TargetKind).HasConversion<int>();
+        packageAssignment.Property(a => a.Mode).HasConversion<int>();
+        packageAssignment.Property(a => a.FixedVersion).HasMaxLength(PackageVersionEntity.MaxVersionLength);
+        packageAssignment.Property(a => a.CreatedBy).HasMaxLength(256).IsRequired();
+        packageAssignment.HasIndex(a => a.PackageId);
+        packageAssignment.HasOne<PackageEntity>().WithMany().HasForeignKey(a => a.PackageId).OnDelete(DeleteBehavior.Cascade);
+        packageAssignment.HasOne<GroupEntity>().WithMany().HasForeignKey(a => a.GroupId).OnDelete(DeleteBehavior.Cascade);
+        packageAssignment.HasOne<ClientEntity>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Cascade);
     }
 }

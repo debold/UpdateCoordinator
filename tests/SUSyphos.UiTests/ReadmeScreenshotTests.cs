@@ -5,8 +5,8 @@ namespace SUSyphos.UiTests;
 /// <summary>
 /// Screenshots of the showcase lab for the README (docs/images, 1440 px wide, with the navigation): the overview at window
 /// height (1440 × 900, the first impression), the other pages in full length. A normal run
-/// checks that every page can still be shown and that the committed image exists; with SUSYPHOS_HELP_SCREENSHOTS=update
-/// (build/Update-HelpScreenshots.ps1) the images are written anew.
+/// checks that every page can still be shown and that the committed image exists; with SUSYPHOS_README_SCREENSHOTS=update
+/// (build/Update-HelpScreenshots.ps1 -Readme, at a release) the images are written anew.
 /// </summary>
 public sealed class ReadmeScreenshotTests(ShowcaseFixture ui)
 {
@@ -40,7 +40,7 @@ public sealed class ReadmeScreenshotTests(ShowcaseFixture ui)
 
         await Assertions.Expect(page.Locator("main h1").First).ToBeVisibleAsync();
         var file = Path.Combine(HelpScreenshotTests.Repository, "docs", "images", name + ".png");
-        if (HelpScreenshotTests.Update)
+        if (Environment.GetEnvironmentVariable("SUSYPHOS_README_SCREENSHOTS") == "update")
         {
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
             await page.ScreenshotAsync(new PageScreenshotOptions { Path = file, FullPage = name != "overview" });

@@ -6,6 +6,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Central server
 
+- Software with WinGet, part 1 (database and start rules): the central server keeps a catalog of WinGet packages and their versions, the software installed on each server and assignments of packages to groups and servers (schema approved by Marc on 2026-11-08). A software version is an entry of the update catalog, so rollouts, holds and reports work as for Windows updates. Start rules have a new condition **Kind** (Windows updates, software or both) and, for software, a package ID pattern and the publisher. Existing rules apply to Windows updates; a rule for software with a manual start is created once, so no software starts by itself until you add rules. Software whose installation accepts licence agreements never starts automatically until an Admin accepted them. The agent does not report or install software yet.
+
 - Overview: "Needs attention" counts in singular for one server ("1 new server waits for approval"). The Server status tile no longer cuts its texts: the legend says "Reboot" for reboot pending, and the footer names only the warnings that occur ("no further warnings" otherwise).
 
 ### Documentation

@@ -124,6 +124,11 @@ internal static class ServerServiceCollectionExtensions
         {
             await scope.ServiceProvider.GetRequiredService<Rollouts.RolloutAdministration>().EnsureDefinitionRuleAsync(cancellationToken).ConfigureAwait(false);
         }
+
+        if (scope.ServiceProvider.GetRequiredService<IOptions<Rollouts.RolloutOptions>>().Value.CreateSoftwareRule)
+        {
+            await scope.ServiceProvider.GetRequiredService<Rollouts.RolloutAdministration>().EnsureSoftwareRuleAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>Creates the database directory if needed and applies pending schema migrations.</summary>

@@ -27,6 +27,15 @@ internal sealed class UpdateEntity
 
     public required string Title { get; set; }
 
+    /// <summary>Windows update or software version (WinGet); software versions carry the package and version.</summary>
+    public UpdateKind Kind { get; set; }
+
+    /// <summary>WinGet package of a software version; null for Windows updates.</summary>
+    public string? PackageId { get; set; }
+
+    /// <summary>Version of the package; null for Windows updates.</summary>
+    public string? PackageVersion { get; set; }
+
     public string? Classification { get; set; }
 
     /// <summary>Set from update reports (search results); unknown for updates only seen as installed.</summary>

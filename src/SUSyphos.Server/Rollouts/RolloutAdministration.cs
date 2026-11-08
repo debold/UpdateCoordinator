@@ -177,13 +177,47 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
     /// <summary>Creates a start rule; conditions are optional, a rule without conditions matches every update.</summary>
     public Task<Outcome> CreateStartRuleAsync(
         int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, string actor, CancellationToken cancellationToken,
-        IReadOnlyCollection<int>? startRings = null, RebootBehavior? rebootBehavior = null, bool outsideWindows = false) =>
-        SaveStartRuleAsync(null, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings ?? [], rebootBehavior, outsideWindows, actor, cancellationToken);
+        IReadOnlyCollection<int>? startRings = null, RebootBehavior? rebootBehavior = null, bool outsideWindows = false, SoftwareConditions? software = null) =>
+        SaveStartRuleAsync(null, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings ?? [], rebootBehavior, outsideWindows, software ?? SoftwareConditions.WindowsUpdates, actor, cancellationToken);
 
     public Task<Outcome> UpdateStartRuleAsync(
         int ruleId, int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, IReadOnlyCollection<int> startRings, string actor, CancellationToken cancellationToken,
-        RebootBehavior? rebootBehavior = null, bool outsideWindows = false) =>
-        SaveStartRuleAsync(ruleId, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings, rebootBehavior, outsideWindows, actor, cancellationToken);
+        RebootBehavior? rebootBehavior = null, bool outsideWindows = false, SoftwareConditions? software = null) =>
+        SaveStartRuleAsync(ruleId, priority, classification, msrcSeverity, titlePattern, mode, delayHours, startRings, rebootBehavior, outsideWindows, software ?? SoftwareConditions.WindowsUpdates, actor, cancellationToken);
+
+    /// <summary>
+    /// Creates the default start rule for software once (Marc, 2026-11-08): software versions stay queued until an
+    /// operator starts them. Administrators may change or delete it; it is not created again. Skipped when a rule for
+    /// software already exists.
+    /// </summary>
+    public async Task<bool> EnsureSoftwareRuleAsync(CancellationToken cancellationToken)
+    {
+        if (await db.Settings.AnyAsync(s => s.Key == SettingEntity.SoftwareRuleCreated, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        db.Settings.Add(new SettingEntity { Key = SettingEntity.SoftwareRuleCreated, Value = "true" });
+        var rules = await db.StartRules.AsNoTracking().Select(r => new { r.Id, r.Priority, r.Kind }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (rules.Any(r => r.Kind == UpdateKind.Software))
+        {
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
+        // Lowest priority of all (highest number), so a rule an administrator adds for software decides first.
+        var rule = new StartRuleEntity
+        {
+            Priority = Math.Min(10_000, rules.Count == 0 ? 1001 : rules.Max(r => r.Priority) + 1),
+            Kind = UpdateKind.Software,
+            Mode = StartMode.Manual,
+            Delay = TimeSpan.Zero,
+        };
+        db.StartRules.Add(rule);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync("system", "StartRule.Created", rule.Mode.ToString(), string.Create(CultureInfo.InvariantCulture, $"default rule for software: priority {rule.Priority}, manual start"), cancellationToken).ConfigureAwait(false);
+        return true;
+    }
 
     /// <summary>
     /// Creates the default start rule for definition updates once (Marc, 2026-10-21): they never restart, so they start in
@@ -211,6 +245,7 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
             Priority = NextFreePriority([.. rules.Select(r => (r.Id, r.Priority))]),
             Classification = DefinitionUpdates.Classification,
             RebootBehavior = (int)RebootBehavior.NeverReboots,
+            Kind = UpdateKind.WindowsUpdate,
             Mode = StartMode.Automatic,
             Delay = TimeSpan.Zero,
             StartRingIds = StartRings.Format(rings.Skip(1)),
@@ -233,8 +268,35 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
     /// <summary>Validates and stores a start rule; <c>startRings</c> lists rings released at once besides the first ring.</summary>
     private async Task<Outcome> SaveStartRuleAsync(
         int? ruleId, int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, IReadOnlyCollection<int> startRings,
-        RebootBehavior? rebootBehavior, bool outsideWindows, string actor, CancellationToken cancellationToken)
+        RebootBehavior? rebootBehavior, bool outsideWindows, SoftwareConditions software, string actor, CancellationToken cancellationToken)
     {
+        if (software.Kind is { } kind && !Enum.IsDefined(kind))
+        {
+            return new Outcome("The kind is invalid.");
+        }
+
+        var packageIdPattern = Normalize(software.PackageIdPattern);
+        var publisher = Normalize(software.Publisher);
+        if ((packageIdPattern is not null || publisher is not null) && software.Kind != UpdateKind.Software)
+        {
+            return new Outcome("Package ID and publisher are conditions for software; choose the kind \"Software\".");
+        }
+
+        if (software.Kind == UpdateKind.Software && (Normalize(classification) is not null || Normalize(msrcSeverity) is not null || rebootBehavior is not null || outsideWindows))
+        {
+            return new Outcome("Classification, severity, restart and installing outside the maintenance windows apply to Windows updates only.");
+        }
+
+        if (packageIdPattern is not null && (packageIdPattern.Length > PackageEntity.MaxIdLength || !packageIdPattern.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_' or '+' or '*' or '?')))
+        {
+            return new Outcome("The package ID pattern may contain letters, digits, \".-_+\" and the wildcards * and ? (at most 128 characters).");
+        }
+
+        if (publisher is not null && (publisher.Length > StartRuleEntity.MaxPublisherLength || publisher.Any(char.IsControl)))
+        {
+            return new Outcome("The publisher may have at most 256 characters and no control characters.");
+        }
+
         if (rebootBehavior is { } behavior && !Enum.IsDefined(behavior))
         {
             return new Outcome("The restart condition is invalid.");
@@ -318,11 +380,14 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         rule.Delay = TimeSpan.FromHours(delayHours);
         rule.RebootBehavior = (int?)rebootBehavior;
         rule.OutsideWindows = outsideWindows;
+        rule.Kind = software.Kind;
+        rule.PackageIdPattern = packageIdPattern;
+        rule.Publisher = publisher;
 
         // The first ring always starts; storing it would only repeat the default.
         rule.StartRingIds = StartRings.Format(startRings.Where(r => r != rings[0]));
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        var details = string.Create(CultureInfo.InvariantCulture, $"priority {priority}, classification {classification ?? "-"}, severity {msrcSeverity ?? "-"}, title {titlePattern ?? "-"}, {mode}, delay {delayHours} hours, also starts in rings {rule.StartRingIds ?? "-"}, restart {rebootBehavior?.ToString() ?? "-"}, outside windows {(outsideWindows ? "yes" : "no")}");
+        var details = string.Create(CultureInfo.InvariantCulture, $"priority {priority}, classification {classification ?? "-"}, severity {msrcSeverity ?? "-"}, title {titlePattern ?? "-"}, kind {software.Kind?.ToString() ?? "any"}, package {packageIdPattern ?? "-"}, publisher {publisher ?? "-"}, {mode}, delay {delayHours} hours, also starts in rings {rule.StartRingIds ?? "-"}, restart {rebootBehavior?.ToString() ?? "-"}, outside windows {(outsideWindows ? "yes" : "no")}");
         await audit.WriteAsync(actor, ruleId is null ? "StartRule.Created" : "StartRule.Changed", mode.ToString(), details, cancellationToken).ConfigureAwait(false);
 
         // A new or changed rule also applies to updates that were reported before it existed.
@@ -446,4 +511,14 @@ internal static class RolloutActions
             _ => (new Outcome("Invalid request."), string.Empty),
         };
     }
+}
+
+/// <summary>
+/// Conditions of a start rule on the kind of update (Windows update or software) and, for software, on package ID and
+/// publisher. <see cref="Kind"/> null matches both kinds.
+/// </summary>
+internal sealed record SoftwareConditions(UpdateKind? Kind, string? PackageIdPattern = null, string? Publisher = null)
+{
+    /// <summary>The conditions of a rule for Windows updates (the default before software existed).</summary>
+    public static SoftwareConditions WindowsUpdates { get; } = new(UpdateKind.WindowsUpdate);
 }

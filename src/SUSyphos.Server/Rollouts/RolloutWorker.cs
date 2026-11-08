@@ -15,6 +15,9 @@ internal sealed class RolloutOptions
 
     /// <summary>Creates the default start rule for definition updates once at startup (see <see cref="RolloutAdministration.EnsureDefinitionRuleAsync"/>); false for installations that bring their own rules.</summary>
     public bool CreateDefinitionRule { get; set; } = true;
+
+    /// <summary>Creates the default start rule for software (manual start) once at startup (see <see cref="RolloutAdministration.EnsureSoftwareRuleAsync"/>).</summary>
+    public bool CreateSoftwareRule { get; set; } = true;
 }
 
 /// <summary>

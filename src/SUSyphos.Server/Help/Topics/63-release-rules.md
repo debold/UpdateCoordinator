@@ -33,7 +33,7 @@ A new ring is added before the final ring and starts with a transition of 2–7 
 
 ## Start rules {#start-rules}
 
-When an approved server reports an update for the first time, the matching start rule with the lowest priority number decides how its rollout starts. Without a matching rule the update stays queued until an operator starts it. The table shows **Priority**, the conditions (**Classification**, **Severity**, **Title pattern**, **Restart**; "any" means no condition), **Start** (automatically, with delay, or manually, and "outside maintenance windows" where allowed) and **Starts in** (the rings the update is released to at once).
+When an approved server reports an update for the first time, the matching start rule with the lowest priority number decides how its rollout starts. Without a matching rule the update stays queued until an operator starts it. The table shows **Priority**, the conditions (**Kind**, **Classification**, **Severity**, **Pattern** with the title pattern and, for software, package ID pattern and publisher, **Restart**; "any" means no condition), **Start** (automatically, with delay, or manually, and "outside maintenance windows" where allowed) and **Starts in** (the rings the update is released to at once).
 
 Rules are applied when a server reports an update, when a rule is saved and every minute to all waiting updates. A rule decides only once per update; changing it later does not change running rollouts.
 
@@ -52,7 +52,10 @@ Updates that are only no longer applicable to a server or hidden on it locally c
 
 ![The dialog to create a start rule, with matching updates](help-images/release-rules-start-dialog.png)
 
-- **Classification**: only updates of this classification, or "Any classification".
+- **Kind**: "Windows updates", "Software (WinGet)" (versions of programs installed with WinGet) or "Windows updates and software". Existing rules and the rule without conditions apply to Windows updates. A new installation brings one rule for software that starts nothing by itself ("Manually"), so software versions wait for an operator until you add rules for them; change or delete it like any other rule. Software whose installation accepts licence agreements never starts automatically, whatever the rule says.
+- **Package ID pattern (\* and ? allowed)**: software only; the whole WinGet package ID must match, for example `Microsoft.*` or `7zip.7zip`.
+- **Publisher**: software only; the publisher of the package as its manifest names it, compared without case.
+- **Classification**: only updates of this classification, or "Any classification" (Windows updates only, like **Severity**, **Restart** and installing outside the maintenance windows).
 - **Severity**: only updates with this Microsoft severity, or "Any severity".
 - **Restart**: only updates with this restart behaviour as Windows Update reports it: "No restart" (e.g. definition updates), "Restart required", "May restart", or "Any restart behaviour". Updates whose behaviour is not known yet match only "Any".
 - **Priority (lower wins)**: 0 to 10000; new rules get the next free number, and two rules cannot share one.

@@ -15,7 +15,7 @@ namespace SUSyphos.Server.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.14");
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
@@ -698,6 +698,53 @@ namespace SUSyphos.Server.Data.Migrations
                     b.ToTable("ClientGroups", (string)null);
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.ClientSoftwareEntity", b =>
+                {
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("View")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("KeyName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InstalledVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MatchKind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PackageId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<string>("Publisher")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ReportedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ClientId", "View", "KeyName");
+
+                    b.HasIndex("PackageId");
+
+                    b.ToTable("ClientSoftware", (string)null);
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.ClientUpdateEntity", b =>
                 {
                     b.Property<Guid>("ClientId")
@@ -1011,6 +1058,194 @@ namespace SUSyphos.Server.Data.Migrations
 
                             t.HasCheckConstraint("CK_OneTimeWindows_EndAfterStart", "\"EndUtc\" > \"StartUtc\"");
                         });
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageAssignmentEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FixedVersion")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("GroupId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PackageId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<int>("TargetKind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("UninstallOnRemoval")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("PackageId");
+
+                    b.ToTable("PackageAssignments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PackageAssignments_Target", "(\"TargetKind\" = 0 AND \"GroupId\" IS NOT NULL AND \"ClientId\" IS NULL) OR (\"TargetKind\" = 1 AND \"ClientId\" IS NOT NULL AND \"GroupId\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageEntity", b =>
+                {
+                    b.Property<string>("PackageId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<DateTime>("AddedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AddedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AgreementsAcceptedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AgreementsAcceptedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CheckedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(10000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("HasAgreements")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("License")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LicenseUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LogoFile")
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Moniker")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PackageUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Publisher")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PublisherUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseNotesUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ShortDescription")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Tags")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("PackageId");
+
+                    b.ToTable("Packages", (string)null);
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageVersionEntity", b =>
+                {
+                    b.Property<string>("PackageId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<string>("Version")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CachedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InstallerFile")
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InstallerSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Manifest")
+                        .HasMaxLength(200000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("ReleaseDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ScanDetail")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ScanState")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ScannedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("PackageId", "Version");
+
+                    b.HasIndex("UpdateId")
+                        .IsUnique();
+
+                    b.ToTable("PackageVersions", (string)null);
                 });
 
             modelBuilder.Entity("SUSyphos.Server.Data.ReleaseEntity", b =>
@@ -1327,6 +1562,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<TimeSpan>("Delay")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("Kind")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Mode")
                         .HasColumnType("INTEGER");
 
@@ -1337,8 +1575,16 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<bool>("OutsideWindows")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("PackageIdPattern")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Priority")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Publisher")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
 
                     b.Property<int?>("RebootBehavior")
                         .HasColumnType("INTEGER");
@@ -1360,6 +1606,7 @@ namespace SUSyphos.Server.Data.Migrations
                         {
                             Id = 1,
                             Delay = new TimeSpan(0, 0, 0, 0, 0),
+                            Kind = 0,
                             Mode = 0,
                             OutsideWindows = false,
                             Priority = 1000
@@ -1418,6 +1665,9 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("LastNeededAtUtc")
                         .HasColumnType("TEXT");
 
@@ -1426,6 +1676,15 @@ namespace SUSyphos.Server.Data.Migrations
 
                     b.Property<string>("MsrcSeverity")
                         .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PackageId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<string>("PackageVersion")
+                        .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("RebootBehavior")
@@ -1442,6 +1701,8 @@ namespace SUSyphos.Server.Data.Migrations
                     b.HasKey("UpdateId", "Revision");
 
                     b.HasIndex("KbArticle");
+
+                    b.HasIndex("PackageId", "PackageVersion");
 
                     b.ToTable("Updates", (string)null);
                 });
@@ -1670,6 +1931,15 @@ namespace SUSyphos.Server.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.ClientSoftwareEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.ClientUpdateEntity", b =>
                 {
                     b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
@@ -1740,6 +2010,34 @@ namespace SUSyphos.Server.Data.Migrations
                         .WithMany()
                         .HasForeignKey("RingId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageAssignmentEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("SUSyphos.Server.Data.GroupEntity", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("SUSyphos.Server.Data.PackageEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PackageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageVersionEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.PackageEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PackageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("SUSyphos.Server.Data.ReleaseEntity", b =>

@@ -158,6 +158,17 @@ internal sealed class StartRuleEntity
 
     /// <summary>Updates started by this rule may install outside the maintenance windows; only with the condition "never restarts".</summary>
     public bool OutsideWindows { get; set; }
+
+    /// <summary>Windows updates or software; null matches both.</summary>
+    public UpdateKind? Kind { get; set; }
+
+    /// <summary>Package ID pattern with * and ? wildcards, e.g. "Microsoft.*"; software only.</summary>
+    public string? PackageIdPattern { get; set; }
+
+    /// <summary>Publisher of the package as in its manifest, compared without case; software only.</summary>
+    public string? Publisher { get; set; }
+
+    public const int MaxPublisherLength = 256;
 }
 
 /// <summary>

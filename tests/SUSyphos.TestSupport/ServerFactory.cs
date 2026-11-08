@@ -61,6 +61,7 @@ public class ServerFactory : WebApplicationFactory<Program>
         // Tests drive the ring logic explicitly; the worker only runs once at start.
         builder.UseSetting("Rollout:EvaluationInterval", "01:00:00");
         builder.UseSetting("Rollout:CreateDefinitionRule", "false");
+        builder.UseSetting("Rollout:CreateSoftwareRule", "false");
         // Never read a real Active Directory from tests; coverage tests use a fake directory.
         builder.UseSetting("Coverage:Enabled", "false");
         builder.UseSetting("Coverage:Domain", "lab.local");

@@ -56,15 +56,21 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
         return string.Create(CultureInfo.InvariantCulture, $"priority {rule.Priority}, delay {rule.Delay.TotalHours:0} h, starts in {string.Join(", ", names)}{outside}");
     }
 
-    /// <summary>The start rule for an update: the matching rule with the lowest priority number, or null.</summary>
-    internal static StartRuleEntity? FindStartRule(IEnumerable<StartRuleEntity> rules, UpdateEntity update) => rules
+    /// <summary>
+    /// The start rule for an update: the matching rule with the lowest priority number, or null. For a software version
+    /// <paramref name="publisher"/> is the publisher of its package (condition "Publisher").
+    /// </summary>
+    internal static StartRuleEntity? FindStartRule(IEnumerable<StartRuleEntity> rules, UpdateEntity update, string? publisher = null) => rules
         .OrderBy(r => r.Priority)
         .ThenBy(r => r.Id)
         .FirstOrDefault(r =>
             (r.Classification is null || string.Equals(r.Classification, update.Classification, StringComparison.OrdinalIgnoreCase))
             && (r.MsrcSeverity is null || string.Equals(r.MsrcSeverity, update.MsrcSeverity, StringComparison.OrdinalIgnoreCase))
             && (r.TitlePattern is null || Wildcard.Matches(r.TitlePattern, update.Title))
-            && (r.RebootBehavior is null || r.RebootBehavior == update.RebootBehavior));
+            && (r.RebootBehavior is null || r.RebootBehavior == update.RebootBehavior)
+            && (r.Kind is null || r.Kind == update.Kind)
+            && (r.PackageIdPattern is null || (update.PackageId is { } packageId && Wildcard.Matches(r.PackageIdPattern, packageId)))
+            && (r.Publisher is null || string.Equals(r.Publisher, publisher, StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>Starts rollouts for newly reported updates according to the start rules.</summary>
     public async Task AutoStartAsync(IReadOnlyCollection<(Guid UpdateId, int Revision)> updates, CancellationToken cancellationToken)
@@ -112,10 +118,22 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
     private async Task<int> StartMatchingAsync(IReadOnlyList<UpdateEntity> candidates, CancellationToken cancellationToken)
     {
         var rules = await db.StartRules.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
+        var packageIds = candidates.Where(u => u.Kind == UpdateKind.Software && u.PackageId != null).Select(u => u.PackageId!).Distinct().ToList();
+        var packages = packageIds.Count == 0
+            ? []
+            : await db.Packages.AsNoTracking().Where(p => packageIds.Contains(p.PackageId)).ToDictionaryAsync(p => p.PackageId, StringComparer.OrdinalIgnoreCase, cancellationToken).ConfigureAwait(false);
         var started = 0;
         foreach (var update in candidates)
         {
-            if (FindStartRule(rules, update) is not { Mode: StartMode.Automatic } rule)
+            var package = update.PackageId is { } id ? packages.GetValueOrDefault(id) : null;
+
+            // A package whose installation accepts agreements never starts by itself (Marc, 2026-11-08); an Admin starts it.
+            if (update.Kind == UpdateKind.Software && (package is null || (package.HasAgreements && package.AgreementsAcceptedAtUtc is null)))
+            {
+                continue;
+            }
+
+            if (FindStartRule(rules, update, package?.Publisher) is not { Mode: StartMode.Automatic } rule)
             {
                 continue;
             }
