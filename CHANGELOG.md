@@ -4,6 +4,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-08
+
 ### Central server
 
 - Pills, category tags and tab counts: the text sits in the optical middle with every font. The earlier fix used pixel offsets that only fit Segoe UI Variable (Windows 11) and put the text off centre with Segoe UI on Windows Server 2016 to 2022; the text is now trimmed to cap height and baseline (CSS text-box). A browser test checks it with three fonts.
