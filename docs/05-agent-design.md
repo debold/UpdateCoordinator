@@ -45,6 +45,12 @@ In addition the agent reports its domain membership. It deliberately reports no 
 - The inventory is collected after registration, on service start and then every `Inventory:CollectInterval` (default 6 hours). It is only sent if it changed or `Inventory:MaxSendInterval` (default 1 day) has passed. A failed send is retried with the next cycle.
 - Values are shaped to the contract before sending (control characters removed, lengths truncated, invalid entries dropped), so a single odd value never blocks the whole inventory; the central server validates again.
 
+### Software inventory (0.9)
+
+- The inventory carries the **installed programs** (`installedSoftware`: the entries of "Programs and Features" from the uninstall keys of both registry views, without system components, updates and entries belonging to another, plus packaged apps installed for the machine; per-user programs are left out) and whether **WinGet** can manage software on the server (`software`: `Supported`, `NotSupported` with the reason, or `Failed` with the reason).
+- WinGet runs in a **helper process** (`SUSyphos.Agent.WinGet.exe inventory`, installed next to the agent with its bundled engine in `winget-engine\`), never in the service: the native engine can neither crash the agent nor count against its memory limit. The helper starts below normal priority, writes one JSON document to its standard output and is stopped after 5 minutes. The agent validates every entry against the contract again and drops what does not pass.
+- Where WinGet is supported (Windows Server 2019 or later with the desktop experience; Marc, 2026-11-08) the helper matches the uninstall entries with WinGet's installed list and reports the package and installed version where WinGet found the program in a source. On Windows Server 2016 and Server Core it reports the programs from the registry alone and `NotSupported`; when the engine fails it does the same with `Failed`. When the helper cannot run at all, the inventory says `Failed` and carries no list, so the central server keeps the previous one.
+
 ## 3. Cycle (fixed pipeline)
 
 1. **Pre-flight health check**

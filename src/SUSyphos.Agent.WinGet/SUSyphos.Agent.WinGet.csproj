@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    WinGet helper of the agent: runs WinGet in its own process, so the native engine can neither crash the agent service
+    nor count against its memory limit. The agent starts it with a command and reads one JSON document from its standard
+    output. Published into the folder of the agent and installed with it (build/Build-Installers.ps1).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- The projection of the WinGet COM API needs a Windows SDK target; the registry part runs from Windows Server 2016 on. -->
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.14393.0</SupportedOSPlatformVersion>
+    <AssemblyName>SUSyphos.Agent.WinGet</AssemblyName>
+    <RootNamespace>SUSyphos.Agent.WinGet</RootNamespace>
+    <MinVerTagPrefix>agent/v</MinVerTagPrefix>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+    <ProjectReference Include="..\SUSyphos.Contracts\SUSyphos.Contracts.csproj" />
+    <ProjectReference Include="..\SUSyphos.WinGet\SUSyphos.WinGet.csproj" />
+    <!-- The bundled engine (winget-engine\ next to the exe): only its files, nothing is linked. -->
+    <PackageReference Include="Microsoft.WindowsPackageManager.InProcCom" ExcludeAssets="all" GeneratePathProperty="true" NoWarn="NU1701" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Without the symbols of the engine (130 MB). -->
+    <None Include="$(PkgMicrosoft_WindowsPackageManager_InProcCom)\runtimes\win-x64\native\*" Exclude="$(PkgMicrosoft_WindowsPackageManager_InProcCom)\runtimes\win-x64\native\*.pdb" Link="winget-engine\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SUSyphos.WinGet.Tests" />
+  </ItemGroup>
+
+</Project>

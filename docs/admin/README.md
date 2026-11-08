@@ -9,6 +9,7 @@
 |---|---|---|
 | Central server | Windows service `SUSyphos.Server` | one central Windows server |
 | Agent | Windows service `SUSyphos.Agent` | every managed Windows server, 2016 or later |
+| WinGet helper of the agent | process `SUSyphos.Agent.WinGet.exe`, started by the agent for the software inventory and ended when done (at most 5 minutes) | next to the agent; WinGet is used from Windows Server 2019 with desktop experience, on 2016 and Server Core only the installed programs are read from the registry |
 
 ## 2. Communication paths
 

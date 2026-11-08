@@ -70,6 +70,8 @@ internal static class AgentHostBuilder
         services.AddSingleton<IInstalledUpdateSource, WuaInstalledUpdateSource>();
         services.AddSingleton<RoleDetector>();
         services.AddSingleton<IEsuProbe, WmiEsuProbe>();
+        services.AddSingleton<IWinGetHelperRunner, WinGetHelperRunner>();
+        services.AddSingleton<ISoftwareInventorySource, WinGetHelperInventory>();
         services.AddSingleton<InventoryCollector>();
         services.AddSingleton<InventoryScheduler>();
         services.AddSingleton<IInventoryReporter, InventoryReporter>();

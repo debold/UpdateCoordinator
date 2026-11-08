@@ -23,17 +23,21 @@ $output = if ($OutputDirectory) { $OutputDirectory } else { Join-Path $artifacts
 $output = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($output)
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 
-function Build-Component([string] $Name, [string] $Project, [string] $Installer, [string] $Version, [string[]] $InstallerProperties = @()) {
+function Build-Component([string] $Name, [string] $Project, [string] $Installer, [string] $Version, [string[]] $InstallerProperties = @(), [string[]] $Companions = @()) {
     $publish = Join-Path $artifacts "publish\$Name"
     if (Test-Path $publish) { Remove-Item -Recurse -Force $publish }
 
-    $publishArgs = @('publish', $Project, '-c', $Configuration, '-r', 'win-x64', '--self-contained', '-o', $publish)
-    if ($Version) { $publishArgs += "-p:MinVerVersionOverride=$Version" }
-    & dotnet @publishArgs | Write-Host
-    if ($LASTEXITCODE -ne 0) { throw "Publishing $Name failed." }
+    # Companion programs (the WinGet helper of the agent) are published into the same folder and installed with it;
+    # both are self-contained on the same runtime, so the shared files are identical.
+    foreach ($publishProject in @($Project) + $Companions) {
+        $publishArgs = @('publish', $publishProject, '-c', $Configuration, '-r', 'win-x64', '--self-contained', '-o', $publish)
+        if ($Version) { $publishArgs += "-p:MinVerVersionOverride=$Version" }
+        & dotnet @publishArgs | Write-Host
+        if ($LASTEXITCODE -ne 0) { throw "Publishing $publishProject failed." }
+    }
 
     # MSI versions are numeric: major.minor.patch of the published file version.
-    $exe = Get-ChildItem $publish -Filter 'SUSyphos.*.exe' | Select-Object -First 1
+    $exe = Get-Item (Join-Path $publish ((Split-Path $Project -Leaf) + '.exe'))
     $fileVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe.FullName).FileVersion
     $productVersion = ($fileVersion.Split('.')[0..2]) -join '.'
     # Full semantic version without build metadata, e.g. 0.4.0-rc.1: the version the agent reports and packages are named after.
@@ -51,7 +55,7 @@ function Build-Component([string] $Name, [string] $Project, [string] $Installer,
     return $semanticVersion
 }
 
-$bundledAgentVersion = Build-Component 'agent' (Join-Path $root 'src\SUSyphos.Agent') (Join-Path $root 'installer\Agent\SUSyphos.Agent.Installer.wixproj') $AgentVersion
+$bundledAgentVersion = Build-Component 'agent' (Join-Path $root 'src\SUSyphos.Agent') (Join-Path $root 'installer\Agent\SUSyphos.Agent.Installer.wixproj') $AgentVersion -Companions @((Join-Path $root 'src\SUSyphos.Agent.WinGet'))
 # The server package ships the agent package of the same build: download in the dashboard and the first agent package.
 $agentMsi = Join-Path $output 'SUSyphos.Agent.msi'
 $null = Build-Component 'server' (Join-Path $root 'src\SUSyphos.Server') (Join-Path $root 'installer\Server\SUSyphos.Server.Installer.wixproj') $ServerVersion @("-p:AgentMsi=$agentMsi", "-p:AgentVersion=$bundledAgentVersion")

@@ -55,6 +55,12 @@ internal sealed class ClientEntity
     /// <summary>The server runs in Azure (SMBIOS asset tag of Azure), where ESU are included.</summary>
     public bool? Azure { get; set; }
 
+    /// <summary>Whether software can be managed with WinGet on the server, as the agent last reported; null before 0.9.</summary>
+    public SUSyphos.Contracts.Agents.SoftwareSupportState? SoftwareState { get; set; }
+
+    /// <summary>Why WinGet is not supported or failed (e.g. "Server Core"); null when supported.</summary>
+    public string? SoftwareDetail { get; set; }
+
     /// <summary>Detected roles, e.g. DomainController; stored as a JSON array.</summary>
     public List<string> Roles { get; set; } = [];
 

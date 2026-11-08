@@ -652,6 +652,13 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<string>("ServerMoveError")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SoftwareDetail")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SoftwareState")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("State")
                         .HasColumnType("INTEGER");
 

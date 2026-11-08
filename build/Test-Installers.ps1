@@ -119,6 +119,16 @@ Check 'agent registers at the central server' {
     Wait-Until { Select-String -Path "$env:ProgramData\SUSyphos\Agent\Logs\agent-*.log" -Pattern 'Registered at the central server' -Quiet } 120
 }
 
+$wingetHelper = "$env:ProgramFiles\SUSyphos\Agent\SUSyphos.Agent.WinGet.exe"
+Check 'agent ships the WinGet helper and its engine' {
+    (Test-Path $wingetHelper) -and (Test-Path "$env:ProgramFiles\SUSyphos\Agent\winget-engine\WindowsPackageManager.dll")
+}
+Check 'WinGet helper writes a software inventory' {
+    $report = & $wingetHelper inventory 2>$null | Out-String | ConvertFrom-Json
+    Write-Host "  software inventory: $($report.software.Count) programs, $(@($report.software | Where-Object packageId).Count) with a WinGet package, WinGet $($report.support.state) $($report.support.detail)"
+    $LASTEXITCODE -eq 0 -and $report.software.Count -gt 0 -and $report.support.state -in 'supported', 'notSupported', 'failed'
+}
+
 Check 'agent stays below its memory limit after registration and inventory' {
     Start-Sleep -Seconds 30
     $agentMb = [math]::Round((Get-Process SUSyphos.Agent).PrivateMemorySize64 / 1MB)

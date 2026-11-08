@@ -4,9 +4,14 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Agent
+
+- Software inventory: the agent reports the installed programs ("Programs and Features" and packaged apps for the machine) with the inventory. From Windows Server 2019 with desktop experience it matches them with WinGet and reports the package and installed version WinGet knows; on Windows Server 2016 and Server Core it reports the programs alone and says that WinGet is not supported. WinGet runs in a separate helper process (`SUSyphos.Agent.WinGet.exe`, installed with the agent with its own WinGet engine), so it can never crash the agent service or count against its memory limit.
+
 ### Central server
 
-- Software with WinGet, part 1 (database and start rules): the central server keeps a catalog of WinGet packages and their versions, the software installed on each server and assignments of packages to groups and servers (schema approved by Marc on 2026-11-08). A software version is an entry of the update catalog, so rollouts, holds and reports work as for Windows updates. Start rules have a new condition **Kind** (Windows updates, software or both) and, for software, a package ID pattern and the publisher. Existing rules apply to Windows updates; a rule for software with a manual start is created once, so no software starts by itself until you add rules. Software whose installation accepts licence agreements never starts automatically until an Admin accepted them. The agent does not report or install software yet.
+- Software with WinGet, part 1 (database and start rules): the central server keeps a catalog of WinGet packages and their versions, the software installed on each server and assignments of packages to groups and servers (schema approved by Marc on 2026-11-08). A software version is an entry of the update catalog, so rollouts, holds and reports work as for Windows updates. Start rules have a new condition **Kind** (Windows updates, software or both) and, for software, a package ID pattern and the publisher. Existing rules apply to Windows updates; a rule for software with a manual start is created once, so no software starts by itself until you add rules. Software whose installation accepts licence agreements never starts automatically until an Admin accepted them. The agent does not install software yet.
+- Software with WinGet, part 2 (inventory): the inventory carries the programs installed on the server and whether WinGet can manage software there; the central server stores them per server (no page shows them yet).
 
 - Overview: "Needs attention" counts in singular for one server ("1 new server waits for approval"). The Server status tile no longer cuts its texts: the legend says "Reboot" for reboot pending, and the footer names only the warnings that occur ("no further warnings" otherwise).
 

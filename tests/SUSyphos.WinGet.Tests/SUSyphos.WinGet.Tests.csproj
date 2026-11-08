@@ -12,6 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SUSyphos.WinGet\SUSyphos.WinGet.csproj" />
     <ProjectReference Include="..\..\tools\SUSyphos.WinGetProbe\SUSyphos.WinGetProbe.csproj" />
+    <ProjectReference Include="..\..\src\SUSyphos.Agent.WinGet\SUSyphos.Agent.WinGet.csproj" />
   </ItemGroup>
 
 </Project>

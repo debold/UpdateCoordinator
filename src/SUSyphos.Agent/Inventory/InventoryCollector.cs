@@ -15,7 +15,8 @@ internal sealed partial class InventoryCollector(
     RoleDetector roles,
     IAgentEnvironment environment,
     Updates.IUpdateServiceRegistry? services = null,
-    IEsuProbe? esu = null)
+    IEsuProbe? esu = null,
+    ISoftwareInventorySource? software = null)
 {
     private const string CurrentVersionPath = AgentEnvironment.CurrentVersionPath;
     private const string WindowsUpdatePolicyPath = AutomaticUpdatesReader.PolicyPath;
@@ -24,6 +25,7 @@ internal sealed partial class InventoryCollector(
     {
         var installed = await updates.GetInstalledUpdatesAsync(cancellationToken).ConfigureAwait(false);
         var history = await updates.GetHistoryAsync(cancellationToken).ConfigureAwait(false);
+        var programs = software is null ? null : await software.CollectAsync(cancellationToken).ConfigureAwait(false);
         return new InventoryRequest
         {
             HostName = environment.HostName,
@@ -35,6 +37,8 @@ internal sealed partial class InventoryCollector(
             InstalledUpdates = installed is null ? null : WireFormat.ToInstalledUpdates(installed),
             UpdateHistory = history,
             ExtendedSecurityUpdates = esu?.Read(),
+            InstalledSoftware = programs?.Software,
+            Software = programs?.Support,
         };
     }
 

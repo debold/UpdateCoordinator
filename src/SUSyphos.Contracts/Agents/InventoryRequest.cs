@@ -52,6 +52,13 @@ public sealed record InventoryRequest
 
     /// <summary>Signs of Extended Security Updates; null from agents before 0.7.10.</summary>
     public ExtendedSecurityUpdatesInfo? ExtendedSecurityUpdates { get; init; }
+
+    /// <summary>Programs installed on the server; null if they could not be read (the central server then keeps the previous list).</summary>
+    [MaxLength(Agents.InstalledSoftware.MaxEntries)]
+    public IReadOnlyList<InstalledSoftware>? InstalledSoftware { get; init; }
+
+    /// <summary>Whether software can be managed with WinGet on the server; null from agents before 0.9.</summary>
+    public SoftwareSupport? Software { get; init; }
 }
 
 /// <summary>

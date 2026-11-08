@@ -108,14 +108,6 @@ internal sealed class PackageVersionEntity
     public DateTime? ScannedAtUtc { get; set; }
 }
 
-/// <summary>Where an entry of the software inventory comes from (registry view of the uninstall keys).</summary>
-internal enum SoftwareView
-{
-    Machine64 = 0,
-    Machine32 = 1,
-    Msix = 2,
-}
-
 /// <summary>How an installed program was matched to a WinGet package.</summary>
 internal enum SoftwareMatch
 {
@@ -137,7 +129,7 @@ internal sealed class ClientSoftwareEntity
 
     public Guid ClientId { get; set; }
 
-    public SoftwareView View { get; set; }
+    public SUSyphos.Contracts.Agents.SoftwareView View { get; set; }
 
     /// <summary>Name of the uninstall key, or the package family name for MSIX.</summary>
     public required string KeyName { get; set; }
