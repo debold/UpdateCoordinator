@@ -73,6 +73,9 @@ public class UiFixture : IAsyncLifetime
         });
     }
 
+    /// <summary>Reports the live status of the main server anew; it counts as stale after two minutes, which a long run reaches.</summary>
+    public Task RefreshLiveStatusAsync() => DemoData.RefreshLiveStatusAsync(_server, MainServerId);
+
     /// <summary>Fills the central server with the lab the tests run against.</summary>
     protected virtual Task<Guid> SeedAsync(KestrelServerFactory server) => DemoData.SeedAsync(server);
 

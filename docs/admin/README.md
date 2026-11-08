@@ -27,6 +27,7 @@
 | Agent | New central server | HTTPS, `GET /api/v1/trust/binding`, then `GET /api/v1/agents/releases` | while a move is announced, until it succeeds (retried every 15 min) | verifies the same trust anchor and that the new server knows the agent before switching (section 19, move) |
 | Central server | Backup folder (local disk or SMB share) | file system / SMB, as LocalSystem (computer account) | daily at the configured time, if the scheduled backup is on | encrypted backup archives (section 19) |
 | Central server | GitHub (`api.github.com`, `github.com` and its download storage) | HTTPS | daily and on "Check for new versions now" (`AgentPackages:CheckEnabled`) | new agent versions of the project; downloaded and verified, never released automatically |
+| Central server | WinGet community source (`cdn.winget.microsoft.com`) and its manifests (`raw.githubusercontent.com/microsoft/winget-pkgs`) | HTTPS | daily (`Software:CheckEnabled`, `Software:CheckInterval`) | package index of the community source (a few MB) to match installed programs and find new versions; the manifests of the packages in the catalog (names, links, licence, installers); no installer is downloaded for this |
 | Central server | Microsoft Security Update Guide (`api.msrc.microsoft.com`) | HTTPS | daily, every two hours from the patch day to two days after, and on "Fetch security data now" (`Msrc:Enabled`) | security baselines and vulnerabilities of the Windows Server versions (section 16) |
 | Agent | Windows Update (or WSUS) | HTTPS, via the Windows Update Agent API | during the update search | search for available updates; the agent itself contacts no other internet address |
 | Admin browser | Central server | HTTPS | on demand | dashboard and administration |
@@ -197,6 +198,7 @@ A new file is started every day and when the size limit is reached. Client secre
 | Agent | `%ProgramData%\SUSyphos\Agent\agent-update.json` | last self-update attempt (version, time, error); deleted after a successful update |
 | Agent | `%ProgramData%\SUSyphos\Agent\Update` | downloaded agent package and msiexec log of the last self-update; recreated for every update with access for SYSTEM and administrators only |
 | Central server | `AgentPackages:Directory` (`%ProgramData%\SUSyphos\Server\AgentPackages`) | agent packages: the one shipped with the central server and those downloaded from GitHub |
+| Central server | `Software:Directory` (`%ProgramData%\SUSyphos\Server\Software`) | `index.db`, the package index of the WinGet community source (replaced only by a download that opens as an index) |
 | Both | `Logging:File:Directory` | rolling log files |
 
 If the agent identity file is deleted or unreadable, the agent registers again and appears as a new pending client. If the trust file is deleted, the next contact is a first contact again.
@@ -570,6 +572,9 @@ Dashboard page **Agents** (role `Operator` to download, `Admin` to check and rel
 | Key (central server) | Default | Meaning |
 |---|---|---|
 | `AgentPackages:CheckEnabled` | `true` | daily check of the GitHub releases |
+| `Software:CheckEnabled` | `true` | reads the WinGet community source (package index and manifests); `false` for environments without internet |
+| `Software:CheckInterval` | `1.00:00:00` | how often the index is refreshed, installed programs are matched and the packages are checked for new versions (1 hour to 7 days) |
+| `Software:Directory` | `%ProgramData%\SUSyphos\Server\Software` | folder of the package index |
 | `AgentPackages:CheckInterval` | `1.00:00:00` | interval of the check (1 h to 30 days) |
 | `AgentPackages:Repository` | `debold/UpdateCoordinator` | GitHub repository whose releases carry the agent MSI |
 | `AgentPackages:IncludePrereleases` | `true` | also offer pre-releases (every release before 1.0 is one) |

@@ -156,6 +156,20 @@ internal static class DashboardServiceCollectionExtensions
         });
         services.AddHostedService<AgentPackages.AgentPackageWorker>();
 
+        // Software catalog (WinGet, 0.9): the community index and manifests, read without the WinGet engine.
+        services.AddOptions<Software.SoftwareOptions>()
+            .Bind(configuration.GetSection(Software.SoftwareOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddHttpClient<Software.CommunitySoftwareSource>(http =>
+        {
+            http.Timeout = TimeSpan.FromMinutes(5);
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("SUSyphos-CentralServer");
+        });
+        services.AddSingleton<Software.ISoftwareSource>(provider => provider.GetRequiredService<Software.CommunitySoftwareSource>());
+        services.AddScoped<Software.SoftwareCatalog>();
+        services.AddHostedService<Software.SoftwareCatalogWorker>();
+
         services.AddOptions<Security.MsrcOptions>()
             .Bind(configuration.GetSection(Security.MsrcOptions.Section))
             .ValidateDataAnnotations()

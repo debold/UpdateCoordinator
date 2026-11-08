@@ -383,7 +383,7 @@ internal sealed class NotificationEvents(
         var today = DateOnly.FromDateTime(now);
         var yesterday = today.AddDays(-1).ToDateTime(TimeOnly.MinValue);
         var start = today.ToDateTime(TimeOnly.MinValue);
-        var fresh = await db.Updates.AsNoTracking().Where(u => u.FirstSeenAtUtc >= yesterday && u.FirstSeenAtUtc < start).Select(u => new { u.KbArticle, u.Title }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var fresh = await db.Updates.AsNoTracking().Where(u => u.Kind == Data.UpdateKind.WindowsUpdate && u.FirstSeenAtUtc >= yesterday && u.FirstSeenAtUtc < start).Select(u => new { u.KbArticle, u.Title }).ToListAsync(cancellationToken).ConfigureAwait(false);
         if (fresh.Count > 0)
         {
             var names = string.Join("; ", fresh.Take(5).Select(u => Rollouts.UpdateText.Title(u.KbArticle, u.Title)));

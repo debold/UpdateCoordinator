@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace SUSyphos.WinGet.RestSource;
+namespace SUSyphos.WinGet.Catalog.RestSource;
 
 /// <summary>An answer of the REST source: HTTP status and JSON body (null for 204 and 404).</summary>
 public sealed record RestAnswer(int Status, JsonObject? Body);

@@ -381,6 +381,7 @@ public sealed class InteractionTests(UiFixture ui)
     [Fact]
     public async Task ServerPage_ShowsRunningAndPlannedTasks()
     {
+        await ui.RefreshLiveStatusAsync();
         await using var context = await ui.NewContextAsync();
         var page = await context.NewPageAsync();
         await page.GotoAsync($"/servers/{ui.MainServerId}");

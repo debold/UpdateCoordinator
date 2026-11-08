@@ -26,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\SUSyphos.Common\SUSyphos.Common.csproj" />
     <ProjectReference Include="..\SUSyphos.Contracts\SUSyphos.Contracts.csproj" />
+    <ProjectReference Include="..\SUSyphos.WinGet.Catalog\SUSyphos.WinGet.Catalog.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -27,6 +27,14 @@ public static class DemoData
         ("", "Broadcom Inc. - Net - 226.0.145.0 (very long driver title to see how long titles wrap in tables and cards)", "Drivers", null),
     ];
 
+    /// <summary>Reports the live status of a server anew, so it is not stale (two minutes) when a long test run reaches it.</summary>
+    public static Task RefreshLiveStatusAsync(ServerFactory factory, Guid clientId)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        return factory.WithDbAsync(db => Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ExecuteUpdateAsync(
+            db.Clients.Where(c => c.Id == clientId), s => s.SetProperty(c => c.ActivityReportedAtUtc, DateTime.UtcNow), CancellationToken.None));
+    }
+
     public static async Task<Guid> SeedAsync(ServerFactory factory)
     {
         ArgumentNullException.ThrowIfNull(factory);

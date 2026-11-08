@@ -41,7 +41,8 @@ internal sealed partial class UpdateArchive(ServerDbContext db, IOptions<UpdateA
 
         var approved = db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id);
         var candidates = await db.Updates
-            .Where(u => u.ArchivedAtUtc == null && (u.LastNeededAtUtc ?? u.FirstSeenAtUtc) < archiveBefore)
+            // Software versions have their own clean-up (current and previous version per package); never archived here.
+            .Where(u => u.Kind == UpdateKind.WindowsUpdate && u.ArchivedAtUtc == null && (u.LastNeededAtUtc ?? u.FirstSeenAtUtc) < archiveBefore)
             .Where(u => !db.ClientAvailableUpdates.Any(a => a.UpdateId == u.UpdateId && a.Revision == u.Revision && approved.Contains(a.ClientId)))
             .Where(u => !db.Releases.Any(r => r.UpdateId == u.UpdateId && r.Revision == u.Revision
                 && !db.Installations.Any(i => i.ClientId == r.ClientId && i.UpdateId == r.UpdateId && i.Revision == r.Revision)))

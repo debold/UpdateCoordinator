@@ -173,7 +173,7 @@ internal sealed class DashboardStatistics(ServerDbContext db, ComplianceHistory 
     private async Task<ChartData> NewUpdatesAsync(List<(DateOnly From, DateOnly To)> buckets, CancellationToken cancellationToken)
     {
         var from = buckets[0].From.ToDateTime(TimeOnly.MinValue);
-        var updates = await db.Updates.AsNoTracking().Where(u => u.FirstSeenAtUtc >= from).Select(u => new { u.FirstSeenAtUtc, u.Classification }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var updates = await db.Updates.AsNoTracking().Where(u => u.Kind == UpdateKind.WindowsUpdate && u.FirstSeenAtUtc >= from).Select(u => new { u.FirstSeenAtUtc, u.Classification }).ToListAsync(cancellationToken).ConfigureAwait(false);
         string Group(string? classification) => Classifications.FirstOrDefault(c => string.Equals(c, classification, StringComparison.OrdinalIgnoreCase)) ?? "Other";
         var groups = Classifications.Append("Other").ToList();
         var series = groups.Select((name, slot) =>

@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
-namespace SUSyphos.WinGet.RestSource;
+namespace SUSyphos.WinGet.Catalog.RestSource;
 
 /// <summary>
 /// Fills a <see cref="PackageCache"/> from the WinGet community repository (github.com/microsoft/winget-pkgs): reads
@@ -43,22 +43,11 @@ public sealed partial class CommunityManifests(HttpClient http)
     {
         ArgumentNullException.ThrowIfNull(cache);
         ArgumentNullException.ThrowIfNull(log);
-        var folder = Folder(id, version);
-        var versionManifest = ManifestConverter.Parse(await GetTextAsync(folder + $"{id}.yaml", cancellationToken));
-        var locale = versionManifest["DefaultLocale"]?.GetValue<string>() ?? "en-US";
-        if (!LocaleText().IsMatch(locale))
-        {
-            throw new InvalidDataException($"The manifest names an invalid locale '{locale}'.");
-        }
-
-        var installerManifest = ManifestConverter.Parse(await GetTextAsync(folder + $"{id}.installer.yaml", cancellationToken));
-        var localeManifest = ManifestConverter.Parse(await GetTextAsync(folder + $"{id}.locale.{locale}.yaml", cancellationToken));
-        var defaultLocale = ManifestConverter.Locale(localeManifest);
-        defaultLocale["PackageLocale"] ??= locale;
+        var manifest = await ReadAsync(id, version, cancellationToken);
 
         Directory.CreateDirectory(cache.FilesFolder);
         var installers = new List<JsonObject>();
-        foreach (var installer in ManifestConverter.Installers(installerManifest))
+        foreach (var installer in manifest.Installers)
         {
             var url = installer["InstallerUrl"]?.GetValue<string>();
             var sha256 = installer["InstallerSha256"]?.GetValue<string>();
@@ -87,9 +76,32 @@ public sealed partial class CommunityManifests(HttpClient http)
             throw new InvalidDataException($"{id} {version} has no installer for x64, x86 or neutral.");
         }
 
-        var cached = new CachedVersion(id, version, defaultLocale, installers);
+        var cached = manifest with { Installers = installers };
         cache.Put(cached);
         return cached;
+    }
+
+    /// <summary>
+    /// Reads the manifests of one package version without downloading an installer: the default locale (names, links,
+    /// licence, agreements) and the installers for a server architecture as the REST source serves them.
+    /// </summary>
+    /// <exception cref="HttpRequestException">The repository does not have the version.</exception>
+    /// <exception cref="InvalidDataException">The manifests are not usable.</exception>
+    public async Task<CachedVersion> ReadAsync(string id, string version, CancellationToken cancellationToken = default)
+    {
+        var folder = Folder(id, version);
+        var versionManifest = ManifestConverter.Parse(await GetTextAsync(folder + $"{id}.yaml", cancellationToken));
+        var locale = versionManifest["DefaultLocale"]?.GetValue<string>() ?? "en-US";
+        if (!LocaleText().IsMatch(locale))
+        {
+            throw new InvalidDataException($"The manifest names an invalid locale '{locale}'.");
+        }
+
+        var installerManifest = ManifestConverter.Parse(await GetTextAsync(folder + $"{id}.installer.yaml", cancellationToken));
+        var localeManifest = ManifestConverter.Parse(await GetTextAsync(folder + $"{id}.locale.{locale}.yaml", cancellationToken));
+        var defaultLocale = ManifestConverter.Locale(localeManifest);
+        defaultLocale["PackageLocale"] ??= locale;
+        return new CachedVersion(id, version, defaultLocale, ManifestConverter.Installers(installerManifest));
     }
 
     private async Task<string> GetTextAsync(string path, CancellationToken cancellationToken)

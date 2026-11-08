@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 using YamlDotNet.Core;
 using YamlDotNet.RepresentationModel;
 
-namespace SUSyphos.WinGet.RestSource;
+namespace SUSyphos.WinGet.Catalog.RestSource;
 
 /// <summary>
 /// Turns the YAML manifests of the WinGet community repository (version, installer and default locale manifest) into

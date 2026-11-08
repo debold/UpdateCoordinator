@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-using SUSyphos.WinGet.RestSource;
+using SUSyphos.WinGet.Catalog.RestSource;
 using SUSyphos.WinGetProbe;
 
 namespace SUSyphos.WinGet.Tests;

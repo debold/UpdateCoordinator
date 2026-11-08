@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 using SUSyphos.WinGet;
-using SUSyphos.WinGet.RestSource;
+using SUSyphos.WinGet.Catalog.RestSource;
 
 namespace SUSyphos.WinGetProbe;
 

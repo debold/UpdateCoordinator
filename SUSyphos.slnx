@@ -6,6 +6,7 @@
     <Project Path="src/SUSyphos.Contracts/SUSyphos.Contracts.csproj" />
     <Project Path="src/SUSyphos.Server/SUSyphos.Server.csproj" />
     <Project Path="src/SUSyphos.WinGet/SUSyphos.WinGet.csproj" />
+    <Project Path="src/SUSyphos.WinGet.Catalog/SUSyphos.WinGet.Catalog.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SUSyphos.Agent.Tests/SUSyphos.Agent.Tests.csproj" />

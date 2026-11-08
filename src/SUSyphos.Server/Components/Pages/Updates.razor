@@ -226,7 +226,7 @@
         var keys = rollouts.Keys.Concat(missing.Keys).Distinct().ToHashSet();
         var ids = keys.Select(k => k.Item1).Distinct().ToList();
         var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId) && u.ArchivedAtUtc == null).ToListAsync();
-        updates.AddRange(await Db.Updates.AsNoTracking().Where(u => u.ArchivedAtUtc != null).OrderByDescending(u => u.ArchivedAtUtc).Take(MaxRows).ToListAsync());
+        updates.AddRange(await Db.Updates.AsNoTracking().Where(u => u.ArchivedAtUtc != null && u.Kind == UpdateKind.WindowsUpdate).OrderByDescending(u => u.ArchivedAtUtc).Take(MaxRows).ToListAsync());
         var counts = (await Deployment.GetAsync(null, null, null, CancellationToken.None)).ToLookup(e => (e.UpdateId, e.Revision));
         var listedIds = updates.Select(u => u.UpdateId).ToList();
         var supersededBy = await Supersedence.NewerAsync(Db, listedIds);

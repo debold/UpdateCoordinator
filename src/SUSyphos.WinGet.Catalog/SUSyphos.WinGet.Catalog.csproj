@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The WinGet community catalog without the WinGet engine, for the central server (which runs on Windows Server 2016
+    and Server Core too, where the engine does not): the package index of the community source (source2.msix), the
+    manifests of github.com/microsoft/winget-pkgs, the installer cache and the WinGet REST source protocol.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SUSyphos.WinGet.Tests" />
+    <InternalsVisibleTo Include="SUSyphos.Server.Tests" />
+  </ItemGroup>
+
+</Project>

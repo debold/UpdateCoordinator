@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
-namespace SUSyphos.WinGet.RestSource;
+namespace SUSyphos.WinGet.Catalog.RestSource;
 
 /// <summary>One package version in the cache: its default locale and its installers, which point at cached files.</summary>
 public sealed record CachedVersion(string PackageIdentifier, string PackageVersion, JsonObject DefaultLocale, IReadOnlyList<JsonObject> Installers);

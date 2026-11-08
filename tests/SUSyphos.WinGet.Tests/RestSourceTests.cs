@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 
-using SUSyphos.WinGet.RestSource;
+using SUSyphos.WinGet.Catalog.RestSource;
 
 namespace SUSyphos.WinGet.Tests;
 
