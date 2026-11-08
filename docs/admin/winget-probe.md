@@ -131,3 +131,7 @@ Matrix: Windows Server 2016, 2019 (central server), 2022, 2025 with desktop, and
   (also from outside the lab, also for the version installed before, while github.com and its API worked). WinGet
   tried Delivery Optimization (502) and WinINet (504) twice each. Many packages (7-Zip, Notepad++, PowerShell) are
   downloaded from GitHub releases, which speaks for the installer cache on the central server (round 4).
+- Upgrade of `Microsoft.VCRedist.2015+.x64` 14.24 to 14.51 on 2022 with the bundled engine as SYSTEM: status Ok,
+  exit code 0, no restart, 5.7 s. Download through Delivery Optimization from download.visualstudio.microsoft.com,
+  hash verified; the Burn bundle installed its two MSIs and removed the old bundle. WinGet logs a failed font lookup
+  and a missing resource file on every run without App Installer; both are harmless.
