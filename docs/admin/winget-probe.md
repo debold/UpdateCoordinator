@@ -196,3 +196,10 @@ On 2022 with the bundled engine as SYSTEM, after GitHub delivered again:
   the servers. Many packages download from GitHub or SourceForge, which failed or hung during the tests; the cache on
   the central server removes that dependency.
 - Not tested yet: Windows Server 2025 Core.
+
+## Server 2025 Core (2026-11-08)
+
+- Install from the private source as SYSTEM with the bundled engine: the first run failed with "SSL invalid CA"
+  (0x8A15003B) before the certificate of the central server was trusted; after importing it, WinGet added the source
+  but failed right after with "Unspecified error" (0x80004005) before sending another request, where the 2022 server
+  with desktop went on. Under investigation (`info`, `search` with the community source and with the private source).
