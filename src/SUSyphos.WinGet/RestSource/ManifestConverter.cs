@@ -44,8 +44,9 @@ public static class ManifestConverter
 
     /// <summary>
     /// The installers of an installer manifest as the REST protocol lists them: fields given once at the top of the
-    /// manifest are copied into every installer that does not set them itself (switches field by field); installers for
-    /// architectures a server cannot run are left out.
+    /// manifest are copied into every installer that does not set them itself (switches field by field). Servers run x64:
+    /// when there is an x64 installer, only x64 and neutral ones are kept, otherwise x86 and neutral ones; others (ARM)
+    /// are always left out.
     /// </summary>
     public static IReadOnlyList<JsonObject> Installers(JsonObject installerManifest)
     {
@@ -83,6 +84,11 @@ public static class ManifestConverter
             result.Add(merged);
         }
 
+        if (result.Any(installer => Architecture(installer) == "x64"))
+        {
+            result.RemoveAll(installer => Architecture(installer) == "x86");
+        }
+
         return result;
     }
 
@@ -101,6 +107,8 @@ public static class ManifestConverter
 
         return locale;
     }
+
+    private static string? Architecture(JsonObject installer) => installer["Architecture"]?.GetValue<string>().ToLowerInvariant();
 
     private static JsonNode? Convert(YamlNode node, string? field) => node switch
     {

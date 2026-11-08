@@ -53,12 +53,12 @@ public sealed class RestSourceTests : IDisposable
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 
     [Fact]
-    public void Installers_CopiesSharedFieldsAndLeavesOutOtherArchitectures()
+    public void Installers_CopiesSharedFieldsAndKeepsOnlyX64WhenThereIsOne()
     {
         var installers = ManifestConverter.Installers(ManifestConverter.Parse(InstallerYaml));
 
-        Assert.Equal(["x64", "x86"], installers.Select(installer => installer["Architecture"]!.GetValue<string>()));
-        var msi = installers[0];
+        var msi = Assert.Single(installers);
+        Assert.Equal("x64", msi["Architecture"]!.GetValue<string>());
         Assert.Equal("machine", msi["Scope"]!.GetValue<string>());
         Assert.Equal("/quiet", msi["InstallerSwitches"]!["Silent"]!.GetValue<string>());
         Assert.Equal("/log", msi["InstallerSwitches"]!["Log"]!.GetValue<string>());
@@ -66,7 +66,17 @@ public sealed class RestSourceTests : IDisposable
         Assert.Equal("7z", msi["Commands"]![0]!.GetValue<string>());
         Assert.Null(msi["PackageIdentifier"]);
         Assert.Null(msi["ManifestType"]);
-        var exe = installers[1];
+    }
+
+    [Fact]
+    public void Installers_FallsBackToX86WithoutX64()
+    {
+        var withoutX64 = ManifestConverter.Parse(InstallerYaml);
+        withoutX64["Installers"]!.AsArray().RemoveAt(0);
+
+        var exe = Assert.Single(ManifestConverter.Installers(withoutX64));
+
+        Assert.Equal("x86", exe["Architecture"]!.GetValue<string>());
         Assert.Equal("user", exe["Scope"]!.GetValue<string>());
         Assert.True(exe["RequireExplicitUpgrade"]!.GetValue<bool>());
         Assert.Equal("2026-11-07", exe["ReleaseDate"]!.GetValue<string>());
@@ -170,6 +180,46 @@ public sealed class RestSourceTests : IDisposable
         await new CommunityManifests(http).CacheAsync(cache, "Vendor.Tool", "1.2", log.Add, TestContext.Current.CancellationToken);
         Assert.Contains(log, line => line.Contains("already cached", StringComparison.Ordinal));
         Assert.Single(PackageCache.Open(_folder, [], verifyFiles: true).Versions);
+    }
+
+    [Fact]
+    public async Task CacheAsync_TriesAStalledDownloadAgain()
+    {
+        var installer = Encoding.ASCII.GetBytes("installer bytes");
+        var responses = Responses(Convert.ToHexString(SHA256.HashData(installer)), installer);
+        var stalls = 1;
+        using var http = new HttpClient(new FakeHandler(responses, url => url.EndsWith(".msi", StringComparison.Ordinal) && stalls-- > 0));
+        var log = new List<string>();
+        var manifests = new CommunityManifests(http) { StallTimeout = TimeSpan.FromMilliseconds(200), RetryDelay = TimeSpan.Zero };
+
+        await manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", log.Add, TestContext.Current.CancellationToken);
+
+        Assert.Contains(log, line => line.Contains("sent nothing", StringComparison.Ordinal));
+        Assert.Contains(log, line => line.Contains("attempt 2 of 3", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task CacheAsync_GivesUpAfterTheLastAttempt()
+    {
+        var responses = Responses(new string('0', 64), []);
+        using var http = new HttpClient(new FakeHandler(responses, url => url.EndsWith(".msi", StringComparison.Ordinal)));
+        var manifests = new CommunityManifests(http) { StallTimeout = TimeSpan.FromMilliseconds(100), RetryDelay = TimeSpan.Zero, Attempts = 2 };
+
+        await Assert.ThrowsAsync<TimeoutException>(() => manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", _ => { }, TestContext.Current.CancellationToken));
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(_folder, PackageCache.FilesFolderName)));
+    }
+
+    [Fact]
+    public async Task CacheAsync_DoesNotRetryARefusal()
+    {
+        var responses = Responses(new string('0', 64), []);
+        responses.Remove("https://example.org/tool.msi");
+        using var http = new HttpClient(new FakeHandler(responses));
+        var log = new List<string>();
+        var manifests = new CommunityManifests(http) { RetryDelay = TimeSpan.Zero };
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", log.Add, TestContext.Current.CancellationToken));
+        Assert.DoesNotContain(log, line => line.Contains("attempt 2", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -374,11 +424,55 @@ public sealed class RestSourceTests : IDisposable
         };
     }
 
-    private sealed class FakeHandler(Dictionary<string, object> responses) : HttpMessageHandler
+    /// <summary>Answers from a table; <paramref name="stall"/> picks addresses whose body never arrives.</summary>
+    private sealed class FakeHandler(Dictionary<string, object> responses, Func<string, bool>? stall = null) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(responses.TryGetValue(request.RequestUri!.ToString(), out var body)
-                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = body is byte[] bytes ? new ByteArrayContent(bytes) : new StringContent((string)body) }
-                : new HttpResponseMessage(HttpStatusCode.NotFound));
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri!.ToString();
+            if (!responses.TryGetValue(url, out var body))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }
+
+            HttpContent content = stall?.Invoke(url) == true
+                ? new StreamContent(new StallingStream())
+                : body is byte[] bytes ? new ByteArrayContent(bytes) : new StringContent((string)body);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }
+    }
+
+    /// <summary>A body that never sends a byte, like a hanging mirror.</summary>
+    private sealed class StallingStream : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => 0; set => throw new NotSupportedException(); }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return 0;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

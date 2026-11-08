@@ -65,9 +65,10 @@ Every command also takes `--out <folder>` (default: `probe-results` next to the 
   the unpacked `DesktopAppInstaller_Dependencies.zip` (the x64 packages are taken). For the in-proc engine the files on
   disk are enough; nobody needs to sign in.
 - **Cache** puts one package version into the installer cache (default `winget-cache` next to the exe): the manifests
-  from the community repository (raw.githubusercontent.com/microsoft/winget-pkgs) and every installer for x64, x86 or
-  neutral, each checked against the SHA-256 of the manifest and stored under that hash. Without `--version` the newest
-  version of the community source is taken (needs the engine). Needs internet access; run it on any machine and copy
+  from the community repository (raw.githubusercontent.com/microsoft/winget-pkgs) and the installers for x64 and
+  neutral (x86 only when there is no x64 one), each checked against the SHA-256 of the manifest and stored under that hash. Without `--version` the newest
+  version of the community source is taken (needs the engine). A download that receives nothing for 60 s is broken off
+  and tried again (three attempts); progress is shown every 10 s. Needs internet access; run it on any machine and copy
   the folder.
 - **Serve** offers the cache as a private WinGet REST source (protocol 1.1.0) at `https://<name>:<port>/api/` and the
   installers at `https://<name>:<port>/files/<hash>.<ext>`; `<name>` is the DNS name of the certificate. The servers

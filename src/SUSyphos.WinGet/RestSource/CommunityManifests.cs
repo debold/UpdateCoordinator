@@ -75,8 +75,7 @@ public sealed partial class CommunityManifests(HttpClient http)
             }
             else
             {
-                log($"Downloading {source}");
-                await DownloadAsync(source, path, sha256, cancellationToken);
+                await DownloadAsync(source, path, sha256, log, cancellationToken);
             }
 
             installer["CachedFile"] = file;
@@ -101,20 +100,86 @@ public sealed partial class CommunityManifests(HttpClient http)
             : throw new HttpRequestException($"{new Uri(Repository, path)} answered {(int)response.StatusCode}.", null, response.StatusCode);
     }
 
-    private async Task DownloadAsync(Uri source, string path, string sha256, CancellationToken cancellationToken)
+    /// <summary>A download that receives nothing for this long is broken off and tried again.</summary>
+    public TimeSpan StallTimeout { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>How often a download is tried before the command fails.</summary>
+    public int Attempts { get; init; } = 3;
+
+    /// <summary>Wait before the second attempt; doubled before each further one.</summary>
+    public TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Interval of the progress lines.</summary>
+    public TimeSpan ProgressInterval { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Downloads one installer: retries a connection that stalls or a server error (mirrors of download sites hang now
+    /// and then), not a refusal (4xx) and not a file with another SHA-256.
+    /// </summary>
+    private async Task DownloadAsync(Uri source, string path, string sha256, Action<string> log, CancellationToken cancellationToken)
+    {
+        var delay = RetryDelay;
+        for (var attempt = 1; ; attempt++)
+        {
+            log(attempt == 1 ? $"Downloading {source}" : $"Downloading {source} (attempt {attempt} of {Attempts})");
+            try
+            {
+                await DownloadOnceAsync(source, path, sha256, log, cancellationToken);
+                return;
+            }
+            catch (Exception exception) when (attempt < Attempts && !cancellationToken.IsCancellationRequested && Retryable(exception))
+            {
+                log($"Download failed: {exception.Message}; trying again in {delay.TotalSeconds:0} s");
+                await Task.Delay(delay, cancellationToken);
+                delay *= 2;
+            }
+        }
+    }
+
+    private static bool Retryable(Exception exception) => exception switch
+    {
+        HttpRequestException { StatusCode: { } status } => (int)status >= 500,
+        HttpRequestException or IOException or TimeoutException => true,
+        _ => false,
+    };
+
+    private async Task DownloadOnceAsync(Uri source, string path, string sha256, Action<string> log, CancellationToken cancellationToken)
     {
         var partial = path + ".part";
         try
         {
-            using (var response = await http.GetAsync(source, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
+            using var stall = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            stall.CancelAfter(StallTimeout);
+            try
             {
+                using var response = await http.GetAsync(source, HttpCompletionOption.ResponseHeadersRead, stall.Token);
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new HttpRequestException($"{source} answered {(int)response.StatusCode}.", null, response.StatusCode);
                 }
 
+                var total = response.Content.Headers.ContentLength;
+                await using var body = await response.Content.ReadAsStreamAsync(stall.Token);
                 await using var target = File.Create(partial);
-                await response.Content.CopyToAsync(target, cancellationToken);
+                var buffer = new byte[81920];
+                long received = 0;
+                var lastProgress = DateTime.UtcNow;
+                int read;
+                while ((read = await body.ReadAsync(buffer, stall.Token)) > 0)
+                {
+                    stall.CancelAfter(StallTimeout);
+                    await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    received += read;
+                    if (DateTime.UtcNow - lastProgress >= ProgressInterval)
+                    {
+                        lastProgress = DateTime.UtcNow;
+                        log(total is > 0 ? $"  {received / 1048576.0:0.0} of {total.Value / 1048576.0:0.0} MB" : $"  {received / 1048576.0:0.0} MB");
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException($"{source} sent nothing for {StallTimeout.TotalSeconds:0} s.");
             }
 
             var actual = PackageCache.Hash(partial);

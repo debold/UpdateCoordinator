@@ -10,6 +10,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - WinGet Probe after lab round 1: names the system libraries Windows is missing when the engine cannot be loaded (error 126, Server 2016), and counts an update only when WinGet itself would upgrade (a source behind the installed version is no update).
 - WinGet Probe after lab round 2: copies WinGet's own diagnostic logs of each run into `winget-logs`, so a download error can be read from the results.
 - WinGet Probe: commands `cache` (manifests and installers of a package version from the community repository, checked against their SHA-256) and `serve` (the cache as a private WinGet REST source over https) for lab round 4.
+- WinGet Probe `cache`: a download that stalls (a hanging SourceForge mirror in the lab) is broken off after 60 s without data and tried again, progress is shown, and only x64 installers are cached when the package has them.
 
 ## [0.8.1] - 2026-11-06
 
