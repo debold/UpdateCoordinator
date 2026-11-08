@@ -202,4 +202,9 @@ On 2022 with the bundled engine as SYSTEM, after GitHub delivered again:
 - Install from the private source as SYSTEM with the bundled engine: the first run failed with "SSL invalid CA"
   (0x8A15003B) before the certificate of the central server was trusted; after importing it, WinGet added the source
   but failed right after with "Unspecified error" (0x80004005) before sending another request, where the 2022 server
-  with desktop went on. Under investigation (`info`, `search` with the community source and with the private source).
+  with desktop went on.
+- `info` works (engine loads, sources listed), but `search` fails the same way with the community source as with the
+  private one, at the same place in the engine and without any network request: on Server Core the engine cannot open
+  any remote source. Cause not known yet; next checks: `inventory` (local list only), the same search as a local
+  administrator, and the engine of App Installer after `bootstrap --online`. Until then Server Core counts as not
+  supported for software updates.
