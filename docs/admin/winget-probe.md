@@ -152,3 +152,14 @@ Matrix: Windows Server 2016, 2019 (central server), 2022, 2025 with desktop, and
   exit code 0, no restart, 5.7 s. Download through Delivery Optimization from download.visualstudio.microsoft.com,
   hash verified; the Burn bundle installed its two MSIs and removed the old bundle. WinGet logs a failed font lookup
   and a missing resource file on every run without App Installer; both are harmless.
+
+## Round 3 (2026-11-08)
+
+On 2022 with the bundled engine as SYSTEM, after GitHub delivered again:
+
+- Upgrade `7zip.7zip` 24.08 to 26.06: Ok, exit code 0, 3.2 s. The MSI major upgrade removed 24.08 first; MSI scheduled
+  the deletion of a rollback file for the next restart (message 1903) and reported a restart already pending
+  (`MsiSystemRebootPending = 1`), but WinGet reports no restart request, as the installer returned 0 and not 3010.
+- Install `Notepad++.Notepad++` 8.9.9: Ok, exit code 0, 1.6 s (MSI from GitHub through Delivery Optimization).
+- The downgrade test asked for 8.6.9, which the source does not offer (it lists 8.8.9 to 8.9.9); since then the error
+  names the versions the source offers.

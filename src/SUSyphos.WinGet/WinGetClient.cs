@@ -176,7 +176,7 @@ public sealed class WinGetClient(WinGetEngine engine)
         if (version is not null)
         {
             install.PackageVersionId = package.AvailableVersions.FirstOrDefault(candidate => candidate.Version == version)
-                ?? throw new WinGetException($"The source has no version {version} of {id}.");
+                ?? throw new WinGetException($"The source has no version {version} of {id}; it offers {string.Join(", ", package.AvailableVersions.Take(15).Select(candidate => candidate.Version))}.");
         }
 
         var watch = Stopwatch.StartNew();
