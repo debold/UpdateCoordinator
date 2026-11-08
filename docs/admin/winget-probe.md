@@ -167,3 +167,6 @@ On 2022 with the bundled engine as SYSTEM, after GitHub delivered again:
 - Downgrade to 8.9.8 over 8.9.9: the Notepad++ MSI refuses it itself ("A newer version ... is already installed",
   1603, WinGet status InstallError 0x8A150049); the running program was not touched. A downgrade needs an uninstall
   first; the probe has an `uninstall` command since then.
+- Upgrade of Notepad++ 8.9.8 to 8.9.9 while the program was open in the signed-in session: Ok, exit code 0, 3.8 s, no
+  restart request and no file replacement scheduled for a restart (no MSI message 1903); uninstall (1.0 to 1.7 s) and
+  reinstall worked as SYSTEM too.
