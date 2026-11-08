@@ -16,6 +16,9 @@ public static class DisplayNumber
 
     public static string Format(long value) => value.ToString("N0", Culture);
 
+    /// <summary>"1 server" or "3 servers": the count with the noun (or noun and verb) in singular or plural.</summary>
+    public static string Count(int value, string singular, string plural) => $"{Format(value)} {(value == 1 ? singular : plural)}";
+
     /// <summary>"75 %"; "–" for no value.</summary>
     public static string Percent(int? value) => value is { } percent ? $"{Format(percent)} %" : "–";
 

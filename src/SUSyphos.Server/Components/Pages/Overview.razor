@@ -206,7 +206,6 @@
     private int _wsus;
     private int _selfInstalling;
     private int _diskWarnings;
-    private int _rebootPending;
     private int _compliancePercent;
     private int _failedServers;
     private int _warningServers;
@@ -218,8 +217,16 @@
     private IReadOnlyList<DonutPart> _statusParts = [];
     private SUSyphos.Server.AgentPackages.ServerUpdate? _serverUpdate;
 
-    /// <summary>What the warnings are, below the status donut.</summary>
-    private string WarningFooter => $"{DisplayNumber.Format(_wsus)} WSUS source · {DisplayNumber.Format(_selfInstalling)} Windows installs itself · {DisplayNumber.Format(_diskWarnings)} low disk · {DisplayNumber.Format(_rebootPending)} reboot pending";
+    /// <summary>
+    /// What the warnings are, below the status donut: only those that occur, so the one line of the tile is not cut off
+    /// (pending reboots are in the donut already).
+    /// </summary>
+    private string WarningFooter => string.Join(" · ", new[]
+    {
+        _wsus > 0 ? $"{DisplayNumber.Format(_wsus)} WSUS source" : null,
+        _selfInstalling > 0 ? $"{DisplayNumber.Format(_selfInstalling)} Windows installs itself" : null,
+        _diskWarnings > 0 ? $"{DisplayNumber.Format(_diskWarnings)} low disk" : null,
+    }.OfType<string>()) is { Length: > 0 } warnings ? warnings : "no further warnings";
 
     /// <summary>Health states of approved servers that sent a heartbeat within the last hour.</summary>
     private static readonly string[] ReportingStates = [.. Enum.GetValues<ServerHealthState>().Where(s => s is not (ServerHealthState.Offline or ServerHealthState.NotApproved)).Select(ServerHealth.Label)];
@@ -292,7 +299,6 @@
         _wsus = clients.Count(c => c.WsusServer is not null);
         _selfInstalling = clients.Count(c => c.AutomaticUpdatesBypass);
         _diskWarnings = clients.Count(c => c.HealthChecks.Any(h => h.Name == "DiskSpace" && h.Status != (int)HealthStatus.Ok));
-        _rebootPending = clients.Count(c => c.RebootPending);
         _failedServers = health.Values.Count(h => h == ServerHealthState.Failed);
         _warningServers = health.Values.Count(h => h is ServerHealthState.Warning or ServerHealthState.RebootPending);
         _offlineServers = health.Values.Count(h => h == ServerHealthState.Offline);
@@ -339,7 +345,7 @@
         var blocked = await Db.Clients.CountAsync(c => c.State == RegistrationState.Blocked);
         if (blocked > 0)
         {
-            _attention.Add(new AttentionItem("Clone", "fail", $"{blocked} servers blocked on clone suspicion", "The same credentials were used by two hosts in turn.", "/approvals", "Review"));
+            _attention.Add(new AttentionItem("Clone", "fail", $"{DisplayNumber.Count(blocked, "server", "servers")} blocked on clone suspicion", "The same credentials were used by two hosts in turn.", "/approvals", "Review"));
         }
 
         if (_serverUpdate is { } serverUpdate)
@@ -350,7 +356,7 @@
         var pending = await Db.Clients.CountAsync(c => c.State == RegistrationState.Pending);
         if (pending > 0)
         {
-            _attention.Add(new AttentionItem("Registration", "pend", $"{pending} new servers wait for approval", null, "/approvals", "Review"));
+            _attention.Add(new AttentionItem("Registration", "pend", (pending == 1 ? "1 new server waits for approval" : $"{DisplayNumber.Format(pending)} new servers wait for approval"), null, "/approvals", "Review"));
         }
 
         foreach (var group in await Db.Groups.AsNoTracking().Where(g => g.LeasesHalted).ToListAsync())
@@ -364,12 +370,12 @@
         var behindDays = await Baseline.BehindDaysAsync(CancellationToken.None);
         if (security.Count(s => s.Exploited > 0) is > 0 and var exploited)
         {
-            _attention.Add(new AttentionItem("Security", "fail", $"{exploited} servers have a vulnerability Microsoft knows to be exploited", "Install the security baseline on them first.", Servers.Link("security", "Exploited"), "Show servers"));
+            _attention.Add(new AttentionItem("Security", "fail", $"{DisplayNumber.Count(exploited, "server has", "servers have")} a vulnerability Microsoft knows to be exploited", "Install the security baseline on them first.", Servers.Link("security", "Exploited"), "Show servers"));
         }
 
         if (security.Count(s => s.Missing is { } missing && _now - missing.ReleasedAtUtc > TimeSpan.FromDays(behindDays)) is > 0 and var late)
         {
-            _attention.Add(new AttentionItem("Security", "queue", $"{late} servers miss a security baseline released more than {behindDays} days ago", "Longer than the way through the rings takes; check their maintenance windows and failures.", Servers.Link("security", SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.OneBehind), SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.TwoBehind)), "Show servers"));
+            _attention.Add(new AttentionItem("Security", "queue", $"{DisplayNumber.Count(late, "server misses", "servers miss")} a security baseline released more than {behindDays} days ago", "Longer than the way through the rings takes; check their maintenance windows and failures.", Servers.Link("security", SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.OneBehind), SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.TwoBehind)), "Show servers"));
         }
 
         var known = security.Count(s => s.State != SUSyphos.Server.Security.BaselineState.Unknown);
@@ -384,21 +390,21 @@
         var support = clients.Select(c => Support.Of(c, _security.Of(c)).State).ToList();
         if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.OutOfSupport) is > 0 and var unsupported)
         {
-            _attention.Add(new AttentionItem("Support", "fail", $"{unsupported} servers are out of support without Extended Security Updates", "Windows gets no security updates for them any more; plan an upgrade or ESU.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.OutOfSupport)), "Show servers"));
+            _attention.Add(new AttentionItem("Support", "fail", $"{DisplayNumber.Count(unsupported, "server is", "servers are")} out of support without Extended Security Updates", "Windows gets no security updates for them any more; plan an upgrade or ESU.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.OutOfSupport)), "Show servers"));
         }
 
         if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.Ended) is > 0 and var ended)
         {
-            _attention.Add(new AttentionItem("Support", "queue", $"{ended} servers passed the end of support; no ESU found yet", "They count as without ESU once the first patch day after the end passes without their updates.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.Ended)), "Show servers"));
+            _attention.Add(new AttentionItem("Support", "queue", $"{DisplayNumber.Count(ended, "server", "servers")} passed the end of support; no ESU found yet", "They count as without ESU once the first patch day after the end passes without their updates.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.Ended)), "Show servers"));
         }
 
         if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.EndingSoon) is > 0 and var ending)
         {
-            _attention.Add(new AttentionItem("Support", "queue", $"{ending} servers reach the end of support within {Support.Options.WarningDays} days", null, Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.EndingSoon)), "Show servers"));
+            _attention.Add(new AttentionItem("Support", "queue", $"{DisplayNumber.Count(ending, "server reaches", "servers reach")} the end of support within {Support.Options.WarningDays} days", null, Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.EndingSoon)), "Show servers"));
         }
 
-        AddServers(health, ServerHealthState.Failed, "Failed", "fail", "servers with a failed installation or pre-flight check");
-        AddServers(health, ServerHealthState.Offline, "Offline", "fail", "servers without heartbeat for over an hour");
+        AddServers(health, ServerHealthState.Failed, "Failed", "fail", "with a failed installation or pre-flight check");
+        AddServers(health, ServerHealthState.Offline, "Offline", "fail", "without heartbeat for over an hour");
     }
 
     private void AddServers(Dictionary<Guid, ServerHealthState> health, ServerHealthState state, string kind, string pill, string text)
@@ -406,7 +412,7 @@
         var count = health.Values.Count(h => h == state);
         if (count > 0)
         {
-            _attention.Add(new AttentionItem(kind, pill, $"{count} {text}", null, Servers.Link("status", ServerHealth.Label(state)), "Show servers"));
+            _attention.Add(new AttentionItem(kind, pill, $"{DisplayNumber.Count(count, "server", "servers")} {text}", null, Servers.Link("status", ServerHealth.Label(state)), "Show servers"));
         }
     }
 

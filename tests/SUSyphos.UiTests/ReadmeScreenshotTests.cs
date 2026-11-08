@@ -3,7 +3,8 @@ using Microsoft.Playwright;
 namespace SUSyphos.UiTests;
 
 /// <summary>
-/// Full-page screenshots of the showcase lab for the README (docs/images, 1440 px wide, with the navigation). A normal run
+/// Screenshots of the showcase lab for the README (docs/images, 1440 px wide, with the navigation): the overview at window
+/// height (1440 × 900, the first impression), the other pages in full length. A normal run
 /// checks that every page can still be shown and that the committed image exists; with SUSYPHOS_HELP_SCREENSHOTS=update
 /// (build/Update-HelpScreenshots.ps1) the images are written anew.
 /// </summary>
@@ -42,7 +43,7 @@ public sealed class ReadmeScreenshotTests(ShowcaseFixture ui)
         if (HelpScreenshotTests.Update)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            await page.ScreenshotAsync(new PageScreenshotOptions { Path = file, FullPage = true });
+            await page.ScreenshotAsync(new PageScreenshotOptions { Path = file, FullPage = name != "overview" });
         }
 
         Assert.True(File.Exists(file), $"{file} is missing; run build/Update-HelpScreenshots.ps1.");

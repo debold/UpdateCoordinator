@@ -330,7 +330,7 @@ public sealed class DashboardViewTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("stopped before ring Test", html, StringComparison.Ordinal);
-        Assert.Contains("servers with a failed installation", html, StringComparison.Ordinal);
+        Assert.Contains("1 server with a failed installation", html, StringComparison.Ordinal);
         Assert.Contains("1 Pilot", html, StringComparison.Ordinal);
         Assert.Contains("1 failed", html, StringComparison.Ordinal);
     }

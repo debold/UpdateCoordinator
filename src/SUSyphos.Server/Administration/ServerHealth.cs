@@ -95,6 +95,9 @@ internal static class ServerHealth
     public static IReadOnlyList<Rollouts.DonutPart> Parts(IEnumerable<ServerHealthState> states, Func<ServerHealthState, string?>? link = null)
     {
         var counts = states.GroupBy(s => s).ToDictionary(g => g.Key, g => g.Count());
-        return [.. DonutOrder.Select(s => new Rollouts.DonutPart(PillClass(s), Label(s), counts.GetValueOrDefault(s), link?.Invoke(s)))];
+        return [.. DonutOrder.Select(s => new Rollouts.DonutPart(PillClass(s), LegendLabel(s), counts.GetValueOrDefault(s), link?.Invoke(s)))];
     }
+
+    /// <summary>Label in a donut legend: as <see cref="Label"/>, but short enough for the narrow legend of a tile.</summary>
+    public static string LegendLabel(ServerHealthState state) => state == ServerHealthState.RebootPending ? "Reboot" : Label(state);
 }

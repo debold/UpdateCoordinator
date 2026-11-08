@@ -172,7 +172,7 @@ public sealed class MsrcTests
         Assert.DoesNotContain("CURRENT01", list, StringComparison.Ordinal);
         Assert.Contains("Fixes vulnerabilities", update, StringComparison.Ordinal);
         Assert.Contains("Security baseline", overview, StringComparison.Ordinal);
-        Assert.Contains("servers have a vulnerability Microsoft knows to be exploited", overview, StringComparison.Ordinal);
+        Assert.Contains("1 server has a vulnerability Microsoft knows to be exploited", overview, StringComparison.Ordinal);
         Assert.Contains("<option value=\"vulnerabilities\" selected", chart, StringComparison.Ordinal);
     }
 

@@ -1,72 +1,72 @@
-# SUSyphos
+<p align="center">
+  <img src="assets/logo/susyphos-icon.svg" width="88" alt="SUSyphos logo">
+</p>
 
-Central coordination of Windows updates for Windows servers with ring deployment, central configuration and reporting, as an alternative to WSUS. The name plays on SUS (Software Update Services, the predecessor of WSUS) and Sisyphus. Until 2026-10-20 the project was called UpdateCoordinator; installations of those versions are installed anew (`docs/admin/README.md`, section 17).
+<h1 align="center">SUSyphos</h1>
 
-> Status: beta, from version 0.8.0 (the packages are not code-signed yet). Agents register, verify the central server through its trust anchor, report inventory and available updates, and install released updates inside maintenance windows (reboots only where allowed). The web administration has accounts, roles, sign-in and an audit log; server approval (manual and rule-based); rings, groups, assignment rules, central maintenance windows, the ring logic that moves each update from Pilot to Production, dashboard pages for overview, rings, updates and servers, reboot policies, and an integrated help that explains every page, field and button.
+<p align="center">
+  <b>Ring-based Windows Server patching with one central dashboard.</b><br>
+  A lightweight, self-hosted alternative to WSUS.
+</p>
 
-## Components
+<p align="center">
+  <a href="https://github.com/debold/UpdateCoordinator/releases"><img src="https://img.shields.io/github/v/release/debold/UpdateCoordinator?include_prereleases&label=beta&color=1F5BC4" alt="Latest beta"></a>
+  <a href="https://github.com/debold/UpdateCoordinator/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/debold/UpdateCoordinator/ci.yml?branch=main&label=CI" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Windows%20Server-2016%E2%80%932025-151B24" alt="Windows Server 2016 to 2025">
+  <img src="https://img.shields.io/badge/.NET-10-512BD4" alt=".NET 10">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
+</p>
 
-| Project | Responsibility |
-|---|---|
-| `src/SUSyphos.Agent` | Windows service on every managed server (WUA API) |
-| `src/SUSyphos.Server` | Central server: Windows service with a web API for agents and the dashboard |
-| `src/SUSyphos.Contracts` | Shared message contracts and routes |
-| `src/SUSyphos.WinGet` | Access to WinGet (in-proc COM API, uninstall inventory, App Installer bootstrap), for the agent later |
-| `tools/SUSyphos.WinGetProbe` | Lab tool for the WinGet tests, not released ([guide](docs/admin/winget-probe.md)) |
-| `tests/*.Tests` | Automated tests per project (xUnit v3) |
-| `tests/SUSyphos.IntegrationTests` | End-to-end tests: real agent client against the in-memory central server |
-| `tests/SUSyphos.TestSupport` | Shared test infrastructure |
+> [!NOTE]
+> **Public beta: [SUSyphos 0.8.2](https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.8.2) is out.** Try it in a lab and tell us what you think in [Issues](https://github.com/debold/UpdateCoordinator/issues). The packages are not code-signed yet; check them against `SHA256SUMS.txt`.
 
-Architecture and decisions are documented in [`docs/`](docs/01-architecture.md), the working rules in [`docs/02-guidelines.md`](docs/02-guidelines.md).
+![Overview of the SUSyphos dashboard](docs/images/overview.png)
 
-## Prerequisites
+## Why SUSyphos
 
-- Windows (agent and central server are Windows services)
-- .NET SDK 10 (version pinned in `global.json`)
+- **Rings instead of approvals.** Updates move from Pilot to Test to Production on their own, with waiting days and an optional manual gate before Production.
+- **Maintenance windows that fit real calendars.** Weekdays plus "only the 2nd week" or "every week except the last". Reboots only where a rule allows them.
+- **Updates straight from Microsoft.** No WSUS database, no content sync, no SQL Server. Agents use the Windows Update Agent API; Microsoft Update per group.
+- **Security at a glance.** Missing builds, CVEs and exploited vulnerabilities from Microsoft's security data, plus end-of-support warnings per Windows version.
+- **Safe by design.** Agents trust the central server through a pinned anchor, admins sign in with Windows (AD groups map to roles), every action lands in the audit log.
+- **Small footprint.** One MSI for the central server, one for the agent, both self-contained. Distribute the agent by GPO, Intune or Configuration Manager.
 
-## Build and test
+## Screenshots
 
-```
-dotnet build SUSyphos.slnx
-dotnet test --solution SUSyphos.slnx
-```
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/update-list.png" alt="Update list"><br><sub><b>Updates</b>: classification, severity and where each update stands in the rings, including gates and alarms</sub></td>
+    <td width="50%"><img src="docs/images/update-progress.png" alt="Progress by ring"><br><sub><b>Update page</b>: progress by ring with release dates, success rate and the manual gate before Production</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/server-list.png" alt="Server list"><br><sub><b>Servers</b>: OS build, ring and groups, security state, agent version and status</sub></td>
+    <td><img src="docs/images/start-rule.png" alt="Start rule dialog"><br><sub><b>Release rules</b>: decide which updates start automatically, with a preview of the matches</sub></td>
+  </tr>
+</table>
 
-The build treats warnings as errors, enforces code style and the security rules of the .NET analyzers, and fails on packages with known vulnerabilities.
+## Status and roadmap
 
-`tests/SUSyphos.UiTests` checks the dashboard in a real browser: Playwright drives the installed Microsoft Edge (headless; no browser download) against a central server with a demo lab. Every page is checked in four window sizes (1920, 1440, 1280 and 1024 pixels wide) for sideways scrolling, cut-off text, elements sticking out of their box, overlapping controls, unlabelled buttons, browser and content-security-policy errors and broken links; tables must fit without scrolling from 1280 pixels on. Further tests open every dialog, every column filter and use the script features. A failing page leaves a full-page screenshot in the test output folder under `ui-failures`. `HelpCoverageTests` checks that every visible field, button and switch of every page and dialog leads to a help section that names it, and `HelpScreenshotTests` takes the screenshots of the help (`build/Update-HelpScreenshots.ps1` writes them anew). Without Edge the UI tests are skipped.
+| | Version | What it covers |
+|---|---|---|
+| ✅ **Beta** | 0.8.x | Windows updates and drivers, rings and groups, maintenance windows, reboot rules, security baseline and CVEs, end-of-support tracking, notifications by mail and webhook, AD sign-in, backup, built-in help |
+| 🚧 **In progress** | 0.9 | Third-party software through WinGet: software inventory on all servers, updates through the same rings, and new installations picked from the WinGet catalog (Windows Server 2019 and later with Desktop Experience) |
+| 🗓️ **Later** | | Code signing, self-update of the central server |
 
-## Running locally
+See the [changelog](CHANGELOG.md) for every release.
 
-1. Create the ASP.NET Core development certificate once: `dotnet dev-certs https` (it does not need to be trusted: the agent trusts the central server through its trust anchor)
-2. Start the central server: `dotnet run --project src/SUSyphos.Server` (listens on https://localhost:7190; database `server.dev.db` and trust anchor `trust-anchor.dev.key` in the project folder)
-3. Start the agent in a second terminal: `dotnet run --project src/SUSyphos.Agent` (development settings point to the local central server)
+## Quick start
 
-The agent pins the trust anchor of the central server, registers, stores its identity and trust state under `%ProgramData%\SUSyphos\Agent` and sends a heartbeat every 10 seconds. Both components write daily rolling logs to `%ProgramData%\SUSyphos\<component>\Logs`. EF Core migrations are created with the local tool (`dotnet tool restore` once): `dotnet ef migrations add <Name> --project src/SUSyphos.Server --output-dir Data/Migrations`.
+1. Download `SUSyphos.Server` and `SUSyphos.Agent` from the [latest release](https://github.com/debold/UpdateCoordinator/releases) and check them against `SHA256SUMS.txt`.
+2. Install the central server MSI on a Windows Server 2016 or later. Setup shows the port (default 8443) and a one-time token for the first admin account.
+3. Install the agent on your servers and point it to the central server (MSI property `SERVERURL` or group policy).
+4. Approve the new servers in the dashboard, put them into rings, and set your maintenance windows.
 
-## Installers and CI
-
-`./build/Build-Installers.ps1` builds the MSI packages of agent and central server (WiX Toolset, self-contained) into `artifacts/installers`. The GitHub Actions workflow `.github/workflows/ci.yml` builds and tests every push and installs, upgrades and uninstalls both MSIs on the runner. Installation options: see the admin documentation, section 17.
-
-## Versioning
-
-Agent and central server are versioned separately from git tags (`agent/v1.2.3`, `server/v1.2.3`) via MinVer; untagged builds get a pre-release version with the commit hash.
-
-## Project structure and conventions
-
-- `Directory.Build.props`: shared settings for all projects (target framework, analyzers, NuGet audit)
-- `Directory.Packages.props`: all package versions in one place
-- `tests/Directory.Build.props`: shared settings for the test projects
-- Internal types are automatically visible to the matching `*.Tests` project.
-- Everything in the repository is written in English.
+Full guide: [admin documentation](docs/admin/README.md).
 
 ## Documentation
 
-- [CHANGELOG.md](CHANGELOG.md)
-- [Admin documentation](docs/admin/README.md)
-- [SUSyphos WinGet Probe](docs/admin/winget-probe.md) (lab tool)
+[Admin guide](docs/admin/README.md) · [Architecture](docs/01-architecture.md) · [Build from source](docs/development.md) · [Changelog](CHANGELOG.md)
 
 ## License
 
-[MIT](LICENSE)
-
-The dashboard icons are from [Lucide](https://lucide.dev) (ISC license, [assets/icons/lucide/LICENSE](assets/icons/lucide/LICENSE)); `build/New-IconData.ps1` turns the SVG files into the table the dashboard renders inline.
+[MIT](LICENSE) © Marc Debold. Icons from [Lucide](https://lucide.dev) (ISC).
