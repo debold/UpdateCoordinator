@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" />
+    <PackageReference Include="YamlDotNet" />
   </ItemGroup>
 
 </Project>

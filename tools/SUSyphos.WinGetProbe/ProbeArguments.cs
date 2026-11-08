@@ -22,8 +22,14 @@ public sealed record ProbeArguments(
     bool AcceptAgreements,
     bool Online,
     string? OfflineFolder,
-    string? OutputFolder)
+    string? OutputFolder,
+    string? CacheFolder = null,
+    int? Port = null,
+    string? Certificate = null)
 {
+    /// <summary>Port <c>serve</c> listens on unless --port says otherwise.</summary>
+    public const int DefaultPort = 7443;
+
     public const string Usage =
         """
         SUSyphos WinGet Probe: lab test of WinGet on Windows Server (run as SYSTEM, e.g. psexec -s).
@@ -38,19 +44,27 @@ public sealed record ProbeArguments(
           search <text>                Search a source
           install <id>                 Install a package for the machine, silently
           upgrade <id>                 Upgrade an installed package, silently
+          cache <id>                   Put a package version (manifest and installers) into the cache
+          serve                        Offer the cache as a private WinGet REST source over https
 
         Options:
           --engine installed|bundled   WinGet engine to load (default installed)
-          --version <version>          install/upgrade: this version instead of the newest
+          --version <version>          install/upgrade/cache: this version instead of the newest
           --source <https url>         search/install/upgrade: a private REST source instead of winget
           --accept-agreements          install/upgrade: accept the package's agreements (read them first)
           --out <folder>               Where results go (default probe-results next to the exe)
+          --cache <folder>             cache/serve: the cache (default winget-cache next to the exe)
+          --port <port>                serve: port (default 7443)
+          --certificate <thumbprint>   serve (required): certificate in LocalMachine\My that the
+                                       servers trust
         """;
 
-    private static readonly string[] Commands = ["info", "inventory", "bootstrap", "search", "install", "upgrade"];
+    private static readonly string[] Commands = ["info", "inventory", "bootstrap", "search", "install", "upgrade", "cache", "serve"];
 
     /// <summary>Package ids of WinGet: Publisher.Name with dots, e.g. Microsoft.VCRedist.2015+.x64.</summary>
     private static readonly Regex PackageId = new(@"^[A-Za-z0-9][A-Za-z0-9.+_-]{0,127}$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+    private static readonly Regex Thumbprint = new("^[0-9A-Fa-f]{40}$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
     private static readonly Regex VersionText = new(@"^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
@@ -78,7 +92,8 @@ public sealed record ProbeArguments(
         }
 
         var command = args[0];
-        string? target = null, version = null, offline = null, output = null;
+        string? target = null, version = null, offline = null, output = null, cacheFolder = null, certificate = null;
+        int? port = null;
         Uri? source = null;
         var engine = EngineChoice.Installed;
         bool accept = false, online = false;
@@ -120,6 +135,24 @@ public sealed record ProbeArguments(
                 case "--out":
                     output = Value();
                     break;
+                case "--cache":
+                    cacheFolder = Value();
+                    break;
+                case "--port":
+                    var portText = Value();
+                    port = int.TryParse(portText, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number) && number is > 0 and < 65536
+                        ? number
+                        : throw new FormatException($"'{portText}' is not a port.");
+                    break;
+                case "--certificate":
+                    certificate = Value();
+                    if (!Thumbprint.IsMatch(certificate))
+                    {
+                        throw new FormatException($"'{certificate}' is not a certificate thumbprint.");
+                    }
+
+                    certificate = certificate.ToUpperInvariant();
+                    break;
                 case "--offline":
                     offline = Value();
                     break;
@@ -140,26 +173,30 @@ public sealed record ProbeArguments(
             }
         }
 
-        var problem = Check(command, target, version, source, accept, online, offline);
+        var problem = Check(command, target, version, source, accept, online, offline)
+            ?? (cacheFolder is not null && command is not ("cache" or "serve") ? "--cache belongs to cache and serve." : null)
+            ?? ((port is not null || certificate is not null) && command is not "serve" ? "--port and --certificate belong to serve." : null)
+            ?? (command is "serve" && certificate is null ? "serve needs --certificate <thumbprint>." : null);
         return problem is null
-            ? new ProbeArguments(command, target, version, source, engine, accept, online, offline, output)
+            ? new ProbeArguments(command, target, version, source, engine, accept, online, offline, output, cacheFolder, port, certificate)
             : throw new FormatException(problem);
     }
 
     private static string? Check(string command, string? target, string? version, Uri? source, bool accept, bool online, string? offline)
     {
         var installs = command is "install" or "upgrade";
+        var needsId = installs || command is "cache";
         if (command is "bootstrap" ? online == (offline is not null) : online || offline is not null)
         {
             return command is "bootstrap" ? "bootstrap needs either --online or --offline <folder>." : "--online and --offline belong to bootstrap.";
         }
 
-        if (command is "search" or "install" or "upgrade" ? target is null : target is not null)
+        if (command is "search" or "install" or "upgrade" or "cache" ? target is null : target is not null)
         {
             return target is null ? $"{command} needs {(command is "search" ? "a search text" : "a package id")}." : $"{command} takes no '{target}'.";
         }
 
-        if (installs && !PackageId.IsMatch(target!))
+        if (needsId && !PackageId.IsMatch(target!))
         {
             return $"'{target}' is not a WinGet package id.";
         }
@@ -169,9 +206,9 @@ public sealed record ProbeArguments(
             return "The search text is too long or contains control characters.";
         }
 
-        if (!installs && (version is not null || accept))
+        if (!needsId && version is not null || !installs && accept)
         {
-            return "--version and --accept-agreements belong to install and upgrade.";
+            return "--version belongs to install, upgrade and cache; --accept-agreements to install and upgrade.";
         }
 
         return source is not null && command is not ("search" or "install" or "upgrade") ? "--source belongs to search, install and upgrade." : null;

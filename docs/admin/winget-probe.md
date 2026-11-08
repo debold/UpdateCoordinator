@@ -43,6 +43,8 @@ susyphos-wingetprobe bootstrap --offline <folder>
 susyphos-wingetprobe search <text>                [--source <https url>] [--engine ...]
 susyphos-wingetprobe install <id> [--version <v>] [--source <https url>] [--accept-agreements] [--engine ...]
 susyphos-wingetprobe upgrade <id> [--version <v>] [--source <https url>] [--accept-agreements] [--engine ...]
+susyphos-wingetprobe cache <id> [--version <v>] [--cache <folder>]
+susyphos-wingetprobe serve --certificate <thumbprint> [--port <port>] [--cache <folder>]
 ```
 
 Every command also takes `--out <folder>` (default: `probe-results` next to the exe).
@@ -62,6 +64,17 @@ Every command also takes `--out <folder>` (default: `probe-results` next to the 
   [winget-cli release](https://github.com/microsoft/winget-cli/releases): the `.msixbundle`, the `_License1.xml` and
   the unpacked `DesktopAppInstaller_Dependencies.zip` (the x64 packages are taken). For the in-proc engine the files on
   disk are enough; nobody needs to sign in.
+- **Cache** puts one package version into the installer cache (default `winget-cache` next to the exe): the manifests
+  from the community repository (raw.githubusercontent.com/microsoft/winget-pkgs) and every installer for x64, x86 or
+  neutral, each checked against the SHA-256 of the manifest and stored under that hash. Without `--version` the newest
+  version of the community source is taken (needs the engine). Needs internet access; run it on any machine and copy
+  the folder.
+- **Serve** offers the cache as a private WinGet REST source (protocol 1.1.0) at `https://<name>:<port>/api/` and the
+  installers at `https://<name>:<port>/files/<hash>.<ext>`; `<name>` is the DNS name of the certificate. The servers
+  that use the source must trust the certificate (WinGet checks TLS like Windows does), e.g. one from the lab's AD CS;
+  the self-signed certificate of the central server is not trusted by Windows on its own. Every cached file is checked
+  against its hash at start; nothing outside the cache is served. Runs until Ctrl+C; every request is logged. There is no sign-in: whoever reaches the port can read the cached
+  packages, as with the community source. Allow the port in the firewall of the serving machine.
 
 ## Results
 
@@ -88,7 +101,10 @@ Matrix: Windows Server 2016, 2019 (central server), 2022, 2025 with desktop, and
 3. Install and upgrade from the community source: `7zip.7zip`, `Notepad++.Notepad++` (once with Notepad++ open),
    `Microsoft.PowerShell`, `Microsoft.VCRedist.2015+.x64`. For an upgrade, install an older version first
    (`install <id> --version <older>`). Then the same with `--engine bundled`.
-4. Later: the same with a private source served by the central server and internet access blocked.
+4. Private source on the central server (2019): fill the cache (`cache 7zip.7zip --version 24.08`, `cache 7zip.7zip`,
+   `cache Notepad++.Notepad++`, `cache Microsoft.PowerShell`, `cache Microsoft.VCRedist.2015+.x64`), run
+   `serve --certificate <thumbprint>`, then on another server `search 7zip --source https://<name>:7443/api/` and the
+   installs and upgrades of round 3 with `--source`, once with internet access blocked for that server.
 
 ## Known so far
 

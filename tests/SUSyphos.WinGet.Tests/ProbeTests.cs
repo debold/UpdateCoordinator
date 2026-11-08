@@ -30,6 +30,14 @@ public sealed class ProbeTests : IDisposable
     }
 
     [Fact]
+    public void Parse_ReadsServe()
+    {
+        var arguments = Parse("serve", "--cache", @"D:\cache", "--port", "8443", "--certificate", "0123456789abcdef0123456789abcdef01234567");
+
+        Assert.Equal((@"D:\cache", 8443, "0123456789ABCDEF0123456789ABCDEF01234567"), (arguments.CacheFolder, arguments.Port, arguments.Certificate));
+    }
+
+    [Fact]
     public void Parse_HasSafeDefaults()
     {
         var arguments = Parse("upgrade", "7zip.7zip");
@@ -47,6 +55,8 @@ public sealed class ProbeTests : IDisposable
     [InlineData("bootstrap", "--offline", @"C:\winget offline")]
     [InlineData("search", "notepad++")]
     [InlineData("search", "Notepad", "--source", "https://central/winget")]
+    [InlineData("cache", "7zip.7zip", "--version", "24.08", "--cache", @"C:\winget-cache")]
+    [InlineData("serve", "--port", "8443", "--certificate", "0123456789abcdef0123456789abcdef01234567")]
     public void Parse_AcceptsEveryCommand(params string[] args)
     {
         Assert.Equal(args[0], Parse(args).Command);
@@ -75,8 +85,19 @@ public sealed class ProbeTests : IDisposable
     [InlineData("bootstrap needs either --online or --offline <folder>.", "bootstrap")]
     [InlineData("bootstrap needs either --online or --offline <folder>.", "bootstrap", "--online", "--offline", "C:\\w")]
     [InlineData("--online and --offline belong to bootstrap.", "info", "--online")]
-    [InlineData("--version and --accept-agreements belong to install and upgrade.", "search", "x", "--accept-agreements")]
-    [InlineData("--version and --accept-agreements belong to install and upgrade.", "info", "--version", "1.0")]
+    [InlineData("--version belongs to install, upgrade and cache; --accept-agreements to install and upgrade.", "search", "x", "--accept-agreements")]
+    [InlineData("--version belongs to install, upgrade and cache; --accept-agreements to install and upgrade.", "info", "--version", "1.0")]
+    [InlineData("--version belongs to install, upgrade and cache; --accept-agreements to install and upgrade.", "cache", "a.b", "--accept-agreements")]
+    [InlineData("cache needs a package id.", "cache")]
+    [InlineData("'a b' is not a WinGet package id.", "cache", "a b")]
+    [InlineData("serve takes no 'x'.", "serve", "x", "--certificate", "0123456789ABCDEF0123456789ABCDEF01234567")]
+    [InlineData("serve needs --certificate <thumbprint>.", "serve")]
+    [InlineData("'0' is not a port.", "serve", "--port", "0")]
+    [InlineData("'65536' is not a port.", "serve", "--port", "65536")]
+    [InlineData("'+80' is not a port.", "serve", "--port", "+80")]
+    [InlineData("'abc' is not a certificate thumbprint.", "serve", "--certificate", "abc")]
+    [InlineData("--cache belongs to cache and serve.", "info", "--cache", "cachefolder")]
+    [InlineData("--port and --certificate belong to serve.", "cache", "a.b", "--port", "80")]
     [InlineData("--source belongs to search, install and upgrade.", "inventory", "--source", "https://central/")]
     public void Parse_RejectsBadInput(string expected, params string[] args)
     {

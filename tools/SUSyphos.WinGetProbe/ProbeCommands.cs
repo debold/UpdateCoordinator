@@ -44,6 +44,11 @@ public static class ProbeCommands
                 return await BootstrapAsync(arguments, machine, engine, output);
             case "info":
                 return await InfoAsync(arguments, engine, output);
+            case "serve":
+                return await ProbeServe.ServeAsync(arguments, output);
+            case "cache":
+                // The engine is only needed to find the newest version.
+                return await ProbeServe.CacheAsync(arguments, () => new WinGetClient(Load(arguments.Engine, engine, output)), output);
         }
 
         var client = new WinGetClient(Load(arguments.Engine, engine, output));

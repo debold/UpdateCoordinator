@@ -17,6 +17,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- serve: Kestrel for the private WinGet REST source of lab round 4. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\..\src\SUSyphos.WinGet\SUSyphos.WinGet.csproj" />
     <!-- The bundled engine (engine\ next to the exe, for engine=bundled): only its files, nothing is linked. -->
     <PackageReference Include="Microsoft.WindowsPackageManager.InProcCom" ExcludeAssets="all" GeneratePathProperty="true" NoWarn="NU1701" />
