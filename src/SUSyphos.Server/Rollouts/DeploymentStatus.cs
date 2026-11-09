@@ -101,6 +101,10 @@ internal sealed class DeploymentStatus(ServerDbContext db)
             .Select(a => new { a.ClientId, a.UpdateId, a.Revision, a.ReportedAtUtc })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        // Software versions a server needs count as missing, like the updates of its search.
+        var software = (await Software.SoftwareNeeds.LoadAsync(db, ids, cancellationToken).ConfigureAwait(false)).Needed;
+        available.AddRange(software.Where(s => updateIds == null || updateIds.Contains(s.UpdateId)).Select(s => new { s.ClientId, s.UpdateId, s.Revision, s.ReportedAtUtc }));
         var releases = await db.Releases.AsNoTracking()
             .Where(r => ids.Contains(r.ClientId) && (updateIds == null || updateIds.Contains(r.UpdateId)))
             .Select(r => new { r.ClientId, r.UpdateId, r.Revision, r.EarliestInstallAtUtc })

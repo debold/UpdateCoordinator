@@ -45,8 +45,13 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
         var spreads = await db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.SpreadHours, cancellationToken).ConfigureAwait(false);
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var ids = clients.Select(c => c.Id).ToList();
-        var available = await LoadAsync(db.ClientAvailableUpdates.Where(a => ids.Contains(a.ClientId)).Select(a => new ClientUpdateKey { ClientId = a.ClientId, UpdateId = a.UpdateId, Revision = a.Revision }), cancellationToken).ConfigureAwait(false);
-        var installed = await LoadAsync(db.ClientUpdates.Where(a => ids.Contains(a.ClientId)).Select(a => new ClientUpdateKey { ClientId = a.ClientId, UpdateId = a.UpdateId, Revision = a.Revision }), cancellationToken).ConfigureAwait(false);
+        var windowsAvailable = await LoadAsync(db.ClientAvailableUpdates.Where(a => ids.Contains(a.ClientId)).Select(a => new ClientUpdateKey { ClientId = a.ClientId, UpdateId = a.UpdateId, Revision = a.Revision }), cancellationToken).ConfigureAwait(false);
+        var windowsInstalled = await LoadAsync(db.ClientUpdates.Where(a => ids.Contains(a.ClientId)).Select(a => new ClientUpdateKey { ClientId = a.ClientId, UpdateId = a.UpdateId, Revision = a.Revision }), cancellationToken).ConfigureAwait(false);
+
+        // Software versions (WinGet) a server needs or has, derived from its software inventory.
+        var software = await Software.SoftwareNeeds.LoadAsync(db, ids, cancellationToken).ConfigureAwait(false);
+        var available = Merge(windowsAvailable, software.Needed);
+        var installed = Merge(windowsInstalled, software.Installed);
         var existing = (await db.Releases.Where(r => ids.Contains(r.ClientId)).ToListAsync(cancellationToken).ConfigureAwait(false))
             .ToLookup(r => r.ClientId);
 
@@ -125,6 +130,13 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
         var minutes = BitConverter.ToUInt32(hash, 0) % (uint)(spreadHours * 60);
         return TimeSpan.FromMinutes(minutes);
     }
+
+    private static ILookup<Guid, (Guid UpdateId, int Revision)> Merge(ILookup<Guid, (Guid UpdateId, int Revision)> windows, IReadOnlyList<Software.SoftwareNeed> software) =>
+        software.Count == 0
+            ? windows
+            : windows.SelectMany(g => g.Select(u => (ClientId: g.Key, u.UpdateId, u.Revision)))
+                .Concat(software.Select(s => (s.ClientId, s.UpdateId, s.Revision)))
+                .ToLookup(k => k.ClientId, k => (k.UpdateId, k.Revision));
 
     private static async Task<ILookup<Guid, (Guid UpdateId, int Revision)>> LoadAsync(IQueryable<ClientUpdateKey> query, CancellationToken cancellationToken)
     {

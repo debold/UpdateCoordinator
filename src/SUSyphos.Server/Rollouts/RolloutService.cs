@@ -106,6 +106,18 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
             .Where(u => db.ClientAvailableUpdates.Any(a => a.UpdateId == u.UpdateId && a.Revision == u.Revision && approved.Contains(a.ClientId)))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        // Software versions an approved server needs (newer than the installed one), from the software inventory.
+        var approvedIds = await approved.ToListAsync(cancellationToken).ConfigureAwait(false);
+        var neededSoftware = (await Software.SoftwareNeeds.LoadAsync(db, approvedIds, cancellationToken).ConfigureAwait(false)).Needed.Select(n => n.UpdateId).ToHashSet();
+        if (neededSoftware.Count > 0)
+        {
+            candidates.AddRange(await db.Updates.AsNoTracking()
+                .Where(u => u.Kind == UpdateKind.Software && u.BlockedAtUtc == null && neededSoftware.Contains(u.UpdateId))
+                .Where(u => !db.Rollouts.Any(r => r.UpdateId == u.UpdateId && r.Revision == u.Revision))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false));
+        }
         var started = await StartMatchingAsync(candidates, cancellationToken).ConfigureAwait(false);
         if (started > 0)
         {

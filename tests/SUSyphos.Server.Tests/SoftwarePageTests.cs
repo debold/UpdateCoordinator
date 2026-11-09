@@ -212,8 +212,8 @@ public sealed class SoftwarePageTests : IAsyncDisposable
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             return true;
         });
-        Assert.True((await ServiceAsync<SUSyphos.Server.Rollouts.RolloutAdministration, Outcome>(a => a.CreateStartRuleAsync(50, null, null, null, StartMode.Automatic, 0, "admin", CancellationToken.None, software: new SUSyphos.Server.Rollouts.SoftwareConditions(UpdateKind.Software)))).Succeeded);
         await ServiceAsync<SoftwareFeature, bool>(async f => { await f.SetAsync(false, "admin", CancellationToken.None); return true; });
+        Assert.True((await ServiceAsync<SUSyphos.Server.Rollouts.RolloutAdministration, Outcome>(a => a.CreateStartRuleAsync(50, null, null, null, StartMode.Automatic, 0, "admin", CancellationToken.None, software: new SUSyphos.Server.Rollouts.SoftwareConditions(UpdateKind.Software)))).Succeeded);
         var update = SoftwarePackages.SoftwareUpdateId("7zip.7zip", "26.06");
 
         await ServiceAsync<SUSyphos.Server.Rollouts.RolloutService, bool>(async s => { await s.AutoStartAsync([(update, 1)], CancellationToken.None); return true; });
