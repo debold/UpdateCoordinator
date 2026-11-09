@@ -768,6 +768,29 @@ public sealed class InstallationRunnerTests
         Assert.Single(_installer.Batches);
     }
 
+    [Fact]
+    public async Task ReleasedSoftware_IsInstalledThoughTheWindowsSearchDoesNotKnowIt()
+    {
+        var software = new Release(Guid.NewGuid(), 1, _time.GetUtcNow().AddHours(-1), Software: new SoftwareRelease("7zip.7zip", "26.06", false));
+        _releases.Current = new ReleaseList(1, [_release, software]);
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal([_release, software], Assert.Single(_installer.Batches));
+    }
+
+    [Fact]
+    public async Task ReleasedSoftware_WaitsForTheWindowLikeUpdates()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 27, 10, 0, 0, TimeSpan.Zero)); // Tuesday, no window
+        var software = new Release(Guid.NewGuid(), 1, _time.GetUtcNow().AddHours(-1), Software: new SoftwareRelease("7zip.7zip", "26.06", false));
+        _releases.Current = new ReleaseList(1, [software]);
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Empty(_installer.Batches);
+    }
+
     private static AgentAction Uninstall(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow, Guid.NewGuid(), 1, "5040434");
 
     private static InstallReport Report() => new()

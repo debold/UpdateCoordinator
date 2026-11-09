@@ -91,6 +91,22 @@ public sealed record SoftwareInventoryReport
     public required SoftwareSupport Support { get; init; }
 }
 
+/// <summary>What the WinGet helper of the agent writes after <c>install</c>: WinGet's status and the installer's exit code.</summary>
+public sealed record SoftwareInstallOutcome
+{
+    public bool Succeeded { get; init; }
+
+    /// <summary>WinGet's result status, e.g. Ok, InstallError, NoApplicableUpgrade; "NotSupported" or "Error" from the helper.</summary>
+    public string Status { get; init; } = string.Empty;
+
+    public uint InstallerExitCode { get; init; }
+
+    public bool RebootRequired { get; init; }
+
+    /// <summary>Why it failed, at most 256 characters; null on success.</summary>
+    public string? Detail { get; init; }
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<SoftwareSupportState>))]
 public enum SoftwareSupportState
 {

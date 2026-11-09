@@ -101,9 +101,19 @@ internal sealed partial class UpdateReportService(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // Software versions carry package and version, so the agent installs them with WinGet.
+        var updateIds = rows.Select(r => r.UpdateId).ToList();
+        var software = (await (from u in db.Updates.AsNoTracking()
+                               join p in db.Packages.AsNoTracking() on u.PackageId equals p.PackageId
+                               where u.Kind == UpdateKind.Software && updateIds.Contains(u.UpdateId)
+                               select new { u.UpdateId, p.PackageId, u.PackageVersion, Accepted = p.AgreementsAcceptedAtUtc != null })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToDictionary(s => s.UpdateId, s => new SoftwareRelease(s.PackageId, s.PackageVersion!, s.Accepted));
+
         return new ReleaseList(
             client.ReleasesVersion,
-            [.. rows.Select(r => new Release(r.UpdateId, r.Revision, new DateTimeOffset(DateTime.SpecifyKind(r.EarliestInstallAtUtc, DateTimeKind.Utc)), r.OutsideWindows))],
+            [.. rows.Select(r => new Release(r.UpdateId, r.Revision, new DateTimeOffset(DateTime.SpecifyKind(r.EarliestInstallAtUtc, DateTimeKind.Utc)), r.OutsideWindows, software.GetValueOrDefault(r.UpdateId)))],
             MaintenanceWindowFormat.FromJson(client.EffectiveWindowsJson),
             client.EffectiveRebootPolicy,
             client.RequiresLease,

@@ -137,4 +137,38 @@ public sealed class SoftwareInventoryTests
         Assert.Equal(report.Software[0], back.Software[0]);
         Assert.Equal(SoftwareSupportState.Supported, back.Support.State);
     }
-}
+
+    [Fact]
+    public void InstallArguments_AreTakenWhenValid()
+    {
+        var parsed = InstallCommand.Parse(["install", "7zip.7zip", "26.06", "https://central:8443/winget/api/", "accept-agreements"], out var error);
+
+        Assert.Null(error);
+        Assert.Equal(("7zip.7zip", "26.06", new Uri("https://central:8443/winget/api/"), true), parsed);
+        Assert.False(InstallCommand.Parse(["install", "7zip.7zip", "26.06", "https://central:8443/winget/api/"], out _)!.Value.AcceptAgreements);
+    }
+
+    [Theory]
+    [InlineData("install", "7zip 7zip", "26.06", "https://central/winget/api/", null)]
+    [InlineData("install", "7zip.7zip", "26.06 & calc", "https://central/winget/api/", null)]
+    [InlineData("install", "7zip.7zip", "26.06", "http://central/winget/api/", null)]
+    [InlineData("install", "7zip.7zip", "26.06", "https://user:pw@central/winget/api/", null)]
+    [InlineData("install", "7zip.7zip", "26.06", "https://central/winget/api/?x=1", null)]
+    [InlineData("install", "7zip.7zip", "26.06", "https://central/winget/api/", "--override")]
+    [InlineData("install", "7zip.7zip", "26.06", null, null)]
+    public void InstallArguments_AreRefusedWhenInvalid(string command, string id, string version, string? source, string? extra)
+    {
+        List<string> arguments = [command, id, version];
+        if (source is not null)
+        {
+            arguments.Add(source);
+        }
+
+        if (extra is not null)
+        {
+            arguments.Add(extra);
+        }
+
+        Assert.Null(InstallCommand.Parse(arguments, out var error));
+        Assert.NotNull(error);
+    }}

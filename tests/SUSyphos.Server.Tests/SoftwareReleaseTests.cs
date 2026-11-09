@@ -63,7 +63,8 @@ public sealed class SoftwareReleaseTests
 
         await StartRolloutAsync(scenario);
 
-        Assert.Contains((await scenario.ReleasesAsync(old)).Releases, r => r.UpdateId == NewZip);
+        var release = Assert.Single((await scenario.ReleasesAsync(old)).Releases, r => r.UpdateId == NewZip);
+        Assert.Equal(new SoftwareRelease("7zip.7zip", "26.06", false), release.Software);
         Assert.DoesNotContain((await scenario.ReleasesAsync(current)).Releases, r => r.UpdateId == NewZip);
     }
 

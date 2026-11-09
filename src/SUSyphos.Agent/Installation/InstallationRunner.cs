@@ -386,7 +386,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
     private IReadOnlyList<Release> PlanInstallNow()
     {
-        var missing = _updates.LastMissingUpdates;
+        var missing = WithSoftware(_updates.LastMissingUpdates);
         return !_options.Value.Enabled || missing is null
             ? []
             : InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, new Dictionary<(Guid, int), DateTimeOffset>(), _timeProvider.GetUtcNow(), _options.Value, everything: true);
@@ -534,7 +534,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     internal IReadOnlyList<Release> PlanBatch()
     {
         var options = _options.Value;
-        var missing = _updates.LastMissingUpdates;
+        var missing = WithSoftware(_updates.LastMissingUpdates);
         if (!options.Enabled || missing is null)
         {
             return [];
@@ -546,6 +546,16 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     }
 
     /// <summary>Installs a batch, buffers the report and returns true if every update succeeded and the server is healthy afterwards.</summary>
+    /// <summary>
+    /// The updates the last search found missing plus the released software versions: the central server releases a
+    /// software version only to servers whose inventory has an older one, and WinGet decides on the server.
+    /// </summary>
+    private IReadOnlySet<(Guid UpdateId, int Revision)>? WithSoftware(IReadOnlySet<(Guid UpdateId, int Revision)>? missing)
+    {
+        var software = _releases.Current.Releases.Where(r => r.Software is not null).Select(r => (r.UpdateId, r.Revision)).ToList();
+        return software.Count == 0 || missing is null ? missing : missing.Concat(software).ToHashSet();
+    }
+
     private async Task<bool> InstallAsync(IReadOnlyList<Release> batch, CancellationToken cancellationToken)
     {
         var started = _timeProvider.GetUtcNow();

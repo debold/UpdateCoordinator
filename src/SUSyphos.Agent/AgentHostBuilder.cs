@@ -95,7 +95,9 @@ internal static class AgentHostBuilder
             .Bind(configuration.GetSection(InstallationOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        services.AddSingleton<IUpdateInstaller, WuaUpdateInstaller>();
+        services.AddSingleton<WuaUpdateInstaller>();
+        services.AddSingleton<SoftwareInstaller>();
+        services.AddSingleton<IUpdateInstaller, RoutingUpdateInstaller>();
         services.AddSingleton<IWuaUninstall, WuaUninstall>();
         services.AddSingleton<IProcessRunner, ProcessRunner>();
         services.AddSingleton<IDismUninstall, DismUninstall>();

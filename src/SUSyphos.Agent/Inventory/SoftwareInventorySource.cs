@@ -20,7 +20,7 @@ internal interface ISoftwareInventorySource
 internal interface IWinGetHelperRunner
 {
     /// <summary>The helper's exit code and standard output; null when it did not finish within the time.</summary>
-    Task<(int ExitCode, string Output)?> RunAsync(string command, TimeSpan timeout, CancellationToken cancellationToken);
+    Task<(int ExitCode, string Output)?> RunAsync(IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -41,7 +41,7 @@ internal sealed partial class WinGetHelperInventory(IWinGetHelperRunner runner, 
         (int ExitCode, string Output)? result;
         try
         {
-            result = await runner.RunAsync(Command, Timeout, cancellationToken).ConfigureAwait(false);
+            result = await runner.RunAsync([Command], Timeout, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or IOException or FileNotFoundException)
         {
@@ -107,7 +107,7 @@ internal sealed class WinGetHelperRunner : IWinGetHelperRunner
     /// <summary>File name of the helper next to the agent.</summary>
     internal const string FileName = "SUSyphos.Agent.WinGet.exe";
 
-    public async Task<(int ExitCode, string Output)?> RunAsync(string command, TimeSpan timeout, CancellationToken cancellationToken)
+    public async Task<(int ExitCode, string Output)?> RunAsync(IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var path = Path.Combine(AppContext.BaseDirectory, FileName);
         if (!File.Exists(path))
@@ -123,7 +123,10 @@ internal sealed class WinGetHelperRunner : IWinGetHelperRunner
             CreateNoWindow = true,
             WorkingDirectory = AppContext.BaseDirectory,
         };
-        start.ArgumentList.Add(command);
+        foreach (var argument in arguments)
+        {
+            start.ArgumentList.Add(argument);
+        }
         using var process = Process.Start(start) ?? throw new InvalidOperationException("The WinGet helper did not start.");
         try
         {

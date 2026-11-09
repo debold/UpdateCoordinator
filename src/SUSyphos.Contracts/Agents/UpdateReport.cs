@@ -134,4 +134,13 @@ public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, 
 /// <param name="Revision">Its revision.</param>
 /// <param name="EarliestInstallAt">Earliest installation time.</param>
 /// <param name="OutsideWindows">The update never restarts and may be installed outside the maintenance windows (start rule).</param>
-public sealed record Release(Guid UpdateId, int Revision, DateTimeOffset EarliestInstallAt, bool OutsideWindows = false);
+/// <param name="Software">For a software version (WinGet): package, version and whether its agreements were accepted; null for a Windows update.</param>
+public sealed record Release(Guid UpdateId, int Revision, DateTimeOffset EarliestInstallAt, bool OutsideWindows = false, SoftwareRelease? Software = null);
+
+/// <summary>
+/// A released software version: the agent installs or upgrades it with WinGet from the WinGet source of the central server.
+/// </summary>
+/// <param name="PackageId">WinGet package identifier.</param>
+/// <param name="Version">Version to install.</param>
+/// <param name="AcceptAgreements">An administrator accepted the package's agreements, so the installation may accept them.</param>
+public sealed record SoftwareRelease(string PackageId, string Version, bool AcceptAgreements);

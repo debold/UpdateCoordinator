@@ -45,6 +45,10 @@ In addition the agent reports its domain membership. It deliberately reports no 
 - The inventory is collected after registration, on service start and then every `Inventory:CollectInterval` (default 6 hours). It is only sent if it changed or `Inventory:MaxSendInterval` (default 1 day) has passed. A failed send is retried with the next cycle.
 - Values are shaped to the contract before sending (control characters removed, lengths truncated, invalid entries dropped), so a single odd value never blocks the whole inventory; the central server validates again.
 
+### Software installation (0.9)
+
+- A release of a software version carries package, version and whether its agreements were accepted (`software` in the release). The agent treats it like a missing update (the central server releases it only to servers whose inventory has an older version), plans it with the same windows, pause, health check and leases, and hands it to the WinGet helper: `SUSyphos.Agent.WinGet.exe install <id> <version> https://<central server>/winget/api/ [accept-agreements]`. The helper checks every argument, adds the source, upgrades an installed package or installs it, silently for the machine, and writes WinGet's status, the installer's exit code and whether a restart is needed. Of several released versions of one package only the newest is installed; the others are reported as done. A failure is reported with HRESULT 0x80004005 and the reason in the agent log; WinGet's own log is in `%ProgramData%\SUSyphos\Agent\Logs\WinGet`. The helper runs at most 30 minutes; nothing restarts on its own.
+
 ### Software inventory (0.9)
 
 - The inventory carries the **installed programs** (`installedSoftware`: the entries of "Programs and Features" from the uninstall keys of both registry views, without system components, updates and entries belonging to another, plus packaged apps installed for the machine; per-user programs are left out) and whether **WinGet** can manage software on the server (`software`: `Supported`, `NotSupported` with the reason, or `Failed` with the reason).
