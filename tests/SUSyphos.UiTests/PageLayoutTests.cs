@@ -38,6 +38,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/software?dialog=add&q=7zip",
         "/software?dialog=off",
         "/software/7zip.7zip",
+        "/software/7zip.7zip?dialog=assign",
         "/software/Microsoft.SQLServerManagementStudio",
         "/servers/{main}?tab=software",
         "/updates/{update}",
