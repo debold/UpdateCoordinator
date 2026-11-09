@@ -27,13 +27,15 @@ New installations (administrators): the servers of an assigned group, or an assi
 
 - **Target**: the group or server.
 - **Version**: "newest released" or the fixed version of the assignment.
+- **On removal**: "keep installed" (default) or "uninstall": what happens on the servers when the assignment is removed.
 - **Assigned**: by whom and when.
-- **Assign package…** opens the [dialog to assign the package](#assign); **More** (⋯) has **Remove assignment…**, which opens a confirmation, and **Remove assignment** there ends the assignment. The package stays installed where it is; **Cancel** keeps the assignment.
+- **Assign package…** opens the [dialog to assign the package](#assign); **More** (⋯) has **Remove assignment…**, which opens a confirmation, and **Remove assignment** there ends the assignment. The package stays installed where it is, unless the assignment says "uninstall": then the servers it covered uninstall the package in their next maintenance window (shown as a remote action on the server page), except servers another assignment of the package still covers. **Cancel** keeps the assignment.
 
 ## Assign the package {#assign}
 
 - **Group or server**: one group or one approved server on which WinGet can run.
 - **Version**: "Newest released version", or a fixed version of the catalog.
+- **Uninstall when the assignment is removed**: off by default; on, removing the assignment later uninstalls the package from the servers it covered.
 
 **Assign** stores the assignment (recorded in the audit log); **Cancel** closes the dialog. The installation waits for the rollout of the version: start it on the version's update page, or release it to all rings at once. Holds of the version win over assignments.
 

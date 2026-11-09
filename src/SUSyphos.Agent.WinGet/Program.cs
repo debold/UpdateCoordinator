@@ -19,15 +19,26 @@ else if (args is [InstallCommand.Name, ..])
         return 2;
     }
 
-    var logFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "SUSyphos", "Agent", "Logs", "WinGet");
-    report = await InstallCommand.RunAsync(install.PackageId, install.Version, install.Source, install.AcceptAgreements, engineFolder, logFolder, Console.Error);
+    report = await InstallCommand.RunAsync(install.PackageId, install.Version, install.Source, install.AcceptAgreements, engineFolder, LogFolder(), Console.Error);
+}
+else if (args is [UninstallCommand.Name, ..])
+{
+    if (UninstallCommand.Parse(args, out var error) is not { } packageId)
+    {
+        await Console.Error.WriteLineAsync(error);
+        return 2;
+    }
+
+    report = await UninstallCommand.RunAsync(packageId, engineFolder, LogFolder(), Console.Error);
 }
 else
 {
-    await Console.Error.WriteLineAsync($"Usage: SUSyphos.Agent.WinGet {InventoryCommand.Name} | {InstallCommand.Name} <package id> <version> <source address> [{InstallCommand.AcceptAgreements}]");
+    await Console.Error.WriteLineAsync($"Usage: SUSyphos.Agent.WinGet {InventoryCommand.Name} | {InstallCommand.Name} <package id> <version> <source address> [{InstallCommand.AcceptAgreements}] | {UninstallCommand.Name} <package id>");
     return 2;
 }
 
 await using var output = Console.OpenStandardOutput();
 await JsonSerializer.SerializeAsync(output, report, report.GetType(), SoftwareInventoryReport.JsonOptions);
 return 0;
+
+static string LogFolder() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "SUSyphos", "Agent", "Logs", "WinGet");

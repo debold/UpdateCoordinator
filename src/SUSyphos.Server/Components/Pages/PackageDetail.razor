@@ -102,17 +102,18 @@ else
         </AuthorizeView>
         <div class="scroll">
             <table>
-                <thead><tr><th>Target</th><th>Version</th><th>Assigned</th><th class="n">Actions</th></tr></thead>
+                <thead><tr><th>Target</th><th>Version</th><th>On removal</th><th>Assigned</th><th class="n">Actions</th></tr></thead>
                 <tbody>
                     @if (_assignments.Count == 0)
                     {
-                        <tr><td colspan="4" class="note">Not assigned: only servers that have the package installed get its new versions.</td></tr>
+                        <tr><td colspan="5" class="note">Not assigned: only servers that have the package installed get its new versions.</td></tr>
                     }
                     @foreach (var assignment in _assignments)
                     {
                         <tr>
                             <td>@TargetName(assignment)</td>
                             <td class="nowrap">@(assignment.FixedVersion ?? "newest released")</td>
+                            <td>@(assignment.UninstallOnRemoval ? "uninstall" : "keep installed")</td>
                             <td class="nowrap">@assignment.CreatedBy, @DisplayTime.Format(assignment.CreatedAtUtc)</td>
                             <td class="n"><span class="row-actions">
                                 <AuthorizeView Policy="@AdminRoles.Policies.Administer">
@@ -171,6 +172,7 @@ else
                         @foreach (var version in _versions) { <option value="@version.Version">@version.Version</option> }
                     </select>
                 </label>
+                <label class="check"><input type="checkbox" name="UninstallOnRemoval" value="true" /> Uninstall when the assignment is removed</label>
                 <p class="help">The servers install the package when the version is released for their ring: start the rollout on the update page of the version, or release it to all rings at once. Servers that have the package installed already keep their version; holds of the version win over assignments.</p>
             </div>
             <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="primary">Assign</button></div>
@@ -183,7 +185,7 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
         <form method="post" @formname="package-unassign" @onsubmit="UnassignAsync">
             <AntiforgeryToken />
             <input type="hidden" name="AssignmentId" value="@doomed.Id" />
-            <div class="dialog-body"><p>@TargetName(doomed) no longer gets @_package.Name as a new installation. Where it is installed it stays installed and keeps getting new versions.</p></div>
+            <div class="dialog-body"><p>@TargetName(doomed) no longer gets @_package.Name as a new installation. @(doomed.UninstallOnRemoval ? "The servers it covered uninstall the package in their next maintenance window, unless another assignment still covers them." : "Where it is installed it stays installed and keeps getting new versions.")</p></div>
             <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="danger">Remove assignment</button></div>
         </form>
     </Dialog>
@@ -194,6 +196,7 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
     [SupplyParameterFromQuery(Name = "id")] private string? DialogId { get; set; }
     [SupplyParameterFromForm(FormName = "package-assign")] private string? Target { get; set; }
     [SupplyParameterFromForm(FormName = "package-assign")] private string? Version { get; set; }
+    [SupplyParameterFromForm(FormName = "package-assign")] private string? UninstallOnRemoval { get; set; }
     [SupplyParameterFromForm(FormName = "package-unassign")] private int? AssignmentId { get; set; }
 
     private List<PackageAssignmentEntity> _assignments = [];
@@ -217,7 +220,7 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
         {
             int? group = Target is ['g', ':', .. var g] && int.TryParse(g, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var gid) ? gid : null;
             Guid? server = Target is ['s', ':', .. var s] && Guid.TryParse(s, out var sid) ? sid : null;
-            outcome = await Assignments.AddAsync(PackageId, group, server, Version, uninstallOnRemoval: false, await GetActorAsync(), CancellationToken.None);
+            outcome = await Assignments.AddAsync(PackageId, group, server, Version, UninstallOnRemoval == "true", await GetActorAsync(), CancellationToken.None);
         }
 
         ShowResult(outcome.Error, "The package was assigned.");

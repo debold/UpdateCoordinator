@@ -11,9 +11,10 @@ namespace SUSyphos.Server.Software;
 /// <summary>
 /// Assignments of a package to groups and servers for new installations (Marc, 2026-11-08; Admins only): the server gets
 /// the package when its version is released for the server's ring. Removing an assignment uninstalls nothing unless the
-/// assignment says so ("uninstall when removed"; the uninstall itself follows with the agent's uninstall support).
+/// assignment says so ("uninstall when removed": the servers it covered uninstall the package in their next maintenance
+/// window, unless another assignment still covers them).
 /// </summary>
-internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner releases, AuditLog audit, TimeProvider timeProvider)
+internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner releases, AuditLog audit, Agents.AgentActionService actions, TimeProvider timeProvider)
 {
     /// <summary>Adds an assignment to exactly one group or server, with an optional fixed version of the catalog.</summary>
     public async Task<Outcome> AddAsync(string packageId, int? groupId, Guid? clientId, string? fixedVersion, bool uninstallOnRemoval, string actor, CancellationToken cancellationToken)
@@ -87,10 +88,33 @@ internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner rel
             return new Outcome("The assignment no longer exists.");
         }
 
+        var covered = assignment.UninstallOnRemoval ? await ServersAsync(assignment, cancellationToken).ConfigureAwait(false) : [];
         db.PackageAssignments.Remove(assignment);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        if (covered.Count > 0 && await SoftwareFeature.IsEnabledAsync(db, cancellationToken).ConfigureAwait(false))
+        {
+            // Servers another assignment of the package still covers keep it.
+            var stillAssigned = new HashSet<Guid>();
+            foreach (var other in await db.PackageAssignments.AsNoTracking().Where(a => a.PackageId == assignment.PackageId && a.Mode == PackageAssignmentMode.Install).ToListAsync(cancellationToken).ConfigureAwait(false))
+            {
+                stillAssigned.UnionWith(await ServersAsync(other, cancellationToken).ConfigureAwait(false));
+            }
+
+            foreach (var server in covered.Where(s => !stillAssigned.Contains(s)))
+            {
+                // A server without the package installed is skipped by the queue itself.
+                await actions.QueueSoftwareUninstallAsync(server, assignment.PackageId, actor, cancellationToken).ConfigureAwait(false);
+            }
+        }
         await audit.WriteAsync(actor, "Package.AssignmentRemoved", assignment.PackageId, string.Create(CultureInfo.InvariantCulture, $"{(assignment.GroupId is { } group ? $"group {group}" : $"server {assignment.ClientId}")}"), cancellationToken).ConfigureAwait(false);
         await releases.SyncAsync(null, cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
     }
+
+    /// <summary>The servers an assignment covers: the server, or the members of the group.</summary>
+    private async Task<List<Guid>> ServersAsync(PackageAssignmentEntity assignment, CancellationToken cancellationToken) =>
+        assignment.ClientId is { } server
+            ? [server]
+            : await db.ClientGroups.AsNoTracking().Where(m => m.GroupId == assignment.GroupId).Select(m => m.ClientId).ToListAsync(cancellationToken).ConfigureAwait(false);
 }

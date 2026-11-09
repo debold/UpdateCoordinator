@@ -38,7 +38,7 @@ internal sealed class RoutingUpdateInstaller(WuaUpdateInstaller windows, Softwar
 /// WinGet source of the central server, silently for the machine. Of several released versions of one package only the
 /// newest is installed; the older ones are answered as superseded, since the newest replaces them. Never restarts.
 /// </summary>
-internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOptions<CentralServerOptions> central, ILogger<SoftwareInstaller> logger)
+internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOptions<CentralServerOptions> central, ILogger<SoftwareInstaller> logger) : ISoftwareUninstaller
 {
     /// <summary>An installer may take its time; WinGet downloads it from the central server first.</summary>
     internal static readonly TimeSpan Timeout = TimeSpan.FromMinutes(30);
@@ -107,6 +107,28 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
         }
     }
 
+    /// <summary>Uninstalls a package with WinGet (removed assignment with "uninstall when removed").</summary>
+    public async Task<UninstallResult> UninstallAsync(string packageId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var finished = await runner.RunAsync(["uninstall", packageId], Timeout, cancellationToken).ConfigureAwait(false);
+            if (finished is not { ExitCode: 0 } done || JsonSerializer.Deserialize<SoftwareInstallOutcome>(done.Output, SoftwareInventoryReport.JsonOptions) is not { } outcome)
+            {
+                return new UninstallResult(UninstallStatus.Failed, false, $"The WinGet helper could not uninstall {packageId}.");
+            }
+
+            return outcome.Succeeded
+                ? new UninstallResult(UninstallStatus.Succeeded, outcome.RebootRequired, $"{packageId} was uninstalled with WinGet.")
+                : new UninstallResult(outcome.Status == "NotInstalled" ? UninstallStatus.NotInstalled : UninstallStatus.Failed, false, $"{packageId} could not be uninstalled: {outcome.Detail ?? outcome.Status}");
+        }
+        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or IOException or JsonException)
+        {
+            LogUninstallFailed(packageId, exception.Message);
+            return new UninstallResult(UninstallStatus.Failed, false, $"The WinGet helper could not uninstall {packageId}.");
+        }
+    }
+
     private static InstallResult Result(Release release, bool succeeded, bool rebootRequired) => new()
     {
         UpdateId = release.UpdateId,
@@ -119,8 +141,17 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
     [LoggerMessage(Level = LogLevel.Information, Message = "Software {PackageId} {Version} installed with WinGet (restart required: {RebootRequired}).")]
     private partial void LogInstalled(string packageId, string version, bool rebootRequired);
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Software {PackageId} could not be uninstalled with WinGet: {Reason}.")]
+    private partial void LogUninstallFailed(string packageId, string reason);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Software {PackageId} {Version} could not be installed with WinGet: {Reason}.")]
     private partial void LogFailed(string packageId, string version, string reason);
+}
+
+/// <summary>Uninstalls software with WinGet. Separate so the installation runner can be tested without it.</summary>
+internal interface ISoftwareUninstaller
+{
+    Task<UninstallResult> UninstallAsync(string packageId, CancellationToken cancellationToken);
 }
 
 /// <summary>Orders versions the way people read them: numeric parts as numbers ("26.10" after "26.9"), the rest as text.</summary>

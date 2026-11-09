@@ -171,4 +171,14 @@ public sealed class SoftwareInventoryTests
 
         Assert.Null(InstallCommand.Parse(arguments, out var error));
         Assert.NotNull(error);
+    }
+
+    [Theory]
+    [InlineData(new[] { "uninstall", "7zip.7zip" }, true)]
+    [InlineData(new[] { "uninstall", "7zip 7zip" }, false)]
+    [InlineData(new[] { "uninstall", "7zip.7zip", "--force" }, false)]
+    [InlineData(new[] { "uninstall" }, false)]
+    public void UninstallArguments_AreChecked(string[] arguments, bool valid)
+    {
+        Assert.Equal(valid, UninstallCommand.Parse(arguments, out _) is not null);
     }}

@@ -97,6 +97,7 @@ internal static class AgentHostBuilder
             .ValidateOnStart();
         services.AddSingleton<WuaUpdateInstaller>();
         services.AddSingleton<SoftwareInstaller>();
+        services.AddSingleton<ISoftwareUninstaller>(provider => provider.GetRequiredService<SoftwareInstaller>());
         services.AddSingleton<IUpdateInstaller, RoutingUpdateInstaller>();
         services.AddSingleton<IWuaUninstall, WuaUninstall>();
         services.AddSingleton<IProcessRunner, ProcessRunner>();

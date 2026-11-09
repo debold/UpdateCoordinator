@@ -40,6 +40,7 @@ internal enum NotificationKind
     SupportEnding,
     RemoteActionFailed,
     RemoteActionFinished,
+    SoftwareThreatFound,
 }
 
 /// <summary>
@@ -111,6 +112,17 @@ internal sealed class NotificationEvents(
             NotificationKind.UpdateWithdrawn,
             $"Update probably withdrawn by Microsoft: {(u.KbArticle is { Length: > 0 } kb ? $"KB{kb} " : string.Empty)}{u.Title}. {(u.Stopped ? "Its rollout is stopped." : "Its rollout was not stopped (notify only); check it now.")}",
             $"updates/{u.UpdateId}/{u.Revision}")));
+
+        // Software versions whose installer the virus scan flagged (Marc, 2026-11-08): reported once per version.
+        var threats = await db.PackageVersions.AsNoTracking()
+            .Where(v => v.ScanState == InstallerScanState.Detected)
+            .Select(v => new { v.PackageId, v.Version, v.ScanDetail })
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        events.AddRange(threats.Select(v => new NotificationEvent(
+            $"software.threat:{v.PackageId.ToUpperInvariant()}/{v.Version}",
+            NotificationKind.SoftwareThreatFound,
+            $"The virus scan found a threat in the installer of {v.PackageId} {v.Version}; the version is not offered and its files were deleted. {v.ScanDetail}".TrimEnd(),
+            "software/" + Uri.EscapeDataString(v.PackageId))));
 
         var halted = await db.Groups.AsNoTracking().Where(g => g.LeasesHalted).Select(g => new { g.Id, g.Name }).ToListAsync(cancellationToken).ConfigureAwait(false);
         events.AddRange(halted.Select(g => new NotificationEvent($"group.halted:{g.Id}", NotificationKind.LeasesHalted, $"Installations in group {g.Name} stopped after failures; an operator must resume them.", "administration/groups")));

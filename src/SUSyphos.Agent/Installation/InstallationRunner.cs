@@ -65,6 +65,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     private readonly IOptions<InstallationOptions> _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<InstallationRunner> _logger;
+    private readonly ISoftwareUninstaller? _softwareUninstaller;
     private InstallationState _state;
 
     public InstallationRunner(
@@ -80,8 +81,10 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         ISystemRestart restart,
         IOptions<InstallationOptions> options,
         TimeProvider timeProvider,
-        ILogger<InstallationRunner> logger)
+        ILogger<InstallationRunner> logger,
+        ISoftwareUninstaller? softwareUninstaller = null)
     {
+        _softwareUninstaller = softwareUninstaller;
         _releases = releases;
         _updates = updates;
         _inventory = inventory;
@@ -431,7 +434,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             return;
         }
 
-        Save(_state with { Uninstalls = [.. _state.Uninstalls ?? [], new UninstallRequest(action.Id, action.Kind, updateId, action.KbArticle, _timeProvider.GetUtcNow())] });
+        Save(_state with { Uninstalls = [.. _state.Uninstalls ?? [], new UninstallRequest(action.Id, action.Kind, updateId, action.KbArticle, _timeProvider.GetUtcNow(), action.PackageId)] });
     }
 
     /// <summary>
@@ -474,7 +477,12 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     /// <summary>Removes the update, then restarts at once or in the next window if Windows needs it; never against the local veto.</summary>
     private async Task<AgentActionResult> UninstallAsync(UninstallRequest request, CancellationToken cancellationToken)
     {
-        var result = await _uninstaller.UninstallAsync(request.UpdateId, request.KbArticle, cancellationToken).ConfigureAwait(false);
+        // Software (removed assignment) goes to WinGet, an update to Windows Update or DISM.
+        var result = request.PackageId is { } packageId
+            ? _softwareUninstaller is null
+                ? new UninstallResult(UninstallStatus.Failed, false, "This agent cannot uninstall software.")
+                : await _softwareUninstaller.UninstallAsync(packageId, cancellationToken).ConfigureAwait(false)
+            : await _uninstaller.UninstallAsync(request.UpdateId, request.KbArticle, cancellationToken).ConfigureAwait(false);
 
         // The next inventory and search tell the central server what is installed now.
         _inventory.Reset();

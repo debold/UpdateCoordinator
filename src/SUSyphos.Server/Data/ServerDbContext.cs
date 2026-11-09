@@ -177,6 +177,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         action.HasKey(a => a.Id);
         action.Property(a => a.Id).ValueGeneratedNever();
         action.Property(a => a.KbArticle).HasMaxLength(10);
+        action.Property(a => a.PackageId).HasMaxLength(PackageEntity.MaxIdLength);
         action.Property(a => a.Kind).HasConversion<int>();
         action.Property(a => a.State).HasConversion<int>();
         action.Property(a => a.RequestedBy).HasMaxLength(256).IsRequired();

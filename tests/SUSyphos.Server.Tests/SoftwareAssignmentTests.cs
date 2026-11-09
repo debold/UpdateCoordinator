@@ -165,4 +165,62 @@ public sealed class SoftwareAssignmentTests
             Assert.False(await scenario.Factory.WithDbAsync(db => db.PackageAssignments.AnyAsync(TestContext.Current.CancellationToken)));
         }
     }
-}
+
+    [Fact]
+    public async Task RemovingWithUninstall_QueuesTheUninstallWhereInstalled_UnlessStillAssigned()
+    {
+        var (scenario, server, group) = await SetUpAsync();
+        await using (scenario)
+        {
+            var second = await scenario.AddClientAsync("APP02", RingEntity.PilotId);
+            var third = await scenario.AddClientAsync("APP03", RingEntity.PilotId);
+            await scenario.Factory.WithDbAsync(async db =>
+            {
+                foreach (var client in new[] { server.ClientId, second.ClientId })
+                {
+                    db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client, View = SoftwareView.Machine64, KeyName = "Notepad++", DisplayName = "Notepad++", PackageId = "Notepad++.Notepad++", InstalledVersion = "8.9.9", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+                    db.ClientGroups.Add(new ClientGroupEntity { ClientId = client == server.ClientId ? third.ClientId : client, GroupId = group, Manual = true });
+                }
+
+                await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+                return true;
+            });
+
+            // APP01 and APP02 have it installed; APP02 stays assigned directly; APP03 is in the group but has nothing installed.
+            Assert.True((await scenario.WithServiceAsync<SoftwareAssignments, Outcome>(a => a.AddAsync("Notepad++.Notepad++", group, null, null, true, "admin", CancellationToken.None))).Succeeded);
+            Assert.True((await AssignAsync(scenario, null, second.ClientId)).Succeeded);
+            var id = await scenario.Factory.WithDbAsync(db => db.PackageAssignments.Where(a => a.GroupId == group).Select(a => a.Id).SingleAsync(TestContext.Current.CancellationToken));
+
+            Assert.True((await scenario.WithServiceAsync<SoftwareAssignments, Outcome>(a => a.RemoveAsync(id, "admin", CancellationToken.None))).Succeeded);
+
+            var action = Assert.Single(await scenario.Factory.WithDbAsync(db => db.AgentActions.ToListAsync(TestContext.Current.CancellationToken)));
+            Assert.Equal((server.ClientId, AgentActionKind.UninstallInWindow, "Notepad++.Notepad++"), (action.ClientId, action.Kind, action.PackageId));
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(SUSyphos.Contracts.ApiRoutes.AgentActions, UriKind.Relative));
+            request.Headers.Authorization = AgentCredentials.ToHeader(server.ClientId, server.ClientSecret);
+            using var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken);
+            var delivered = await System.Net.Http.Json.HttpContentJsonExtensions.ReadFromJsonAsync<AgentActionList>(response.Content, TestContext.Current.CancellationToken);
+            Assert.Equal("Notepad++.Notepad++", Assert.Single(delivered!.Actions).PackageId);
+        }
+    }
+
+    [Fact]
+    public async Task RemovingWithoutUninstall_QueuesNothing()
+    {
+        var (scenario, server, group) = await SetUpAsync();
+        await using (scenario)
+        {
+            await scenario.Factory.WithDbAsync(async db =>
+            {
+                db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = server.ClientId, View = SoftwareView.Machine64, KeyName = "Notepad++", DisplayName = "Notepad++", PackageId = "Notepad++.Notepad++", InstalledVersion = "8.9.9", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+                await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+                return true;
+            });
+            Assert.True((await AssignAsync(scenario, group, null)).Succeeded);
+            var id = await scenario.Factory.WithDbAsync(db => db.PackageAssignments.Select(a => a.Id).SingleAsync(TestContext.Current.CancellationToken));
+
+            Assert.True((await scenario.WithServiceAsync<SoftwareAssignments, Outcome>(a => a.RemoveAsync(id, "admin", CancellationToken.None))).Succeeded);
+
+            Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
+        }
+    }}

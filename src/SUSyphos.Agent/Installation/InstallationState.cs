@@ -25,7 +25,7 @@ internal sealed record InstallationState(
 /// An uninstallation an administrator asked for (remote action), held until it may run: in a coordinated group only with
 /// the lease, and for <see cref="AgentActionKind.UninstallInWindow"/> only inside the maintenance window.
 /// </summary>
-internal sealed record UninstallRequest(Guid ActionId, AgentActionKind Kind, Guid UpdateId, string? KbArticle, DateTimeOffset RequestedAt);
+internal sealed record UninstallRequest(Guid ActionId, AgentActionKind Kind, Guid UpdateId, string? KbArticle, DateTimeOffset RequestedAt, string? PackageId = null);
 
 /// <summary>The result of a held remote action, kept until the central server has it.</summary>
 internal sealed record ActionOutcome(Guid ActionId, AgentActionResult Result);

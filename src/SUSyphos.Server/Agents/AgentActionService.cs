@@ -105,6 +105,26 @@ internal sealed partial class AgentActionService(
         return await QueueCoreAsync(clientId, kind, actor, (updateId, installed.Revision, update?.KbArticle), cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Queues the uninstallation of a software package the server reports installed, in its next maintenance window
+    /// (removed assignment with "uninstall when removed"). The update ID names the installed version.
+    /// </summary>
+    public async Task<Outcome> QueueSoftwareUninstallAsync(Guid clientId, string packageId, string actor, CancellationToken cancellationToken)
+    {
+        var program = await db.ClientSoftware.AsNoTracking()
+            .Where(s => s.ClientId == clientId && s.PackageId == packageId)
+            .Select(s => new { s.PackageId, Version = s.InstalledVersion ?? s.DisplayVersion })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (program is null)
+        {
+            return new Outcome("The server does not report this package as installed.");
+        }
+
+        var updateId = SUSyphos.Server.Software.SoftwarePackages.SoftwareUpdateId(program.PackageId!, program.Version ?? "0");
+        return await QueueCoreAsync(clientId, AgentActionKind.UninstallInWindow, actor, (updateId, SUSyphos.Server.Software.SoftwarePackages.SoftwareRevision, null), cancellationToken, packageId: program.PackageId).ConfigureAwait(false);
+    }
+
     /// <summary>The approved servers that report the update as installed, with ring and groups (the targets of an uninstallation).</summary>
     public async Task<List<UninstallTarget>> UninstallTargetsAsync(Guid updateId, CancellationToken cancellationToken)
     {
@@ -139,7 +159,7 @@ internal sealed partial class AgentActionService(
         return queued;
     }
 
-    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken, Guid? actionId = null)
+    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken, Guid? actionId = null, string? packageId = null)
     {
         if (!Enum.IsDefined(kind))
         {
@@ -174,9 +194,11 @@ internal sealed partial class AgentActionService(
             UpdateId = update?.UpdateId,
             Revision = update?.Revision,
             KbArticle = update?.KbArticle,
+            PackageId = packageId,
         });
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        var details = update is { } named ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{kind} {named.UpdateId:D} revision {named.Revision}{(named.KbArticle is null ? null : $" (KB{named.KbArticle})")}") : kind.ToString();
+        var details = packageId is not null ? $"{kind} software {packageId}"
+            : update is { } named ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{kind} {named.UpdateId:D} revision {named.Revision}{(named.KbArticle is null ? null : $" (KB{named.KbArticle})")}") : kind.ToString();
         await audit.WriteAsync(actor, "Action.Queued", $"{client.HostName} ({clientId:D})", details, cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
     }
@@ -217,7 +239,7 @@ internal sealed partial class AgentActionService(
         }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return new AgentActionList([.. actions.Select(a => new AgentAction(a.Id, a.Kind, new DateTimeOffset(DateTime.SpecifyKind(a.RequestedAtUtc, DateTimeKind.Utc)), a.UpdateId, a.Revision, a.KbArticle))]);
+        return new AgentActionList([.. actions.Select(a => new AgentAction(a.Id, a.Kind, new DateTimeOffset(DateTime.SpecifyKind(a.RequestedAtUtc, DateTimeKind.Utc)), a.UpdateId, a.Revision, a.KbArticle, a.PackageId))]);
     }
 
     /// <summary>Records the result; false if the action is unknown, belongs to another client or was not delivered.</summary>

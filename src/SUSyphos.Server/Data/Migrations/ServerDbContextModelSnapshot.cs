@@ -335,6 +335,10 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<long?>("LogFileSize")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("PackageId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("RequestedAtUtc")
                         .HasColumnType("TEXT");
 

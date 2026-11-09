@@ -100,4 +100,24 @@ public sealed class SoftwareInstallerTests
     {
         Assert.Equal(sign, Math.Sign(WinGetVersionOrder.Instance.Compare(left, right)));
     }
-}
+
+    [Fact]
+    public async Task Uninstall_RunsTheHelper_AndMapsTheOutcome()
+    {
+        var runner = new SoftwareInventoryTests.FakeRunner { Result = (0, Outcome(true)) };
+
+        var removed = await Installer(runner).UninstallAsync("7zip.7zip", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["uninstall", "7zip.7zip"], Assert.Single(runner.Calls));
+        Assert.Equal(UninstallStatus.Succeeded, removed.Status);
+    }
+
+    [Fact]
+    public async Task Uninstall_NotInstalledOrFailing_IsReportedSo()
+    {
+        var notInstalled = new SoftwareInventoryTests.FakeRunner { Result = (0, JsonSerializer.Serialize(new SoftwareInstallOutcome { Succeeded = false, Status = "NotInstalled", Detail = "7zip.7zip is not installed." }, SoftwareInventoryReport.JsonOptions)) };
+        var broken = new SoftwareInventoryTests.FakeRunner { Result = (2, string.Empty) };
+
+        Assert.Equal(UninstallStatus.NotInstalled, (await Installer(notInstalled).UninstallAsync("7zip.7zip", TestContext.Current.CancellationToken)).Status);
+        Assert.Equal(UninstallStatus.Failed, (await Installer(broken).UninstallAsync("7zip.7zip", TestContext.Current.CancellationToken)).Status);
+    }}

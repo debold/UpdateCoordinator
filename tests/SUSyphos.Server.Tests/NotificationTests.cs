@@ -495,6 +495,30 @@ public sealed class NotificationTests
             .RunAsync(CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Events_ReportAThreatInASoftwareInstaller_OncePerVersion()
+    {
+        await using var factory = new ServerFactory();
+        factory.StartServer();
+        await factory.WithDbAsync(async db =>
+        {
+            DemoSoftware.Add(db, [], [], DateTime.UtcNow);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var version = await db.PackageVersions.SingleAsync(v => v.PackageId == "7zip.7zip" && v.Version == "26.06", TestContext.Current.CancellationToken);
+            version.ScanState = InstallerScanState.Detected;
+            version.ScanDetail = "7z2606-x64.msi: The antivirus product reported a threat.";
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            return true;
+        });
+
+        var events = await WithScopeAsync(factory, s => s.GetRequiredService<NotificationEvents>().CollectAsync(CancellationToken.None));
+
+        var threat = Assert.Single(events, e => e.Kind == NotificationKind.SoftwareThreatFound);
+        Assert.Contains("7zip.7zip 26.06", threat.Text, StringComparison.Ordinal);
+        Assert.Equal("software/7zip.7zip", threat.Path);
+        Assert.Equal(NotificationCategory.Critical, NotificationCatalog.All.Single(k => k.Kind == NotificationKind.SoftwareThreatFound).Category);
+    }
+
     private static async Task<T> WithScopeAsync<T>(ServerFactory factory, Func<IServiceProvider, Task<T>> action)
     {
         await using var scope = factory.Services.CreateAsyncScope();

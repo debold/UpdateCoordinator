@@ -263,6 +263,9 @@ internal sealed class AgentActionEntity
 
     /// <summary>KB number of that update, so the agent can find the package without Windows Update (DISM).</summary>
     public string? KbArticle { get; set; }
+
+    /// <summary>The WinGet package an uninstallation of software removes; null for other actions.</summary>
+    public string? PackageId { get; set; }
 }
 
 internal enum LeaseState

@@ -55,9 +55,10 @@ public enum AgentActionKind
 /// <param name="Kind">What to do.</param>
 /// <param name="RequestedAt">When an administrator asked for it.</param>
 /// <param name="UpdateId">The update the action is about (uninstall); null otherwise.</param>
+/// <param name="PackageId">For the uninstallation of software: the WinGet package to remove; null for a Windows update.</param>
 /// <param name="Revision">Its revision.</param>
 /// <param name="KbArticle">Its KB number (digits), to find the package without Windows Update.</param>
-public sealed record AgentAction(Guid Id, AgentActionKind Kind, DateTimeOffset RequestedAt, Guid? UpdateId = null, int? Revision = null, string? KbArticle = null);
+public sealed record AgentAction(Guid Id, AgentActionKind Kind, DateTimeOffset RequestedAt, Guid? UpdateId = null, int? Revision = null, string? KbArticle = null, string? PackageId = null);
 
 /// <summary>Actions waiting for the agent, oldest first.</summary>
 public sealed record AgentActionList(IReadOnlyList<AgentAction> Actions)

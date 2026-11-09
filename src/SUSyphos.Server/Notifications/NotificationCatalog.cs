@@ -26,6 +26,7 @@ internal static class NotificationCatalog
     [
         new(NotificationKind.RolloutAlarm, NotificationCategory.Critical, "Rollout alarm", "The success rate of an update in a ring is below the threshold; the rollout stops before the next ring."),
         new(NotificationKind.UpdateWithdrawn, NotificationCategory.Critical, "Update withdrawn by Microsoft", "Servers report that Windows Update no longer knows a released update."),
+        new(NotificationKind.SoftwareThreatFound, NotificationCategory.Critical, "Threat found in a software installer", "The virus scan of the central server found a threat in the installer of a software version; the version is not offered."),
         new(NotificationKind.CloneSuspected, NotificationCategory.Critical, "Server blocked, suspected clone", "The same credentials came from two host names; the server is blocked until an administrator decides."),
         new(NotificationKind.LeasesHalted, NotificationCategory.Critical, "Coordinated group stopped", "Installations in a coordinated group stopped after failures; an operator must resume them."),
         new(NotificationKind.CertificateExpiring, NotificationCategory.Critical, "Certificate expiring", "The TLS certificate of the central server expires soon and no renewal was found."),
