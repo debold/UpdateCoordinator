@@ -4,6 +4,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.9.0-rc.1] - 2026-11-09
+
 ### Agent
 
 - Software inventory: the agent reports the installed programs ("Programs and Features" and packaged apps for the machine) with the inventory. From Windows Server 2019 with desktop experience it matches them with WinGet and reports the package and installed version WinGet knows; on Windows Server 2016 and Server Core it reports the programs alone and says that WinGet is not supported. WinGet runs in a separate helper process (`SUSyphos.Agent.WinGet.exe`, installed with the agent with its own WinGet engine), so it can never crash the agent service or count against its memory limit.
