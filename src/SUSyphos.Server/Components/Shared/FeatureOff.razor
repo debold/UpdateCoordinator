@@ -1,0 +1,40 @@
+@* A switched-off feature (docs/06-dashboard.md, section 8 "Switched-off features"): the content stays visible but blurred
+   and cannot be used, with a notice in front that says why and how to switch the feature on. *@
+@if (Off)
+{
+    <div class="feature-off">
+        <div class="feature-off-content" inert aria-hidden="true">@ChildContent</div>
+        <div class="feature-off-notice box" role="status">
+            <h2>@Title<HelpLink To="@Help" Label="@Title" /></h2>
+            <p>@Text</p>
+            @Actions
+        </div>
+    </div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    /// <summary>True while the feature is switched off.</summary>
+    [Parameter]
+    public bool Off { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>Help section of the switch.</summary>
+    [Parameter, EditorRequired]
+    public string Help { get; set; } = string.Empty;
+
+    /// <summary>Controls in the notice, e.g. the button that switches the feature on.</summary>
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

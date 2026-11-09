@@ -16,7 +16,8 @@ internal sealed partial class InventoryCollector(
     IAgentEnvironment environment,
     Updates.IUpdateServiceRegistry? services = null,
     IEsuProbe? esu = null,
-    ISoftwareInventorySource? software = null)
+    ISoftwareInventorySource? software = null,
+    Updates.IReleaseSync? releases = null)
 {
     private const string CurrentVersionPath = AgentEnvironment.CurrentVersionPath;
     private const string WindowsUpdatePolicyPath = AutomaticUpdatesReader.PolicyPath;
@@ -25,7 +26,8 @@ internal sealed partial class InventoryCollector(
     {
         var installed = await updates.GetInstalledUpdatesAsync(cancellationToken).ConfigureAwait(false);
         var history = await updates.GetHistoryAsync(cancellationToken).ConfigureAwait(false);
-        var programs = software is null ? null : await software.CollectAsync(cancellationToken).ConfigureAwait(false);
+        // Switched off on the central server: WinGet is not run and no software is reported (the server keeps the last list).
+        var programs = software is null || releases?.Current.SoftwareDisabled == true ? null : await software.CollectAsync(cancellationToken).ConfigureAwait(false);
         return new InventoryRequest
         {
             HostName = environment.HostName,

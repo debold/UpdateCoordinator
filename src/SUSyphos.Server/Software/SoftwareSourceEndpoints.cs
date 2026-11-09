@@ -12,6 +12,12 @@ internal static class SoftwareSourceEndpoints
     public static IEndpointRouteBuilder MapSoftwareSourceEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup(string.Empty).AllowAnonymous();
+
+        // Switched off: the source answers nothing, as if it did not exist.
+        group.AddEndpointFilter(async (context, next) =>
+            await SoftwareFeature.IsEnabledAsync(context.HttpContext.RequestServices.GetRequiredService<Data.ServerDbContext>(), context.HttpContext.RequestAborted).ConfigureAwait(false)
+                ? await next(context).ConfigureAwait(false)
+                : Results.NotFound());
         var cache = endpoints.ServiceProvider.GetRequiredService<SoftwareSourceCache>();
         RestSourceEndpoints.Map(group, SoftwareSourceCache.ApiPath, SoftwareSourceCache.FilesPath, cache.Responder, () => cache.FilesFolder);
         return endpoints;

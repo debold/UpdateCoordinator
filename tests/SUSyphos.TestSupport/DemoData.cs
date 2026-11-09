@@ -199,6 +199,12 @@ public static class DemoData
             db.SecurityVulnerabilities.Add(new SecurityVulnerabilityEntity { Cve = "CVE-2026-100201", Month = "2026-Oct", Title = "Windows Client License Service Elevation of Privilege Vulnerability", Severity = "Important", Impact = "Elevation of Privilege", CvssScore = 7.0 });
             db.SecurityVulnerabilities.Add(new SecurityVulnerabilityEntity { Cve = "CVE-2026-69354", Month = "2026-Sep", Title = "Windows TCP/IP Remote Code Execution Vulnerability", Severity = "Critical", Impact = "Remote Code Execution", CvssScore = 9.8, PubliclyDisclosed = true });
 
+            DemoSoftware.Add(db, [.. ids.Values], [ids[MainServer]], now);
+            if (await db.Clients.FindAsync(ids[MainServer]) is { } software)
+            {
+                software.SoftwareState = SoftwareSupportState.Supported;
+            }
+
             await db.SaveChangesAsync();
         }
 

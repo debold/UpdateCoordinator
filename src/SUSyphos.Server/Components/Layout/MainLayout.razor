@@ -13,6 +13,7 @@
 
                 <NavLink href="/servers"><span class="nav-label"><Icon Name="@PageIcons.Servers" />Servers</span></NavLink>
                 <NavLink href="/updates"><span class="nav-label"><Icon Name="@PageIcons.Updates" />Updates</span></NavLink>
+                <NavLink href="/software"><span class="nav-label"><Icon Name="@PageIcons.Software" />Software</span></NavLink>
                 <NavLink href="/operating-systems"><span class="nav-label"><Icon Name="@PageIcons.OperatingSystems" />Operating systems</span></NavLink>
                 <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
                     <NavLink href="/approvals"><span class="nav-label"><Icon Name="@PageIcons.Approvals" />Approvals</span> @if (_waiting > 0) { <span class="pill">@_waiting</span> }</NavLink>

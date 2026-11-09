@@ -850,3 +850,10 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 .preview-once, .swatch.preview-once { fill: #0E5B3A; background: #0E5B3A; }
 .preview-blocked, .swatch.preview-blocked { fill: var(--fail); background: var(--fail); }
 .preview-closed, .swatch.preview-closed { fill: var(--line); background: var(--line); }
+
+/* A switched-off feature (FeatureOff): the page stays recognisable but blurred and unusable, the notice in front says why. */
+.feature-off { position: relative; min-height: 18rem; }
+.feature-off-content { filter: blur(4px) grayscale(0.4); opacity: 0.55; pointer-events: none; user-select: none; }
+.feature-off-notice { position: absolute; top: 3rem; left: 50%; transform: translateX(-50%); width: min(34rem, calc(100% - 2rem)); padding: 1.1rem 1.3rem; display: grid; gap: 0.6rem; }
+.feature-off-notice h2 { margin: 0; font-size: 1.05rem; }
+.feature-off-notice p { margin: 0; }

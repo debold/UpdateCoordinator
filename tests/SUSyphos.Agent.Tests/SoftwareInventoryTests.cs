@@ -134,6 +134,21 @@ public sealed class SoftwareInventoryTests
     }
 
     [Fact]
+    public async Task SwitchedOffCentrally_WinGetIsNotRun_AndNoSoftwareIsReported()
+    {
+        var probe = new FakeSystemProbe();
+        var roles = new RoleDetector(probe, Options.Create(new InventoryOptions()));
+        var runner = new FakeRunner { Result = (0, Json(new SoftwareInventoryReport { Software = [Program()], Support = new SoftwareSupport { State = SoftwareSupportState.Supported } })) };
+        var releases = new FakeReleaseSync { Current = new ReleaseList(1, [], SoftwareDisabled: true) };
+
+        var inventory = await new InventoryCollector(probe, new FakeInstalledUpdates(), roles, new FakeEnvironment(), software: Source(runner), releases: releases).CollectAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(runner.Command);
+        Assert.Null(inventory.InstalledSoftware);
+        Assert.Null(inventory.Software);
+    }
+
+    [Fact]
     public async Task Runner_WithoutTheHelperNextToTheAgent_Throws()
     {
         // The test folder has no SUSyphos.Agent.WinGet.exe; nothing is started.

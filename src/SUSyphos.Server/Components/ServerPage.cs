@@ -8,6 +8,7 @@ public static class ServerPage
 {
     public const string Overview = "overview";
     public const string Updates = "updates";
+    public const string Software = "software";
     public const string Security = "security";
     public const string History = "history";
     public const string Configuration = "configuration";
@@ -16,12 +17,13 @@ public static class ServerPage
 
     /// <summary>The tabs in their order.</summary>
     public static readonly IReadOnlyList<(string Key, string Label)> Tabs =
-        [(Overview, "Overview"), (Updates, "Updates"), (Security, "Security"), (History, "History"), (Configuration, "Configuration"), (System, "System"), (Activity, "Activity")];
+        [(Overview, "Overview"), (Updates, "Updates"), (Software, "Software"), (Security, "Security"), (History, "History"), (Configuration, "Configuration"), (System, "System"), (Activity, "Activity")];
 
     /// <summary>The tab of a box anchor; the overview for anchors it does not know.</summary>
     public static string TabOf(string anchor) => anchor switch
     {
         "missing" => Updates,
+        "software" => Software,
         "security" or "vulnerabilities" => Security,
         "history" or "windows-history" => History,
         "assignment" or "agent-settings" => Configuration,

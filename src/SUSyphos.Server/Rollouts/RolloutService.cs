@@ -122,13 +122,14 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
         var packages = packageIds.Count == 0
             ? []
             : await db.Packages.AsNoTracking().Where(p => packageIds.Contains(p.PackageId)).ToDictionaryAsync(p => p.PackageId, StringComparer.OrdinalIgnoreCase, cancellationToken).ConfigureAwait(false);
+        var softwareEnabled = packageIds.Count == 0 || await Software.SoftwareFeature.IsEnabledAsync(db, cancellationToken).ConfigureAwait(false);
         var started = 0;
         foreach (var update in candidates)
         {
             var package = update.PackageId is { } id ? packages.GetValueOrDefault(id) : null;
 
             // A package whose installation accepts agreements never starts by itself (Marc, 2026-11-08); an Admin starts it.
-            if (update.Kind == UpdateKind.Software && (package is null || (package.HasAgreements && package.AgreementsAcceptedAtUtc is null)))
+            if (update.Kind == UpdateKind.Software && (!softwareEnabled || package is null || (package.HasAgreements && package.AgreementsAcceptedAtUtc is null)))
             {
                 continue;
             }

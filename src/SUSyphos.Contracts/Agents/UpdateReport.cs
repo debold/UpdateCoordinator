@@ -124,7 +124,8 @@ public sealed record AvailableUpdate : UpdateInfo
 /// <param name="UseMicrosoftUpdate">Search and install through Microsoft Update, so updates for other Microsoft products are included; the agent registers the service if needed (docs/05-agent-design.md, section 3).</param>
 /// <param name="AgentSettings">Effective central agent settings by key (<see cref="Agents.AgentSettings"/>); settings not listed keep the agent's own value.</param>
 /// <param name="OneTimeWindows">One-time maintenance windows of the server (global, ring, groups, server) that have not ended, in addition to <paramref name="MaintenanceWindows"/>.</param>
-public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, IReadOnlyList<MaintenanceWindow>? MaintenanceWindows = null, RebootPolicy? RebootPolicy = null, bool RequiresLease = false, bool ManageAutomaticUpdates = false, bool UseMicrosoftUpdate = false, IReadOnlyDictionary<string, string>? AgentSettings = null, IReadOnlyList<OneTimeWindow>? OneTimeWindows = null);
+/// <param name="SoftwareDisabled">Software management (WinGet) is switched off on the central server: the agent does not run WinGet and reports no software.</param>
+public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, IReadOnlyList<MaintenanceWindow>? MaintenanceWindows = null, RebootPolicy? RebootPolicy = null, bool RequiresLease = false, bool ManageAutomaticUpdates = false, bool UseMicrosoftUpdate = false, IReadOnlyDictionary<string, string>? AgentSettings = null, IReadOnlyList<OneTimeWindow>? OneTimeWindows = null, bool SoftwareDisabled = false);
 
 /// <summary>
 /// A released update and the earliest time it may be installed.

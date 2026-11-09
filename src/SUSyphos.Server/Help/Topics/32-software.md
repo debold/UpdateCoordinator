@@ -1,0 +1,42 @@
+# Software {#top}
+
+Programs installed on the servers that WinGet knows, and packages added for new installations. Every version of a package is an update of its own: start rules for software decide whether it starts by itself (by default it waits for a manual start), and it runs through the rings like a Windows update. WinGet is used from Windows Server 2019 with desktop experience; on Windows Server 2016 and Server Core the servers only report their programs.
+
+The central server reads the package index of the WinGet community source daily. A program installed on a server becomes a package of the catalog when WinGet matches it with a package, or when its product code (the name of its uninstall key) belongs to exactly one package of the index. A new version is downloaded only when its rollout starts: the installer must match the SHA-256 of the manifest and pass the virus scan of the central server before the servers get it.
+
+The band (administrators only):
+
+- **Add package…**: opens the [dialog to add a package](#add).
+- **Check for new versions now**: loads the package index anew, matches the installed programs and records new versions; normally this runs once a day. The note on the right says when Microsoft wrote the index that is loaded and how many packages it lists.
+- **Release rules**: the [start rules](help/release-rules#start-rules), where the kind "Software" decides how software versions start.
+- **Switch off…** (red, on the right): opens the dialog to [switch off software management](#switch).
+
+## Switching software management on and off {#switch}
+
+Software management with WinGet is on by default. An administrator who does not want it switches it off with **Switch off…**; the dialog explains the consequences and **Switch off** confirms (**Cancel** keeps it on). While it is off:
+
+- the central server does not read the WinGet community source and fills no installer cache;
+- its WinGet source answers nothing, so no server installs software from it;
+- no software version starts, not even by a start rule;
+- the agents run no WinGet and report no software (they learn it with their next release list);
+- the Software page, the package pages and the Software tab of the servers are shown blurred with a notice.
+
+The catalog, the installed programs and the cache are kept. **Switch on software management** in the notice (administrators) switches it on again; both are recorded in the audit log. Windows updates are never affected.
+
+## Packages {#packages}
+
+One row per package of the catalog.
+
+- **Package**: name and WinGet ID; the name opens the [package page](help/package-detail).
+- **Publisher**: as the manifest of the package names it.
+- **Installed**: on how many approved servers the package is installed, with the installed versions.
+- **Newest**: the newest version the community source has, and how many servers run an older one.
+- **Rollout**: the state of the newest version: *Queued* (no rollout yet), *Rolling out*, *Stopped*, *Agreements not accepted* (the package carries licence terms an administrator accepts on the package page first), *Threat found* (the virus scan found a threat in the installer; the version is never offered) or *No version*.
+- **Added**: "from the inventory" for packages the servers have installed, "by …" for packages an administrator added.
+
+## Add a package {#add}
+
+- **Search the WinGet community source**: name, ID or tag of the package, for example `7zip` or `editor`; **Search** lists up to 25 matches with their newest version.
+- **Add**: takes the package with its newest version into the catalog; a package already in the catalog shows "in the catalog".
+
+**Cancel** closes the dialog. Without a loaded package index the dialog says so; **Check for new versions now** loads it.

@@ -229,6 +229,24 @@ else
         </ListTable>
     </Box>
     }
+    else if (_tab == ServerPage.Software)
+    {
+    <FeatureOff Off="@(!_softwareEnabled)" Title="Software management is switched off" Help="software#switch" Text="An administrator switched off software with WinGet on the Software page. The data stays, but nothing is updated or installed until it is switched on again.">
+    <Box Title="Installed software" Anchor="software" Help="server-detail#software" Flush="true" Hint="@SoftwareHint">
+        <ListTable Table="_softwareTable" Page="_softwarePage" Columns="SoftwareColumns" Search="Search program or package" Noun="programs" Empty="The agent has reported no installed programs yet (from version 0.9).">
+            <Row Context="row">
+                <tr>
+                    <td class="wrap">@row.Program.DisplayName@if (row.Program.Publisher is not null) { <div class="note">@row.Program.Publisher</div> }</td>
+                    <td class="nowrap">@(row.Program.InstalledVersion ?? row.Program.DisplayVersion ?? "–")</td>
+                    <td class="wrap">@if (row.Program.PackageId is { } packageId) { <a href="@PackagePage.Link(packageId)" class="mono">@packageId</a> } else { <span class="note">not known to WinGet</span> }</td>
+                    <td class="nowrap">@(row.Newest ?? "–")</td>
+                    <td><span class="pill @row.State.Class">@row.State.Label</span></td>
+                </tr>
+            </Row>
+        </ListTable>
+    </Box>
+    </FeatureOff>
+    }
     else if (_tab == ServerPage.Security)
     {
     <Box Title="Security baseline" Anchor="security" Help="server-detail#security" Hint="the build of the server against the newest security build of its Windows version (MSRC)">
@@ -666,6 +684,55 @@ else
     private DateTime _now;
     private const string AdministratorsOnly = "Only administrators can do this";
 
+    /// <summary>An installed program with the newest version the catalog knows and its state.</summary>
+    private sealed record SoftwareItem(ClientSoftwareEntity Program, string? Newest, (string Label, string Class) State);
+
+    private List<SoftwareItem> _software = [];
+    private bool _softwareEnabled = true;
+    private TableQuery _softwareTable = default!;
+    private TablePage<SoftwareItem> _softwarePage = default!;
+    private IReadOnlyList<TableColumn<SoftwareItem>>? _softwareColumns;
+
+    private IReadOnlyList<TableColumn<SoftwareItem>> SoftwareColumns => _softwareColumns ??=
+    [
+        new("program", "Program", r => r.Program.DisplayName),
+        new("version", "Installed", r => r.Program.InstalledVersion ?? r.Program.DisplayVersion, Sortable: false),
+        new("package", "Package", r => r.Program.PackageId, r => [r.Program.PackageId is null ? "not known to WinGet" : "known to WinGet"]),
+        new("newest", "Newest", r => r.Newest, Sortable: false),
+        new("state", "State", r => r.State.Label, r => [r.State.Label]),
+    ];
+
+    /// <summary>Whether WinGet works on the server, as the agent reports it.</summary>
+    private string SoftwareHint => _client?.SoftwareState switch
+    {
+        SUSyphos.Contracts.Agents.SoftwareSupportState.Supported => "WinGet works on this server: programs are matched with packages and can be updated",
+        SUSyphos.Contracts.Agents.SoftwareSupportState.NotSupported => $"WinGet is not supported here ({_client.SoftwareDetail}); the programs are listed, but SUSyphos does not update them",
+        SUSyphos.Contracts.Agents.SoftwareSupportState.Failed => $"WinGet failed on the last inventory ({_client.SoftwareDetail})",
+        _ => "The agent reports software from version 0.9 on",
+    };
+
+    private async Task LoadSoftwareAsync()
+    {
+        _softwareEnabled = await SUSyphos.Server.Software.SoftwareFeature.IsEnabledAsync(Db, CancellationToken.None);
+        var programs = await Db.ClientSoftware.AsNoTracking().Where(s => s.ClientId == Id).ToListAsync();
+        var packageIds = programs.Where(p => p.PackageId != null).Select(p => p.PackageId!).Distinct().ToList();
+        var newest = (await Db.PackageVersions.AsNoTracking().Where(v => packageIds.Contains(v.PackageId)).Select(v => new { v.PackageId, v.Version }).ToListAsync())
+            .GroupBy(v => v.PackageId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Select(v => v.Version).Max(SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance), StringComparer.OrdinalIgnoreCase);
+        _software = [.. programs.Select(p =>
+        {
+            var latest = p.PackageId is { } id ? newest.GetValueOrDefault(id) : null;
+            var installed = p.InstalledVersion ?? p.DisplayVersion;
+            (string, string) state = p.PackageId is null ? ("Not managed", "neutral")
+                : latest is null || installed is null ? ("Known to WinGet", "neutral")
+                : SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, latest) < 0 ? ("Newer version available", "queue")
+                : ("Up to date", "ok");
+            return new SoftwareItem(p, latest, state);
+        })];
+        _softwareTable = TableQuery.From(Navigation, "program", prefix: "sw.", defaultPageSize: 25);
+        _softwarePage = TablePaging.Apply(_software, _softwareTable, SoftwareColumns, r => $"{r.Program.DisplayName} {r.Program.PackageId} {r.Program.Publisher}");
+    }
+
     /// <summary>The tabs with a badge where something waits: missing updates, a failed check, open remote actions.</summary>
     private IReadOnlyList<TabItem> TabItems => [.. ServerPage.Tabs.Select(t => t.Key switch
     {
@@ -674,6 +741,7 @@ else
         ServerPage.Security when _serverSecurity.Open.Count > 0 => new TabItem(t.Key, t.Label, DisplayNumber.Format(_serverSecurity.Open.Count), _serverSecurity.Exploited > 0 ? "fail" : "queue"),
         ServerPage.System when _client is { } c && (c.AutomaticUpdatesBypass || c.AgentUpdateError is not null || c.ServerMoveError is not null) => new TabItem(t.Key, t.Label, "!", "queue"),
         ServerPage.Activity when _actions.Count(a => a.State is AgentActionState.Queued or AgentActionState.Delivered) is > 0 and var open => new TabItem(t.Key, t.Label, DisplayNumber.Format(open), "neutral"),
+        ServerPage.Software when _softwareEnabled && _software.Count(s => s.State.Class == "queue") is > 0 and var outdated => new TabItem(t.Key, t.Label, DisplayNumber.Format(outdated), "queue"),
         _ => new TabItem(t.Key, t.Label),
     })];
 
@@ -1075,6 +1143,7 @@ else
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         _memberships = await Db.ClientGroups.AsNoTracking().Where(m => m.ClientId == Id).ToListAsync();
         _pendingRemoval = await Removal.PendingAsync(Id, CancellationToken.None);
+        await LoadSoftwareAsync();
         _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(MaxHistory).ToListAsync();
         _actionTable = TableQuery.From(Navigation, "requested", defaultDescending: true, prefix: "ra.", defaultPageSize: 10, views: ActionViews);
         _actionPage = TablePaging.Apply(_actions, _actionTable, ActionColumns, a => $"{SUSyphos.Server.Agents.AgentActionText.Label(a.Kind)} {a.RequestedBy} {a.Detail}");

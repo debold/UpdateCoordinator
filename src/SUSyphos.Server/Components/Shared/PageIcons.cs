@@ -7,6 +7,7 @@ public static class PageIcons
     public const string OperatingSystems = "shield-alert";
     public const string Servers = "server";
     public const string Updates = "package";
+    public const string Software = "layers";
     public const string Approvals = "user-check";
     public const string Susyphos = "hard-drive-download";
     public const string Coverage = "scan-search";

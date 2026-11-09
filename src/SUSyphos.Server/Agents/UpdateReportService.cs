@@ -110,7 +110,8 @@ internal sealed partial class UpdateReportService(
             client.EffectiveManageAutomaticUpdates,
             client.EffectiveUseMicrosoftUpdate,
             client.EffectiveAgentSettingsJson is null ? null : AgentSettingValues.Parse(client.EffectiveAgentSettingsJson),
-            oneTime.Count == 0 ? null : oneTime);
+            oneTime.Count == 0 ? null : oneTime,
+            !await Software.SoftwareFeature.IsEnabledAsync(db, cancellationToken).ConfigureAwait(false));
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Client {ClientId}: pre-flight check failed ({Checks}).")]

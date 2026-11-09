@@ -1,0 +1,220 @@
+@page "/software"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using SUSyphos.Server.Software
+@using SUSyphos.WinGet.Catalog
+@inject SoftwareOverview Overview
+@inject SoftwareCatalog Catalog
+@inject ISoftwareSource Source
+@inject NavigationManager Navigation
+@inject SoftwareFeature Feature
+
+<PageTitle>Software</PageTitle>
+
+<PageHeader Icon="@PageIcons.Software" Title="Software" Subtitle="Programs the servers have installed that WinGet knows, and packages added for new installations. Each version runs through the rings like an update." Help="software" />
+<StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+<FeatureOff Off="@(!_enabled)" Title="Software management is switched off" Help="software#switch" Text="An administrator switched off software with WinGet: the central server does not read the WinGet community source, offers no installers and starts no software version, and the agents run no WinGet. Windows updates are not affected.">
+    <Actions>
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer">
+            <form method="post" @formname="software-switch" @onsubmit="SwitchAsync">
+                <AntiforgeryToken />
+                <input type="hidden" name="Enabled" value="true" />
+                <button type="submit" class="primary"><Icon Name="power" Size="16" />Switch on software management</button>
+            </form>
+        </AuthorizeView>
+    </Actions>
+    <ChildContent>
+<AuthorizeView Policy="@AdminRoles.Policies.Administer">
+    <ActionBand>
+        <a class="btn primary" href="@($"{Path}?dialog=add")"><Icon Name="plus" Size="16" />Add package…</a>
+        <form method="post" @formname="software-check" @onsubmit="CheckAsync" class="inline">
+            <AntiforgeryToken />
+            <button type="submit"><Icon Name="refresh-cw" Size="16" />Check for new versions now</button>
+        </form>
+        <a class="btn" href="/administration/release-rules"><Icon Name="list-checks" Size="16" />Release rules</a>
+        <div class="spacer"></div>
+        <span class="note">@IndexNote</span>
+        <a class="btn danger" href="@($"{Path}?dialog=off")"><Icon Name="power" Size="16" />Switch off…</a>
+    </ActionBand>
+</AuthorizeView>
+
+<Box Title="Packages" Help="software#packages" Flush="true" Hint="Newest version from the WinGet community source; installed versions as the servers report them">
+    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search name, ID or publisher" Noun="packages" Empty="No package yet: they appear when servers report software WinGet knows, or when an administrator adds one.">
+        <Row Context="row">
+            <tr>
+                <td class="wrap"><a href="@PackagePage.Link(row.Package.PackageId)">@row.Package.Name</a><div class="note mono">@row.Package.PackageId</div></td>
+                <td>@(row.Package.Publisher ?? "–")</td>
+                <td class="nowrap">@if (row.Servers == 0) { <span class="note">none</span> } else { <span>@DisplayNumber.Count(row.Servers, "server", "servers")</span><div class="note">@string.Join(", ", row.InstalledVersions.Take(3))@(row.InstalledVersions.Count > 3 ? ", …" : null)</div> }</td>
+                <td class="nowrap">@(row.Newest?.Version ?? "–")@if (row.Outdated > 0) { <div class="note">@DisplayNumber.Count(row.Outdated, "server runs", "servers run") an older one</div> }</td>
+                <td><span class="pill @row.Rollout.Class">@row.Rollout.Label</span></td>
+                <td class="nowrap">@(row.Package.AddedBy == SoftwareCatalog.InventoryActor ? "from the inventory" : $"by {row.Package.AddedBy}")</td>
+            </tr>
+        </Row>
+    </ListTable>
+</Box>
+    </ChildContent>
+</FeatureOff>
+
+@if (_dialog == "off" && _enabled)
+{
+    <Dialog Title="Switch off software management?" CloseHref="@Path" Help="software#switch">
+        <form method="post" @formname="software-switch" @onsubmit="SwitchAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="Enabled" value="false" />
+            <div class="dialog-body">
+                <p>The central server stops reading the WinGet community source, its WinGet source offers nothing any more, no software version starts and the agents stop running WinGet with their next release list. Running software rollouts install nothing more. The catalog, the installed programs and the cache are kept; switching on again continues where it stopped.</p>
+            </div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="danger">Switch off</button></div>
+        </form>
+    </Dialog>
+}
+else if (_dialog == "add" && _enabled)
+{
+    <Dialog Title="Add package" CloseHref="@Path" Wide="true" Help="software#add">
+        <form method="get" action="@Path">
+            <input type="hidden" name="dialog" value="add" />
+            <div class="dialog-body">
+                @if (Source.Index is null)
+                {
+                    <p class="notice">The package index of the WinGet community source has not been loaded yet. It is loaded with the next check; "Check for new versions now" loads it at once.</p>
+                }
+                <label class="field"><span>Search the WinGet community source</span><input name="q" maxlength="100" value="@Query" placeholder="Name, ID or tag, e.g. 7zip" /></label>
+                @if (_results is { } results)
+                {
+                    @if (results.Count == 0)
+                    {
+                        <p class="help">No package matches the search.</p>
+                    }
+                    else
+                    {
+                        <table>
+                            <thead><tr><th>Package</th><th>Newest</th><th class="n">Add</th></tr></thead>
+                            <tbody>
+                                @foreach (var result in results)
+                                {
+                                    <tr>
+                                        <td class="wrap">@result.Name<div class="note mono">@result.Id</div></td>
+                                        <td class="nowrap">@result.LatestVersion</td>
+                                        <td class="n">@if (_known.Contains(result.Id)) { <span class="pill ok">in the catalog</span> } else { <button type="submit" form="software-add" name="PackageId" value="@result.Id" data-help-term="Add">Add</button> }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                }
+                <p class="help">Adding a package takes its newest version into the catalog; the start rules for software decide when it rolls out (by default it waits for a manual start). Assign it to groups or servers for new installations.</p>
+            </div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">Search</button></div>
+        </form>
+        <form id="software-add" method="post" @formname="software-add" @onsubmit="AddAsync" class="detached"><AntiforgeryToken /></form>
+    </Dialog>
+}
+
+@code {
+    private const string Path = "/software";
+
+    [SupplyParameterFromQuery(Name = "dialog")] private string? DialogName { get; set; }
+    [SupplyParameterFromQuery(Name = "q")] private string? Query { get; set; }
+    [SupplyParameterFromForm(FormName = "software-add")] private string? PackageId { get; set; }
+    [SupplyParameterFromForm(FormName = "software-switch")] private string? Enabled { get; set; }
+
+    private bool _enabled = true;
+
+    private async Task SwitchAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer) || Enabled is not ("true" or "false"))
+        {
+            ShowResult("Only administrators switch software management.", string.Empty);
+            return;
+        }
+
+        await Feature.SetAsync(Enabled == "true", await GetActorAsync(), CancellationToken.None);
+        _dialog = null;
+        ShowResultAndReload(null, Enabled == "true" ? "Software management is switched on." : "Software management is switched off.");
+    }
+
+    private string? _dialog;
+    private TableQuery _table = default!;
+    private TablePage<SoftwareRow> _page = default!;
+    private IReadOnlyList<IndexPackage>? _results;
+    private HashSet<string> _known = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<TableColumn<SoftwareRow>>? _columns;
+
+    private IReadOnlyList<TableColumn<SoftwareRow>> Columns => _columns ??=
+    [
+        new("name", "Package", r => r.Package.Name),
+        new("publisher", "Publisher", r => r.Package.Publisher, r => [r.Package.Publisher ?? "unknown"]),
+        new("servers", "Installed", r => r.Servers, Class: "nowrap"),
+        new("newest", "Newest", r => r.Newest?.Version, Sortable: false),
+        new("rollout", "Rollout", r => r.Rollout.Label, r => [r.Rollout.Label]),
+        new("added", "Added", r => r.Package.AddedBy == SoftwareCatalog.InventoryActor ? "from the inventory" : "by an administrator", r => [r.Package.AddedBy == SoftwareCatalog.InventoryActor ? "from the inventory" : "by an administrator"]),
+    ];
+
+    private string IndexNote => Source.Index is { } index
+        ? $"WinGet index of {DisplayTime.Format(index.LastWrite?.UtcDateTime ?? DateTime.UtcNow)}, {DisplayNumber.Format(index.Count)} packages"
+        : "WinGet index not loaded yet";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _dialog = DialogName;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _enabled = await Feature.IsEnabledAsync(CancellationToken.None);
+        var rows = await Overview.ListAsync(CancellationToken.None);
+        _known = [.. rows.Select(r => r.Package.PackageId)];
+        _table = TableQuery.From(Navigation, "name");
+        _page = TablePaging.Apply(rows, _table, Columns, r => $"{r.Package.Name} {r.Package.PackageId} {r.Package.Publisher}");
+        _results = _dialog == "add" && !string.IsNullOrWhiteSpace(Query) && Source.Index is { } index ? index.Search(Query, 25) : null;
+    }
+
+    private async Task AddAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators add packages.", string.Empty);
+            return;
+        }
+
+        var outcome = _enabled || await Feature.IsEnabledAsync(CancellationToken.None)
+            ? await Catalog.AddPackageAsync(PackageId, await GetActorAsync(), CancellationToken.None)
+            : new Outcome("Software management is switched off.");
+        _dialog = outcome.Succeeded ? null : DialogName;
+        ShowResult(outcome.Error, $"The package {PackageId} was added to the catalog.");
+        await LoadAsync();
+    }
+
+    private async Task CheckAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators start the check.", string.Empty);
+            return;
+        }
+
+        if (!await Feature.IsEnabledAsync(CancellationToken.None))
+        {
+            ShowResult("Software management is switched off.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        string? error = null;
+        string success = string.Empty;
+        try
+        {
+            var result = await Catalog.CheckAsync(CancellationToken.None);
+            success = $"Checked: {DisplayNumber.Count(result.AddedPackages, "package", "packages")} added, {DisplayNumber.Count(result.NewVersions, "new version", "new versions")}{(result.Failures > 0 ? $", {result.Failures} failed (see the log)" : string.Empty)}.";
+        }
+        catch (Exception exception) when (exception is HttpRequestException or InvalidDataException or IOException or TaskCanceledException)
+        {
+            error = $"The WinGet community source could not be read: {exception.Message}";
+        }
+
+        ShowResult(error, success);
+        await LoadAsync();
+    }
+}

@@ -38,6 +38,10 @@ Implemented (2026-10-18): "Needs attention" (alarms, release gates, servers wait
 
 Implemented (2026-10-18): one page per update (reached from the update list, server details and "Needs attention") with the rollout state, a donut over all servers, progress per ring (state, release time, feedback and success rate, server states), a timeline from the ring states and the audit log, and the servers with ring, status, earliest installation and result, filterable by status. Operators start, stop, resume, override and approve gates there.
 
+### Software (0.9)
+
+Implemented 2026-11-09: the page **Software** lists the packages of the catalog (name and WinGet ID, publisher, installed on how many servers and which versions, newest version and how many servers run an older one, rollout state of the newest version, from the inventory or added by whom); administrators add packages from a search of the community index and start the check for new versions. The **package page** shows the manifest data, the agreements (accepted once by an Admin), the versions (each an update with its own update page) with rollout, virus scan and cache state, and the servers that have it installed. The server page got the tab **Software** with the installed programs and their state (up to date, newer version available, not managed). Assignments for new installations follow with the agent installation.
+
 ## 4. Server detail view
 
 - Health status, agent version, build number/OS level
@@ -237,6 +241,10 @@ How states are shown everywhere (Marc, 2026-10-25).
 - **Alignment:** an indicator and its text form one line box, centred vertically, with fixed sizes (dot 8 px, icon mark 16 px, pill and tag 20 px high) and a fixed 6 px gap; table rows have one fixed height, so rows with different indicators line up.
 - **Severity** of notifications, banners and messages: Critical = red, Warning = amber, Info = blue, as the same pill everywhere.
 - **One vocabulary:** a state has one word everywhere ("Failed", not "Error"; "Reboot pending", not "restart pending"; "Offline"; "Up to date"). Words and colours come from one shared table in the code.
+
+### Switched-off features
+
+A feature an administrator switched off (so far: software management with WinGet, Marc 2026-11-09) keeps its pages reachable, but their content is blurred and cannot be used; a notice box in front names the feature, says what is switched off and offers the switch to administrators (shared component `FeatureOff`). Nothing of the feature's data is deleted.
 
 ### Messages
 

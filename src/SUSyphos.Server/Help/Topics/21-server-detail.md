@@ -44,6 +44,7 @@ The boxes are split into tabs below the tiles, shown as folder tabs on a surface
 
 - **Overview**: Tasks and pre-flight checks; "!" when a check failed.
 - **Updates**: the missing updates, with their count (red when one failed).
+- **Software**: the installed programs, with the number of packages a newer version exists for.
 - **Security**: the security baseline and the open vulnerabilities of the server, with their count (red when one is exploited).
 - **History**: what SUSyphos installed ("Installed by SUSyphos") and every installation on the server from the Windows Update history ("All installations on the server").
 - **Configuration**: the assignment (ring, reboots, Automatic Updates, update source, groups, maintenance windows, agent settings).
@@ -135,6 +136,16 @@ What the agent reported about the server:
 - **Restart**: whether a restart is pending and why the agent waits.
 - **Outside SUSyphos**: installations of the last 90 days that Windows or an administrator started, not SUSyphos (see the Windows Update history).
 - **Time zone** (maintenance windows are local to the server), **Uptime**, **Last update search** (OK or failed with the error), **Registered**.
+
+## Installed software {#software}
+
+The programs the agent reports with its inventory ("Programs and Features" and packaged apps for the machine). The hint of the box says whether WinGet works on the server; on Windows Server 2016 and Server Core the programs are listed, but SUSyphos does not update them.
+
+- **Program**: name and publisher as the program writes them.
+- **Installed**: the installed version, in WinGet's notation where WinGet knows the program.
+- **Package**: the WinGet package of the program; it opens the [package page](help/package-detail). "not known to WinGet" for programs WinGet cannot update.
+- **Newest**: the newest version the catalog knows.
+- **State**: *Up to date*, *Newer version available*, *Known to WinGet* (no newer version known yet) or *Not managed*.
 
 ## Missing updates {#missing}
 

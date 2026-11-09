@@ -142,6 +142,35 @@ internal sealed partial class SoftwareCatalog(
         return Outcome.Ok;
     }
 
+    /// <summary>
+    /// An Admin accepts the agreements (licence terms) of a package once (Marc, 2026-11-08); from then on its versions can
+    /// start automatically and the agent installs them accepting the agreements. Audited.
+    /// </summary>
+    public async Task<Outcome> AcceptAgreementsAsync(string packageId, string actor, CancellationToken cancellationToken)
+    {
+        var package = await db.Packages.SingleOrDefaultAsync(p => p.PackageId == packageId, cancellationToken).ConfigureAwait(false);
+        if (package is null)
+        {
+            return new Outcome("The package is not in the catalog.");
+        }
+
+        if (!package.HasAgreements)
+        {
+            return new Outcome("The package has no agreements to accept.");
+        }
+
+        if (package.AgreementsAcceptedAtUtc is not null)
+        {
+            return Outcome.Ok;
+        }
+
+        package.AgreementsAcceptedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+        package.AgreementsAcceptedBy = actor;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Package.AgreementsAccepted", package.PackageId, package.Name, cancellationToken).ConfigureAwait(false);
+        return Outcome.Ok;
+    }
+
     /// <summary>Adds the newest version of every package when the index names one the catalog does not know yet.</summary>
     public async Task<(int Added, int Failures)> CheckVersionsAsync(CancellationToken cancellationToken)
     {
@@ -292,6 +321,11 @@ internal sealed partial class SoftwareCatalogWorker(
             try
             {
                 await using var scope = scopes.CreateAsyncScope();
+                if (!await SoftwareFeature.IsEnabledAsync(scope.ServiceProvider.GetRequiredService<ServerDbContext>(), stoppingToken).ConfigureAwait(false))
+                {
+                    continue;
+                }
+
                 var result = await scope.ServiceProvider.GetRequiredService<SoftwareCatalog>().CheckAsync(stoppingToken).ConfigureAwait(false);
                 LogChecked(result.MatchedPrograms, result.AddedPackages, result.NewVersions, result.Failures);
             }

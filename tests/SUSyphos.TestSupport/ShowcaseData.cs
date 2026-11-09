@@ -259,6 +259,12 @@ public static class ShowcaseData
                 client.RebootPending = client.HostName == "DC02";
             }
 
+            DemoSoftware.Add(db, [.. ids.Values], [ids[MainServer], ids["APP01"]], now);
+            if (await db.Clients.FindAsync(ids[MainServer]) is { } software)
+            {
+                software.SoftwareState = SoftwareSupportState.Supported;
+            }
+
             await db.SaveChangesAsync();
         }
 

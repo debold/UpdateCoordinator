@@ -287,7 +287,10 @@ internal sealed partial class SoftwareCacheWorker(
                 if (options.CurrentValue.CheckEnabled)
                 {
                     await using var scope = scopes.CreateAsyncScope();
-                    await scope.ServiceProvider.GetRequiredService<SoftwareCacheService>().CacheReleasedAsync(stoppingToken).ConfigureAwait(false);
+                    if (await SoftwareFeature.IsEnabledAsync(scope.ServiceProvider.GetRequiredService<ServerDbContext>(), stoppingToken).ConfigureAwait(false))
+                    {
+                        await scope.ServiceProvider.GetRequiredService<SoftwareCacheService>().CacheReleasedAsync(stoppingToken).ConfigureAwait(false);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

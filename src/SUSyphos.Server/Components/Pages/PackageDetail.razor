@@ -1,0 +1,170 @@
+@page "/software/{PackageId}"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using Microsoft.EntityFrameworkCore
+@using SUSyphos.Server.Software
+@using SUSyphos.WinGet.Catalog.RestSource
+@inject ServerDbContext Db
+@inject SoftwareCatalog Catalog
+@inject SoftwareFeature Feature
+
+@if (_package is null)
+{
+    <PageTitle>Package</PageTitle>
+    <PageHeader Icon="@PageIcons.Software" Title="Package not found" Help="package-detail" Crumbs="@([("Software", "/software"), ("Package", null)])" />
+    <p class="note">The catalog has no package @PackageId.</p>
+}
+else
+{
+    <PageTitle>@_package.Name</PageTitle>
+    <PageHeader Icon="@PageIcons.Software" Title="@_package.Name" Subtitle="@($"{_package.Publisher ?? "Unknown publisher"} · {_package.PackageId}")" Help="package-detail" Crumbs="@([("Software", "/software"), (_package.Name, null)])" />
+    <StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+    <FeatureOff Off="@(!_enabled)" Title="Software management is switched off" Help="software#switch" Text="An administrator switched off software with WinGet on the Software page. The data stays, but nothing is updated or installed until it is switched on again.">
+    <Box Title="About this package" Help="package-detail#about">
+        <div class="box-body">
+            @if (_package.ShortDescription is not null)
+            {
+                <p>@_package.ShortDescription</p>
+            }
+            <dl class="facts">
+                <dt>Publisher</dt><dd>@(_package.Publisher ?? "–")</dd>
+                <dt>License</dt><dd>@(_package.License ?? "–")</dd>
+                @if (Links.Count > 0)
+                {
+                    <dt>Links</dt>
+                    <dd>@foreach (var (label, url) in Links) { <a href="@url" target="_blank" rel="noopener noreferrer" class="link-gap">@label</a> }</dd>
+                }
+                @if (_package.Tags is not null)
+                {
+                    <dt>Tags</dt><dd>@_package.Tags</dd>
+                }
+                <dt>Agreements</dt>
+                <dd>
+                    @if (!_package.HasAgreements)
+                    {
+                        <span>none; versions can start automatically</span>
+                    }
+                    else if (_package.AgreementsAcceptedAtUtc is { } accepted)
+                    {
+                        <span class="pill ok">accepted</span> <span class="note">by @_package.AgreementsAcceptedBy on @DisplayTime.Format(accepted)</span>
+                    }
+                    else
+                    {
+                        <span class="pill queue">not accepted</span> <span class="note">versions never start automatically until an administrator accepts them</span>
+                    }
+                </dd>
+                <dt>In the catalog</dt><dd>@(_package.AddedBy == SoftwareCatalog.InventoryActor ? "from the software inventory of the servers" : $"added by {_package.AddedBy}") on @DisplayTime.Format(_package.AddedAtUtc)@if (_package.CheckedAtUtc is { } checkedAt) { <span class="note">, checked for new versions @DisplayTime.Format(checkedAt)</span> }</dd>
+            </dl>
+            @if (_package.HasAgreements && _package.AgreementsAcceptedAtUtc is null)
+            {
+                <AuthorizeView Policy="@AdminRoles.Policies.Administer">
+                    <form method="post" @formname="package-accept" @onsubmit="AcceptAsync">
+                        <AntiforgeryToken />
+                        <button type="submit" class="primary"><Icon Name="check" Size="16" />Accept agreements</button>
+                        <span class="note">The installation accepts the publisher's licence terms on every server; read them on the publisher's page first.</span>
+                    </form>
+                </AuthorizeView>
+            }
+        </div>
+    </Box>
+
+    <Box Title="Versions" Help="package-detail#versions" Flush="true" Hint="Each version is an update of its own: open it to start, follow or stop its rollout">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Version</th><th>Released</th><th>Rollout</th><th>Virus scan</th><th>In the source</th></tr></thead>
+                <tbody>
+                    @if (_versions.Count == 0)
+                    {
+                        <tr><td colspan="5" class="note">No version known yet.</td></tr>
+                    }
+                    @foreach (var version in _versions)
+                    {
+                        var rollout = SoftwareOverview.RolloutState(_package, version, _rollouts.TryGetValue(version.UpdateId, out var state) ? state : null);
+                        var scan = SoftwareOverview.ScanLabel(version.ScanState);
+                        <tr>
+                            <td class="nowrap"><a href="/updates/@version.UpdateId/@SoftwarePackages.SoftwareRevision">@version.Version</a></td>
+                            <td class="nowrap">@(version.ReleaseDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "–")</td>
+                            <td><span class="pill @rollout.Class">@rollout.Label</span></td>
+                            <td><span class="pill @scan.Class" title="@version.ScanDetail">@scan.Label</span></td>
+                            <td class="nowrap">@(version.CachedAtUtc is { } cached ? $"since {DisplayTime.Format(cached)}" : "no")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
+
+    <Box Title="Installed on" Help="package-detail#installed" Flush="true" Hint="Approved servers that report the package installed">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Server</th><th>Installed version</th><th>Matched by</th></tr></thead>
+                <tbody>
+                    @if (_installed.Count == 0)
+                    {
+                        <tr><td colspan="3" class="note">No server reports the package installed.</td></tr>
+                    }
+                    @foreach (var item in _installed)
+                    {
+                        <tr>
+                            <td><a href="@ServerPage.Link(item.ClientId, "software")">@item.HostName</a></td>
+                            <td class="nowrap">@(item.Version ?? "–")</td>
+                            <td>@(item.Match == SoftwareMatch.WinGet ? "WinGet" : "product code")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
+    </FeatureOff>
+}
+
+@code {
+    [Parameter] public string PackageId { get; set; } = string.Empty;
+
+    private PackageEntity? _package;
+    private bool _enabled = true;
+    private List<PackageVersionEntity> _versions = [];
+    private Dictionary<Guid, RolloutState> _rollouts = [];
+    private List<(Guid ClientId, string HostName, string? Version, SoftwareMatch Match)> _installed = [];
+
+    private IReadOnlyList<(string Label, string Url)> Links => _package is null ? [] : new[]
+    {
+        ("Product page", _package.PackageUrl),
+        ("Publisher", _package.PublisherUrl),
+        ("Release notes", _package.ReleaseNotesUrl),
+        ("License", _package.LicenseUrl),
+    }.Where(l => l.Item2 is not null).Select(l => (l.Item1, l.Item2!)).ToList();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _enabled = await Feature.IsEnabledAsync(CancellationToken.None);
+        _package = await Db.Packages.AsNoTracking().SingleOrDefaultAsync(p => p.PackageId == PackageId);
+        if (_package is null)
+        {
+            return;
+        }
+
+        _versions = [.. (await Db.PackageVersions.AsNoTracking().Where(v => v.PackageId == PackageId).ToListAsync()).OrderByDescending(v => v.Version, VersionComparer.Instance)];
+        var ids = _versions.Select(v => v.UpdateId).ToList();
+        _rollouts = await Db.Rollouts.AsNoTracking().Where(r => ids.Contains(r.UpdateId)).ToDictionaryAsync(r => r.UpdateId, r => r.State);
+        _installed = [.. (await (from s in Db.ClientSoftware.AsNoTracking()
+                                 join c in Db.Clients.AsNoTracking() on s.ClientId equals c.Id
+                                 where s.PackageId == PackageId && c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved
+                                 select new { s.ClientId, c.HostName, s.InstalledVersion, s.MatchKind }).ToListAsync())
+            .OrderBy(i => i.HostName, StringComparer.OrdinalIgnoreCase)
+            .Select(i => (i.ClientId, i.HostName, i.InstalledVersion, i.MatchKind))];
+    }
+
+    private async Task AcceptAsync()
+    {
+        var outcome = !await Feature.IsEnabledAsync(CancellationToken.None) ? new Outcome("Software management is switched off.")
+            : await IsAuthorizedAsync(AdminRoles.Policies.Administer)
+            ? await Catalog.AcceptAgreementsAsync(PackageId, await GetActorAsync(), CancellationToken.None)
+            : new Outcome("Only administrators accept agreements.");
+        ShowResult(outcome.Error, "The agreements were accepted; versions of the package can now start automatically.");
+        await LoadAsync();
+    }
+}
