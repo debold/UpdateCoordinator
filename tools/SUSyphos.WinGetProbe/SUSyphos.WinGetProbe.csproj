@@ -20,6 +20,8 @@
     <!-- serve: Kestrel for the private WinGet REST source of lab round 4. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\..\src\SUSyphos.WinGet\SUSyphos.WinGet.csproj" />
+    <!-- Manifests, cache and REST source (no engine needed); kept out of the WinGet library so the agent helper stays small. -->
+    <ProjectReference Include="..\..\src\SUSyphos.WinGet.Catalog\SUSyphos.WinGet.Catalog.csproj" />
     <!-- The bundled engine (engine\ next to the exe, for engine=bundled): only its files, nothing is linked. -->
     <PackageReference Include="Microsoft.WindowsPackageManager.InProcCom" ExcludeAssets="all" GeneratePathProperty="true" NoWarn="NU1701" />
   </ItemGroup>

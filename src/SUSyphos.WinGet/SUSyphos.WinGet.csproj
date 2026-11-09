@@ -17,8 +17,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" />
-    <!-- Manifests, cache and REST source protocol (no engine needed). -->
-    <ProjectReference Include="..\SUSyphos.WinGet.Catalog\SUSyphos.WinGet.Catalog.csproj" />
   </ItemGroup>
 
 </Project>
