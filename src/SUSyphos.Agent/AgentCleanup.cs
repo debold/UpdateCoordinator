@@ -18,6 +18,7 @@ internal static partial class AgentCleanup
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(AgentCleanup).FullName!);
         Try(logger, "Windows Automatic Updates", () => services.GetRequiredService<AutomaticUpdatesManager>().Apply(false));
         Try(logger, "Microsoft Update", () => services.GetRequiredService<MicrosoftUpdateManager>().Apply(false));
+        Try(logger, "central server certificate for WinGet", () => services.GetRequiredService<Trust.CentralCertificateTrust>().Apply(false));
         return 0;
     }
 

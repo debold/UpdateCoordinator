@@ -121,6 +121,7 @@ public static class AgentSettings
     public const string PreFlight = "Pre-flight check";
     public const string Search = "Update search";
     public const string RestartNotice = "Restart notice";
+    public const string Software = "Software";
 
     /// <summary>Upper bound of entries a level (system, group, server) may set; one per setting.</summary>
     public static int MaxEntries => All.Count;
@@ -139,6 +140,7 @@ public static class AgentSettings
         new("include-drivers", Search, "Include drivers", "Updates:IncludeDrivers", AgentSettingKind.Flag, string.Empty, 0, 0, "true"),
         new("restart-warning", RestartNotice, "Warning before a restart", "Installation:RestartWarning", AgentSettingKind.Duration, "minutes", 1, 30, "5"),
         new("restart-message", RestartNotice, "Message to signed-in users", "Installation:RestartMessage", AgentSettingKind.Text, string.Empty, 0, 200, "SUSyphos restarts this server to complete Windows updates inside the maintenance window."),
+        new("trust-central-certificate", Software, "Trust the central server's own certificate for WinGet", "Software:TrustCentralCertificate", AgentSettingKind.Flag, string.Empty, 0, 0, "false"),
     ];
 
     public static AgentSettingDefinition? Find(string? key) => All.FirstOrDefault(d => string.Equals(d.Key, key, StringComparison.Ordinal));

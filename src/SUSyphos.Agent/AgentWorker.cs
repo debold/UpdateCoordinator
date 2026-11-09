@@ -37,7 +37,8 @@ internal sealed partial class AgentWorker(
     IOptions<CentralServerOptions> options,
     TimeProvider timeProvider,
     ILogger<AgentWorker> logger,
-    Configuration.AppliedSettingsReport? appliedSettings = null) : BackgroundService
+    Configuration.AppliedSettingsReport? appliedSettings = null,
+    Trust.CentralCertificateTrust? centralCertificate = null) : BackgroundService
 {
     private RegistrationState? _lastState;
 
@@ -175,8 +176,9 @@ internal sealed partial class AgentWorker(
         {
             automaticUpdates.Apply(releases.Current.ManageAutomaticUpdates);
             microsoftUpdate.Apply(releases.Current.UseMicrosoftUpdate);
+            centralCertificate?.Apply();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or System.Security.Cryptography.CryptographicException)
         {
             LogAutomaticUpdatesFailed(ex);
         }

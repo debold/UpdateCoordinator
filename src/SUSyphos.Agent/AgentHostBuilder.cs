@@ -77,6 +77,10 @@ internal static class AgentHostBuilder
         services.AddSingleton<IInventoryReporter, InventoryReporter>();
         services.AddSingleton<IRegistryWriter, WindowsRegistryWriter>();
         services.AddSingleton<AutomaticUpdatesManager>();
+        services.AddOptions<Trust.SoftwareAgentOptions>().Bind(configuration.GetSection(Trust.SoftwareAgentOptions.SectionName));
+        services.AddSingleton<Trust.ICentralCertificateStore, Trust.MachineRootCertificateStore>();
+        services.AddSingleton<Trust.IAcceptedCertificateSource>(provider => provider.GetRequiredService<ServerTrust>());
+        services.AddSingleton<Trust.CentralCertificateTrust>();
         services.AddSingleton<UpdateServiceSelection>();
         services.AddSingleton<IUpdateServiceRegistry, WuaUpdateServiceRegistry>();
         services.AddSingleton<MicrosoftUpdateManager>();

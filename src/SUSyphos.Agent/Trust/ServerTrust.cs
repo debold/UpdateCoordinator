@@ -20,7 +20,7 @@ internal sealed class UntrustedServerException(TrustDecision decision)
 /// Holds the trust state of the agent and decides which TLS certificate is accepted
 /// (see docs/03-communication-protocol.md, section 3.2).
 /// </summary>
-internal sealed partial class ServerTrust : IServerTrust
+internal sealed partial class ServerTrust : IServerTrust, IAcceptedCertificateSource
 {
     private readonly ITrustStateStore _store;
     private readonly ITrustBindingFetcher _fetcher;
@@ -29,6 +29,7 @@ internal sealed partial class ServerTrust : IServerTrust
     private readonly Lock _lock = new();
     private TrustState _state;
     private byte[]? _acceptedHash;
+    private byte[]? _acceptedCertificate;
     private bool _refreshRequested;
 
     public ServerTrust(ITrustStateStore store, ITrustBindingFetcher fetcher, IOptions<TrustOptions> options, ILogger<ServerTrust> logger)
@@ -64,8 +65,18 @@ internal sealed partial class ServerTrust : IServerTrust
         }
 
         using var x509 = new X509Certificate2(certificate);
-        return TrustBindingFormat.ComputeSpkiHash(x509).AsSpan().SequenceEqual(accepted);
+        if (!TrustBindingFormat.ComputeSpkiHash(x509).AsSpan().SequenceEqual(accepted))
+        {
+            return false;
+        }
+
+        // Kept for the opt-in that lets WinGet trust the central server (CentralCertificateTrust).
+        Volatile.Write(ref _acceptedCertificate, x509.RawData);
+        return true;
     }
+
+    /// <summary>The last certificate the central server presented that matched the pinned anchor (DER); null until one did.</summary>
+    public byte[]? AcceptedCertificate => Volatile.Read(ref _acceptedCertificate);
 
     /// <summary>HTTP handler for all messages: accepts only the certificate bound to the pinned anchor, independent of any CA.</summary>
     public SocketsHttpHandler CreateValidatingHandler() => new()
