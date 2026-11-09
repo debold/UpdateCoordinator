@@ -27,7 +27,8 @@ internal sealed partial class SoftwareCatalog(
     AuditLog audit,
     IOptions<SoftwareOptions> options,
     TimeProvider timeProvider,
-    ILogger<SoftwareCatalog> logger)
+    ILogger<SoftwareCatalog> logger,
+    SoftwareLogos? logos = null)
 {
     /// <summary>Actor of packages the catalog adds from the inventory.</summary>
     public const string InventoryActor = "inventory";
@@ -135,6 +136,7 @@ internal sealed partial class SoftwareCatalog(
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var package = new PackageEntity { PackageId = found.Id, Name = found.Name, AddedAtUtc = now, AddedBy = actor, CheckedAtUtc = now };
         Describe(package, manifest.DefaultLocale);
+        await FetchLogoAsync(package, manifest.DefaultLocale, cancellationToken).ConfigureAwait(false);
         db.Packages.Add(package);
         AddVersion(package, manifest, now);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -194,6 +196,7 @@ internal sealed partial class SoftwareCatalog(
             {
                 var manifest = await source.ReadManifestAsync(found.Id, found.LatestVersion, cancellationToken).ConfigureAwait(false);
                 Describe(package, manifest.DefaultLocale);
+                await FetchLogoAsync(package, manifest.DefaultLocale, cancellationToken).ConfigureAwait(false);
                 AddVersion(package, manifest, now);
                 added++;
                 LogVersionFound(package.PackageId, found.LatestVersion);
@@ -208,6 +211,9 @@ internal sealed partial class SoftwareCatalog(
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return (added, failures);
     }
+
+    private Task FetchLogoAsync(PackageEntity package, JsonObject locale, CancellationToken cancellationToken) =>
+        logos is null ? Task.CompletedTask : logos.FetchAsync(package, locale, cancellationToken);
 
     /// <summary>The version and its entry in the update catalog (revision 1, title "name version"). Does not save.</summary>
     private void AddVersion(PackageEntity package, CachedVersion manifest, DateTime now)

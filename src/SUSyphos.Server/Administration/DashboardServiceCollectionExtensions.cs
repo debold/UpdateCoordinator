@@ -169,6 +169,13 @@ internal static class DashboardServiceCollectionExtensions
         services.AddSingleton<Software.ISoftwareSource>(provider => provider.GetRequiredService<Software.CommunitySoftwareSource>());
         services.AddScoped<Software.SoftwareCatalog>();
         services.AddScoped<Software.SoftwareOverview>();
+        services.AddHttpClient<Software.ILogoDownloader, Software.HttpLogoDownloader>(http =>
+            {
+                http.Timeout = TimeSpan.FromSeconds(15);
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("SUSyphos-CentralServer");
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+        services.AddScoped<Software.SoftwareLogos>();
         services.AddScoped<Software.SoftwareFeature>();
         services.AddScoped<Software.SoftwareAssignments>();
         services.AddHostedService<Software.SoftwareCatalogWorker>();

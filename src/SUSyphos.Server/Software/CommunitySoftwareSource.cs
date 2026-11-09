@@ -36,6 +36,9 @@ internal sealed class SoftwareOptions
     /// <summary>Installers up to this size are scanned; larger ones count as not scanned (Enforce keeps them out).</summary>
     [Range(1, 2047)]
     public int MaxScanMegabytes { get; set; } = 256;
+
+    /// <summary>Fetch the logos of the packages (manifest icon or website symbol); off keeps the central server off vendor sites.</summary>
+    public bool Logos { get; set; } = true;
 }
 
 /// <summary>

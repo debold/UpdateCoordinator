@@ -1,0 +1,25 @@
+@* The logo of a package from the central server's logo cache, or its initials in a circle when it has none. *@
+@if (LogoFile is not null && SUSyphos.Server.Software.SoftwareLogos.IsLogoFileName(LogoFile))
+{
+    <img class="pkg-logo @SizeClass" src="@(SUSyphos.Server.Software.SoftwareLogos.Route + LogoFile)" alt="" />
+}
+else
+{
+    <span class="pkg-logo initials @SizeClass" aria-hidden="true">@Initials</span>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? LogoFile { get; set; }
+
+    /// <summary>True for the large logo of the package page; the list uses the small one.</summary>
+    [Parameter]
+    public bool Large { get; set; }
+
+    private string SizeClass => Large ? "large" : "small";
+
+    private string Initials => string.Concat(Name.Split([' ', '-', '.', '+'], StringSplitOptions.RemoveEmptyEntries).Where(w => char.IsLetterOrDigit(w[0])).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+}

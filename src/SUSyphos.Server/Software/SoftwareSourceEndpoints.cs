@@ -20,6 +20,19 @@ internal static class SoftwareSourceEndpoints
                 : Results.NotFound());
         var cache = endpoints.ServiceProvider.GetRequiredService<SoftwareSourceCache>();
         RestSourceEndpoints.Map(group, SoftwareSourceCache.ApiPath, SoftwareSourceCache.FilesPath, cache.Responder, () => cache.FilesFolder);
+
+        // Logos for the dashboard: only names the logo cache gives, only for signed-in readers.
+        endpoints.MapGet(SoftwareLogos.Route + "{name}", (string name, SoftwareLogos logos) =>
+            {
+                if (!SoftwareLogos.IsLogoFileName(name))
+                {
+                    return Results.NotFound();
+                }
+
+                var path = Path.Combine(logos.Folder, name);
+                return File.Exists(path) ? Results.File(path, name.EndsWith(".png", StringComparison.Ordinal) ? "image/png" : "image/x-icon") : Results.NotFound();
+            })
+            .RequireAuthorization(Administration.AdminRoles.Policies.Read);
         return endpoints;
     }
 }

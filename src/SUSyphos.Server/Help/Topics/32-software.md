@@ -27,7 +27,7 @@ The catalog, the installed programs and the cache are kept. **Switch on software
 
 One row per package of the catalog.
 
-- **Package**: name and WinGet ID; the name opens the [package page](help/package-detail).
+- **Package**: logo, name and WinGet ID; the name opens the [package page](help/package-detail). The central server takes the logo from the manifest or the website symbol of the product or publisher page and serves it itself; without one the initials of the package stand in a circle.
 - **Publisher**: as the manifest of the package names it.
 - **Installed**: on how many approved servers the package is installed, with the installed versions.
 - **Newest**: the newest version the community source has, and how many servers run an older one.

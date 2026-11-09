@@ -24,10 +24,7 @@ else
     <FeatureOff Off="@(!_enabled)" Title="Software management is switched off" Help="software#switch" Text="An administrator switched off software with WinGet on the Software page. The data stays, but nothing is updated or installed until it is switched on again.">
     <Box Title="About this package" Help="package-detail#about">
         <div class="box-body">
-            @if (_package.ShortDescription is not null)
-            {
-                <p>@_package.ShortDescription</p>
-            }
+            <div class="pkg-name"><PackageLogo Name="@_package.Name" LogoFile="@_package.LogoFile" Large="true" /><p>@(_package.ShortDescription ?? _package.Name)</p></div>
             <dl class="facts">
                 <dt>Publisher</dt><dd>@(_package.Publisher ?? "–")</dd>
                 <dt>License</dt><dd>@(_package.License ?? "–")</dd>

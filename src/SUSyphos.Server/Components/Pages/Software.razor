@@ -43,7 +43,7 @@
     <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search name, ID or publisher" Noun="packages" Empty="No package yet: they appear when servers report software WinGet knows, or when an administrator adds one.">
         <Row Context="row">
             <tr>
-                <td class="wrap"><a href="@PackagePage.Link(row.Package.PackageId)">@row.Package.Name</a><div class="note mono">@row.Package.PackageId</div></td>
+                <td class="wrap"><div class="pkg-name"><PackageLogo Name="@row.Package.Name" LogoFile="@row.Package.LogoFile" /><div><a href="@PackagePage.Link(row.Package.PackageId)">@row.Package.Name</a><div class="note mono">@row.Package.PackageId</div></div></div></td>
                 <td>@(row.Package.Publisher ?? "–")</td>
                 <td class="nowrap">@if (row.Servers == 0) { <span class="note">none</span> } else { <span>@DisplayNumber.Count(row.Servers, "server", "servers")</span><div class="note">@string.Join(", ", row.InstalledVersions.Take(3))@(row.InstalledVersions.Count > 3 ? ", …" : null)</div> }</td>
                 <td class="nowrap">@(row.Newest?.Version ?? "–")@if (row.Outdated > 0) { <div class="note">@DisplayNumber.Count(row.Outdated, "server runs", "servers run") an older one</div> }</td>
