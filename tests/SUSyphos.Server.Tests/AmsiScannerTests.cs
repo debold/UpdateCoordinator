@@ -76,4 +76,32 @@ public sealed class AmsiScannerTests
     {
         Assert.All(AmsiScanner.EnumerateProviders(), p => Assert.False(string.IsNullOrEmpty(p.Clsid)));
     }
-}
+
+    [Theory]
+    [InlineData(0, true, ScanOutcome.Clean)]
+    [InlineData(1, true, ScanOutcome.Clean)]
+    [InlineData(unchecked((int)0x80004005), true, ScanOutcome.Failed)]
+    [InlineData(0, false, ScanOutcome.Detected)]
+    [InlineData(unchecked((int)0x800C000E), false, ScanOutcome.Detected)]
+    public void AttachmentCheck_IsInterpretedSafely(int hresult, bool fileStillThere, ScanOutcome expected)
+    {
+        Assert.Equal(expected, AttachmentScanner.Interpret(hresult, fileStillThere).Outcome);
+    }
+
+    [Fact]
+    public void AttachmentCheck_OfAHarmlessFile_NeverReportsAThreat_AndAMissingFileFails()
+    {
+        // A temporary file only; Windows may mark it as downloaded, nothing else on the machine changes.
+        var file = Path.Combine(Path.GetTempPath(), $"susyphos-{Guid.NewGuid():N}.txt");
+        try
+        {
+            File.WriteAllText(file, "harmless");
+
+            Assert.NotEqual(ScanOutcome.Detected, AttachmentScanner.ScanFile(file).Outcome);
+            Assert.Equal(ScanOutcome.Failed, AttachmentScanner.ScanFile(file + ".missing").Outcome);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }}

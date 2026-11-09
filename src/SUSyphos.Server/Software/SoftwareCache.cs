@@ -32,7 +32,12 @@ internal sealed class AmsiInstallerScanner : IInstallerScanner, IDisposable
 {
     private readonly Lazy<AmsiScanner> _scanner = new(() => new AmsiScanner("SUSyphos"));
 
-    public ScanResult Scan(string path, long maxBytes) => _scanner.Value.ScanFile(path, maxBytes);
+    /// <summary>AMSI up to the limit; a larger installer goes through the Windows check for downloaded files instead.</summary>
+    public ScanResult Scan(string path, long maxBytes)
+    {
+        var result = _scanner.Value.ScanFile(path, maxBytes);
+        return result.Outcome == ScanOutcome.TooLarge ? AttachmentScanner.ScanFile(path) : result;
+    }
 
     public void Dispose()
     {

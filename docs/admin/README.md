@@ -582,7 +582,7 @@ Dashboard page **Agents** (role `Operator` to download, `Admin` to check and rel
 | `Software:Directory` | `%ProgramData%\SUSyphos\Server\Software` | folder of the package index, the installer cache (`cache`) and downloads not yet scanned (`staging`) |
 | `Software:CacheInterval` | `00:05:00` | how often versions with a started rollout are downloaded into the cache |
 | `Software:ScanMode` | `Enforce` | virus scan of the installers through AMSI: `Enforce` keeps a version out of the source on a finding, a failed scan or a file too large to scan; `Audit` only logs; `Off` does not scan. Without a registered antivirus product versions are offered unscanned |
-| `Software:MaxScanMegabytes` | `256` | installers up to this size are scanned (1 to 2047) |
+| `Software:MaxScanMegabytes` | `256` | installers up to this size are scanned through AMSI in memory (1 to 2047); larger ones go through the Windows check for downloaded files (`IAttachmentExecute::Save`), which also calls every registered antivirus product |
 | `Software:Logos` | `true` | fetch the logos of the packages (icon of the manifest, else `favicon.ico` of the product or publisher page; only PNG and ICO up to 256 KB, https, never addresses of the own network, no redirects); `false` keeps the central server off vendor sites |
 | `AgentPackages:CheckInterval` | `1.00:00:00` | interval of the check (1 h to 30 days) |
 | `AgentPackages:Repository` | `debold/UpdateCoordinator` | GitHub repository whose releases carry the agent MSI |

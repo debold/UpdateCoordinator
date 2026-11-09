@@ -18,7 +18,7 @@ Every known version, newest first. The version opens its update page, where its 
 
 - **Released**: the release date of the manifest.
 - **Rollout**: as on the [Software page](help/software#packages).
-- **Virus scan**: *Clean*, *Threat found* (never offered, the files are deleted), *Not scanned (failed)* (the scan failed or the installer was larger than the scan limit; with the mode Enforce it is not offered) or *Not scanned* (no rollout yet, scanning switched off, or no antivirus product registered on the central server). The tooltip shows what the scanner reported.
+- **Virus scan**: *Clean*, *Threat found* (never offered, the files are deleted), *Not scanned (failed)* (the scan failed; with the mode Enforce it is not offered; installers above the AMSI limit go through the Windows check for downloaded files) or *Not scanned* (no rollout yet, scanning switched off, or no antivirus product registered on the central server). The tooltip shows what the scanner reported.
 - **In the source**: since when the WinGet source of the central server offers the version; the newest two versions per package and every version still rolling out stay cached.
 
 ## Assignments {#assignments}
