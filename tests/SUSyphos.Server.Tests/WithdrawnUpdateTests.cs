@@ -250,6 +250,45 @@ public sealed class WithdrawnUpdateTests
         Assert.False(await scenario.Factory.WithDbAsync(db => db.Rollouts.AnyAsync(r => r.UpdateId == update.UpdateId, TestContext.Current.CancellationToken)));
     }
 
+    [Fact]
+    public async Task SoftwareVersion_ReportedAsUnknownToWindowsUpdate_IsNoWithdrawal_AndAnOldMarkGoes()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var zip = SUSyphos.Server.Software.SoftwarePackages.SoftwareUpdateId("7zip.7zip", "26.06");
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            SUSyphos.TestSupport.DemoSoftware.Add(db, [pilot.ClientId], [], DateTime.UtcNow);
+            var now = DateTime.UtcNow;
+            db.Rollouts.Add(new RolloutEntity { UpdateId = zip, Revision = 1, State = RolloutState.Active, StartedAtUtc = now, StartedBy = "admin" });
+            db.RolloutRings.Add(new RolloutRingEntity { UpdateId = zip, Revision = 1, RingId = RingEntity.PilotId, State = RingRolloutState.Released, ReleasedAtUtc = now, StateChangedAtUtc = now });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            return true;
+        });
+        await scenario.WithServiceAsync<SUSyphos.Server.Rollouts.ReleasePlanner, bool>(async p => { await p.SyncAsync(null, CancellationToken.None); return true; });
+
+        // An agent of rc.1 looked the software version up in Windows Update and reported it unknown.
+        await ReportAsync(scenario, pilot, [], [new UpdateKey(zip, 1)]);
+        await scenario.AdvanceAsync();
+
+        Assert.Equal(RolloutState.Active, await StateAsync(scenario, zip));
+        Assert.Null(await WithdrawnAsync(scenario, zip));
+
+        // A software version an earlier version marked and stopped: the mark goes and the rollout resumes.
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            (await db.Updates.SingleAsync(u => u.UpdateId == zip, TestContext.Current.CancellationToken)).WithdrawnAtUtc = DateTime.UtcNow;
+            var rollout = await db.Rollouts.SingleAsync(r => r.UpdateId == zip, TestContext.Current.CancellationToken);
+            (rollout.State, rollout.StoppedAsWithdrawn) = (RolloutState.Stopped, true);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            return true;
+        });
+        await scenario.AdvanceAsync();
+
+        Assert.Null(await WithdrawnAsync(scenario, zip));
+        Assert.Equal(RolloutState.Active, await StateAsync(scenario, zip));
+    }
+
     private static async Task ReportAsync(RolloutScenario scenario, RegisterResponse client, AvailableUpdate[] available, UpdateKey[] notOffered)
     {
         var report = UpdateReportTests.SuccessfulReport(available) with { NotOffered = notOffered };

@@ -4,6 +4,10 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Central server
+
+- Software versions are never taken for updates withdrawn by Microsoft any more (rc.1 stopped their rollouts after the next update search, because Windows Update never knows a software version); rollouts rc.1 stopped this way resume by themselves. The agent no longer looks software versions up in Windows Update.
+
 ## [0.9.0-rc.1] - 2026-11-09
 
 ### Agent

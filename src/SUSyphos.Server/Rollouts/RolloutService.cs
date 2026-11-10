@@ -323,11 +323,14 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
     private async Task<int> MarkWithdrawnAsync(CancellationToken cancellationToken)
     {
         var approvedIds = await db.Clients.Where(c => c.State == RegistrationState.Approved).Select(c => c.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        // Software versions (WinGet) are never offered by Windows Update, so they are never taken for withdrawn.
+        var software = db.Updates.Where(u => u.Kind == UpdateKind.Software).Select(u => u.UpdateId);
         var notOffered = await db.Releases.AsNoTracking()
-            .Where(r => r.NotOfferedAtUtc != null && approvedIds.Contains(r.ClientId))
+            .Where(r => r.NotOfferedAtUtc != null && approvedIds.Contains(r.ClientId) && !software.Contains(r.UpdateId))
             .Select(r => new { r.ClientId, r.UpdateId, r.Revision })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+        // Marked software versions (marked before 0.9.0-rc.2) stay in the keys: nothing explains them, so the mark goes and their rollout resumes.
         var marked = await db.Updates.Where(u => u.WithdrawnAtUtc != null).Select(u => new { u.UpdateId, u.Revision }).ToListAsync(cancellationToken).ConfigureAwait(false);
         var keys = notOffered.Select(r => (r.UpdateId, r.Revision)).Concat(marked.Select(u => (u.UpdateId, u.Revision))).Distinct().ToList();
         if (keys.Count == 0)

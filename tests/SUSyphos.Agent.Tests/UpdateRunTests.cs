@@ -160,6 +160,18 @@ public sealed class UpdateReporterTests
     }
 
     [Fact]
+    public async Task ReleasedSoftware_IsNeverLookedUpInWindowsUpdate()
+    {
+        var now = _time.GetUtcNow();
+        _releases.Current = new ReleaseList(1, [new Release(Guid.NewGuid(), 1, now, Software: new SoftwareRelease("7zip.7zip", "26.06", false))]);
+        _search.OnSearch = () => [];
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Empty(Assert.Single(_client.Reports).NotOffered!);
+    }
+
+    [Fact]
     public async Task FailedLookup_ReportsNoWithdrawal()
     {
         _releases.Current = new ReleaseList(1, [new Release(Guid.NewGuid(), 1, _time.GetUtcNow())]);

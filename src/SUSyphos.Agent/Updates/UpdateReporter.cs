@@ -119,7 +119,9 @@ internal sealed partial class UpdateReporter(
     private async Task<IReadOnlyList<(Guid UpdateId, int Revision)>?> FindNotOfferedAsync(IReadOnlyList<Wua.WuaUpdate> available, CancellationToken cancellationToken)
     {
         var offered = available.Select(u => (Guid.TryParse(u.UpdateId, out var id) ? id : Guid.Empty, u.Revision)).ToHashSet();
+        // Software versions (WinGet) are never known to Windows Update; only Windows updates are looked up.
         var released = releases.Current.Releases
+            .Where(r => r.Software is null)
             .Select(r => (r.UpdateId, r.Revision))
             .Where(r => !offered.Contains(r))
             .Distinct()
