@@ -12,6 +12,9 @@ internal static class SoftwarePackages
     /// <summary>Revision of every software version in the update catalog; a version never changes, a new one is a new entry.</summary>
     public const int SoftwareRevision = 1;
 
+    /// <summary>The category software versions are shown with next to the classifications of Windows updates.</summary>
+    public const string Classification = "Software";
+
     /// <summary>
     /// The update ID of a software version: a name-based UUID (RFC 9562, version 5) of "winget:&lt;package id&gt;:&lt;version&gt;",
     /// with the package ID in lower case because WinGet compares it without case. The same version always gets the same ID.

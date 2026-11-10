@@ -29,9 +29,9 @@ internal static partial class UninstallCommand
         return id;
     }
 
-    public static async Task<SoftwareInstallOutcome> RunAsync(string packageId, string engineFolder, string logFolder, TextWriter log)
+    public static async Task<SoftwareInstallOutcome> RunAsync(string packageId, string engineFolder, string logFolder, HelperTrace trace)
     {
-        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(trace);
         if (SoftwareInventory.LocalAvailability() != WinGetAvailability.Available)
         {
             return new SoftwareInstallOutcome { Succeeded = false, Status = "NotSupported", Detail = "WinGet is not supported on this server." };
@@ -39,8 +39,10 @@ internal static partial class UninstallCommand
 
         try
         {
+            trace.Write($"Uninstalling {packageId}.");
             using var engine = WinGetEngine.Load(engineFolder);
-            var result = await new WinGetClient(engine).UninstallAsync(packageId, null, logFolder).ConfigureAwait(false);
+            var result = await new WinGetClient(engine) { Trace = trace.Write }.UninstallAsync(packageId, null, logFolder).ConfigureAwait(false);
+            trace.Write($"WinGet answered {result.Status} (uninstaller exit code {result.InstallerErrorCode}).");
             return new SoftwareInstallOutcome
             {
                 Succeeded = result.Succeeded,
@@ -48,11 +50,12 @@ internal static partial class UninstallCommand
                 InstallerExitCode = result.InstallerErrorCode,
                 RebootRequired = result.RebootRequired,
                 Detail = result.Succeeded ? null : InventoryCommand.Text(result.ExtendedError ?? $"WinGet answered {result.Status}.", 256),
+                HResult = result.Succeeded ? 0 : result.ExtendedErrorCode,
             };
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            await log.WriteLineAsync($"WinGet failed: {exception}").ConfigureAwait(false);
+            trace.Write($"WinGet failed: {exception}");
             return new SoftwareInstallOutcome { Succeeded = false, Status = exception is WinGetException ? "NotInstalled" : "Error", Detail = InventoryCommand.Text($"WinGet failed: {exception.Message}", 256) };
         }
     }

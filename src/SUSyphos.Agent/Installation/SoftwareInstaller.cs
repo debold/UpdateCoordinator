@@ -95,10 +95,10 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
             }
             else
             {
-                LogFailed(software.PackageId, software.Version, $"{outcome.Status}, installer exit code {outcome.InstallerExitCode}: {outcome.Detail}");
+                LogFailed(software.PackageId, software.Version, FailureText(outcome));
             }
 
-            return Result(release, outcome.Succeeded, outcome.RebootRequired);
+            return Result(release, outcome.Succeeded, outcome.RebootRequired, outcome.HResult);
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or IOException or JsonException)
         {
@@ -129,12 +129,19 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
         }
     }
 
-    private static InstallResult Result(Release release, bool succeeded, bool rebootRequired) => new()
+    /// <summary>What went wrong, with the installer exit code only where an installer ran.</summary>
+    internal static string FailureText(SoftwareInstallOutcome outcome) =>
+        (outcome.InstallerExitCode != 0 ? $"{outcome.Status}, installer exit code {outcome.InstallerExitCode}" : outcome.Status)
+        + (outcome.HResult != 0 ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $" (0x{outcome.HResult:X8})") : string.Empty)
+        + (outcome.Detail is { } detail ? $": {detail}" : string.Empty);
+
+    /// <summary>The result for the report; a failure carries the HRESULT the helper named, else the generic one.</summary>
+    private static InstallResult Result(Release release, bool succeeded, bool rebootRequired, int hresult = 0) => new()
     {
         UpdateId = release.UpdateId,
         Revision = release.Revision,
         ResultCode = succeeded ? InstallResultCode.Succeeded : InstallResultCode.Failed,
-        HResult = succeeded ? 0 : Failed,
+        HResult = succeeded ? 0 : hresult != 0 ? hresult : Failed,
         RebootRequired = rebootRequired,
     };
 

@@ -70,6 +70,21 @@ internal sealed partial class AgentActionService(
             : kind == AgentActionKind.UninstallAgent ? Task.FromResult(new Outcome("The agent is uninstalled by removing the server."))
             : QueueCoreAsync(clientId, kind, actor, null, cancellationToken);
 
+    /// <summary>Queues "install now" for Windows updates, software or both, with the restart right after or in the next window.</summary>
+    public Task<Outcome> QueueInstallNowAsync(Guid clientId, AgentActionKind kind, InstallScope scope, string actor, CancellationToken cancellationToken) =>
+        kind is not (AgentActionKind.InstallNow or AgentActionKind.InstallNowRestartInWindow) ? Task.FromResult(new Outcome("Choose when the server restarts."))
+            : !Enum.IsDefined(scope) ? Task.FromResult(new Outcome("Choose what to install."))
+            : QueueCoreAsync(clientId, kind, actor, null, cancellationToken, scope: scope);
+
+    /// <summary>The scope of "install now" from the choice in the dialog ("all", "updates", "software"); null for anything else.</summary>
+    public static InstallScope? InstallScopeOf(string? choice) => choice switch
+    {
+        "all" => InstallScope.All,
+        "updates" => InstallScope.WindowsUpdates,
+        "software" => InstallScope.Software,
+        _ => null,
+    };
+
     /// <summary>Queues the uninstallation of the agent with the given action ID; only <see cref="SUSyphos.Server.Approval.ServerRemoval"/> uses it.</summary>
     internal Task<Outcome> QueueUninstallAgentAsync(Guid clientId, Guid actionId, string actor, CancellationToken cancellationToken) =>
         QueueCoreAsync(clientId, AgentActionKind.UninstallAgent, actor, null, cancellationToken, actionId);
@@ -159,7 +174,7 @@ internal sealed partial class AgentActionService(
         return queued;
     }
 
-    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken, Guid? actionId = null, string? packageId = null)
+    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken, Guid? actionId = null, string? packageId = null, InstallScope? scope = null)
     {
         if (!Enum.IsDefined(kind))
         {
@@ -195,9 +210,11 @@ internal sealed partial class AgentActionService(
             Revision = update?.Revision,
             KbArticle = update?.KbArticle,
             PackageId = packageId,
+            Scope = scope,
         });
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var details = packageId is not null ? $"{kind} software {packageId}"
+            : scope is { } chosen ? $"{kind} ({chosen})"
             : update is { } named ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{kind} {named.UpdateId:D} revision {named.Revision}{(named.KbArticle is null ? null : $" (KB{named.KbArticle})")}") : kind.ToString();
         await audit.WriteAsync(actor, "Action.Queued", $"{client.HostName} ({clientId:D})", details, cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
@@ -239,7 +256,7 @@ internal sealed partial class AgentActionService(
         }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return new AgentActionList([.. actions.Select(a => new AgentAction(a.Id, a.Kind, new DateTimeOffset(DateTime.SpecifyKind(a.RequestedAtUtc, DateTimeKind.Utc)), a.UpdateId, a.Revision, a.KbArticle, a.PackageId))]);
+        return new AgentActionList([.. actions.Select(a => new AgentAction(a.Id, a.Kind, new DateTimeOffset(DateTime.SpecifyKind(a.RequestedAtUtc, DateTimeKind.Utc)), a.UpdateId, a.Revision, a.KbArticle, a.PackageId, a.Scope))]);
     }
 
     /// <summary>Records the result; false if the action is unknown, belongs to another client or was not delivered.</summary>

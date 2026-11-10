@@ -266,6 +266,9 @@ internal sealed class AgentActionEntity
 
     /// <summary>The WinGet package an uninstallation of software removes; null for other actions.</summary>
     public string? PackageId { get; set; }
+
+    /// <summary>What "install now" installs: Windows updates, software or both; null for other actions.</summary>
+    public SUSyphos.Contracts.Agents.InstallScope? Scope { get; set; }
 }
 
 internal enum LeaseState

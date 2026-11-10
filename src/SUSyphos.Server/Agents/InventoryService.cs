@@ -61,7 +61,7 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
 
         if (inventory.InstalledSoftware is { } software)
         {
-            await ReplaceSoftwareAsync(clientId, software, now, cancellationToken).ConfigureAwait(false);
+            await ReplaceSoftwareAsync(clientId, software, inventory.Software?.State == SoftwareSupportState.Supported, now, cancellationToken).ConfigureAwait(false);
         }
 
         if (inventory.Software is { } support && Enum.IsDefined(support.State))
@@ -103,24 +103,43 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
     /// Replaces the installed programs of the client. A key reported twice (the agent never should) counts once; unknown
     /// views are dropped. The package WinGet correlated is kept as reported; matching with the catalog comes later.
     /// </summary>
-    private async Task ReplaceSoftwareAsync(Guid clientId, IReadOnlyList<InstalledSoftware> software, DateTime now, CancellationToken cancellationToken)
+    private async Task ReplaceSoftwareAsync(Guid clientId, IReadOnlyList<InstalledSoftware> software, bool winGetMatched, DateTime now, CancellationToken cancellationToken)
     {
+        // Matches the agent cannot make this time are kept from the last list (same key): those of the central server
+        // (product code) always, those of WinGet when WinGet did not run or failed. Otherwise every inventory without a
+        // match would drop the package, and with it the need and the release of its new version.
+        var previous = (await db.ClientSoftware.AsNoTracking().Where(s => s.ClientId == clientId && s.PackageId != null).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .ToDictionary(s => (s.View, s.KeyName.ToUpperInvariant()));
         await db.ClientSoftware.Where(s => s.ClientId == clientId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         db.ClientSoftware.AddRange(software
             .Where(s => Enum.IsDefined(s.View))
             .DistinctBy(s => (s.View, s.KeyName.ToUpperInvariant()))
-            .Select(s => new ClientSoftwareEntity
+            .Select(s =>
             {
-                ClientId = clientId,
-                View = s.View,
-                KeyName = s.KeyName,
-                DisplayName = s.DisplayName,
-                DisplayVersion = s.DisplayVersion,
-                Publisher = s.Publisher,
-                PackageId = s.PackageId,
-                InstalledVersion = s.PackageId is null ? null : s.InstalledVersion,
-                MatchKind = s.PackageId is null ? SoftwareMatch.None : SoftwareMatch.WinGet,
-                ReportedAtUtc = now,
+                var entity = new ClientSoftwareEntity
+                {
+                    ClientId = clientId,
+                    View = s.View,
+                    KeyName = s.KeyName,
+                    DisplayName = s.DisplayName,
+                    DisplayVersion = s.DisplayVersion,
+                    Publisher = s.Publisher,
+                    PackageId = s.PackageId,
+                    InstalledVersion = s.PackageId is null ? null : s.InstalledVersion,
+                    MatchKind = s.PackageId is null ? SoftwareMatch.None : SoftwareMatch.WinGet,
+                    ReportedAtUtc = now,
+                };
+                if (s.PackageId is null && previous.TryGetValue((s.View, s.KeyName.ToUpperInvariant()), out var last)
+                    && (last.MatchKind == SoftwareMatch.Catalog || !winGetMatched))
+                {
+                    entity.PackageId = last.PackageId;
+                    entity.MatchKind = last.MatchKind;
+
+                    // The version WinGet knew stays only while the program reports the same version as then.
+                    entity.InstalledVersion = string.Equals(last.DisplayVersion, s.DisplayVersion, StringComparison.OrdinalIgnoreCase) ? last.InstalledVersion : s.DisplayVersion;
+                }
+
+                return entity;
             }));
     }
 

@@ -270,9 +270,10 @@ internal sealed partial class RolloutAdministration(ServerDbContext db, RolloutS
         int? ruleId, int priority, string? classification, string? msrcSeverity, string? titlePattern, StartMode mode, int delayHours, IReadOnlyCollection<int> startRings,
         RebootBehavior? rebootBehavior, bool outsideWindows, SoftwareConditions software, string actor, CancellationToken cancellationToken)
     {
-        if (software.Kind is { } kind && !Enum.IsDefined(kind))
+        if (software.Kind is not { } kind || !Enum.IsDefined(kind))
         {
-            return new Outcome("The kind is invalid.");
+            // One rule, one kind (Marc, 2026-11-10): a rule for Windows updates and software at once has no clear target.
+            return new Outcome("Choose whether the rule is for Windows updates or for software.");
         }
 
         var packageIdPattern = Normalize(software.PackageIdPattern);

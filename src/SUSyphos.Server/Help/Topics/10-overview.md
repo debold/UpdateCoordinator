@@ -12,6 +12,8 @@ The time under the title ("As of …") is when the page was built, in the time z
 
 **Pause all installations** (operators and administrators, red on the right of the band) starts the global pause at once for every server. Agents start nothing new: an installation that is already running ends, but no new one starts, and no server is restarted for updates. Searches, inventory and heartbeats continue. While the pause lasts, a red banner **Paused** below the title says so, with **Resume installations** on the right; agents continue in their next maintenance window. Both are recorded in the [audit log](help/audit-log). Use the pause when a released update turns out to be harmful and you need time to stop its rollout.
 
+A banner **Certificate** appears when servers cannot install software because they do not trust the certificate of the central server, or while it uses a self-signed certificate without the agent setting that lets WinGet trust it; see [The certificate of the central server](help/software#certificate). It is not shown while a pause or blackout banner is.
+
 An amber banner **Blackout** appears while a blackout period from [Maintenance windows](help/maintenance-windows#blackouts) is active, with its end and reason; like the pause, it stops new installations until it ends. **Show blackouts** opens the list.
 
 ## Key figures {#figures}

@@ -25,6 +25,14 @@ internal static class AgentActionText
         _ => kind.ToString(),
     };
 
+    /// <summary>Name of the action with what "install now" installs, where it is not everything.</summary>
+    public static string Label(AgentActionKind kind, InstallScope? scope) => scope switch
+    {
+        InstallScope.WindowsUpdates => $"{Label(kind)} (Windows updates only)",
+        InstallScope.Software => $"{Label(kind)} (software only)",
+        _ => Label(kind),
+    };
+
     /// <summary>CSS class of the state pill.</summary>
     public static string StateClass(AgentActionState state) => state switch
     {

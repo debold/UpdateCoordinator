@@ -58,7 +58,22 @@ public enum AgentActionKind
 /// <param name="PackageId">For the uninstallation of software: the WinGet package to remove; null for a Windows update.</param>
 /// <param name="Revision">Its revision.</param>
 /// <param name="KbArticle">Its KB number (digits), to find the package without Windows Update.</param>
-public sealed record AgentAction(Guid Id, AgentActionKind Kind, DateTimeOffset RequestedAt, Guid? UpdateId = null, int? Revision = null, string? KbArticle = null, string? PackageId = null);
+/// <param name="Scope">For "install now": what to install; null (central servers before 0.9) means everything released.</param>
+public sealed record AgentAction(Guid Id, AgentActionKind Kind, DateTimeOffset RequestedAt, Guid? UpdateId = null, int? Revision = null, string? KbArticle = null, string? PackageId = null, InstallScope? Scope = null);
+
+/// <summary>What an "install now" action installs of the released items.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<InstallScope>))]
+public enum InstallScope
+{
+    /// <summary>Windows updates and software.</summary>
+    All = 0,
+
+    /// <summary>Windows updates only.</summary>
+    WindowsUpdates = 1,
+
+    /// <summary>Software (WinGet packages) only.</summary>
+    Software = 2,
+}
 
 /// <summary>Actions waiting for the agent, oldest first.</summary>
 public sealed record AgentActionList(IReadOnlyList<AgentAction> Actions)

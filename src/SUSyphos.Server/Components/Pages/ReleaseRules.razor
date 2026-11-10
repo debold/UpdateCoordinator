@@ -16,7 +16,8 @@
 
 <ActionBand>
     <ActionMenu Label="New" Icon="plus" Kind="primary">
-        <MenuItem Href="@($"{Path}?dialog=rule-new")" Icon="list-plus">New start rule…</MenuItem>
+        <MenuItem Href="@($"{Path}?dialog=rule-new&kind=windows")" Icon="list-plus">New start rule for Windows updates…</MenuItem>
+        <MenuItem Href="@($"{Path}?dialog=rule-new&kind=software")" Icon="layers">New start rule for software…</MenuItem>
         <MenuItem Href="@($"{RingsPath}&dialog=ring-new")" Icon="target">New ring…</MenuItem>
     </ActionMenu>
 </ActionBand>
@@ -122,9 +123,12 @@ else
     var classification = Classification ?? rule?.Classification ?? (_dialog == "rule-new" ? PrefillClassification : null);
     var severity = Severity ?? rule?.MsrcSeverity ?? (_dialog == "rule-new" ? PrefillSeverity : null);
     var restart = RestartOf(rule);
-    var kind = Mode is "rule-create" or "rule-edit" ? Kind ?? string.Empty : KindValue(rule is null ? UpdateKind.WindowsUpdate : rule.Kind);
+    var kind = Mode is "rule-create" or "rule-edit" ? Kind ?? string.Empty : rule is not null ? KindValue(rule.Kind) : PrefillKind == "software" ? "software" : "windows";
+    var forSoftware = kind == "software";
+    var forWindows = kind != "software";
+    var titlePattern = TitlePattern ?? rule?.TitlePattern ?? (_dialog == "rule-new" ? PrefillTitle : null);
     var selected = StartRingsSelected?.ToList() ?? (rule is null ? [] : [.. StartRings.Parse(rule.StartRingIds)]);
-    <Dialog Title="@(rule is null ? "New start rule" : "Edit start rule")" CloseHref="@Path" Wide="true" Help="release-rules#start-rule-dialog">
+    <Dialog Title="@((rule is null ? "New start rule" : "Edit start rule") + (forSoftware ? " for software" : kind == "windows" ? " for Windows updates" : string.Empty))" CloseHref="@Path" Wide="true" Help="release-rules#start-rule-dialog">
         <form method="post" @formname="release-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="@(rule is null ? "rule-create" : "rule-edit")" />
@@ -134,23 +138,43 @@ else
                 {
                     <p class="error" role="alert">@Message</p>
                 }
-                @if (rule is null && PrefillTitle is not null)
+                @if (rule is null && (PrefillTitle is not null || PrefillPackage is not null))
                 {
-                    <p class="notice">Pre-filled from the update; narrow the title pattern with * and ? as needed.</p>
+                    <p class="notice">@(forSoftware ? "Pre-filled from the package; widen the package ID pattern with * and ? as needed." : "Pre-filled from the update; narrow the title pattern with * and ? as needed.")</p>
                 }
-                <div class="form-row">
-                    <label class="field"><span>Kind</span>
-                        <select name="Kind">
-                            @foreach (var (value, label) in KindOptions)
-                            {
-                                <option value="@value" selected="@(value == kind)">@label</option>
-                            }
-                        </select>
-                    </label>
-                    <label class="field"><span>Package ID pattern (* and ? allowed)</span><input name="PackageIdPattern" maxlength="@PackageEntity.MaxIdLength" value="@(PackageIdPattern ?? rule?.PackageIdPattern)" placeholder="e.g. Microsoft.*" /></label>
-                    <label class="field"><span>Publisher</span><input name="Publisher" maxlength="@StartRuleEntity.MaxPublisherLength" value="@(Publisher ?? rule?.Publisher)" placeholder="e.g. Igor Pavlov" /></label>
-                </div>
-                <p class="help">Software means program versions installed with WinGet. Package ID and publisher apply to software only; classification, severity, restart and installing outside the windows to Windows updates only. The title pattern applies to both.</p>
+                @if (kind.Length > 0)
+                {
+                    <input type="hidden" name="Kind" value="@kind" />
+                }
+                else
+                {
+                    <div class="form-row">
+                        <label class="field"><span>Kind</span>
+                            <select name="Kind">
+                                <option value="" selected>Choose…</option>
+                                <option value="windows">Windows updates</option>
+                                <option value="software">Software (WinGet)</option>
+                            </select>
+                        </label>
+                    </div>
+                    <p class="help">This rule was made for Windows updates and software at once. Choose one kind when you save it; add a second rule for the other kind if needed.</p>
+                }
+                @if (forSoftware)
+                {
+                    <div class="form-row">
+                        <label class="field"><span>Package ID pattern (* and ? allowed)</span><input name="PackageIdPattern" maxlength="@PackageEntity.MaxIdLength" value="@(PackageIdPattern ?? rule?.PackageIdPattern ?? (_dialog == "rule-new" ? PrefillPackage : null))" placeholder="e.g. Microsoft.*" /></label>
+                        <label class="field"><span>Publisher</span><input name="Publisher" maxlength="@StartRuleEntity.MaxPublisherLength" value="@(Publisher ?? rule?.Publisher)" placeholder="e.g. Igor Pavlov" /></label>
+                        <label class="field"><span>Priority (lower wins)</span><input name="Priority" type="number" min="0" max="10000" value="@(Priority ?? (rule?.Priority ?? NextPriority).ToString(System.Globalization.CultureInfo.InvariantCulture))" /></label>
+                    </div>
+                    <p class="help">Program versions installed with WinGet. Empty conditions match every package.</p>
+                    @if (!string.IsNullOrEmpty(titlePattern))
+                    {
+                        <label class="field"><span>Title pattern (* and ? allowed)</span><input name="TitlePattern" maxlength="128" value="@titlePattern" /></label>
+                        <p class="help">Kept from an earlier version of this rule; clear it to match by package ID and publisher only.</p>
+                    }
+                }
+                @if (forWindows)
+                {
                 <div class="form-row">
                     <label class="field"><span>Classification</span>
                         <select name="Classification">
@@ -181,9 +205,10 @@ else
                     </label>
                     <label class="field"><span>Priority (lower wins)</span><input name="Priority" type="number" min="0" max="10000" value="@(Priority ?? (rule?.Priority ?? NextPriority).ToString(System.Globalization.CultureInfo.InvariantCulture))" /></label>
                 </div>
-                <label class="field"><span>Title pattern (* and ? allowed)</span><input name="TitlePattern" maxlength="128" value="@(TitlePattern ?? rule?.TitlePattern ?? (_dialog == "rule-new" ? PrefillTitle : null))" placeholder="e.g. *Cumulative Update*" /></label>
+                <label class="field"><span>Title pattern (* and ? allowed)</span><input name="TitlePattern" maxlength="128" value="@titlePattern" placeholder="e.g. *Cumulative Update*" /></label>
                 <label class="check"><input type="checkbox" name="OutsideWindows" value="true" checked="@(Mode is "rule-create" or "rule-edit" ? OutsideWindows == "true" : rule?.OutsideWindows == true)" /> Install outside the maintenance windows</label>
                 <p class="help">Only with the restart condition "No restart": servers install these updates as soon as they are released, also outside their windows (e.g. definition updates). Updates that restart always wait for a window.</p>
+                }
                 <div class="gated-select">
                 <div class="form-row">
                     <label class="field"><span>Start</span>
@@ -212,7 +237,7 @@ else
                 </fieldset>
                 </div>
                 @{
-                    var preview = PreviewMatches(rule, classification, severity, TitlePattern ?? rule?.TitlePattern ?? (_dialog == "rule-new" ? PrefillTitle : null), restart, Mode is "rule-create" or "rule-edit" ? PostedSoftware() : new SoftwareConditions(rule is null ? UpdateKind.WindowsUpdate : rule.Kind, rule?.PackageIdPattern, rule?.Publisher));
+                    var preview = PreviewMatches(rule, classification, severity, titlePattern, restart, Mode is "rule-create" or "rule-edit" ? PostedSoftware() : new SoftwareConditions(KindOf(kind), rule?.PackageIdPattern ?? (_dialog == "rule-new" ? PrefillPackage : null), rule?.Publisher));
                 }
                 <fieldset>
                     <legend>Matching updates (@preview.Count of @_previewUpdates.Count known, not archived)</legend>
@@ -362,17 +387,15 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
     [SupplyParameterFromForm(FormName = "release-dialog")] private string? PackageIdPattern { get; set; }
     [SupplyParameterFromForm(FormName = "release-dialog")] private string? Publisher { get; set; }
 
-    private static readonly IReadOnlyList<(string Value, string Label)> KindOptions = [("windows", "Windows updates"), ("software", "Software (WinGet)"), (string.Empty, "Windows updates and software")];
 
     private static string KindValue(UpdateKind? kind) => kind switch { UpdateKind.WindowsUpdate => "windows", UpdateKind.Software => "software", _ => string.Empty };
 
     private static string KindText(UpdateKind? kind) => kind switch { UpdateKind.WindowsUpdate => "Windows updates", UpdateKind.Software => "Software", _ => "any" };
 
     /// <summary>Kind from the posted form; an unknown value becomes an invalid kind that the validation refuses.</summary>
-    private SoftwareConditions PostedSoftware() => new(
-        Kind switch { "windows" => UpdateKind.WindowsUpdate, "software" => UpdateKind.Software, null or "" => null, _ => (UpdateKind)(-1) },
-        PackageIdPattern,
-        Publisher);
+    private SoftwareConditions PostedSoftware() => new(KindOf(Kind), PackageIdPattern, Publisher);
+
+    private static UpdateKind? KindOf(string? kind) => kind switch { "windows" => UpdateKind.WindowsUpdate, "software" => UpdateKind.Software, null or "" => null, _ => (UpdateKind)(-1) };
 
     /// <summary>Title pattern and, for software, package ID pattern and publisher as lines of the list.</summary>
     private static IEnumerable<string> PatternConditions(StartRuleEntity rule)
@@ -410,6 +433,8 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
     [SupplyParameterFromQuery(Name = "classification")] private string? PrefillClassification { get; set; }
     [SupplyParameterFromQuery(Name = "severity")] private string? PrefillSeverity { get; set; }
     [SupplyParameterFromQuery(Name = "title")] private string? PrefillTitle { get; set; }
+    [SupplyParameterFromQuery(Name = "kind")] private string? PrefillKind { get; set; }
+    [SupplyParameterFromQuery(Name = "package")] private string? PrefillPackage { get; set; }
 
     private string? _dialog;
     private List<RingEntity> _rings = [];
@@ -567,7 +592,7 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
         _rulePage = TablePaging.Apply(_startRules, _ruleTable, RuleColumns, r => $"{r.TitlePattern} {r.Classification} {r.MsrcSeverity} {r.PackageIdPattern} {r.Publisher}");
         _servers = await Db.Clients.Where(c => c.RingId != null && c.State == RegistrationState.Approved).GroupBy(c => c.RingId!.Value).ToDictionaryAsync(g => g.Key, g => g.Count());
         _stopWithdrawn = await Administration.GetStopWithdrawnAsync(CancellationToken.None);
-        _catalogClassifications = await Db.Updates.AsNoTracking().Where(u => u.Classification != null).Select(u => u.Classification!).Distinct().Take(50).ToListAsync();
+        _catalogClassifications = await Db.Updates.AsNoTracking().Where(u => u.Classification != null).Select(u => u.Classification!).Distinct().OrderBy(c => c).Take(50).ToListAsync();
         if (DialogName is "rule" or "rule-new")
         {
             _previewUpdates = await Db.Updates.AsNoTracking().Where(u => u.ArchivedAtUtc == null).OrderByDescending(u => u.FirstSeenAtUtc).Take(5000).ToListAsync();

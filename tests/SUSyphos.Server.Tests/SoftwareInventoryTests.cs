@@ -81,6 +81,55 @@ public sealed class SoftwareInventoryTests(ServerFactory factory) : IClassFixtur
     }
 
     [Fact]
+    public async Task CatalogMatch_SurvivesTheNextInventory_WithTheNewVersion()
+    {
+        using var client = factory.CreateClient();
+        var credentials = await RegisterTests.RegisterAsync(client);
+        await InventoryTests.SendAsync(client, credentials, WithSoftware(SoftwareSupportState.Supported, null, Program(packageId: null)));
+        await MatchAsync(credentials.ClientId, SoftwareMatch.Catalog, "26.06");
+
+        await InventoryTests.SendAsync(client, credentials, WithSoftware(SoftwareSupportState.Supported, null, Program(packageId: null) with { DisplayVersion = "26.07" }));
+
+        var zip = Assert.Single(await SoftwareAsync(credentials.ClientId));
+        Assert.Equal(("7zip.7zip", "26.07", SoftwareMatch.Catalog), (zip.PackageId, zip.InstalledVersion, zip.MatchKind));
+    }
+
+    [Fact]
+    public async Task WinGetMatch_SurvivesAFailedHelper_ButNotASupportedReportWithoutIt()
+    {
+        using var client = factory.CreateClient();
+        var credentials = await RegisterTests.RegisterAsync(client);
+        await InventoryTests.SendAsync(client, credentials, WithSoftware(SoftwareSupportState.Supported, null, Program()));
+
+        // The helper failed: the agent sends the registry list only.
+        await InventoryTests.SendAsync(client, credentials, WithSoftware(SoftwareSupportState.Failed, "The WinGet helper of the agent did not finish in time.", Program(packageId: null)));
+        var zip = Assert.Single(await SoftwareAsync(credentials.ClientId));
+        Assert.Equal(("7zip.7zip", "26.06", SoftwareMatch.WinGet), (zip.PackageId, zip.InstalledVersion, zip.MatchKind));
+
+        // WinGet ran and no longer correlates the program: the match goes.
+        await InventoryTests.SendAsync(client, credentials, WithSoftware(SoftwareSupportState.Supported, null, Program(packageId: null)));
+        zip = Assert.Single(await SoftwareAsync(credentials.ClientId));
+        Assert.Equal((null, null, SoftwareMatch.None), (zip.PackageId, zip.InstalledVersion, zip.MatchKind));
+    }
+
+    [Fact]
+    public async Task Match_IsNotCarriedToAnotherKey()
+    {
+        using var client = factory.CreateClient();
+        var credentials = await RegisterTests.RegisterAsync(client);
+        await InventoryTests.SendAsync(client, credentials, WithSoftware(SoftwareSupportState.Supported, null, Program(packageId: null)));
+        await MatchAsync(credentials.ClientId, SoftwareMatch.Catalog, "26.06");
+
+        await InventoryTests.SendAsync(client, credentials, WithSoftware(SoftwareSupportState.Supported, null, Program("Other", null)));
+
+        Assert.Null(Assert.Single(await SoftwareAsync(credentials.ClientId)).PackageId);
+    }
+
+    private Task<int> MatchAsync(Guid clientId, SoftwareMatch kind, string version) => factory.WithDbAsync(db =>
+        db.ClientSoftware.Where(s => s.ClientId == clientId).ExecuteUpdateAsync(s => s
+            .SetProperty(e => e.PackageId, "7zip.7zip").SetProperty(e => e.InstalledVersion, version).SetProperty(e => e.MatchKind, kind), TestContext.Current.CancellationToken));
+
+    [Fact]
     public async Task SameKeyTwice_IsStoredOnce()
     {
         using var client = factory.CreateClient();

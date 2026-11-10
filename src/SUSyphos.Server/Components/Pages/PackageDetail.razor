@@ -7,6 +7,7 @@
 @inject ServerDbContext Db
 @inject SoftwareCatalog Catalog
 @inject SoftwareFeature Feature
+@inject SoftwareTrust Trust
 @inject SoftwareAssignments Assignments
 
 @if (_package is null)
@@ -19,6 +20,7 @@ else
 {
     <PageTitle>@_package.Name</PageTitle>
     <PageHeader Icon="@PageIcons.Software" Title="@_package.Name" Subtitle="@($"{_package.Publisher ?? "Unknown publisher"} · {_package.PackageId}")" Help="package-detail" Crumbs="@([("Software", "/software"), (_package.Name, null)])" />
+    <SoftwareTrustBanner State="@_trust" />
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
     <FeatureOff Off="@(!_enabled)" Title="Software management is switched off" Help="software#switch" Text="An administrator switched off software with WinGet on the Software page. The data stays, but nothing is updated or installed until it is switched on again.">
@@ -31,7 +33,7 @@ else
                 @if (Links.Count > 0)
                 {
                     <dt>Links</dt>
-                    <dd>@foreach (var (label, url) in Links) { <a href="@url" target="_blank" rel="noopener noreferrer" class="link-gap">@label</a> }</dd>
+                    <dd>@for (var i = 0; i < Links.Count; i++) { if (i > 0) { <span class="note"> · </span> } <a href="@Links[i].Url" target="_blank" rel="noopener noreferrer">@Links[i].Label</a> }</dd>
                 }
                 @if (_package.Tags is not null)
                 {
@@ -250,9 +252,12 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
+    private SoftwareTrustState _trust = SoftwareTrustState.None;
+
     private async Task LoadAsync()
     {
         _enabled = await Feature.IsEnabledAsync(CancellationToken.None);
+        _trust = await Trust.GetAsync(null, CancellationToken.None);
         _package = await Db.Packages.AsNoTracking().SingleOrDefaultAsync(p => p.PackageId == PackageId);
         if (_package is null)
         {

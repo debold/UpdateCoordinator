@@ -111,6 +111,32 @@ public sealed class ActionRunnerTests
     }
 
     [Theory]
+    [InlineData(InstallScope.Software, "software")]
+    [InlineData(InstallScope.WindowsUpdates, "Windows updates")]
+    public async Task InstallNow_PassesWhatToInstall(InstallScope scope, string detail)
+    {
+        var request = Action(AgentActionKind.InstallNow) with { Scope = scope };
+        _client.ActionList = new AgentActionList([request]);
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Equal(scope, _runner.InstallNowScope);
+        Assert.Contains(detail, _client.ActionResults[request.Id].Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InstallNow_WithAnUnknownScope_IsRejected()
+    {
+        var request = Action(AgentActionKind.InstallNow) with { Scope = (InstallScope)99 };
+        _client.ActionList = new AgentActionList([request]);
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Equal(AgentActionStatus.Rejected, _client.ActionResults[request.Id].Status);
+        Assert.Null(_runner.InstallNowRestartNow);
+    }
+
+    [Theory]
     [InlineData(AgentActionKind.InstallNow, true, true, "right after")]
     [InlineData(AgentActionKind.InstallNowRestartInWindow, true, false, "next maintenance window")]
     [InlineData(AgentActionKind.InstallNow, false, true, "forbidden")]
@@ -123,6 +149,7 @@ public sealed class ActionRunnerTests
         await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
 
         Assert.Equal(restartNow, _runner.InstallNowRestartNow);
+        Assert.Equal(InstallScope.All, _runner.InstallNowScope);
         Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[request.Id].Status);
         Assert.Contains(detail, _client.ActionResults[request.Id].Detail, StringComparison.Ordinal);
         Assert.Empty(_systemRestart.Requests);

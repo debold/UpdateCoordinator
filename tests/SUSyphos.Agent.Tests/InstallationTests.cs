@@ -791,6 +791,36 @@ public sealed class InstallationRunnerTests
         Assert.Empty(_installer.Batches);
     }
 
+    [Theory]
+    [InlineData(InstallScope.All, 2)]
+    [InlineData(InstallScope.WindowsUpdates, 1)]
+    [InlineData(InstallScope.Software, 1)]
+    public async Task InstallNow_InstallsOnlyWhatWasChosen(InstallScope scope, int count)
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero)); // Wednesday noon, no window
+        var software = new Release(Guid.NewGuid(), 1, _time.GetUtcNow().AddDays(2), Software: new SoftwareRelease("7zip.7zip", "26.06", false));
+        var update = _release with { EarliestInstallAt = _time.GetUtcNow().AddDays(2) };
+        _releases.Current = new ReleaseList(1, [update, software]);
+        var runner = Create();
+
+        runner.RequestInstallNow(restartNow: false, scope);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        var batch = Assert.Single(_installer.Batches);
+        Assert.Equal(count, batch.Count);
+        Assert.True(scope switch
+        {
+            InstallScope.WindowsUpdates => batch.All(r => r.Software is null),
+            InstallScope.Software => batch.All(r => r.Software is not null),
+            _ => true,
+        });
+        Assert.Null(_store.State.InstallNow);
+
+        // What was not chosen waits for the window: the next cycle installs nothing.
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Single(_installer.Batches);
+    }
+
     private static AgentAction Uninstall(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow, Guid.NewGuid(), 1, "5040434");
 
     private static InstallReport Report() => new()

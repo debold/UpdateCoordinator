@@ -4,6 +4,7 @@
 @using SUSyphos.Server.Assignment
 @using SUSyphos.Server.Agents
 @using SUSyphos.Server.Components.Shared
+@inject SUSyphos.Server.Software.SoftwareTrust Trust
 @inject ServerDbContext Db
 @inject AssignmentAdministration Administration
 @inject DeploymentStatus Deployment
@@ -30,6 +31,10 @@ else
 
     <form id="actions" method="post" @formname="action" @onsubmit="HandleActionAsync" class="detached"><AntiforgeryToken /></form>
     <form id="cancel-restart" method="post" @formname="cancel-restart" @onsubmit="CancelRestartAsync" class="detached"><AntiforgeryToken /></form>
+    @if (_trust.FailingServers.Count > 0)
+    {
+        <SoftwareTrustBanner State="@_trust" />
+    }
     @if (_pendingRemoval is { } removal)
     {
         <Banner Label="Removal requested" Severity="fail" Help="server-detail#remove">
@@ -433,7 +438,7 @@ else
             <Row Context="action">
                         <tr>
                             <td class="nowrap">@Format(action.RequestedAtUtc)</td>
-                            <td>@SUSyphos.Server.Agents.AgentActionText.Label(action.Kind)</td>
+                            <td>@SUSyphos.Server.Agents.AgentActionText.Label(action.Kind, action.Scope)</td>
                             <td>@action.RequestedBy</td>
                             <td><span class="pill @SUSyphos.Server.Agents.AgentActionText.StateClass(action.State)">@ActionStateLabel(action)</span></td>
                             <td>
@@ -508,16 +513,30 @@ else
                     }
                     else
                     {
+                        var softwareCount = released.Count(r => _softwareIds.Contains(r.Entry.UpdateId));
                         <p>The agent installs @(released.Count == 1 ? "this update" : $"these {released.Count} updates") with its next heartbeat, also outside the maintenance window and before their planned time:</p>
                         <ul class="plain">
                             @foreach (var (entry, title) in released.Take(10))
                             {
-                                <li>@title</li>
+                                <li>@title @if (_softwareIds.Contains(entry.UpdateId)) { <ClassificationTag Text="@SUSyphos.Server.Software.SoftwarePackages.Classification" /> }</li>
                             }
                         </ul>
                         @if (released.Count > 10)
                         {
                             <p class="help">and @(released.Count - 10) more.</p>
+                        }
+                        @if (softwareCount > 0 && softwareCount < released.Count)
+                        {
+                            <fieldset class="choices">
+                                <legend>What to install</legend>
+                                <div class="choice"><input type="radio" id="install-all" name="InstallWhat" value="all" checked data-help-term="Windows updates and software" /> <span><label for="install-all"><b>Windows updates and software</b></label><span class="note">Everything listed above.</span></span></div>
+                                <div class="choice"><input type="radio" id="install-updates" name="InstallWhat" value="updates" data-help-term="Windows updates only" /> <span><label for="install-updates"><b>Windows updates only</b></label><span class="note">@DisplayNumber.Format(released.Count - softwareCount) Windows @(released.Count - softwareCount == 1 ? "update" : "updates"); the software waits for the maintenance window.</span></span></div>
+                                <div class="choice"><input type="radio" id="install-software" name="InstallWhat" value="software" data-help-term="Software only" /> <span><label for="install-software"><b>Software only</b></label><span class="note">@DisplayNumber.Format(softwareCount) @(softwareCount == 1 ? "program" : "programs"); the Windows updates wait for the maintenance window.</span></span></div>
+                            </fieldset>
+                        }
+                        else
+                        {
+                            <input type="hidden" name="InstallWhat" value="all" />
                         }
                     }
                     <p>Only updates released for the ring of the server are installed. If Windows then needs a restart, the server restarts <b>right after</b> (five minute warning) or in the <b>next maintenance window</b> (next window: @NextWindowText).</p>
@@ -624,6 +643,7 @@ else
     [
         new("updates", "Without definition updates", "Antivirus definitions arrive several times a day and are hidden", ("category", TableFilter.Not(DefinitionUpdates.Classification))),
         new("problems", "Failed or with errors", "Installations that did not fully succeed", ("result", TableFilter.In(FailedResult, ErrorsResult))),
+        new("software", "Software only", "Programs installed or updated with WinGet", ("category", TableFilter.In(SUSyphos.Server.Software.SoftwarePackages.Classification))),
         new("all", "All installations", "No filter, definition updates included"),
     ];
 
@@ -689,6 +709,11 @@ else
 
     private List<SoftwareItem> _software = [];
     private bool _softwareEnabled = true;
+
+    private SUSyphos.Server.Software.SoftwareTrustState _trust = SUSyphos.Server.Software.SoftwareTrustState.None;
+
+    /// <summary>Software versions among the updates of this page, so lists and the install dialog can tell them apart.</summary>
+    private HashSet<Guid> _softwareIds = [];
     private TableQuery _softwareTable = default!;
     private TablePage<SoftwareItem> _softwarePage = default!;
     private IReadOnlyList<TableColumn<SoftwareItem>>? _softwareColumns;
@@ -714,6 +739,7 @@ else
     private async Task LoadSoftwareAsync()
     {
         _softwareEnabled = await SUSyphos.Server.Software.SoftwareFeature.IsEnabledAsync(Db, CancellationToken.None);
+        _trust = await Trust.GetAsync(Id, CancellationToken.None);
         var programs = await Db.ClientSoftware.AsNoTracking().Where(s => s.ClientId == Id).ToListAsync();
         var packageIds = programs.Where(p => p.PackageId != null).Select(p => p.PackageId!).Distinct().ToList();
         var newest = (await Db.PackageVersions.AsNoTracking().Where(v => packageIds.Contains(v.PackageId)).Select(v => new { v.PackageId, v.Version }).ToListAsync())
@@ -764,6 +790,9 @@ else
     [SupplyParameterFromForm(FormName = "install")]
     private string? InstallRestart { get; set; }
 
+    [SupplyParameterFromForm(FormName = "install")]
+    private string? InstallWhat { get; set; }
+
     [SupplyParameterFromForm(FormName = "uninstall")]
     private string? UninstallWhen { get; set; }
 
@@ -801,14 +830,23 @@ else
             "window" => SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow,
             _ => (SUSyphos.Contracts.Agents.AgentActionKind?)null,
         };
+        var scope = SUSyphos.Server.Agents.AgentActionService.InstallScopeOf(InstallWhat);
         var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer)
             ? new Outcome("Only administrators can install updates outside the maintenance window.")
             : kind is null
                 ? new Outcome("Choose when the server restarts.")
-                : await Actions.QueueAsync(Id, kind.Value, await GetActorAsync(), CancellationToken.None);
+                : scope is null
+                    ? new Outcome("Choose what to install.")
+                    : await Actions.QueueInstallNowAsync(Id, kind.Value, scope.Value, await GetActorAsync(), CancellationToken.None);
+        var what = scope switch
+        {
+            SUSyphos.Contracts.Agents.InstallScope.WindowsUpdates => "the released Windows updates",
+            SUSyphos.Contracts.Agents.InstallScope.Software => "the released software",
+            _ => "the released updates",
+        };
         ShowResultAndReload(outcome.Error, kind == SUSyphos.Contracts.Agents.AgentActionKind.InstallNow
-            ? "The installation was queued; the agent installs the released updates after its next heartbeat and restarts right after if needed."
-            : "The installation was queued; the agent installs the released updates after its next heartbeat, and a needed restart waits for the next maintenance window.");
+            ? $"The installation was queued; the agent installs {what} after its next heartbeat and restarts right after if needed."
+            : $"The installation was queued; the agent installs {what} after its next heartbeat, and a needed restart waits for the next maintenance window.");
         Dialog = null;
         await LoadAsync();
     }
@@ -1146,7 +1184,7 @@ else
         await LoadSoftwareAsync();
         _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(MaxHistory).ToListAsync();
         _actionTable = TableQuery.From(Navigation, "requested", defaultDescending: true, prefix: "ra.", defaultPageSize: 10, views: ActionViews);
-        _actionPage = TablePaging.Apply(_actions, _actionTable, ActionColumns, a => $"{SUSyphos.Server.Agents.AgentActionText.Label(a.Kind)} {a.RequestedBy} {a.Detail}");
+        _actionPage = TablePaging.Apply(_actions, _actionTable, ActionColumns, a => $"{SUSyphos.Server.Agents.AgentActionText.Label(a.Kind, a.Scope)} {a.RequestedBy} {a.Detail}");
         if (_client is null)
         {
             return;
@@ -1183,13 +1221,16 @@ else
         var ids = entries.Select(e => e.UpdateId).Concat(installations.Select(i => i.UpdateId)).Concat(liveIds).Distinct().ToList();
         var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync();
         string Title(Guid updateId, int revision) => UpdateText.Title(updates.FirstOrDefault(u => u.UpdateId == updateId && u.Revision == revision), updateId);
-        string ClassificationOf(Guid updateId, int revision) => updates.FirstOrDefault(u => u.UpdateId == updateId && u.Revision == revision)?.Classification ?? "Unknown";
+        string ClassificationOf(Guid updateId, int revision) => updates.FirstOrDefault(u => u.UpdateId == updateId && u.Revision == revision) is { } update
+            ? update.Kind == UpdateKind.Software ? SUSyphos.Server.Software.SoftwarePackages.Classification : update.Classification ?? "Unknown"
+            : "Unknown";
 
         // Missing = reported by the last search, or released and not installed yet.
         _open = [.. entries
             .Where(e => available.Any(a => a.UpdateId == e.UpdateId && a.Revision == e.Revision) || (e.EarliestInstallAtUtc is not null && e.State != DeploymentState.Successful))
             .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
             .Select(e => (e, Title(e.UpdateId, e.Revision)))];
+        _softwareIds = [.. updates.Where(u => u.Kind == UpdateKind.Software).Select(u => u.UpdateId)];
         _history = [.. installations.Select(i => (Installation: i, Title: Title(i.UpdateId, i.Revision), Category: ClassificationOf(i.UpdateId, i.Revision)))];
         _openTable = TableQuery.From(Navigation, "status", defaultDescending: true, prefix: "mu.", defaultPageSize: 10);
         _openPage = TablePaging.Apply(_open, _openTable, OpenColumns, o => o.Title);
@@ -1297,7 +1338,7 @@ else
     private static readonly IReadOnlyList<TableColumn<AgentActionEntity>> ActionColumns =
     [
         new("requested", "Requested", a => a.RequestedAtUtc),
-        new("action", "Action", a => SUSyphos.Server.Agents.AgentActionText.Label(a.Kind), a => [SUSyphos.Server.Agents.AgentActionText.Label(a.Kind)]),
+        new("action", "Action", a => SUSyphos.Server.Agents.AgentActionText.Label(a.Kind, a.Scope), a => [SUSyphos.Server.Agents.AgentActionText.Label(a.Kind, a.Scope)]),
         new("by", "By", a => a.RequestedBy, a => [a.RequestedBy]),
         new("state", "State", a => a.State.ToString(), a => [a.State.ToString()]),
         new("detail", "Detail", a => a.Detail, Sortable: false),
@@ -1322,7 +1363,7 @@ else
         var tasks = new List<PlannedTask>();
         foreach (var action in _actions.Where(a => a.State is AgentActionState.Queued or AgentActionState.Delivered))
         {
-            tasks.Add(new(now, action.State == AgentActionState.Queued ? "next heartbeat" : SUSyphos.Server.Agents.AgentActionService.IsHeld(action.Kind) ? "when it may run" : "now", "Remote action", "queue", $"{SUSyphos.Server.Agents.AgentActionText.Label(action.Kind)}, requested by {action.RequestedBy}", []));
+            tasks.Add(new(now, action.State == AgentActionState.Queued ? "next heartbeat" : SUSyphos.Server.Agents.AgentActionService.IsHeld(action.Kind) ? "when it may run" : "now", "Remote action", "queue", $"{SUSyphos.Server.Agents.AgentActionText.Label(action.Kind, action.Scope)}, requested by {action.RequestedBy}", []));
         }
 
         // While the agent searches or after a search was requested it reports no next time: the search runs now.

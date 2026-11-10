@@ -177,6 +177,7 @@ internal static class DashboardServiceCollectionExtensions
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
         services.AddScoped<Software.SoftwareLogos>();
         services.AddScoped<Software.SoftwareFeature>();
+        services.AddScoped<Software.SoftwareTrust>();
         services.AddScoped<Software.SoftwareAssignments>();
         services.AddHostedService<Software.SoftwareCatalogWorker>();
         services.AddSingleton<Software.IInstallerScanner, Software.AmsiInstallerScanner>();

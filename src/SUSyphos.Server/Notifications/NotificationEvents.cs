@@ -269,6 +269,7 @@ internal sealed class NotificationEvents(
         var outside = await db.ClientUpdateHistory.AsNoTracking()
             .Where(h => h.DateUtc >= since && h.Operation == UpdateOperation.Installation && h.ClientApplicationId != UpdateHistoryEntry.AgentClientApplicationId
                 && (h.ResultCode == InstallResultCode.Succeeded || h.ResultCode == InstallResultCode.SucceededWithErrors))
+            .OrderBy(h => h.DateUtc).ThenBy(h => h.Id)
             .Select(h => new { h.ClientId, h.UpdateId, h.DateUtc, h.Title, h.ClientApplicationId })
             .Take(200)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -315,6 +316,7 @@ internal sealed class NotificationEvents(
         var since = now.AddDays(-1);
         var audits = await db.AuditEntries.AsNoTracking()
             .Where(a => a.AtUtc >= since && (a.Action == Agents.AgentEndpoints.TrustResetAuditAction || AdminActions.Contains(a.Action) || PauseActions.Contains(a.Action) || a.Action == "Installation.BlackoutAdded"))
+            .OrderBy(a => a.Id)
             .Select(a => new { a.Id, a.Action, a.Actor, a.Target, a.Details })
             .Take(200)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -347,6 +349,7 @@ internal sealed class NotificationEvents(
                 join ring in db.Rings on state.RingId equals ring.Id
                 join update in db.Updates on new { state.UpdateId, state.Revision } equals new { update.UpdateId, update.Revision }
                 where update.Classification == null || update.Classification != Rollouts.DefinitionUpdates.Classification
+                orderby state.ReleasedAtUtc, state.UpdateId, state.RingId
                 select new { state.UpdateId, state.Revision, state.RingId, RingName = ring.Name, update.KbArticle, update.Title })
             .Take(200)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -362,6 +365,7 @@ internal sealed class NotificationEvents(
                 from action in db.AgentActions.AsNoTracking()
                 where action.CompletedAtUtc >= since && action.Kind != AgentActionKind.UninstallAgent
                 join client in db.Clients on action.ClientId equals client.Id
+                orderby action.CompletedAtUtc, action.Id
                 select new { action.Id, action.ClientId, client.HostName, action.Kind, action.State, action.RequestedBy, action.Detail })
             .Take(500)
             .ToListAsync(cancellationToken).ConfigureAwait(false);

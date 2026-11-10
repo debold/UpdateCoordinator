@@ -75,12 +75,23 @@ internal sealed partial class ServerTrust : IServerTrust, IAcceptedCertificateSo
         return true;
     }
 
+    internal static readonly TimeSpan PooledIdleTimeout = TimeSpan.FromSeconds(30);
+
+    internal static readonly TimeSpan PooledLifetime = TimeSpan.FromMinutes(5);
+
     /// <summary>The last certificate the central server presented that matched the pinned anchor (DER); null until one did.</summary>
     public byte[]? AcceptedCertificate => Volatile.Read(ref _acceptedCertificate);
 
-    /// <summary>HTTP handler for all messages: accepts only the certificate bound to the pinned anchor, independent of any CA.</summary>
+    /// <summary>
+    /// HTTP handler for all messages: accepts only the certificate bound to the pinned anchor, independent of any CA.
+    /// Idle connections are dropped after <see cref="PooledIdleTimeout"/> and every connection after
+    /// <see cref="PooledLifetime"/>, so a heartbeat rarely meets a connection a firewall or the central server already
+    /// dropped silently (lab, 2026-11-10: three heartbeat timeouts in a night on reused connections).
+    /// </summary>
     public SocketsHttpHandler CreateValidatingHandler() => new()
     {
+        PooledConnectionIdleTimeout = PooledIdleTimeout,
+        PooledConnectionLifetime = PooledLifetime,
         SslOptions = new SslClientAuthenticationOptions
         {
             RemoteCertificateValidationCallback = (_, certificate, _, _) => IsAccepted(certificate),

@@ -105,7 +105,7 @@ public sealed class SoftwareStartRuleTests
     public static readonly TheoryData<string?, string?, int?, bool, int, string?, string?, string> InvalidRules = new()
     {
         { null, null, null, false, (int)UpdateKind.WindowsUpdate, "Microsoft.*", null, "conditions for software" },
-        { null, null, null, false, -1, "Microsoft.*", null, "conditions for software" },
+        { null, null, null, false, -1, "Microsoft.*", null, "Windows updates or for software" },
         { null, null, null, false, (int)UpdateKind.WindowsUpdate, null, "Microsoft", "conditions for software" },
         { "Security Updates", null, null, false, (int)UpdateKind.Software, null, null, "Windows updates only" },
         { null, "Critical", null, false, (int)UpdateKind.Software, null, null, "Windows updates only" },
@@ -113,7 +113,7 @@ public sealed class SoftwareStartRuleTests
         { null, null, null, false, (int)UpdateKind.Software, "Microsoft.*'; DROP TABLE StartRules;--", null, "package ID pattern" },
         { null, null, null, false, (int)UpdateKind.Software, "a b", null, "package ID pattern" },
         { null, null, null, false, (int)UpdateKind.Software, null, "Igor\nPavlov", "publisher" },
-        { null, null, null, false, 7, null, null, "kind is invalid" },
+        { null, null, null, false, 7, null, null, "Windows updates or for software" },
     };
 
     [Theory]
@@ -192,13 +192,58 @@ public sealed class SoftwareStartRuleTests
     public async Task SoftwareVersionWithoutPackage_NeverStartsAutomatically()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
-        Assert.True((await scenario.AdministerAsync(a => a.CreateStartRuleAsync(50, null, null, null, StartMode.Automatic, 0, "admin", CancellationToken.None, software: new SoftwareConditions(null)))).Succeeded);
+        Assert.True((await scenario.AdministerAsync(a => a.CreateStartRuleAsync(50, null, null, null, StartMode.Automatic, 0, "admin", CancellationToken.None, software: new SoftwareConditions(UpdateKind.Software)))).Succeeded);
         var update = Software("Vendor.Orphan", "1.0");
         await scenario.Factory.WithDbAsync(async db => { db.Updates.Add(update); await db.SaveChangesAsync(TestContext.Current.CancellationToken); return true; });
 
         await scenario.WithServiceAsync<RolloutService, bool>(async s => { await s.AutoStartAsync([(update.UpdateId, update.Revision)], CancellationToken.None); return true; });
 
         Assert.False(await scenario.Factory.WithDbAsync(db => db.Rollouts.AnyAsync(r => r.UpdateId == update.UpdateId, TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task RuleFromAPackageVersion_IsASoftwareRule_WithOnlySoftwareFields()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var update = await AddSoftwareAsync(scenario, "Vendor.Tool", "1.2.3", agreements: false, accepted: false);
+        await scenario.Factory.CreateUserAsync("admin", "Admin-Passw0rd!", SUSyphos.Server.Administration.AdminRoles.Admin);
+        var admin = new DashboardClient(scenario.Factory);
+        using (await admin.LoginAsync("admin", "Admin-Passw0rd!"))
+        {
+        }
+
+        var page = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync($"/updates/{update.UpdateId}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("dialog=rule-new&kind=software&package=Vendor.Tool", page, StringComparison.Ordinal);
+
+        var dialog = await (await admin.GetAsync("/administration/release-rules?dialog=rule-new&kind=software&package=Vendor.Tool")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("New start rule for software", dialog, StringComparison.Ordinal);
+        Assert.Contains("value=\"Vendor.Tool\"", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"Classification\"", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"TitlePattern\"", dialog, StringComparison.Ordinal);
+
+        var windows = await (await admin.GetAsync("/administration/release-rules?dialog=rule-new&kind=windows")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("name=\"Classification\"", windows, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"PackageIdPattern\"", windows, StringComparison.Ordinal);
+
+        using (await admin.PostFormAsync("/administration/release-rules?dialog=rule-new", new Dictionary<string, string>
+        {
+            ["_handler"] = "release-dialog", ["Mode"] = "rule-create", ["Kind"] = "software", ["PackageIdPattern"] = "Vendor.Tool", ["Priority"] = "7", ["StartMode"] = "automatic", ["Delay"] = "0",
+        }))
+        {
+        }
+
+        var rule = await scenario.Factory.WithDbAsync(db => db.StartRules.SingleAsync(r => r.Priority == 7, TestContext.Current.CancellationToken));
+        Assert.Equal((UpdateKind.Software, "Vendor.Tool"), (rule.Kind, rule.PackageIdPattern));
+    }
+
+    [Fact]
+    public async Task RuleForBothKinds_IsRefused()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+
+        var outcome = await scenario.AdministerAsync(a => a.CreateStartRuleAsync(50, null, null, null, StartMode.Automatic, 0, "admin", CancellationToken.None, software: new SoftwareConditions(null)));
+
+        Assert.Equal("Choose whether the rule is for Windows updates or for software.", outcome.Error);
     }
 
     [Fact]

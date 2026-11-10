@@ -19,7 +19,8 @@ else if (args is [InstallCommand.Name, ..])
         return 2;
     }
 
-    report = await InstallCommand.RunAsync(install.PackageId, install.Version, install.Source, install.AcceptAgreements, engineFolder, LogFolder(), Console.Error);
+    HelperTrace.Clean(LogFolder(), DateTime.Now);
+    report = await InstallCommand.RunAsync(install.PackageId, install.Version, install.Source, install.AcceptAgreements, engineFolder, LogFolder(), new HelperTrace(Console.Error, LogFolder()));
 }
 else if (args is [UninstallCommand.Name, ..])
 {
@@ -29,7 +30,8 @@ else if (args is [UninstallCommand.Name, ..])
         return 2;
     }
 
-    report = await UninstallCommand.RunAsync(packageId, engineFolder, LogFolder(), Console.Error);
+    HelperTrace.Clean(LogFolder(), DateTime.Now);
+    report = await UninstallCommand.RunAsync(packageId, engineFolder, LogFolder(), new HelperTrace(Console.Error, LogFolder()));
 }
 else
 {

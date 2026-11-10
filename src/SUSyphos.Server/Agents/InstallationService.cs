@@ -29,7 +29,9 @@ internal sealed partial class InstallationService(ServerDbContext db, ClientActi
             return true;
         }
 
-        // Only results for updates released to this client are accepted, so a client cannot write arbitrary history.
+        // Only results for updates released to this client are accepted, so a client cannot write arbitrary history: released
+        // now, or released for its ring, so a run that started before its release was withdrawn, stopped or held still
+        // reports what it did (lab, 2026-11-10).
         var released = (await db.Releases
                 .Where(r => r.ClientId == clientId)
                 .Select(r => new { r.UpdateId, r.Revision })
@@ -37,6 +39,16 @@ internal sealed partial class InstallationService(ServerDbContext db, ClientActi
                 .ConfigureAwait(false))
             .Select(r => (r.UpdateId, r.Revision))
             .ToHashSet();
+        var reported = report.Results.Select(r => r.UpdateId).Distinct().ToList();
+        if (client.RingId is { } ring)
+        {
+            released.UnionWith((await db.RolloutRings
+                    .Where(r => r.RingId == ring && r.ReleasedAtUtc != null && reported.Contains(r.UpdateId))
+                    .Select(r => new { r.UpdateId, r.Revision })
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false))
+                .Select(r => (r.UpdateId, r.Revision)));
+        }
 
         var accepted = report.Results.Where(r => released.Contains((r.UpdateId, r.Revision))).DistinctBy(r => (r.UpdateId, r.Revision)).ToList();
         var ignored = report.Results.Count - accepted.Count;

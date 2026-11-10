@@ -65,7 +65,9 @@ internal sealed partial class InventoryReporter(
         }
 
         scheduler.MarkSent();
-        LogSent(inventory.InstalledUpdates?.Count, inventory.Roles.Count);
+        var packages = inventory.InstalledSoftware?.Count(s => s.PackageId is not null);
+        var softwareState = inventory.Software is { } support ? support.State.ToString() : "not reported";
+        LogSent(inventory.InstalledUpdates?.Count, inventory.Roles.Count, inventory.InstalledSoftware?.Count, packages, softwareState);
         if (inventory.UpdateSource.UsesWsus)
         {
             LogWsus(inventory.UpdateSource.WsusServer);
@@ -76,8 +78,8 @@ internal sealed partial class InventoryReporter(
 
     public void Reset() => scheduler.Reset();
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Inventory sent ({Updates} installed updates, {Roles} roles).")]
-    private partial void LogSent(int? updates, int roles);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Inventory sent ({Updates} installed updates, {Roles} roles, {Programs} programs of which WinGet knows {Packages}, WinGet {SoftwareState}).")]
+    private partial void LogSent(int? updates, int roles, int? programs, int? packages, string softwareState);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "A WSUS server is configured by policy ({Server}); WSUS is not the intended update source.")]
     private partial void LogWsus(string? server);

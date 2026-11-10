@@ -38,7 +38,7 @@ internal interface IInstallationRunner
     DateTimeOffset? RestartAnnouncedAt { get; }
 
     /// <summary>Installs every released update the server misses with the next cycle (remote action); a needed restart follows at once or in the next window.</summary>
-    void RequestInstallNow(bool restartNow);
+    void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All);
 
     /// <summary>
     /// Holds an uninstallation (remote action) until it may run: in a coordinated group with the lease, for
@@ -122,7 +122,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             installNow = null;
         }
 
-        var batch = installNow is null ? PlanBatch() : PlanInstallNow();
+        var batch = installNow is null ? PlanBatch() : PlanInstallNow(installNow.Scope ?? InstallScope.All);
         if (batch.Count > 0)
         {
             // Never install on a server that fails its health check.
@@ -381,18 +381,24 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         _ => null,
     };
 
-    public void RequestInstallNow(bool restartNow)
+    public void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All)
     {
-        Save(_state with { InstallNow = new InstallNowRequest(_timeProvider.GetUtcNow(), restartNow) });
+        Save(_state with { InstallNow = new InstallNowRequest(_timeProvider.GetUtcNow(), restartNow, scope) });
         _updates.RequestRun();
     }
 
-    private IReadOnlyList<Release> PlanInstallNow()
+    private IReadOnlyList<Release> PlanInstallNow(InstallScope scope)
     {
         var missing = WithSoftware(_updates.LastMissingUpdates);
         return !_options.Value.Enabled || missing is null
             ? []
-            : InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, new Dictionary<(Guid, int), DateTimeOffset>(), _timeProvider.GetUtcNow(), _options.Value, everything: true);
+            : [.. InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, new Dictionary<(Guid, int), DateTimeOffset>(), _timeProvider.GetUtcNow(), _options.Value, everything: true)
+                .Where(r => scope switch
+                {
+                    InstallScope.WindowsUpdates => r.Software is null,
+                    InstallScope.Software => r.Software is not null,
+                    _ => true,
+                })];
     }
 
     /// <summary>Clears the request and, if Windows wants a restart, restarts now (5-minute warning) or holds it for the next window; never against the local veto.</summary>

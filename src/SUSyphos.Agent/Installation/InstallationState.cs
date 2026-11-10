@@ -30,8 +30,11 @@ internal sealed record UninstallRequest(Guid ActionId, AgentActionKind Kind, Gui
 /// <summary>The result of a held remote action, kept until the central server has it.</summary>
 internal sealed record ActionOutcome(Guid ActionId, AgentActionResult Result);
 
-/// <summary>An administrator asked to install the released updates now (remote action), with the restart right after or in the next window.</summary>
-internal sealed record InstallNowRequest(DateTimeOffset RequestedAt, bool RestartNow);
+/// <summary>
+/// An administrator asked to install the released updates now (remote action), with the restart right after or in the
+/// next window; <paramref name="Scope"/> limits it to Windows updates or software (null in states from before 0.9: all).
+/// </summary>
+internal sealed record InstallNowRequest(DateTimeOffset RequestedAt, bool RestartNow, InstallScope? Scope = null);
 
 internal sealed record InstallAttempt(Guid UpdateId, int Revision, DateTimeOffset AttemptedAt);
 

@@ -83,6 +83,8 @@ public class ServerFactory : WebApplicationFactory<Program>
         builder.UseSetting("AgentPackages:BundledDirectory", Path.Combine(_directory, "bundled"));
         builder.ConfigureTestServices(services =>
         {
+            // A query that limits rows without an order fails the tests instead of warning in production (lab, 2026-11-10).
+            services.ConfigureDbContext<ServerDbContext>(options => options.ConfigureWarnings(warnings => warnings.Throw(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.RowLimitingOperationWithoutOrderByWarning)));
             services.AddSingleton<ITlsCertificateProvider>(_certificates);
             services.AddSingleton<IServerCertificateStore>(CertificateStore);
             services.AddSingleton<SUSyphos.Server.Administration.IInstallerSetupToken>(InstallerToken);

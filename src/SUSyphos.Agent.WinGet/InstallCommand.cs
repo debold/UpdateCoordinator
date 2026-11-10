@@ -47,19 +47,31 @@ internal static partial class InstallCommand
         return (id, version, address, arguments.Count == 5);
     }
 
-    public static async Task<SoftwareInstallOutcome> RunAsync(string packageId, string version, Uri source, bool acceptAgreements, string engineFolder, string logFolder, TextWriter log)
+    /// <summary>Status of an outcome whose source check failed (the certificate, or the source not answering).</summary>
+    public const string SourceUnavailable = "SourceUnavailable";
+
+    public static async Task<SoftwareInstallOutcome> RunAsync(string packageId, string version, Uri source, bool acceptAgreements, string engineFolder, string logFolder, HelperTrace trace, Func<Uri, Task<(int HResult, string Detail)?>>? checkSource = null)
     {
-        ArgumentNullException.ThrowIfNull(log);
+        ArgumentNullException.ThrowIfNull(trace);
         if (SoftwareInventory.LocalAvailability() != WinGetAvailability.Available)
         {
             return new SoftwareInstallOutcome { Succeeded = false, Status = "NotSupported", Detail = "WinGet is not supported on this server." };
         }
 
+        trace.Write($"Checking the WinGet source {source}.");
+        if (await (checkSource ?? (address => SourceCheck.CheckAsync(address)))(source).ConfigureAwait(false) is { } problem)
+        {
+            trace.Write(problem.Detail);
+            return new SoftwareInstallOutcome { Succeeded = false, Status = SourceUnavailable, Detail = Shorten(problem.Detail), HResult = problem.HResult };
+        }
+
         try
         {
+            trace.Write("Loading the WinGet engine.");
             using var engine = WinGetEngine.Load(engineFolder);
-            var client = new WinGetClient(engine);
+            var client = new WinGetClient(engine) { Trace = trace.Write };
             var catalog = await client.UseSourceAsync(source).ConfigureAwait(false);
+            trace.Write("Reading the installed programs.");
             var installed = (await client.InstalledAsync().ConfigureAwait(false)).Any(p => string.Equals(p.Id, packageId, StringComparison.OrdinalIgnoreCase));
             var result = installed
                 ? await client.UpgradeAsync(packageId, version, catalog, acceptAgreements, logFolder).ConfigureAwait(false)
@@ -71,12 +83,13 @@ internal static partial class InstallCommand
                 InstallerExitCode = result.InstallerErrorCode,
                 RebootRequired = result.RebootRequired,
                 Detail = result.Succeeded ? null : Shorten(result.ExtendedError ?? $"WinGet answered {result.Status}."),
+                HResult = result.Succeeded ? 0 : result.ExtendedErrorCode,
             };
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            await log.WriteLineAsync($"WinGet failed: {exception}").ConfigureAwait(false);
-            return new SoftwareInstallOutcome { Succeeded = false, Status = "Error", Detail = Shorten($"WinGet failed: {exception.Message}") };
+            trace.Write($"WinGet failed: {exception}");
+            return new SoftwareInstallOutcome { Succeeded = false, Status = "Error", Detail = Shorten($"WinGet failed: {exception.Message}"), HResult = exception is WinGetException ? exception.HResult : 0 };
         }
     }
 

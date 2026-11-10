@@ -102,8 +102,15 @@ internal sealed partial class WinGetHelperInventory(IWinGetHelperRunner runner, 
 }
 
 /// <summary>Starts SUSyphos.Agent.WinGet.exe from the folder of the agent, below normal priority like the agent.</summary>
-internal sealed class WinGetHelperRunner : IWinGetHelperRunner
+/// <remarks>
+/// The step lines the helper writes to standard error go into the agent log as they come, so the log shows where a
+/// helper hangs before the agent stops it.
+/// </remarks>
+internal sealed partial class WinGetHelperRunner(ILogger<WinGetHelperRunner> logger) : IWinGetHelperRunner
 {
+    /// <summary>Lines longer than this are cut in the agent log (stack traces stay in the helper's own file).</summary>
+    internal const int MaxLineLength = 1000;
+
     /// <summary>File name of the helper next to the agent.</summary>
     internal const string FileName = "SUSyphos.Agent.WinGet.exe";
 
@@ -139,7 +146,7 @@ internal sealed class WinGetHelperRunner : IWinGetHelperRunner
 
         // Both streams are read at once, so a full error pipe can never block the helper.
         var output = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errors = process.StandardError.ReadToEndAsync(cancellationToken);
+        var errors = ForwardAsync(process.StandardError, cancellationToken);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeout);
         try
@@ -153,7 +160,28 @@ internal sealed class WinGetHelperRunner : IWinGetHelperRunner
             return null;
         }
 
-        _ = await errors.ConfigureAwait(false);
+        await errors.ConfigureAwait(false);
         return (process.ExitCode, await output.ConfigureAwait(false));
     }
+
+    private async Task ForwardAsync(StreamReader errors, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await errors.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+            {
+                if (line.Length > 0)
+                {
+                    LogHelperLine(line.Length > MaxLineLength ? line[..MaxLineLength] : line);
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException or OperationCanceledException)
+        {
+            // The helper ended or was stopped; its own file keeps the rest.
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "WinGet helper: {Line}")]
+    private partial void LogHelperLine(string line);
 }

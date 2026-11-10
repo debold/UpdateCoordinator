@@ -318,6 +318,7 @@
             .Where(h => approved.Contains(h.ClientId) && h.Operation == UpdateOperation.Installation
                 && (h.ResultCode == InstallResultCode.Succeeded || h.ResultCode == InstallResultCode.SucceededWithErrors)
                 && h.ClientApplicationId != UpdateHistoryEntry.AgentClientApplicationId)
+            .OrderByDescending(h => h.DateUtc)
             .Select(h => new { h.ClientId, h.UpdateId, h.Revision, h.Title, h.DateUtc, h.ClientApplicationId })
             .Take(MaxRows * 4)
             .ToListAsync();

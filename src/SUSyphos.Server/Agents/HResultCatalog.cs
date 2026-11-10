@@ -9,6 +9,12 @@ namespace SUSyphos.Server.Agents;
 /// </summary>
 internal static class HResultCatalog
 {
+    /// <summary>CERT_E_UNTRUSTEDROOT: the agent's check found that the server does not trust the central server's certificate.</summary>
+    public const int CertificateNotTrusted = unchecked((int)0x800B0109);
+
+    /// <summary>The codes that mean "the server does not trust the certificate of the central server" for software.</summary>
+    public static bool IsCertificateProblem(int hresult) => hresult is CertificateNotTrusted or unchecked((int)0x8A15003B);
+
     private static readonly FrozenDictionary<int, string> Descriptions = new Dictionary<int, string>
     {
         [0] = "Success.",
@@ -44,6 +50,23 @@ internal static class HResultCatalog
         [unchecked((int)0x800F0922)] = "The update could not be installed (e.g. not enough space in the system reserved partition).",
         [unchecked((int)0x80073712)] = "The component store is corrupted.",
         [unchecked((int)0x80040154)] = "The Windows Update Agent API is not registered.",
+
+        // Software with WinGet (0.9): the certificate check of the agent and the codes of WinGet that matter here.
+        [CertificateNotTrusted] = "The server does not trust the certificate of the central server, so WinGet cannot use its source. Use a certificate of a CA the servers trust, or switch on the agent setting \"Trust the central server's own certificate for WinGet\".",
+        [unchecked((int)0x8A15003B)] = "WinGet could not use the source of the central server (REST error). Most often the server does not trust the certificate of the central server: use a CA certificate or switch on the agent setting \"Trust the central server's own certificate for WinGet\".",
+        [unchecked((int)0x8A150008)] = "WinGet could not download the installer from the central server.",
+        [unchecked((int)0x8A150010)] = "None of the installers of this version fits the server (architecture or installer type).",
+        [unchecked((int)0x8A150011)] = "The downloaded installer does not match the hash of the manifest.",
+        [unchecked((int)0x8A150014)] = "The package was not found in the source of the central server.",
+        [unchecked((int)0x8A15002B)] = "WinGet found no applicable upgrade (the installed version is already current).",
+        [unchecked((int)0x8A15002D)] = "The installer failed the security check of WinGet.",
+        [unchecked((int)0x8A150039)] = "The source of the central server returned data WinGet does not accept.",
+        [unchecked((int)0x8A150041)] = "The package has licence agreements that were not accepted; an administrator accepts them on the package page.",
+        [unchecked((int)0x8A150044)] = "The source of the central server did not answer (switched off, or the address is wrong).",
+        [unchecked((int)0x8A150045)] = "WinGet could not open the source of the central server.",
+        [unchecked((int)0x8A150049)] = "The MSI installer of the package failed.",
+        [unchecked((int)0x8A15004F)] = "The version to install is not newer than the installed one.",
+        [unchecked((int)0x8A15006D)] = "A service WinGet needs was busy or unavailable; the next window tries again.",
     }.ToFrozenDictionary();
 
     /// <summary>Plain text for a code; unknown codes are shown as hex so they can be looked up.</summary>

@@ -1,0 +1,25 @@
+@* The certificate of the central server and WinGet (Marc, 2026-11-10: very present). A failure because of the certificate
+   is critical; a self-signed certificate without the agent setting is a warning before anything failed. *@
+@if (State.FailingServers.Count > 0)
+{
+    <Banner Label="Certificate" Severity="fail" Help="software#certificate">
+        <ChildContent>
+            @(State.FailingServers.Count == 1 ? $"{State.FailingServers[0]} could not install software" : $"{State.FailingServers.Count} servers could not install software") because @(State.FailingServers.Count == 1 ? "it does" : "they do") not trust the certificate of the central server@(State.FailingServers.Count is > 1 and <= 5 ? $" ({string.Join(", ", State.FailingServers)})" : string.Empty). @(State.SelfSignedWithoutTrust ? "Switch on the agent setting \"Trust the central server's own certificate for WinGet\" or use a CA certificate." : "Check the certificate on these servers.")
+        </ChildContent>
+        <Action><a class="btn" href="@SUSyphos.Server.Software.SoftwareTrust.SettingLink">Agent settings</a></Action>
+    </Banner>
+}
+else if (State.SelfSignedWithoutTrust)
+{
+    <Banner Label="Certificate" Severity="queue" Help="software#certificate">
+        <ChildContent>
+            The central server uses a self-signed certificate. WinGet on the servers cannot install software from it until the agent setting "Trust the central server's own certificate for WinGet" is on, or the central server uses a certificate of a CA the servers trust.
+        </ChildContent>
+        <Action><a class="btn" href="@SUSyphos.Server.Software.SoftwareTrust.SettingLink">Agent settings</a></Action>
+    </Banner>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public SUSyphos.Server.Software.SoftwareTrustState State { get; set; } = SUSyphos.Server.Software.SoftwareTrustState.None;
+}

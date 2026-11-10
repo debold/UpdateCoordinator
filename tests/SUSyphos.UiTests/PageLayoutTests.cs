@@ -59,6 +59,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/administration/release-rules?tab=rings&dialog=preview&id=1",
         "/administration/agent-settings",
         "/administration/release-rules?dialog=rule-new",
+        "/administration/release-rules?dialog=rule-new&kind=software",
         "/administration/maintenance",
         "/administration/maintenance?dialog=preview",
         "/administration/certificate",

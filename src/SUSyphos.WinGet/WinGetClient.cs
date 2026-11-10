@@ -20,6 +20,7 @@ public sealed record WinGetFoundPackage(string Id, string Name, string? DefaultV
 /// <param name="RebootRequired">True when the installer asked for a restart (which nobody triggers).</param>
 /// <param name="Duration">Time from the call to the result.</param>
 /// <param name="LogFile">Log file WinGet wrote.</param>
+/// <param name="ExtendedErrorCode">The HRESULT of <paramref name="ExtendedError"/>; 0 when WinGet gave none.</param>
 public sealed record WinGetOperationResult(
     string Operation,
     string PackageId,
@@ -29,13 +30,25 @@ public sealed record WinGetOperationResult(
     uint InstallerErrorCode,
     bool RebootRequired,
     TimeSpan Duration,
-    string LogFile)
+    string LogFile,
+    int ExtendedErrorCode = 0)
 {
     public bool Succeeded => Status == nameof(InstallResultStatus.Ok);
 }
 
 /// <summary>Thrown when WinGet answers an operation with an error status before installing anything.</summary>
-public sealed class WinGetException(string message) : Exception(message);
+public sealed class WinGetException : Exception
+{
+    public WinGetException(string message)
+        : base(message)
+    {
+    }
+
+    /// <param name="message">What failed.</param>
+    /// <param name="errorCode">The HRESULT WinGet gave, so callers can explain known codes.</param>
+    public WinGetException(string message, int errorCode)
+        : base(message) => HResult = errorCode;
+}
 
 /// <summary>
 /// The operations the probe and later the agent need from WinGet: sources, search, installed list, install and upgrade
@@ -47,6 +60,9 @@ public sealed class WinGetClient(WinGetEngine engine)
     public const string PrivateSourceName = "susyphos";
 
     private readonly PackageManager _manager = engine.CreatePackageManager();
+
+    /// <summary>Receives one line per step and progress state, so a hang shows where it happened.</summary>
+    public Action<string>? Trace { get; init; }
 
     public IReadOnlyList<WinGetSource> Sources() =>
         _manager.GetPackageCatalogs()
@@ -69,6 +85,7 @@ public sealed class WinGetClient(WinGetEngine engine)
         var existing = _manager.GetPackageCatalogByName(PrivateSourceName);
         if (existing is not null && string.Equals(existing.Info.Argument, address.ToString(), StringComparison.OrdinalIgnoreCase))
         {
+            Trace?.Invoke($"Source {PrivateSourceName} is configured with {address}.");
             return existing;
         }
 
@@ -81,11 +98,14 @@ public sealed class WinGetClient(WinGetEngine engine)
         options.Name = PrivateSourceName;
         options.SourceUri = address.ToString();
         options.Type = "Microsoft.Rest";
+        Trace?.Invoke($"Adding the source {PrivateSourceName} with {address}.");
         var result = await _manager.AddPackageCatalogAsync(options);
         if (result.Status != AddPackageCatalogStatus.Ok)
         {
-            throw new WinGetException($"Adding the source failed: {result.Status} {Describe(result.ExtendedErrorCode)}");
+            throw new WinGetException($"Adding the source failed: {result.Status} {Describe(result.ExtendedErrorCode)}", result.ExtendedErrorCode?.HResult ?? 0);
         }
+
+        Trace?.Invoke("Source added.");
 
         return _manager.GetPackageCatalogByName(PrivateSourceName) ?? throw new WinGetException("The source was added but cannot be found.");
     }
@@ -172,7 +192,8 @@ public sealed class WinGetClient(WinGetEngine engine)
             result.UninstallerErrorCode,
             result.RebootRequired,
             watch.Elapsed,
-            logFile);
+            logFile,
+            result.ExtendedErrorCode?.HResult ?? 0);
     }
 
     private static string? Metadata(PackageVersionInfo? version, PackageVersionMetadataField field) =>
@@ -188,6 +209,7 @@ public sealed class WinGetClient(WinGetEngine engine)
         Directory.CreateDirectory(logFolder);
 
         // Upgrade needs to know what is installed, install only the source; both find the package by its exact id.
+        Trace?.Invoke($"Looking up {id} for {operation}.");
         var package = await FindByIdAsync(Composite(source, operation == "upgrade" ? CompositeSearchBehavior.RemotePackagesFromAllCatalogs : CompositeSearchBehavior.RemotePackagesFromRemoteCatalogs), id);
 
         var install = engine.CreateInstallOptions();
@@ -202,11 +224,16 @@ public sealed class WinGetClient(WinGetEngine engine)
                 ?? throw new WinGetException($"The source has no version {version} of {id}; it offers {string.Join(", ", package.AvailableVersions.Take(15).Select(candidate => candidate.Version))}.");
         }
 
+        Trace?.Invoke($"Starting the {operation} of {id} {install.PackageVersionId?.Version ?? package.DefaultInstallVersion?.Version}.");
         var watch = Stopwatch.StartNew();
-        var result = operation == "upgrade"
-            ? await _manager.UpgradePackageAsync(package, install)
-            : await _manager.InstallPackageAsync(package, install);
+        var running = operation == "upgrade"
+            ? _manager.UpgradePackageAsync(package, install)
+            : _manager.InstallPackageAsync(package, install);
+        var progress = new ProgressTrace(Trace);
+        running.Progress = (_, state) => progress.Report(state);
+        var result = await running;
         watch.Stop();
+        Trace?.Invoke($"WinGet answered {result.Status} after {watch.Elapsed.TotalSeconds:0.0} s (installer exit code {result.InstallerErrorCode}).");
         return new WinGetOperationResult(
             operation,
             id,
@@ -216,7 +243,8 @@ public sealed class WinGetClient(WinGetEngine engine)
             result.InstallerErrorCode,
             result.RebootRequired,
             watch.Elapsed,
-            logFile);
+            logFile,
+            result.ExtendedErrorCode?.HResult ?? 0);
     }
 
     private static string LogFile(string folder, string operation, string id) =>
@@ -261,7 +289,7 @@ public sealed class WinGetClient(WinGetEngine engine)
         var result = await reference.ConnectAsync();
         return result.Status == ConnectResultStatus.Ok
             ? result.PackageCatalog
-            : throw new WinGetException($"Connecting to the source failed: {result.Status} {Describe(result.ExtendedErrorCode)}");
+            : throw new WinGetException($"Connecting to the source failed: {result.Status} {Describe(result.ExtendedErrorCode)}", result.ExtendedErrorCode?.HResult ?? 0);
     }
 
     private static async Task<IReadOnlyList<CatalogPackage>> FindAsync(PackageCatalog catalog, FindPackagesOptions options)
@@ -270,6 +298,34 @@ public sealed class WinGetClient(WinGetEngine engine)
         return result.Status == FindPackagesResultStatus.Ok
             ? result.Matches.Select(match => match.CatalogPackage).ToList()
             : throw new WinGetException($"Searching failed: {result.Status} {Describe(result.ExtendedErrorCode)}");
+    }
+
+    /// <summary>Turns WinGet's progress into a line per state and per quarter of the download.</summary>
+    private sealed class ProgressTrace(Action<string>? trace)
+    {
+        private PackageInstallProgressState? _state;
+        private int _quarter = -1;
+
+        public void Report(InstallProgress progress)
+        {
+            if (trace is null)
+            {
+                return;
+            }
+
+            if (progress.State != _state)
+            {
+                _state = progress.State;
+                trace($"Progress: {progress.State}.");
+            }
+
+            var quarter = progress.State == PackageInstallProgressState.Downloading ? (int)(progress.DownloadProgress * 4) : -1;
+            if (quarter > _quarter)
+            {
+                _quarter = quarter;
+                trace($"Downloaded {progress.BytesDownloaded:N0} of {progress.BytesRequired:N0} bytes.");
+            }
+        }
     }
 
     private static string Sanitize(string id) => string.Concat(id.Select(c => char.IsLetterOrDigit(c) || c is '.' or '-' ? c : '_'));

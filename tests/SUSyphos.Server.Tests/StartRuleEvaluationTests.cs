@@ -87,7 +87,7 @@ public sealed class StartRuleEvaluationTests
 
         var form = new Dictionary<string, string>
         {
-            ["_handler"] = "release-dialog", ["Mode"] = "rule-create", ["Preview"] = "yes", ["Classification"] = "Definition Updates", ["Severity"] = "",
+            ["_handler"] = "release-dialog", ["Mode"] = "rule-create", ["Kind"] = "windows", ["Preview"] = "yes", ["Classification"] = "Definition Updates", ["Severity"] = "",
             ["Priority"] = "100", ["TitlePattern"] = "*Defender Antivirus*", ["StartMode"] = "automatic", ["Delay"] = "0",
         };
         using (var preview = await admin.PostFormAsync("/administration/release-rules?dialog=rule-new", form))

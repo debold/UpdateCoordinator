@@ -100,7 +100,7 @@ public sealed class RingAdministrationTests
 
         using (var saved = await browser.PostFormAsync("/administration/release-rules?dialog=rule-new", new Dictionary<string, string>
         {
-            ["_handler"] = "release-dialog", ["Mode"] = "rule-create", ["Priority"] = "5", ["Classification"] = "Definition Updates",
+            ["_handler"] = "release-dialog", ["Mode"] = "rule-create", ["Kind"] = "windows", ["Priority"] = "5", ["Classification"] = "Definition Updates",
             ["StartMode"] = "automatic", ["Delay"] = "0", ["StartRingsSelected"] = RingEntity.TestId.ToString(System.Globalization.CultureInfo.InvariantCulture),
         }))
         {

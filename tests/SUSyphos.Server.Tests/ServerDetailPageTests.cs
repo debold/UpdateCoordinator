@@ -206,17 +206,22 @@ public sealed class ServerDetailPageTests
         Assert.Contains("KB5040000", dialog, StringComparison.Ordinal);
 
         // An unknown choice queues nothing; a valid one queues the action and reloads the page.
-        using (await admin.PostFormAsync(path + "?dialog=install", new Dictionary<string, string> { ["_handler"] = "install", ["InstallRestart"] = "sometime" }))
+        using (await admin.PostFormAsync(path + "?dialog=install", new Dictionary<string, string> { ["_handler"] = "install", ["InstallRestart"] = "sometime", ["InstallWhat"] = "all" }))
+        {
+        }
+
+        using (await admin.PostFormAsync(path + "?dialog=install", new Dictionary<string, string> { ["_handler"] = "install", ["InstallRestart"] = "window", ["InstallWhat"] = "everything" }))
         {
         }
 
         Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
-        using (var queued = await admin.PostFormAndFollowAsync(path + "?dialog=install", new Dictionary<string, string> { ["_handler"] = "install", ["InstallRestart"] = "window" }))
+        using (var queued = await admin.PostFormAndFollowAsync(path + "?dialog=install", new Dictionary<string, string> { ["_handler"] = "install", ["InstallRestart"] = "window", ["InstallWhat"] = "all" }))
         {
             Assert.Contains("The installation was queued", await queued.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
-        Assert.Equal(AgentActionKind.InstallNowRestartInWindow, await scenario.Factory.WithDbAsync(db => db.AgentActions.Select(a => a.Kind).SingleAsync(TestContext.Current.CancellationToken)));
+        Assert.Equal((AgentActionKind.InstallNowRestartInWindow, InstallScope.All), await scenario.Factory.WithDbAsync(db => db.AgentActions.Select(a => new ValueTuple<AgentActionKind, InstallScope?>(a.Kind, a.Scope)).SingleAsync(TestContext.Current.CancellationToken)));
+        Assert.DoesNotContain("What to install", dialog, StringComparison.Ordinal);
     }
 
     [Theory]

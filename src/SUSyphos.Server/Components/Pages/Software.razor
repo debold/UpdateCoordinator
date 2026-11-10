@@ -8,11 +8,13 @@
 @inject ISoftwareSource Source
 @inject NavigationManager Navigation
 @inject SoftwareFeature Feature
+@inject SoftwareTrust Trust
 
 <PageTitle>Software</PageTitle>
 
 <PageHeader Icon="@PageIcons.Software" Title="Software" Subtitle="Programs the servers have installed that WinGet knows, and packages added for new installations. Each version runs through the rings like an update." Help="software" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
+<SoftwareTrustBanner State="@_trust" />
 
 <FeatureOff Off="@(!_enabled)" Title="Software management is switched off" Help="software#switch" Text="An administrator switched off software with WinGet: the central server does not read the WinGet community source, offers no installers and starts no software version, and the agents run no WinGet. Windows updates are not affected.">
     <Actions>
@@ -161,8 +163,11 @@ else if (_dialog == "add" && _enabled)
         await LoadAsync();
     }
 
+    private SoftwareTrustState _trust = SoftwareTrustState.None;
+
     private async Task LoadAsync()
     {
+        _trust = await Trust.GetAsync(null, CancellationToken.None);
         _enabled = await Feature.IsEnabledAsync(CancellationToken.None);
         var rows = await Overview.ListAsync(CancellationToken.None);
         _known = [.. rows.Select(r => r.Package.PackageId)];

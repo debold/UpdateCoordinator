@@ -51,6 +51,25 @@ public sealed class SoftwareInstallerTests
         Assert.All(results, r => Assert.Equal(InstallResultCode.Succeeded, r.ResultCode));
     }
 
+    [Fact]
+    public async Task UntrustedCertificate_IsReportedWithItsCode()
+    {
+        var outcome = new SoftwareInstallOutcome { Succeeded = false, Status = "SourceUnavailable", Detail = "This server does not trust the certificate of the central server.", HResult = unchecked((int)0x800B0109) };
+        var runner = new SoftwareInventoryTests.FakeRunner { Result = (0, JsonSerializer.Serialize(outcome, SoftwareInventoryReport.JsonOptions)) };
+
+        var result = Assert.Single(await Installer(runner).InstallAsync([Software("7zip.7zip", "26.06")], TestContext.Current.CancellationToken));
+
+        Assert.Equal((InstallResultCode.Failed, unchecked((int)0x800B0109)), (result.ResultCode, result.HResult));
+        Assert.Equal("SourceUnavailable (0x800B0109): This server does not trust the certificate of the central server.", SoftwareInstaller.FailureText(outcome));
+    }
+
+    [Fact]
+    public void FailureText_NamesTheInstallerExitCodeOnlyWhenAnInstallerRan()
+    {
+        Assert.Equal("InstallError, installer exit code 1603: failed", SoftwareInstaller.FailureText(new SoftwareInstallOutcome { Status = "InstallError", InstallerExitCode = 1603, Detail = "failed" }));
+        Assert.Equal("Error", SoftwareInstaller.FailureText(new SoftwareInstallOutcome { Status = "Error" }));
+    }
+
     public static readonly TheoryData<int, string?> Failures = new()
     {
         { 0, null },

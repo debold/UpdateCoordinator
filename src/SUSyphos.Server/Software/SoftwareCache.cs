@@ -294,7 +294,11 @@ internal sealed partial class SoftwareCacheWorker(
                     await using var scope = scopes.CreateAsyncScope();
                     if (await SoftwareFeature.IsEnabledAsync(scope.ServiceProvider.GetRequiredService<ServerDbContext>(), stoppingToken).ConfigureAwait(false))
                     {
-                        await scope.ServiceProvider.GetRequiredService<SoftwareCacheService>().CacheReleasedAsync(stoppingToken).ConfigureAwait(false);
+                        if (await scope.ServiceProvider.GetRequiredService<SoftwareCacheService>().CacheReleasedAsync(stoppingToken).ConfigureAwait(false) > 0)
+                        {
+                            // Versions the source offers now go out to the servers right away.
+                            await scope.ServiceProvider.GetRequiredService<Rollouts.ReleasePlanner>().SyncAsync(null, stoppingToken).ConfigureAwait(false);
+                        }
                     }
                 }
             }

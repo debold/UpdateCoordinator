@@ -4,6 +4,8 @@ Everything about one server: its state, what the agent does next, its configurat
 
 ![The tiles at the top of a server page: status, updates, next maintenance window and last heartbeat](help-images/server-page.png)
 
+A red banner **Certificate** appears when the last software installation of this server failed because it does not trust the certificate of the central server; see [The certificate of the central server](help/software#certificate).
+
 ## Queued restart {#restart-queued}
 
 A red banner at the top appears when a restart of the server is queued or planned: requested by an administrator (now or in the next maintenance window) or announced by the agent. It says when the restart happens or why it waits. Once the agent has announced the restart to Windows (the five-minute warning signed-in users see), the banner says **Restart announced** with the exact time; the System box, the Tasks box and the server list show that time too.
@@ -157,9 +159,9 @@ Before each update run the agent checks: **Disk space**, **Windows Update servic
 
 ## Installed by SUSyphos {#history}
 
-Installations done by SUSyphos: when they finished, which update, its **Category** (classification, with a filter), **Started by** (always SUSyphos here), the **Result** and the **Restart**. Results and restarts are coloured tags, the same on every page: green for Succeeded, Already installed (0x80070103, nothing to do), No restart and Restarted (with the time); yellow for Succeeded with errors and Restart pending; red for Failed (with the error code and a plain explanation next to it); grey for Aborted.
+Installations done by SUSyphos: when they finished, which update, its **Category** (classification, with a filter; programs installed or updated with WinGet show *Software*), **Started by** (always SUSyphos here), the **Result** and the **Restart**. Results and restarts are coloured tags, the same on every page: green for Succeeded, Already installed (0x80070103, nothing to do), No restart and Restarted (with the time); yellow for Succeeded with errors and Restart pending; red for Failed (with the error code and a plain explanation next to it); grey for Aborted.
 
-Both histories hide antivirus definition updates by default, which arrive several times a day and would bury the other installations. **View** (see [Working with lists](help/tables#views)) offers here **Without definition updates** (default), **Failed or with errors** and **All installations**; each list has its own view. The ⋯ at the end of a row offers **Uninstall…** for updates the server can uninstall: it opens [Uninstall an update](#uninstall) with that update chosen (administrators only).
+Both histories hide antivirus definition updates by default, which arrive several times a day and would bury the other installations. **View** (see [Working with lists](help/tables#views)) offers here **Without definition updates** (default), **Failed or with errors**, **Software only** and **All installations**; each list has its own view. The ⋯ at the end of a row offers **Uninstall…** for updates the server can uninstall: it opens [Uninstall an update](#uninstall) with that update chosen (administrators only).
 
 ## All installations on the server {#windows-history}
 
@@ -176,6 +178,14 @@ All actions requested for this server: when, which, by whom, the state (Queued: 
 ## Install updates now {#install-now}
 
 For a server that should not wait for its next maintenance window, for example after a security incident. The dialog lists the updates that are **released for the ring of the server** and still missing; updates that are not released yet are not installed. The agent installs them after its next heartbeat, also outside the maintenance window and before their planned time. A global pause holds the installation until it ends, and in a coordinated group the agent waits for a free slot.
+
+**What to install** appears when the list holds both Windows updates and software (marked *Software*):
+
+- **Windows updates and software** (default): everything listed.
+- **Windows updates only**: the software waits for the maintenance window as planned.
+- **Software only**: the programs are updated with WinGet now, the Windows updates wait for the maintenance window.
+
+The list of remote actions names the choice, for example "Install now, restart right after (software only)".
 
 - **Install and restart right after**: if Windows needs a restart afterwards, the server restarts at once after a five minute warning to signed-in users.
 - **Install, restart in the next window**: a needed restart waits for the next maintenance window that stays open for at least 30 minutes, like "Restart in the next maintenance window".

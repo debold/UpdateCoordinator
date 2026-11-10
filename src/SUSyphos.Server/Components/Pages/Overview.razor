@@ -14,6 +14,7 @@
 @inject SUSyphos.Server.Approval.DirectoryCoverage CoverageReader
 @inject SUSyphos.Server.AgentPackages.AgentPackageAdministration ServerUpdates
 @inject SUSyphos.Server.Lifecycle.SupportLifecycle Support
+@inject SUSyphos.Server.Software.SoftwareTrust Trust
 @inject SUSyphos.Server.Security.SecurityBaseline Baseline
 
 <PageTitle>Overview</PageTitle>
@@ -29,6 +30,11 @@
         <ChildContent>Agents start no new installations until an operator resumes them.</ChildContent>
         <Action>@if (_canOperate) { <button type="submit" form="pause" name="Pause" value="off" class="primary">Resume installations</button> }</Action>
     </Banner>
+}
+@if (!_paused && _blackout is null)
+{
+    @* At most two banners per page: the certificate shows when no pause or blackout does. *@
+    <SoftwareTrustBanner State="@_trust" />
 }
 @if (_blackout is { } blackout)
 {
@@ -263,11 +269,14 @@
 
     private Microsoft.AspNetCore.Http.HttpRequest Request => HttpContext!.Request;
 
+    private SUSyphos.Server.Software.SoftwareTrustState _trust = SUSyphos.Server.Software.SoftwareTrustState.None;
+
     private async Task LoadAsync()
     {
         _now = Time.GetUtcNow().UtcDateTime;
         _paused = await Pause.IsSwitchedOnAsync(CancellationToken.None);
         _blackout = await Blackouts.GetActiveAsync(CancellationToken.None);
+        _trust = await Trust.GetAsync(null, CancellationToken.None);
 
         var clients = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).ToListAsync();
         var entries = await Deployment.GetAsync(null, null, null, CancellationToken.None);

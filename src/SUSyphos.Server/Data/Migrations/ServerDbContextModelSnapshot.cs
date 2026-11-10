@@ -350,6 +350,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<int?>("Revision")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("Scope")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("State")
                         .HasColumnType("INTEGER");
 

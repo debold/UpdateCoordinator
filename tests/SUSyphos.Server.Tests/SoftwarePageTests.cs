@@ -221,4 +221,50 @@ public sealed class SoftwarePageTests : IAsyncDisposable
 
         Assert.False(await _factory.WithDbAsync(db => db.Rollouts.AnyAsync(r => r.UpdateId == update, TestContext.Current.CancellationToken)));
         Assert.True(releases.SoftwareDisabled);
-    }}
+    }
+
+    [Fact]
+    public async Task SelfSignedCertificate_WithoutTheSetting_IsShownOnEverySoftwarePage_UntilSwitchedOn()
+    {
+        var (browser, server) = await SeedAsync(AdminRoles.Reader);
+        using (browser)
+        {
+            foreach (var page in new[] { "/", "/software", SUSyphos.Server.Components.PackagePage.Link("7zip.7zip") })
+            {
+                var html = await (await browser.GetAsync(page)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+                Assert.Contains("The central server uses a self-signed certificate", html, StringComparison.Ordinal);
+                Assert.Contains(SoftwareTrust.SettingLink, html, StringComparison.Ordinal);
+            }
+
+            // The server page warns only about this server's own failures.
+            Assert.DoesNotContain("self-signed certificate", await (await browser.GetAsync($"/servers/{server}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+
+            Assert.True((await ServiceAsync<SUSyphos.Server.Assignment.AssignmentAdministration, Outcome>(a => a.SetSystemAgentSettingsAsync(new Dictionary<string, string?> { [SoftwareTrust.SettingKey] = "true" }, "admin", CancellationToken.None))).Succeeded);
+            Assert.DoesNotContain("self-signed certificate", await (await browser.GetAsync("/software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task ServerFailingBecauseOfTheCertificate_IsNamed_UntilALaterSuccess()
+    {
+        var (browser, server) = await SeedAsync(AdminRoles.Reader);
+        var update = SoftwarePackages.SoftwareUpdateId("7zip.7zip", "26.06");
+        async Task ReportAsync(int hresult, DateTime at) => await _factory.WithDbAsync(async db =>
+        {
+            db.Installations.Add(new InstallationEntity { ClientId = server, RunId = Guid.NewGuid(), UpdateId = update, Revision = 1, ResultCode = hresult == 0 ? 2 : 4, HResult = hresult, StartedAtUtc = at, FinishedAtUtc = at, Source = "SUSyphos" });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        await ReportAsync(SUSyphos.Server.Agents.HResultCatalog.CertificateNotTrusted, DateTime.UtcNow.AddHours(-1));
+        using (browser)
+        {
+            var software = await (await browser.GetAsync("/software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            var detail = await (await browser.GetAsync($"/servers/{server}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains("SQL01 could not install software because it does not trust the certificate of the central server", software, StringComparison.Ordinal);
+            Assert.Contains("SQL01 could not install software", detail, StringComparison.Ordinal);
+            Assert.Contains("does not trust the certificate of the central server", SUSyphos.Server.Agents.HResultCatalog.Describe(SUSyphos.Server.Agents.HResultCatalog.CertificateNotTrusted), StringComparison.Ordinal);
+
+            await ReportAsync(0, DateTime.UtcNow);
+            Assert.DoesNotContain("could not install software", await (await browser.GetAsync("/software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+    }
+}

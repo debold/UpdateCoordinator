@@ -105,6 +105,9 @@ public sealed record SoftwareInstallOutcome
 
     /// <summary>Why it failed, at most 256 characters; null on success.</summary>
     public string? Detail { get; init; }
+
+    /// <summary>The HRESULT of the failure (WinGet's error, or CERT_E_UNTRUSTEDROOT from the source check); 0 when none is known.</summary>
+    public int HResult { get; init; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<SoftwareSupportState>))]

@@ -658,6 +658,7 @@ public sealed class RolloutPageTests
         {
             ["_handler"] = "release-dialog",
             ["Mode"] = "rule-create",
+            ["Kind"] = "windows",
             ["Priority"] = "10",
             ["Classification"] = "Security Updates",
             ["StartMode"] = "automatic",
@@ -687,6 +688,7 @@ public sealed class RolloutPageTests
         {
             ["_handler"] = "release-dialog",
             ["Mode"] = action,
+            ["Kind"] = "windows",
             ["Priority"] = priority,
             ["StartMode"] = mode,
             ["Delay"] = delay,

@@ -140,11 +140,23 @@ internal sealed partial class ActionRunner(
                     : "Restart requested; no maintenance window is configured, so it waits until one applies."), false, true);
             case AgentActionKind.InstallNow or AgentActionKind.InstallNowRestartInWindow:
                 var restartNow = action.Kind == AgentActionKind.InstallNow;
-                installationRunner.RequestInstallNow(restartNow);
+                var scope = action.Scope ?? InstallScope.All;
+                if (!Enum.IsDefined(scope))
+                {
+                    return (new AgentActionResult { Status = AgentActionStatus.Rejected, Detail = "The action names an unknown choice of what to install." }, false, true);
+                }
+
+                installationRunner.RequestInstallNow(restartNow, scope);
                 var restartText = !installation.Value.AllowReboot
                     ? "Reboots are forbidden on this server (AllowReboot), so a needed restart is left to an administrator."
                     : restartNow ? "A needed restart follows right after, with a five minute warning." : "A needed restart waits for the next maintenance window.";
-                return (Succeeded($"The released updates install with this cycle, also outside the maintenance window. {restartText}"), false, true);
+                var installText = scope switch
+                {
+                    InstallScope.WindowsUpdates => "The released Windows updates install",
+                    InstallScope.Software => "The released software installs",
+                    _ => "The released updates install",
+                };
+                return (Succeeded($"{installText} with this cycle, also outside the maintenance window. {restartText}"), false, true);
             case AgentActionKind.Uninstall or AgentActionKind.UninstallRestartInWindow or AgentActionKind.UninstallInWindow:
                 // In a coordinated group an uninstallation needs the lease like an installation, so the installation step
                 // runs it (now, or in the next window) and reports the result.

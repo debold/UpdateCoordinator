@@ -6,7 +6,7 @@ The page has two tabs: **Start rules** (with the setting for updates withdrawn b
 
 The drop-down button **New** in the band:
 
-- **New start rule…**: opens the [start rule dialog](#start-rule-dialog).
+- **New start rule for Windows updates…** and **New start rule for software…**: open the [start rule dialog](#start-rule-dialog) for that kind.
 - **New ring…**: opens the [ring dialog](#ring-dialog) to add a ring.
 
 ## Rings and transitions {#transitions}
@@ -52,10 +52,20 @@ Updates that are only no longer applicable to a server or hidden on it locally c
 
 ![The dialog to create a start rule, with matching updates](help-images/release-rules-start-dialog.png)
 
-- **Kind**: "Windows updates", "Software (WinGet)" (versions of programs installed with WinGet) or "Windows updates and software". Existing rules and the rule without conditions apply to Windows updates. A new installation brings one rule for software that starts nothing by itself ("Manually"), so software versions wait for an operator until you add rules for them; change or delete it like any other rule. Software whose installation accepts licence agreements never starts automatically, whatever the rule says.
-- **Package ID pattern (\* and ? allowed)**: software only; the whole WinGet package ID must match, for example `Microsoft.*` or `7zip.7zip`.
-- **Publisher**: software only; the publisher of the package as its manifest names it, compared without case.
-- **Classification**: only updates of this classification, or "Any classification" (Windows updates only, like **Severity**, **Restart** and installing outside the maintenance windows).
+A rule is either for Windows updates or for software (versions of programs installed with WinGet), never for both, so its target is always clear. The title of the dialog names the kind, and the dialog shows only the conditions of that kind. **Create release rule…** on the page of an update opens it for the kind of that update: for a Windows update with its classification, severity and title, for a software version with its package ID. A rule saved before 0.9 for both kinds shows a choice **Kind** ("Windows updates" or "Software (WinGet)") and is saved for the kind chosen; add a second rule for the other kind if needed.
+
+A new installation brings one rule for software that starts nothing by itself ("Manually"), so software versions wait for an operator until you add rules for them; change or delete it like any other rule. Software whose installation accepts licence agreements never starts automatically, whatever the rule says.
+
+For software:
+
+- **Package ID pattern (\* and ? allowed)**: the whole WinGet package ID must match, for example `Microsoft.*` or `7zip.7zip`; empty matches every package.
+- **Publisher**: the publisher of the package as its manifest names it, compared without case.
+- **Priority (lower wins)**: as for Windows updates, see below.
+- **Title pattern**: shown only for a software rule saved with a title pattern before; clear it to match by package ID and publisher only.
+
+For Windows updates:
+
+- **Classification**: only updates of this classification, or "Any classification".
 - **Severity**: only updates with this Microsoft severity, or "Any severity".
 - **Restart**: only updates with this restart behaviour as Windows Update reports it: "No restart" (e.g. definition updates), "Restart required", "May restart", or "Any restart behaviour". Updates whose behaviour is not known yet match only "Any".
 - **Priority (lower wins)**: 0 to 10000; new rules get the next free number, and two rules cannot share one.

@@ -57,6 +57,7 @@ internal sealed partial class UpdateArchive(ServerDbContext db, IOptions<UpdateA
 
         var expired = await db.Updates
             .Where(u => u.ArchivedAtUtc != null && u.ArchivedAtUtc < deleteBefore)
+            .OrderBy(u => u.ArchivedAtUtc)
             .Select(u => new { u.UpdateId, u.Revision })
             .Take(500)
             .ToListAsync(cancellationToken)

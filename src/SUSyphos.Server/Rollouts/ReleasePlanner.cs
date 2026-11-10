@@ -35,6 +35,20 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
             .ToDictionary(r => (r.UpdateId, r.Revision, r.RingId), r => r.ReleasedAtUtc ?? DateTime.MinValue);
 
         var releasedIds = released.Keys.Select(k => k.UpdateId).Distinct().ToList();
+
+        // A software version reaches the servers only once the WinGet source of the central server offers it (cached and
+        // scanned); before that WinGet would not find it (lab, 2026-11-10). The cache worker syncs again when it offers one.
+        var notOffered = (await db.PackageVersions.AsNoTracking()
+                .Where(v => v.CachedAtUtc == null && releasedIds.Contains(v.UpdateId))
+                .Select(v => v.UpdateId)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToHashSet();
+        foreach (var key in released.Keys.Where(k => notOffered.Contains(k.UpdateId)).ToList())
+        {
+            released.Remove(key);
+        }
+
         var supersededBy = (await db.UpdateSupersedence.AsNoTracking()
                 .Where(s => releasedIds.Contains(s.SupersededUpdateId))
                 .Select(s => new { s.SupersededUpdateId, s.UpdateId, s.Revision })

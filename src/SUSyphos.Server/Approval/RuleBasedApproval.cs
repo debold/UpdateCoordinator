@@ -145,6 +145,7 @@ internal sealed partial class RuleBasedApprovalWorker(
 
         var pending = await db.Clients.AsNoTracking()
             .Where(c => c.State == RegistrationState.Pending && c.DomainName != null)
+            .OrderBy(c => c.RegisteredAtUtc)
             .Take(100)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);

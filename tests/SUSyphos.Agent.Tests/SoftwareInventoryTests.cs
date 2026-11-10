@@ -154,7 +154,7 @@ public sealed class SoftwareInventoryTests
         // The test folder has no SUSyphos.Agent.WinGet.exe; nothing is started.
         Assert.False(File.Exists(Path.Combine(AppContext.BaseDirectory, WinGetHelperRunner.FileName)));
 
-        await Assert.ThrowsAsync<FileNotFoundException>(() => new WinGetHelperRunner().RunAsync(["inventory"], TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => new WinGetHelperRunner(Microsoft.Extensions.Logging.Abstractions.NullLogger<WinGetHelperRunner>.Instance).RunAsync(["inventory"], TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
     }
 
     internal sealed class FakeRunner : IWinGetHelperRunner
