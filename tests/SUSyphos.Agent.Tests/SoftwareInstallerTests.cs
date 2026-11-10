@@ -87,7 +87,9 @@ public sealed class SoftwareInstallerTests
         var result = Assert.Single(await Installer(runner).InstallAsync([Software("7zip.7zip", "26.06")], TestContext.Current.CancellationToken));
 
         Assert.Equal(InstallResultCode.Failed, result.ResultCode);
-        Assert.Equal(SoftwareInstaller.Failed, result.HResult);
+
+        // A helper stopped after the time limit reports its own code, so the dashboard can say what happened.
+        Assert.Equal(output is null ? SoftwareInstaller.TimedOut : SoftwareInstaller.Failed, result.HResult);
     }
 
     [Fact]

@@ -20,6 +20,8 @@ A banner **Certificate** below the title says so on the overview, the Software p
 - amber, while the central server uses a self-signed certificate and the setting is off for all servers;
 - red, when servers could not install software because they do not trust the certificate, with their names; the [server page](help/server-detail) shows the same banner for its server. A later successful software installation on a server clears it there.
 
+Independent of the certificate, every agent puts exactly the address of the central server into the "Local intranet" zone of the SYSTEM account while software management is on: WinGet marks downloaded installers with the zone of their address, and in the Internet zone Windows would wait for a security confirmation nobody sees. Nothing has to be configured for it; the agent removes the entry when it is uninstalled.
+
 **Agent settings** on the right of the banner opens the setting. Before WinGet starts, the agent checks the source itself and reports an untrusted certificate with its own error code (0x800B0109) and a plain explanation in the server's history.
 
 ## Switching software management on and off {#switch}

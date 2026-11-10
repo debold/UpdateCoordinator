@@ -79,7 +79,7 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
             if (finished is not { ExitCode: 0 } done)
             {
                 LogFailed(software.PackageId, software.Version, finished is null ? "the WinGet helper did not finish in time" : $"helper exit code {finished.Value.ExitCode}");
-                return Result(release, false, false);
+                return Result(release, false, false, finished is null ? TimedOut : 0);
             }
 
             var outcome = JsonSerializer.Deserialize<SoftwareInstallOutcome>(done.Output, SoftwareInventoryReport.JsonOptions);
@@ -128,6 +128,9 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
             return new UninstallResult(UninstallStatus.Failed, false, $"The WinGet helper could not uninstall {packageId}.");
         }
     }
+
+    /// <summary>HRESULT_FROM_WIN32(ERROR_TIMEOUT): the helper was stopped after <see cref="Timeout"/>.</summary>
+    internal const int TimedOut = unchecked((int)0x800705B4);
 
     /// <summary>What went wrong, with the installer exit code only where an installer ran.</summary>
     internal static string FailureText(SoftwareInstallOutcome outcome) =>

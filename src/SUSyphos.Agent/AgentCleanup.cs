@@ -19,6 +19,7 @@ internal static partial class AgentCleanup
         Try(logger, "Windows Automatic Updates", () => services.GetRequiredService<AutomaticUpdatesManager>().Apply(false));
         Try(logger, "Microsoft Update", () => services.GetRequiredService<MicrosoftUpdateManager>().Apply(false));
         Try(logger, "central server certificate for WinGet", () => services.GetRequiredService<Trust.CentralCertificateTrust>().Apply(false));
+        Try(logger, "central server in the intranet zone of SYSTEM", () => services.GetRequiredService<Trust.CentralZoneTrust>().Apply(false));
         return 0;
     }
 

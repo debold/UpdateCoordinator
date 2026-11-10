@@ -17,6 +17,27 @@ public sealed class LogCollectorTests : IDisposable
     public void Dispose() => Directory.Delete(_directory, recursive: true);
 
     [Fact]
+    public void WinGetLogs_ArePackedBelowTheirFolder_AfterTheAgentLogs()
+    {
+        var winget = Path.Combine(_directory, "WinGet");
+        var com = Path.Combine(_directory, "defaultState");
+        Directory.CreateDirectory(winget);
+        Directory.CreateDirectory(com);
+        Write("agent-20261019.log", "agent", _time.GetUtcNow().AddHours(-1));
+        File.WriteAllText(Path.Combine(winget, "helper-20261019.log"), "steps");
+        File.SetLastWriteTimeUtc(Path.Combine(winget, "helper-20261019.log"), _time.GetUtcNow().UtcDateTime);
+        File.WriteAllText(Path.Combine(com, "WinGetCOM-2026-10-19-11-00-00.000.log"), "engine");
+        File.SetLastWriteTimeUtc(Path.Combine(com, "WinGetCOM-2026-10-19-11-00-00.000.log"), _time.GetUtcNow().UtcDateTime);
+        File.WriteAllText(Path.Combine(com, "installer.exe"), "not a log");
+
+        var (archive, files) = new LogCollector(_directory, _time, [new(winget, "*.log", "WinGet/"), new(com, "WinGetCOM-*.log", "WinGetCOM/"), new(Path.Combine(_directory, "missing"), "*.log", "x/")]).Collect();
+
+        Assert.Equal(3, files);
+        using var zip = new ZipArchive(new MemoryStream(archive));
+        Assert.Equal(["agent-20261019.log", "WinGet/helper-20261019.log", "WinGetCOM/WinGetCOM-2026-10-19-11-00-00.000.log"], zip.Entries.Select(e => e.FullName));
+    }
+
+    [Fact]
     public void OnlyRecentAgentLogs_ArePacked()
     {
         Write("agent-20261019.log", "today", _time.GetUtcNow().AddHours(-1));

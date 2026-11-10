@@ -11,35 +11,46 @@ internal interface ILogCollector
     (byte[] Archive, int Files) Collect();
 }
 
+/// <summary>A further folder whose log files go into the archive, below <paramref name="Prefix"/>.</summary>
+internal sealed record LogSource(string Directory, string Pattern, string Prefix);
+
 /// <summary>
-/// Collects only files matching the agent log pattern from the agent log folder, newest first. Log files that are still
-/// being written are read with shared access. Older files are left out until the archive fits the upload limit.
+/// Collects only files matching the agent log pattern from the agent log folder, newest first, then the files of the
+/// further sources (the WinGet helper and WinGet's own logs, lab 2026-11-10). Log files that are still being written are
+/// read with shared access. Older files are left out until the archive fits the upload limit; the agent's own logs come first.
 /// </summary>
-internal sealed class LogCollector(string directory, TimeProvider timeProvider) : ILogCollector
+internal sealed class LogCollector(string directory, TimeProvider timeProvider, IReadOnlyList<LogSource>? sources = null) : ILogCollector
 {
     public const string FilePattern = "agent-*.log";
 
+    /// <summary>The WinGet logs next to the agent log: the helper's steps, the installers' logs and WinGet's own logs of SYSTEM.</summary>
+    public static IReadOnlyList<LogSource> WinGetSources(string agentLogDirectory) =>
+    [
+        new(Path.Combine(agentLogDirectory, "WinGet"), "*.log", "WinGet/"),
+        new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SystemTemp", "WinGet", "defaultState"), "WinGetCOM-*.log", "WinGetCOM/"),
+        new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp", "WinGet", "defaultState"), "WinGetCOM-*.log", "WinGetCOM/"),
+    ];
+
     public (byte[] Archive, int Files) Collect()
     {
-        if (!Directory.Exists(directory))
-        {
-            return (Pack([]), 0);
-        }
-
         var since = timeProvider.GetUtcNow().UtcDateTime.AddDays(-AgentActionList.LogDays);
-        var files = new DirectoryInfo(directory)
-            .EnumerateFiles(FilePattern, SearchOption.TopDirectoryOnly)
-            .Where(f => f.LastWriteTimeUtc >= since)
-            .OrderByDescending(f => f.LastWriteTimeUtc)
+        var files = new[] { new LogSource(directory, FilePattern, string.Empty) }.Concat(sources ?? [])
+            .Where(source => Directory.Exists(source.Directory))
+            .SelectMany(source => new DirectoryInfo(source.Directory)
+                .EnumerateFiles(source.Pattern, SearchOption.TopDirectoryOnly)
+                .Where(f => f.LastWriteTimeUtc >= since)
+                .OrderByDescending(f => f.LastWriteTimeUtc)
+                .Select(f => (File: f, Name: source.Prefix + f.Name)))
+            .DistinctBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         // Measure first, pack once: building candidate archives in memory would need several times the upload limit
         // (measured: about 370 MB for 80 MB of poorly compressible logs), far beyond the agent's memory limit.
-        var selected = new List<FileInfo>();
+        var selected = new List<(FileInfo File, string Name)>();
         long size = EmptyArchiveBytes;
         foreach (var file in files)
         {
-            var entry = CompressedSize(file) + EntryOverheadBytes + (2L * file.Name.Length);
+            var entry = CompressedSize(file.File) + EntryOverheadBytes + (2L * file.Name.Length);
             if (size + entry > AgentActionList.MaxLogBytes)
             {
                 break;
@@ -112,7 +123,7 @@ internal sealed class LogCollector(string directory, TimeProvider timeProvider) 
         public override void SetLength(long value) => throw new NotSupportedException();
     }
 
-    private static byte[] Pack(IReadOnlyList<FileInfo> files)
+    private static byte[] Pack(IReadOnlyList<(FileInfo File, string Name)> files)
     {
         using var buffer = new MemoryStream();
         using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
@@ -121,7 +132,7 @@ internal sealed class LogCollector(string directory, TimeProvider timeProvider) 
             {
                 var entry = zip.CreateEntry(file.Name, CompressionLevel.Optimal);
                 using var target = entry.Open();
-                using var source = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var source = new FileStream(file.File.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 source.CopyTo(target);
             }
         }

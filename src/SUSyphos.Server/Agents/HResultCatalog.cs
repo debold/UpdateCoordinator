@@ -45,7 +45,8 @@ internal static class HResultCatalog
         [unchecked((int)0x80070103)] = "Already installed: the same or a better driver is installed, nothing to do.",
         [unchecked((int)0x80070643)] = "Fatal error during installation (the installer of the update failed; see its log, e.g. for .NET or Defender updates).",
         [unchecked((int)0x80070BC2)] = "The requested operation is successful, but changes will not take effect until the system is rebooted.",
-        [unchecked((int)0x800705B4)] = "The operation timed out.",
+        [unchecked((int)0x800705B4)] = "The operation timed out. For software: the agent stopped the WinGet helper after 30 minutes; the last step it reached is in the agent log (\"WinGet helper: …\").",
+        [unchecked((int)0x80004005)] = "Unspecified error; the agent log names the reason.",
         [unchecked((int)0x800F081F)] = "The source files could not be found (component store corruption, also seen while another installation runs at the same time). If it persists, repair with DISM /Online /Cleanup-Image /RestoreHealth.",
         [unchecked((int)0x800F0922)] = "The update could not be installed (e.g. not enough space in the system reserved partition).",
         [unchecked((int)0x80073712)] = "The component store is corrupted.",
@@ -54,6 +55,7 @@ internal static class HResultCatalog
         // Software with WinGet (0.9): the certificate check of the agent and the codes of WinGet that matter here.
         [CertificateNotTrusted] = "The server does not trust the certificate of the central server, so WinGet cannot use its source. Use a certificate of a CA the servers trust, or switch on the agent setting \"Trust the central server's own certificate for WinGet\".",
         [unchecked((int)0x8A15003B)] = "WinGet could not use the source of the central server (REST error). Most often the server does not trust the certificate of the central server: use a CA certificate or switch on the agent setting \"Trust the central server's own certificate for WinGet\".",
+        [unchecked((int)0x8A150006)] = "WinGet could not start the installer (ShellExecute failed); WinGet's log of SYSTEM names the reason (\"Request logs\" on the server page).",
         [unchecked((int)0x8A150008)] = "WinGet could not download the installer from the central server.",
         [unchecked((int)0x8A150010)] = "None of the installers of this version fits the server (architecture or installer type).",
         [unchecked((int)0x8A150011)] = "The downloaded installer does not match the hash of the manifest.",
