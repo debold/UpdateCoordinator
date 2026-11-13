@@ -158,33 +158,18 @@ else
 
     @if (_tab == "overview")
     {
-    <Box Title="Start rule" Help="update-detail#start-rule" Hint="Which start rule decides how this update enters the rings">
-        @if (_rollout is { } started)
-        {
-            <p>
-                @if (started.StartRuleSummary is { } summary)
-                {
-                    <span>Rollout started @Format(started.StartedAtUtc) by start rule @(started.StartRuleId) (@summary).</span>
-                }
-                else
-                {
-                    <span>Rollout started @Format(started.StartedAtUtc) by @started.StartedBy@(started.StartedBy == RolloutService.RuleActor ? " (before the starting rule was recorded)" : string.Empty).</span>
-                }
-                <span class="note">Start rules decide only once, when the rollout starts; later changes to rules do not change running rollouts.</span>
-            </p>
-        }
-        @if (_startRule is { } rule)
-        {
-            <p>
-                @(_rollout is null ? "Decided by" : "Would decide now:") <a href="/administration/release-rules?dialog=rule&id=@rule.Id">start rule with priority @rule.Priority</a>
-                (@(rule.Classification ?? "any classification"), @(rule.MsrcSeverity ?? "any severity"), title @(rule.TitlePattern ?? "any"))
-                <span class="pill @(rule.Mode == StartMode.Automatic ? "ok" : "queue")">@(rule.Mode == StartMode.Automatic ? $"starts automatically, delay {rule.Delay.TotalHours:0} h" : "manual start")</span>
-            </p>
-        }
-        else
-        {
-            <p><span class="pill queue">no start rule matches</span> The update stays queued until an operator starts it or a matching rule is created.</p>
-        }
+    <Box Title="Start rule" Help="update-detail#start-rule" Hint="Which start rule decides how this update enters the rings" Flush="true">
+        <StatusList Rows="@StartRows" />
+        <FactGrid ShowLabel="true">
+            @if (_rollout is { } started)
+            {
+                <Fact Label="Rollout started" Note="Start rules decide only once, when the rollout starts; later changes to rules do not change running rollouts.">@Format(started.StartedAtUtc) @(started.StartRuleSummary is { } summary ? $"by start rule {started.StartRuleId} ({summary})" : $"by {started.StartedBy}{(started.StartedBy == RolloutService.RuleActor ? " (before the starting rule was recorded)" : string.Empty)}")</Fact>
+            }
+            @if (_startRule is { } rule)
+            {
+                <Fact Label="@(_rollout is null ? "Decided by" : "Would decide now")" Note="@($"{rule.Classification ?? "any classification"}, {rule.MsrcSeverity ?? "any severity"}, title {rule.TitlePattern ?? "any"}")"><a href="/administration/release-rules?dialog=rule&id=@rule.Id">start rule with priority @rule.Priority</a></Fact>
+            }
+        </FactGrid>
     </Box>
 
     <div class="grid-side wide-only">
@@ -407,6 +392,12 @@ else
     private TablePage<ServerRow> _serverPage = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
 
     /// <summary>Opens the new release rule dialog pre-filled with this update's classification, severity and title.</summary>
+    /// <summary>How the update starts: the mode of the deciding rule, or that no rule matches.</summary>
+    private IReadOnlyList<StatusRow> StartRows => _startRule is { } rule
+        ? [rule.Mode == StartMode.Automatic
+            ? new StatusRow("ok", "automatic", "Start", $"starts automatically, delay {rule.Delay.TotalHours:0} h", _rollout is null ? "decided by the rule below" : "the rule below would decide now")
+            : new StatusRow("queue", "manual", "Start", "manual start", "stays queued until an operator starts it")]
+        : [new StatusRow("queue", "none", "Start", "no start rule matches", "The update stays queued until an operator starts it or a matching rule is created.")];
     private string ReleaseRuleLink => _update is null
         ? "/administration/release-rules"
         : _update.Kind == UpdateKind.Software && _update.PackageId is { } package

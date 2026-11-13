@@ -24,51 +24,25 @@ else
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
     <FeatureOff Off="@(!_enabled)" Title="Software management is switched off" Help="software#switch" Text="An administrator switched off software with WinGet on the Software page. The data stays, but nothing is updated or installed until it is switched on again.">
-    <Box Title="About this package" Help="package-detail#about">
+    <Box Title="About this package" Help="package-detail#about" Flush="true">
         <div class="box-body">
             <div class="pkg-name"><PackageLogo Name="@_package.Name" LogoFile="@_package.LogoFile" Large="true" /><p>@(_package.ShortDescription ?? _package.Name)</p></div>
-            <dl class="facts">
-                <dt>Publisher</dt><dd>@(_package.Publisher ?? "–")</dd>
-                <dt>License</dt><dd>@(_package.License ?? "–")</dd>
-                @if (Links.Count > 0)
-                {
-                    <dt>Links</dt>
-                    <dd>@for (var i = 0; i < Links.Count; i++) { if (i > 0) { <span class="note"> · </span> } <a href="@Links[i].Url" target="_blank" rel="noopener noreferrer">@Links[i].Label</a> }</dd>
-                }
-                @if (_package.Tags is not null)
-                {
-                    <dt>Tags</dt><dd>@_package.Tags</dd>
-                }
-                <dt>Agreements</dt>
-                <dd>
-                    @if (!_package.HasAgreements)
-                    {
-                        <span>none; versions can start automatically</span>
-                    }
-                    else if (_package.AgreementsAcceptedAtUtc is { } accepted)
-                    {
-                        <span class="pill ok">accepted</span> <span class="note">by @_package.AgreementsAcceptedBy on @DisplayTime.Format(accepted)</span>
-                    }
-                    else
-                    {
-                        <span class="pill queue">not accepted</span> <span class="note">versions never start automatically until an administrator accepts them</span>
-                    }
-                </dd>
-                <dt>In the catalog</dt><dd>@(_package.AddedBy == SoftwareCatalog.InventoryActor ? "from the software inventory of the servers" : $"added by {_package.AddedBy}") on @DisplayTime.Format(_package.AddedAtUtc)@if (_package.CheckedAtUtc is { } checkedAt) { <span class="note">, checked for new versions @DisplayTime.Format(checkedAt)</span> }</dd>
-            </dl>
-            @if (_package.HasAgreements && _package.AgreementsAcceptedAtUtc is null)
-            {
-                <AuthorizeView Policy="@AdminRoles.Policies.Administer">
-                    <form method="post" @formname="package-accept" @onsubmit="AcceptAsync">
-                        <AntiforgeryToken />
-                        <button type="submit" class="primary"><Icon Name="check" Size="16" />Accept agreements</button>
-                        <span class="note">The installation accepts the publisher's licence terms on every server; read them on the publisher's page first.</span>
-                    </form>
-                </AuthorizeView>
-            }
         </div>
+        <StatusList Rows="@AgreementRows" ShowLabel="false" />
+        <FactGrid>
+            <Fact Label="Publisher">@(_package.Publisher ?? "–")</Fact>
+            <Fact Label="License">@(_package.License ?? "–")</Fact>
+            <Fact Label="In the catalog" Note="@(_package.CheckedAtUtc is { } checkedAt ? $"checked for new versions {DisplayTime.Format(checkedAt)}" : null)">@(_package.AddedBy == SoftwareCatalog.InventoryActor ? "from the software inventory of the servers" : $"added by {_package.AddedBy}") on @DisplayTime.Format(_package.AddedAtUtc)</Fact>
+            @if (Links.Count > 0)
+            {
+                <Fact Label="Links" Wide="true">@for (var i = 0; i < Links.Count; i++) { if (i > 0) { <span class="note"> · </span> } <a href="@Links[i].Url" target="_blank" rel="noopener noreferrer">@Links[i].Label</a> }</Fact>
+            }
+            @if (_package.Tags is { Length: > 0 } tags)
+            {
+                <Fact Label="Tags" Wide="true">@foreach (var tag in tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) { <span class="tag">@tag</span> }</Fact>
+            }
+        </FactGrid>
     </Box>
-
     <Box Title="Versions" Help="package-detail#versions" Flush="true" Hint="Each version is an update of its own: open it to start, follow or stop its rollout">
         <div class="scroll">
             <table>
@@ -242,6 +216,11 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
     private Dictionary<Guid, RolloutState> _rollouts = [];
     private List<(Guid ClientId, string HostName, string? Version, SoftwareMatch Match)> _installed = [];
 
+    /// <summary>Whether the installation accepts licence terms, with "Accept agreements" for administrators while open.</summary>
+    private IReadOnlyList<StatusRow> AgreementRows => _package is null ? []
+        : !_package.HasAgreements ? [new StatusRow("ok", "none", "Agreements", "none", "versions can start automatically")]
+        : _package.AgreementsAcceptedAtUtc is { } accepted ? [new StatusRow("ok", "accepted", "Agreements", $"accepted by {_package.AgreementsAcceptedBy}", $"on {DisplayTime.Format(accepted)}")]
+        : [new StatusRow("queue", "not accepted", "Agreements", "versions never start automatically until an administrator accepts them", "the installation accepts the publisher's licence terms on every server; read them on the publisher's page first", @<AuthorizeView Policy="@AdminRoles.Policies.Administer"><form method="post" @formname="package-accept" @onsubmit="AcceptAsync"><AntiforgeryToken /><button type="submit" class="primary"><Icon Name="check" Size="16" />Accept agreements</button></form></AuthorizeView>)];
     private IReadOnlyList<(string Label, string Url)> Links => _package is null ? [] : new[]
     {
         ("Product page", _package.PackageUrl),

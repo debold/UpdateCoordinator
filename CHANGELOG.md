@@ -17,6 +17,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - The installer cache also keeps the x86 installers of a version while an approved server has the package installed as a 32-bit program (until now only x64 installers were cached where there were any); an offered version is cached again once such a server appears.
 - The dashboard shows the exit code of the installer next to the result of a failed software installation.
 - The success rate of a ring counts a server as successful when it has the update installed by now (inventory, Windows history or "already installed"), as the update page does; the ring showed 50 % while both servers had the update.
+- Calm detail views (Marc, 2026-11-13, variant C): detail boxes show a **Status** part with one row per state (pill, name, short value, grey explanation, link on the right; problems first) and a **Details** part with the plain facts in a grid. Applies to the server tabs Security (with a track of the monthly security baselines), System and Configuration, the expanded row of the update list, the package page, the TLS certificate page, the central server box and the start rule of an update; the design patterns describe it.
 - Plain texts for 0x800705B4 (timeout of the WinGet helper), 0x80004005 and 0x8A150006 (the installer ended with an error exit code).
 
 ## [0.9.0-rc.2] - 2026-11-10

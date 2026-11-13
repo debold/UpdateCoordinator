@@ -72,7 +72,8 @@ public sealed class SupersedenceTests
         var all = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates?view=all")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("1.461.115.0", all, StringComparison.Ordinal);
         var details = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/updates?view=all&open={old.UpdateId:D}:1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains($"<dt>Superseded by</dt><dd><a href=\"/updates/{newer.UpdateId}/1\">KB2267602 (Version 1.461.144.0)</a></dd>", details, StringComparison.Ordinal);
+        Assert.Contains("<dt>Superseded by</dt>", details, StringComparison.Ordinal);
+        Assert.Contains($"<a href=\"/updates/{newer.UpdateId}/1\">KB2267602 (Version 1.461.144.0)</a>", details, StringComparison.Ordinal);
     }
 
     [Fact]

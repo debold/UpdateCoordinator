@@ -35,6 +35,8 @@ public sealed class HelpScreenshotTests(ShowcaseFixture ui)
         { "agent-settings", "/administration/agent-settings", null, "main section.box" },
         { "notifications-channels", "/administration/notifications", null, "main .grid-2" },
         { "certificates", "/administration/certificate", null, "main section.box:has(table)" },
+        { "server-security", "/servers/{main}?tab=security", null, "main section.box#security" },
+        { "server-system", "/servers/{main}?tab=system", null, "main section.box#system" },
     };
 
     /// <summary>Viewport rectangle (left, top, right, bottom) of an element and all its visible descendants.</summary>

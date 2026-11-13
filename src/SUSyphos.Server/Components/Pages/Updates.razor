@@ -77,22 +77,22 @@
                         {
                             <tr class="details-row">
                                 <td colspan="11">
-                                    <dl class="facts">
+                                    <FactGrid Embedded="true">
                                         @if (row.Kb.Length > 0)
                                         {
-                                            <dt>Links</dt><dd><KbLinks Kb="@row.Kb" /></dd>
+                                            <Fact Label="Links"><KbLinks Kb="@row.Kb" /></Fact>
                                         }
                                         @if (row.Newer is { } newer)
                                         {
-                                            <dt>Superseded by</dt><dd><a href="/updates/@newer.UpdateId/@newer.Revision">@newer.Name</a></dd>
+                                            <Fact Label="Superseded by"><a href="/updates/@newer.UpdateId/@newer.Revision">@newer.Name</a></Fact>
                                         }
+                                        <Fact Label="Servers" Note="@($"{row.Counts.Successful} of {row.Counts.Total} installed, {row.Counts.Failed} failed")">@row.Missing still miss it</Fact>
+                                        <Fact Label="Update ID" Mono="true" Note="@($"revision {row.Revision}")">@row.UpdateId.ToString("D")</Fact>
                                         @if (_cves[row.Kb].Order(StringComparer.Ordinal).ToList() is { Count: > 0 } cves)
                                         {
-                                            <dt>Fixes</dt><dd>@DisplayNumber.Format(cves.Count) vulnerabilities: @string.Join(", ", cves.Take(10))@(cves.Count > 10 ? ", …" : null)</dd>
+                                            <Fact Label="Fixes" Wide="true" Note="@(string.Join(", ", cves.Take(10)) + (cves.Count > 10 ? ", …" : null))">@DisplayNumber.Format(cves.Count) vulnerabilities</Fact>
                                         }
-                                        <dt>Servers</dt><dd>@row.Missing still miss it; @row.Counts.Successful of @row.Counts.Total installed, @row.Counts.Failed failed</dd>
-                                        <dt>Update ID</dt><dd class="mono">@row.UpdateId.ToString("D") (revision @row.Revision)</dd>
-                                    </dl>
+                                    </FactGrid>
                                 </td>
                             </tr>
                         }

@@ -69,7 +69,9 @@ Heartbeats are not listed.
 
 ## Security baseline {#security}
 
-In the **Security** tab: the **State** of the server against the security baseline of its Windows version ("Current", "1 behind", "2+ behind", or "Unknown" without security data from Microsoft), the **Build of the server**, the **Baseline** (the newest security build of the version, the month and patch day it came with and its KB), **Behind since** (when the oldest missing baseline was released and which KB closes it), the **Support** phase and what the agent found about **Extended Security Updates**: a licensed ESU key, a running Azure Arc agent (information only: Arc alone does not prove ESU, the server counts as ESU once it installs the security updates released after the end) or a virtual machine in Azure (agents from version 0.7.10). See [Operating systems](help/operating-systems#data) for where the data comes from.
+![The Security baseline box of a server with the track of the monthly baselines](help-images/server-security.png)
+
+In the **Security** tab. On top, the **baseline track** shows the monthly security baselines of the Windows version (the last four): each with its month and build, green "installed" or red "missing since …", the build of the server marked; the sentence below says how many baselines the server is behind, for how long, and which KB brings it to the current baseline. **Status**: the **Security baseline** ("Current", "1 behind", "2+ behind", or "Unknown" without security data from Microsoft) with the days behind and **N open CVEs →**, the **Support** phase, and what the agent found about **Extended Security Updates**: a licensed ESU key, a running Azure Arc agent (information only: Arc alone does not prove ESU, the server counts as ESU once it installs the security updates released after the end) or a virtual machine in Azure (agents from version 0.7.10). **Details**: the **Server build**, the **Current baseline** (the newest security build of the version, the month and patch day it came with) and the **Windows version**. See [Operating systems](help/operating-systems#data) for where the data comes from.
 
 ## Open vulnerabilities of the server {#vulnerabilities}
 
@@ -126,19 +128,23 @@ When the server may install updates. "Inherit from groups or the system default"
 
 ## System {#system}
 
-What the agent reported about the server:
+![The System box of a server: status rows first, then the details](help-images/server-system.png)
 
-- **Operating system**, **Build**, **Domain**, **Roles** (detected roles such as domain controller, SQL Server, Hyper-V).
-- **Support**: the support phase of the Windows version in Microsoft's lifecycle words, with the date and days left of the current phase ("Mainstream Support ends …", "Extended Support ends …", "Support ended …"): "Mainstream" and "Extended" in green, "End of support soon" in amber from 180 days before the end, after the end "ESU" (with its source: licensed key, Azure virtual machine, or inferred from the security updates installed after the end) or "End of support" in amber, and "Out of support" in red once the first patch day after the end passed without its updates. "Unknown" when the shipped table does not know the version.
-- **Update source**: what the agent reports: Microsoft Update (Windows and other Microsoft products, when the agent registered the Microsoft Update service), Windows Update, or WSUS with its address (a warning: the server should not depend on WSUS). A tag "set: …" next to it means the setting differs from what the agent reported last; it applies with the next heartbeat and shows after the next inventory.
-- **Agent update**: installed agent version (opens all servers with this version), a failed agent update with its error, or "below minimum" when the agent is older than the minimum version.
-- **Agent settings**: whether the agent applies the central agent settings as set, how many it has not received yet, or how many the server sets differently itself (registry or group policy). **Show** opens the [agent settings](#agent-settings) in the Configuration tab, where each one is marked.
-- **Move**: shown while a [move to a new server](help/backup#move) is announced and this agent could not move, with the reason; the link opens the move box.
-- **Automatic updates**: whether Windows installs or restarts on its own, outside rings and maintenance windows (Warning), or not (OK), with the current setting, what to do about it and a link to the pre-flight check.
-- **Restart**: whether a restart is pending and why the agent waits.
-- **Outside SUSyphos**: installations of the last 90 days that Windows or an administrator started, not SUSyphos (see the Windows Update history).
-- **Time zone** (maintenance windows are local to the server), **Uptime**, **Last update search** (OK or failed with the error), **Registered**.
+What the agent reported about the server, in two parts. **Status** lists what may need attention, problems first, each with its state, a short value, a grey explanation and a link on the right; **Details** lists the plain facts.
 
+Status:
+
+- **Restart**: whether a restart is pending and why the agent waits, with the reboot policy.
+- **Outside SUSyphos**: installations of the last 90 days that Windows or an administrator started, not SUSyphos; **History →** opens the Windows Update history.
+- **Automatic updates**: whether Windows installs or restarts on its own, outside rings and maintenance windows (Warning), or not (OK), with the current setting, what to do about it and **Pre-flight check →**.
+- **Last update search**: OK with its time, or failed; **Details →** opens the error under missing updates.
+- **Agent settings**: whether the agent applies the central agent settings as set, how many it has not received yet, or how many the server sets differently itself (registry or group policy), with the agent version; **Settings →** opens the [agent settings](#agent-settings) in the Configuration tab, where each one is marked.
+- **Agent update** and **Agent version**: a failed agent update with its error, or an agent older than the minimum version (only when it applies).
+- **Update source**: only while a changed setting ("set: …") waits for the agent; it applies with the next heartbeat and shows after the next inventory.
+- **Move**: shown while a [move to a new server](help/backup#move) is announced and this agent could not move, with the reason; **Move to a new server →** opens the move box.
+- **Support**: the support phase of the Windows version in Microsoft's lifecycle words, with the date and days left of the current phase: "Mainstream" and "Extended" in green, "End of support soon" in amber from 180 days before the end, after the end "ESU" (with its source: licensed key, Azure virtual machine, or inferred from the security updates installed after the end) or "End of support" in amber, and "Out of support" in red once the first patch day after the end passed without its updates; "Unknown" when the shipped table does not know the version. **Security →** opens the Security tab.
+
+Details: **Operating system** (with the edition), **Build**, **Agent** (the installed version; it opens all servers with this version), **Domain**, **Roles** (detected roles such as domain controller, SQL Server, Hyper-V), **Update source** (Microsoft Update for Windows and other Microsoft products when the agent registered the Microsoft Update service, Windows Update, or WSUS with its address, a warning: the server should not depend on WSUS), **Time zone** (maintenance windows are local to the server), **Uptime** and **Registered**.
 ## Installed software {#software}
 
 The programs the agent reports with its inventory ("Programs and Features" and packaged apps for the machine). The hint of the box says whether WinGet works on the server; on Windows Server 2016 and Server Core the programs are listed, but SUSyphos does not update them.

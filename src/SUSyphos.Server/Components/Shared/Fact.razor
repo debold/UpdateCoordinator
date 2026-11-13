@@ -1,0 +1,29 @@
+@* One fact of a FactGrid: label above the value, optional muted note below. *@
+<div class="fact @(Wide ? "wide" : null)">
+    <dt>@Label</dt>
+    <dd class="@(Mono ? "mono" : null)">@ChildContent@if (Note is { Length: > 0 }) { <small>@Note</small> }@NoteContent</dd>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Muted second line.</summary>
+    [Parameter]
+    public string? Note { get; set; }
+
+    /// <summary>Muted second line with markup (links, chips).</summary>
+    [Parameter]
+    public RenderFragment? NoteContent { get; set; }
+
+    /// <summary>Monospace value (builds, versions, IDs, thumbprints).</summary>
+    [Parameter]
+    public bool Mono { get; set; }
+
+    /// <summary>Spans the whole row (long values such as a list of links).</summary>
+    [Parameter]
+    public bool Wide { get; set; }
+}

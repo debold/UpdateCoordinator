@@ -64,7 +64,7 @@ Administrators also have **Create release rule from this update…**, which open
 
 ## Start rule {#start-rule}
 
-Which start rule started the rollout and when, or, before a rollout, which rule would decide now (with its mode: automatic with delay, or manual start). "No start rule matches" means the update stays queued until an operator starts it. Start rules decide only once; changing a rule later does not change running rollouts.
+**Status**: how the update starts under the deciding rule: "automatic" (with its delay) or "manual"; "none" with "no start rule matches" means the update stays queued until an operator starts it. **Details**: when and by which rule (or whom) the rollout started, and which start rule decides, or would decide now, with its conditions; the rule opens in the release rules. Start rules decide only once; changing a rule later does not change running rollouts.
 
 ## Fixes vulnerabilities {#vulnerabilities}
 

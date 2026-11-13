@@ -90,13 +90,13 @@
         <Box Title="Central server" Anchor="server" Help="susyphos#server" Hint="An administrator installs a new version; the central server never updates itself">
             <Header><StatusTag Text="@(_serverUpdate is null ? "Up to date" : "Update available")" Kind="@(_serverUpdate is null ? "ok" : "queue")" /></Header>
             <ChildContent>
-                <dl class="facts">
-                    <dt>Running</dt><dd class="mono">@DisplayNumber.Version(SUSyphos.Server.Administration.ServerVersion.Display)</dd>
+                <FactGrid Embedded="true">
+                    <Fact Label="Running" Mono="true">@DisplayNumber.Version(SUSyphos.Server.Administration.ServerVersion.Display)</Fact>
                     @if (_serverUpdate is { } update)
                     {
-                        <dt>Available</dt><dd><span class="mono">@DisplayNumber.Version(update.Version)</span> <span class="note">found @DisplayTime.FormatDate(update.FoundAtUtc)</span></dd>
+                        <Fact Label="Available" Note="@($"found {DisplayTime.FormatDate(update.FoundAtUtc)}")"><span class="mono">@DisplayNumber.Version(update.Version)</span></Fact>
                     }
-                </dl>
+                </FactGrid>
                 @if (_serverUpdate is { } available)
                 {
                     <details class="release-notes">

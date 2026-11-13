@@ -12,16 +12,16 @@
 <PageHeader Title="TLS certificate" Icon="@PageIcons.Certificate" Subtitle="Agents pin the trust anchor, not the certificate: after a switch the trust anchor signs a binding for the new certificate and every agent accepts it on its next contact. Renewals in the LocalMachine certificate store are picked up automatically." Help="certificate" Crumbs="@([("Administration", null), ("TLS certificate", null)])" />
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
-<Box Title="In use" Help="certificate#in-use">
+<Box Title="In use" Help="certificate#in-use" Flush="true">
     <Header><span class="pill @(_daysLeft < 30 ? "queue" : "ok")">@_daysLeft days left</span></Header>
     <ChildContent>
-        <dl class="facts">
-            <dt>Subject</dt><dd>@_current.Subject</dd>
-            <dt>Issuer</dt><dd>@_current.Issuer</dd>
-            <dt>Thumbprint</dt><dd class="mono">@_current.Thumbprint</dd>
-            <dt>Valid until</dt><dd>@DisplayTime.Format(_current.NotAfter.ToUniversalTime())</dd>
-            <dt>Binding serial</dt><dd>@(_serial?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "–")</dd>
-        </dl>
+        <FactGrid>
+            <Fact Label="Subject" Wide="true">@_current.Subject</Fact>
+            <Fact Label="Issuer" Wide="true">@_current.Issuer</Fact>
+            <Fact Label="Thumbprint" Mono="true">@_current.Thumbprint</Fact>
+            <Fact Label="Valid until">@DisplayTime.Format(_current.NotAfter.ToUniversalTime())</Fact>
+            <Fact Label="Binding serial">@(_serial?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "–")</Fact>
+        </FactGrid>
     </ChildContent>
 </Box>
 
@@ -44,17 +44,17 @@
             </tr>
         </Row>
         <Details Context="candidate">
-            <dl class="facts">
-                <dt>Subject</dt><dd>@candidate.Subject</dd>
-                <dt>DNS names</dt><dd>@if (candidate.DnsNames.Count == 0) { <span class="note">none</span> }@foreach (var name in candidate.DnsNames) { <span class="tag">@name</span> }</dd>
-                <dt>Issuer</dt><dd>@candidate.Issuer</dd>
-                <dt>Valid</dt><dd>@DisplayTime.FormatDate(candidate.NotBeforeUtc) to @DisplayTime.FormatDate(candidate.NotAfterUtc)</dd>
-                <dt>Thumbprint</dt><dd class="mono">@candidate.Thumbprint</dd>
-                @if (candidate.Unusable is { } reason)
-                {
-                    <dt>Not usable</dt><dd>@reason</dd>
-                }
-            </dl>
+            @if (candidate.Unusable is { } reason)
+            {
+                <StatusList Rows="@([new StatusRow("fail", "not usable", "Certificate", reason)])" ShowLabel="false" />
+            }
+            <FactGrid Embedded="true">
+                <Fact Label="Subject" Wide="true">@candidate.Subject</Fact>
+                <Fact Label="DNS names" Wide="true">@if (candidate.DnsNames.Count == 0) { <span class="note">none</span> }@foreach (var name in candidate.DnsNames) { <span class="tag">@name</span> }</Fact>
+                <Fact Label="Issuer" Wide="true">@candidate.Issuer</Fact>
+                <Fact Label="Valid">@DisplayTime.FormatDate(candidate.NotBeforeUtc) to @DisplayTime.FormatDate(candidate.NotAfterUtc)</Fact>
+                <Fact Label="Thumbprint" Mono="true">@candidate.Thumbprint</Fact>
+            </FactGrid>
         </Details>
     </ListTable>
 </Box>

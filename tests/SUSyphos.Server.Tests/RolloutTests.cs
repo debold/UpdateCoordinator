@@ -551,7 +551,7 @@ public sealed class RolloutPageTests
 
         var details = await (await browser.GetAsync($"/updates?open={update.UpdateId:D}:1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("class=\"details-row\"", details, StringComparison.Ordinal);
-        Assert.Contains($"{update.UpdateId:D} (revision 1)", details, StringComparison.Ordinal);
+        Assert.Contains($"{update.UpdateId:D}<small>revision 1</small>", details, StringComparison.Ordinal);
 
         Assert.Contains("KB5040000", await (await browser.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
 

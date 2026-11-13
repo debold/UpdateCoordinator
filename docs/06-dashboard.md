@@ -264,10 +264,16 @@ How the dashboard tells what happened and what lasts (Marc, 2026-10-25).
 - **Boxes:** title with "?", a short hint on the right (one line, about 60 characters at most), optionally a state pill or switch in the header. A box with its own form has a footer: Save (and further box actions) on the right, an optional note on the left. Tables fill the box edge to edge.
 - **Layouts:** one column, two equal columns, or main and side column (2 : 1).
 
-### Fact lists
+### Detail views: Status and Details (Marc, 2026-11-13, mockup https://claude.ai/artifact/XD3F44t8Zo5K41uuHFD1Dm, variant C)
 
-- Term on the left in a fixed column, value on the right; a value may carry a pill or tag and a muted detail; missing values are "–".
-- Long lists get small group headings; links only on values that open more.
+Text-heavy detail boxes have up to two parts, each with a small uppercase label. The former two-column fact list (`dl.facts`) is gone.
+
+- **Status** (`StatusList`): one row per state, like the pre-flight checks: pill in a fixed column, name (semibold), short value, then the muted explanation after " · " (never in the same sentence), and links or KB chips at the right edge. Text links end with "→"; no links in parentheses. Rows that need attention come first: fail, then queue and pend, then ok and neutral. Only rows with a state belong here. In a narrow box (below about 46rem) pill and name share the first line, value and link go below in the second column.
+- **Details** (`FactGrid` with `Fact`): facts without a state in a calm grid on `--surface-2`, label above value, optional muted second line; columns `repeat(auto-fill, minmax(13rem, 1fr))`, long values span the row. Roles, groups and tags as tags; monospace only for builds, versions, IDs and thumbprints; missing values are "–". A box without states holds only this part; in an expanded table row the grid is embedded.
+- **Security baseline** additionally shows the baseline track above the status: one segment per monthly baseline (the last four), "installed" or "missing since", the server build marked, one sentence below with the KB that closes the gap.
+- When to use what: a state an administrator may have to act on is a status row; everything else is a fact. Pills never stand inside a fact or a sentence. CSS only, no script; no horizontal scrolling down to 1024 px.
+
+Places: server tabs Security, System and Configuration (read-only assignment), the expanded row of the update list, the package page ("About this package" with the agreements as a status row), the certificate in use and the expanded certificate row ("not usable" as a status row), the central server on the SUSyphos page and the start rule of an update.
 
 ### Charts
 

@@ -1,0 +1,23 @@
+@* The "Details" part of a detail box (docs/06-dashboard.md, section 8 "Detail views", Marc 2026-11-13): facts without a
+   state in a calm grid, the label above the value, an optional muted second line. Roles, groups and tags as tags;
+   monospace only for builds, versions, IDs and thumbprints. A box without states holds only this part. *@
+<dl class="fact-grid @(Embedded ? "embedded" : null)">
+    @if (ShowLabel)
+    {
+        <div class="section-label">Details</div>
+    }
+    @ChildContent
+</dl>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Shows the "Details" label (when a StatusList stands above it).</summary>
+    [Parameter]
+    public bool ShowLabel { get; set; }
+
+    /// <summary>Inside a table row or another container: no box corners.</summary>
+    [Parameter]
+    public bool Embedded { get; set; }
+}

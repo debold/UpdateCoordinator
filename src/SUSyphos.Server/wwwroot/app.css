@@ -375,7 +375,6 @@ details.col-filter[open] > summary { color: var(--accent); background: var(--acc
 .legend a { color: var(--text); text-decoration: none; }
 .legend a:hover { color: var(--accent); }
 /* A pill in running text stands on the text's baseline (its own text is trimmed to cap height and baseline). */
-dl.facts .pill { vertical-align: baseline; }
 .swatch.none { background: var(--idle); opacity: 0.45; }
 .ring-status, .donut-row { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; }
 .donut-cell { display: inline-flex; align-items: center; gap: 0.5rem; }
@@ -457,11 +456,48 @@ details.multi .options label:hover { background: var(--surface-2); }
 .attention .title { font-weight: 500; }
 .attention .empty { padding: 1rem 1.15rem; color: var(--muted); }
 
-/* Facts (definition lists). */
-.facts { display: grid; grid-template-columns: minmax(8rem, max-content) 1fr; gap: 0.45rem 1.1rem; margin: 0; }
-.facts dt { color: var(--muted); }
-.facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
-.facts pre { margin: 0; }
+/* Detail views (Marc, 2026-11-13): "Status" rows like the pre-flight checks and "Details" as a calm fact grid. */
+.section-label { padding: 0.7rem 1.15rem 0.35rem; color: var(--muted); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 650; }
+.status-part { container: status / inline-size; }
+.status-list { list-style: none; margin: 0; padding: 0 0 0.35rem; }
+.status-list li { display: grid; grid-template-columns: 8.5rem 11rem minmax(0, 1fr) auto; align-items: baseline; gap: 0.25rem 1rem; padding: 0.55rem 1.15rem; border-top: 1px solid var(--line); }
+.status-list li:first-child { border-top: 0; }
+.status-list li > .pill, .status-list li > .pill-info { justify-self: start; }
+.status-name { font-weight: 600; }
+.status-text { min-width: 0; overflow-wrap: anywhere; }
+.status-text small { color: var(--muted); font-size: 0.85rem; }
+.status-act { white-space: nowrap; font-size: 0.88rem; display: inline-flex; gap: 0.5rem; align-items: center; }
+.status-act:empty { display: none; }
+@container status (max-width: 46rem) {
+    .status-list li { grid-template-columns: 8.5rem minmax(0, 1fr); }
+    .status-list li > .pill, .status-list li > .pill-info { grid-column: 1; grid-row: 1; }
+    .status-name { grid-column: 2; grid-row: 1; }
+    .status-text, .status-act { grid-column: 2; }
+}
+.fact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); margin: 0; background: var(--surface-2); border-radius: 0 0 var(--r) var(--r); }
+.status-part + .fact-grid, .baseline-track + .status-part { border-top: 1px solid var(--line); }
+.fact-grid.embedded { border-radius: var(--r-sm); border: 1px solid var(--line); }
+.fact-grid > .section-label { grid-column: 1 / -1; padding-bottom: 0; }
+.fact { padding: 0.55rem 1.15rem 0.65rem; min-width: 0; }
+.fact.wide { grid-column: 1 / -1; }
+.fact dt { color: var(--muted); font-size: 0.8rem; }
+.fact dd { margin: 0.1rem 0 0; overflow-wrap: anywhere; font-weight: 500; }
+.fact dd small { display: block; color: var(--muted); font-size: 0.8rem; font-weight: 400; }
+.fact dd .tag + .tag { margin-left: 0.25rem; }
+.fact pre { margin: 0; }
+.baseline-track { padding: 0.9rem 1.15rem 1rem; display: grid; gap: 0.55rem; }
+.baseline-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 4px; }
+.baseline-seg { border-radius: 6px; padding: 0.45rem 0.6rem 0.5rem; min-width: 0; border: 1px solid var(--border); background: var(--surface-2); display: grid; gap: 0.1rem; }
+.baseline-seg .m { font-weight: 650; font-size: 0.85rem; }
+.baseline-seg .b { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+.baseline-seg .s { font-size: 0.76rem; color: var(--muted); }
+.baseline-seg.have { background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.baseline-seg.have .s { color: var(--ok); font-weight: 600; }
+.baseline-seg.miss { background: var(--fail-soft); border-color: color-mix(in srgb, var(--fail) 35%, transparent); }
+.baseline-seg.miss .s { color: var(--fail); font-weight: 600; }
+.baseline-seg.here { box-shadow: inset 0 -3px 0 var(--ok); }
+.baseline-legend { display: flex; flex-wrap: wrap; gap: 0.3rem 1.25rem; font-size: 0.82rem; color: var(--muted); align-items: center; }
+.baseline-legend .kb-links { margin-left: auto; }
 
 @media (max-width: 56rem) {
     .shell { grid-template-columns: 1fr; }
@@ -471,7 +507,6 @@ details.multi .options label:hover { background: var(--surface-2); }
     .nav .account { margin-top: 0; width: 100%; border-top: 0; }
     main { padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px)); }
     .grid-side { grid-template-columns: 1fr; }
-    .facts { grid-template-columns: 1fr; }
 }
 
 /* Plain lists inside boxes and dialogs. */
@@ -819,7 +854,6 @@ td .kb-links { margin-top: 0.2rem; }
 /* Expanded rows (ListTable Details): the row stays tinted, the details open right below it, indented and shaded. */
 tr.expanded > td { background: var(--accent-soft); }
 tr.details-row > td { padding: 0.75rem 1rem 0.9rem 2.2rem; background: var(--surface-2); border-top: 0; }
-tr.details-row .facts { margin: 0; }
 .icon-button.expand svg { transition: transform 0.12s; }
 .icon-button.expand.open svg { transform: rotate(180deg); }
 

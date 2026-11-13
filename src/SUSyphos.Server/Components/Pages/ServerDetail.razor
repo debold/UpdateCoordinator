@@ -254,18 +254,25 @@ else
     }
     else if (_tab == ServerPage.Security)
     {
-    <Box Title="Security baseline" Anchor="security" Help="server-detail#security" Hint="the build of the server against the newest security build of its Windows version (MSRC)">
-        <dl class="facts">
-            <dt>State</dt><dd><StatusTag Text="@SUSyphos.Server.Security.SecuritySnapshot.Label(_serverSecurity.State)" Kind="@SUSyphos.Server.Security.SecuritySnapshot.Class(_serverSecurity.State)" />@if (_serverSecurity.State == SUSyphos.Server.Security.BaselineState.Unknown) { <span class="note">@(_securityHasData ? "Microsoft publishes no security builds for this Windows version" : "no security data from Microsoft (MSRC) yet")</span> }</dd>
-            <dt>Build of the server</dt><dd class="mono">@OperatingSystems.Build(_client.OsVersion)</dd>
-            <dt>Baseline</dt><dd>@if (_serverSecurity.Target is { } target) { <span class="mono">@target.Build.@target.Revision</span> <span>from @target.Month, released @Format(target.ReleasedAtUtc)</span> <KbLinks Kb="@target.Kb" /> } else { <span>–</span> }</dd>
-            @if (_serverSecurity.Missing is { } missing)
-            {
-                <dt>Behind since</dt><dd>@Format(missing.ReleasedAtUtc) (@DisplayNumber.Format((int)(_now - missing.ReleasedAtUtc).TotalDays) days): the baseline of @missing.Month is missing; <KbLinks Kb="@missing.Kb" /> closes it</dd>
-            }
-            <dt>Support</dt><dd>@{ var supportInfo = Support.Of(_client, _serverSecurity); }<StatusTag Text="@supportInfo.Label" Kind="@SUSyphos.Server.Lifecycle.SupportLifecycle.Class(supportInfo.State)" /> <span>@SUSyphos.Server.Lifecycle.SupportLifecycle.Describe(supportInfo)</span></dd>
-            <dt>Extended Security Updates</dt><dd>@EsuText</dd>
-        </dl>
+    <Box Title="Security baseline" Anchor="security" Help="server-detail#security" Hint="the build of the server against the newest security build of its Windows version (MSRC)" Flush="true">
+        @if (BaselineSegments is { Count: > 0 } segments)
+        {
+            <div class="baseline-track" aria-label="Monthly security baselines">
+                <div class="baseline-row">
+                    @foreach (var segment in segments)
+                    {
+                        <div class="baseline-seg @(segment.Installed ? "have" : "miss") @(segment.ServerBuild ? "here" : null)"><span class="m">@segment.Baseline.Month</span><span class="b">@segment.Baseline.Build.@segment.Baseline.Revision</span><span class="s">@segment.State</span></div>
+                    }
+                </div>
+                <div class="baseline-legend"><span>@BaselineSentence</span>@if (_serverSecurity.Missing is not null && _serverSecurity.Target is { } target) { <KbLinks Kb="@target.Kb" /> }</div>
+            </div>
+        }
+        <StatusList Rows="@SecurityRows" />
+        <FactGrid ShowLabel="true">
+            <Fact Label="Server build" Mono="true">@OperatingSystems.Build(_client.OsVersion)</Fact>
+            <Fact Label="Current baseline" Note="@(_serverSecurity.Target is { } current ? $"{current.Month}, released {Format(current.ReleasedAtUtc)}" : null)">@if (_serverSecurity.Target is { } baseline) { <span class="mono">@baseline.Build.@baseline.Revision</span> } else { <span>–</span> }</Fact>
+            <Fact Label="Windows version">@OperatingSystems.Name(_client.OsProductName, _client.OsVersion, _client.OsEditionId)</Fact>
+        </FactGrid>
     </Box>
 
     <Box Title="Open vulnerabilities" Anchor="vulnerabilities" Help="server-detail#vulnerabilities" Hint="fixed in a later build than the server runs; exploited first" Flush="true">
@@ -380,42 +387,33 @@ else
             </form>
         </Authorized>
         <NotAuthorized>
-            <Box Title="Assignment" Help="server-detail#assignment">
-                <dl class="facts">
-                    <dt>Ring</dt><dd>@RingName(_client.RingId) @(_client.ManualRingId is null ? "(automatic)" : "(manual)")</dd>
-                    <dt>Groups</dt><dd>@(_memberships.Count > 0 ? string.Join(", ", _memberships.Select(m => GroupName(m.GroupId))) : "–")</dd>
-                    <dt>Maintenance windows</dt><dd>@(_effectiveWindows.Count > 0 ? WindowPickerForm.Describe(_effectiveWindows) : "none") <a href="@($"/servers/{Id}?tab=configuration&dialog=preview")" data-help-term="Next 30 days">Next @SUSyphos.Server.Assignment.SchedulePreview.Days days</a></dd>
-                    <dt>Reboots</dt><dd>@RebootPolicyText.Label(_client.EffectiveRebootPolicy)</dd>
-                    <dt>Update source</dt><dd>@(_client.EffectiveUseMicrosoftUpdate ? "Microsoft Update" : "Windows Update only")</dd>
-                </dl>
+            <Box Title="Assignment" Help="server-detail#assignment" Flush="true">
+                <FactGrid>
+                    <Fact Label="Ring" Note="@(_client.ManualRingId is null ? "automatic" : "manual")">@RingName(_client.RingId)</Fact>
+                    <Fact Label="Groups">@if (_memberships.Count > 0) { @foreach (var membership in _memberships) { <span class="tag">@GroupName(membership.GroupId)</span> } } else { <span>–</span> }</Fact>
+                    <Fact Label="Maintenance windows" Wide="true"><ChildContent>@(_effectiveWindows.Count > 0 ? WindowPickerForm.Describe(_effectiveWindows) : "none")</ChildContent><NoteContent><small><a href="@($"/servers/{Id}?tab=configuration&dialog=preview")" data-help-term="Next 30 days">Next @SUSyphos.Server.Assignment.SchedulePreview.Days days →</a></small></NoteContent></Fact>
+                    <Fact Label="Reboots">@RebootPolicyText.Label(_client.EffectiveRebootPolicy)</Fact>
+                    <Fact Label="Update source">@(_client.EffectiveUseMicrosoftUpdate ? "Microsoft Update" : "Windows Update only")</Fact>
+                </FactGrid>
             </Box>
         </NotAuthorized>
     </AuthorizeView>
     }
     else if (_tab == ServerPage.System)
     {
-    <Box Title="System" Help="server-detail#system" Anchor="system">
-        <dl class="facts">
-            <dt>Operating system</dt><dd>@OperatingSystems.Name(_client.OsProductName, _client.OsVersion, _client.OsEditionId)@(_client.OsEditionId is { Length: > 0 } edition ? $" ({edition})" : string.Empty)</dd>
-            <dt>Build</dt><dd class="mono">@OperatingSystems.Build(_client.OsVersion)</dd>
-            <dt>Support</dt><dd>@{ var support = Support.Of(_client); }@if (support.State == SUSyphos.Server.Lifecycle.SupportState.Unknown) { <span class="note">unknown for this Windows version</span> } else { <StatusTag Text="@SUSyphos.Server.Lifecycle.SupportLifecycle.Label(support.State)" Kind="@SUSyphos.Server.Lifecycle.SupportLifecycle.Class(support.State)" /> <span>@SUSyphos.Server.Lifecycle.SupportLifecycle.Describe(support)@(support.MainstreamEnd is { } mainstream ? $"; mainstream support {(support.DaysLeft - (support.End!.Value.DayNumber - mainstream.DayNumber) >= 0 ? "until" : "ended")} {mainstream:yyyy-MM-dd}" : null)</span> }</dd>
-            <dt>Domain</dt><dd>@(_client.DomainName ?? "–")</dd>
-            <dt>Roles</dt><dd>@(_client.Roles.Count > 0 ? string.Join(", ", _client.Roles) : "–")</dd>
-            <dt>Update source</dt><dd>@UpdateSourceText@if (_client.MicrosoftUpdateRegistered is { } registered && registered != _client.EffectiveUseMicrosoftUpdate) { <span class="pill queue" title="The agent applies the setting with its next heartbeat and reports it with the next inventory">@(_client.EffectiveUseMicrosoftUpdate ? "set: Microsoft Update" : "set: Windows Update only")</span> }</dd>
-            <dt>Agent update</dt><dd>@if (_client.AgentUpdateError is { } agentError) { <span class="pill fail">failed</span> <span>@agentError</span> } else { <a href="@Servers.Link("agent", AgentVersion.ShortForm(_client.AgentVersion))" title="@_client.AgentVersion: show all servers with this agent version" class="mono">@AgentVersion.ShortForm(_client.AgentVersion)</a> }@if (AgentUpdates.IsBelowMinimum(_client.AgentVersion)) { <span class="pill fail">below minimum @AgentUpdates.Minimum</span> }</dd>
-            <dt>Agent settings</dt><dd>@{ var applied = AppliedSummary; }<StatusTag Text="@applied.Text" Kind="@applied.Kind" /> <a href="@ServerPage.Link(Id, "assignment")" data-help-term="Show agent settings">Show</a></dd>
-            @if (_client.ServerMoveError is { } moveError)
-            {
-                <dt>Move</dt><dd><span class="pill fail">not moved</span> <span>@moveError</span> <a href="/administration/backup#move" title="The announced move to a new central server">Move to a new server</a></dd>
-            }
-            <dt>Automatic updates</dt><dd>@if (_client.AutoUpdateMode is null) { <span class="note">reported by agents from version 0.3</span> } else if (_client.AutomaticUpdatesBypass) { <span class="pill queue">Warning</span> <span>Windows installs updates on its own, outside rings and maintenance windows; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent) (<a href="@($"/servers/{Id}?tab={ServerPage.Overview}#checks")">pre-flight check</a>)</span><AutomaticUpdatesFix Bypass="true" ByPolicy="@_client.AutomaticUpdatesByPolicy" /> } else { <span class="pill ok">OK</span> <span>Windows does not install on its own; setting: @AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)</span> }</dd>
-            <dt>Restart</dt><dd>@if (_client.RestartAnnouncedAtUtc is { } restartAt) { <span class="pill pend">restarting</span> <span>at @Format(restartAt), announced to Windows by the agent</span> } else if (!_client.RebootPending) { <span class="pill ok">not pending</span> } else if (_client.RebootWait is { } wait) { <span class="pill queue">pending</span> <span>@LiveStatus.RebootWaitText(wait) (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> } else { <span class="pill queue">pending</span> <span>the agent reports why it waits from version 0.7 (policy: @RebootPolicyText.Label(_client.EffectiveRebootPolicy))</span> }</dd>
-            <dt>Outside SUSyphos</dt><dd>@if (_externalInstalls > 0) { <span class="pill queue">@_externalInstalls</span> <span>installations in the last @SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays days were started by Windows or an administrator, not by SUSyphos (<a href="@ServerPage.Link(Id, "windows-history")">history</a>)</span> } else { <span>none in the reported history</span> }</dd>
-            <dt>Time zone</dt><dd>@(_client.TimeZoneId ?? "reported with the next inventory")</dd>
-            <dt>Uptime</dt><dd>@UptimeText</dd>
-            <dt>Last update search</dt><dd>@if (_client.LastSearchAtUtc is null) { <span>none reported yet</span> } else if (_client.LastSearchSucceeded == true) { <span class="pill ok">OK</span> <span>@Format(_client.LastSearchAtUtc)</span> } else { <span class="pill fail">failed</span> <span>@Format(_client.LastSearchAtUtc) (<a href="@ServerPage.Link(Id, "missing")">details</a>)</span> }</dd>
-            <dt>Registered</dt><dd>@Format(_client.RegisteredAtUtc)</dd>
-        </dl>
+    <Box Title="System" Help="server-detail#system" Anchor="system" Flush="true">
+        <StatusList Rows="@SystemRows" />
+        <FactGrid ShowLabel="true">
+            <Fact Label="Operating system" Note="@(_client.OsEditionId is { Length: > 0 } edition ? $"edition {edition}" : null)">@OperatingSystems.Name(_client.OsProductName, _client.OsVersion, _client.OsEditionId)</Fact>
+            <Fact Label="Build" Mono="true">@OperatingSystems.Build(_client.OsVersion)</Fact>
+            <Fact Label="Agent"><a href="@Servers.Link("agent", AgentVersion.ShortForm(_client.AgentVersion))" title="@_client.AgentVersion: show all servers with this agent version" class="mono">@AgentVersion.ShortForm(_client.AgentVersion)</a></Fact>
+            <Fact Label="Domain">@(_client.DomainName ?? "–")</Fact>
+            <Fact Label="Roles">@if (_client.Roles.Count > 0) { @foreach (var role in _client.Roles) { <span class="tag">@role</span> } } else { <span>–</span> }</Fact>
+            <Fact Label="Update source">@UpdateSourceText</Fact>
+            <Fact Label="Time zone">@(_client.TimeZoneId ?? "reported with the next inventory")</Fact>
+            <Fact Label="Uptime">@UptimeText</Fact>
+            <Fact Label="Registered">@Format(_client.RegisteredAtUtc)</Fact>
+        </FactGrid>
     </Box>
     }
     else if (_tab == ServerPage.Activity)
@@ -698,6 +696,144 @@ else
     private bool _securityHasData;
 
     /// <summary>What the agent found about Extended Security Updates.</summary>
+    /// <summary>The monthly baselines of the server's Windows build, oldest first (the last four), for the baseline track.</summary>
+    private sealed record BaselineSegment(SecurityBaselineEntity Baseline, bool Installed, bool ServerBuild, string State);
+
+    private SUSyphos.Server.Security.SecuritySnapshot _securitySnapshot = SUSyphos.Server.Security.SecuritySnapshot.Empty;
+
+    private IReadOnlyList<BaselineSegment> BaselineSegments
+    {
+        get
+        {
+            if (_serverSecurity.Build is not { } build || _serverSecurity.Revision is not { } revision)
+            {
+                return [];
+            }
+
+            var baselines = _securitySnapshot.Baselines(build).OrderBy(b => b.Revision).TakeLast(4).ToList();
+            var newestInstalled = baselines.LastOrDefault(b => b.Revision <= revision);
+            return [.. baselines.Select(b => new BaselineSegment(
+                b,
+                b.Revision <= revision,
+                ReferenceEquals(b, newestInstalled),
+                b.Revision <= revision
+                    ? ReferenceEquals(b, newestInstalled) ? "installed · server build" : "installed"
+                    : ReferenceEquals(b, baselines[^1]) ? "missing · current baseline" : $"missing since {b.ReleasedAtUtc.ToLocalTime():yyyy-MM-dd}"))];
+        }
+    }
+
+    /// <summary>One sentence under the baseline track: how far behind, since when, which KB closes the gap.</summary>
+    private string BaselineSentence
+    {
+        get
+        {
+            var behind = BaselineSegments.Count(s => !s.Installed);
+            if (behind == 0 || _serverSecurity.Missing is not { } missing)
+            {
+                return "The server runs the current security baseline.";
+            }
+
+            var days = DisplayNumber.Format((int)(_now - missing.ReleasedAtUtc).TotalDays);
+            return $"{behind} {(behind == 1 ? "baseline" : "baselines")} behind, for {days} days.{(_serverSecurity.Target?.Kb is { } kb ? $" KB{kb} brings the server to the current baseline." : string.Empty)}";
+        }
+    }
+
+    private IReadOnlyList<StatusRow> SecurityRows
+    {
+        get
+        {
+            if (_client is null)
+            {
+                return [];
+            }
+
+            var rows = new List<StatusRow>();
+            var state = _serverSecurity.State;
+            var label = SUSyphos.Server.Security.SecuritySnapshot.Label(state);
+            var kind = SUSyphos.Server.Security.SecuritySnapshot.Class(state);
+            RenderFragment? cves = _serverSecurity.Open.Count > 0 ? @<a href="@($"{ServerPage.Link(Id, ServerPage.Security)}#vulnerabilities")">@DisplayNumber.Format(_serverSecurity.Open.Count) open @(_serverSecurity.Open.Count == 1 ? "CVE" : "CVEs") →</a> : null;
+            rows.Add(state switch
+            {
+                SUSyphos.Server.Security.BaselineState.Unknown => new StatusRow(kind, label, "Security baseline", "unknown", _securityHasData ? "Microsoft publishes no security builds for this Windows version" : "no security data from Microsoft (MSRC) yet"),
+                SUSyphos.Server.Security.BaselineState.Current => new StatusRow(kind, label, "Security baseline", "current", _serverSecurity.Target is { } target ? $"{target.Month}, released {Format(target.ReleasedAtUtc)}" : null, cves),
+                _ when _serverSecurity.Missing is { } missing => new StatusRow(kind, label, "Security baseline", $"{DisplayNumber.Format((int)(_now - missing.ReleasedAtUtc).TotalDays)} days behind", $"since {Format(missing.ReleasedAtUtc)}", cves),
+                _ => new StatusRow(kind, label, "Security baseline", "behind", null, cves),
+            });
+            var support = Support.Of(_client, _serverSecurity);
+            rows.Add(SupportRow(support, null));
+            rows.Add(new StatusRow(_client.EsuKey == true || _client.Azure == true ? "ok" : "neutral", _client.EsuKey == true || _client.Azure == true ? "found" : "none", "Extended Security Updates", EsuText.Split(" (", 2)[0], EsuText.Contains(" (", StringComparison.Ordinal) ? EsuText.Split(" (", 2)[1].TrimEnd(')') : null));
+            return rows;
+        }
+    }
+
+    private StatusRow SupportRow(SUSyphos.Server.Lifecycle.SupportInfo support, RenderFragment? action)
+    {
+        if (support.State == SUSyphos.Server.Lifecycle.SupportState.Unknown)
+        {
+            return new StatusRow("neutral", "Unknown", "Support", "unknown for this Windows version", null, action);
+        }
+
+        var mainstream = support.MainstreamEnd is { } end && support.End is { } final && support.DaysLeft is { } days
+            ? $"mainstream support {(days - (final.DayNumber - end.DayNumber) >= 0 ? "until" : "ended")} {end:yyyy-MM-dd}"
+            : null;
+        return new StatusRow(SUSyphos.Server.Lifecycle.SupportLifecycle.Class(support.State), support.Label, "Support", SUSyphos.Server.Lifecycle.SupportLifecycle.Describe(support), mainstream, action);
+    }
+
+    private IReadOnlyList<StatusRow> SystemRows
+    {
+        get
+        {
+            if (_client is null)
+            {
+                return [];
+            }
+
+            var policy = $"policy: {RebootPolicyText.Label(_client.EffectiveRebootPolicy)}";
+            var rows = new List<StatusRow>
+            {
+                _client.RestartAnnouncedAtUtc is { } restartAt ? new StatusRow("pend", "restarting", "Restart", $"at {Format(restartAt)}", "announced to Windows by the agent")
+                : !_client.RebootPending ? new StatusRow("ok", "not pending", "Restart", "no restart pending", policy)
+                : new StatusRow("queue", "pending", "Restart", _client.RebootWait is { } wait ? LiveStatus.RebootWaitText(wait) : "the agent reports why it waits from version 0.7", policy),
+
+                _externalInstalls > 0
+                    ? new StatusRow("queue", DisplayNumber.Format(_externalInstalls), "Outside SUSyphos", $"installations in the last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days", "started by Windows or an administrator, not by SUSyphos", @<a href="@ServerPage.Link(Id, "windows-history")">History →</a>)
+                    : new StatusRow("ok", "none", "Outside SUSyphos", "none in the reported history"),
+
+                _client.AutoUpdateMode is null ? new StatusRow("neutral", "unknown", "Automatic updates", "reported by agents from version 0.3")
+                : _client.AutomaticUpdatesBypass ? new StatusRow("queue", "Warning", "Automatic updates", "Windows installs updates on its own", $"outside rings and maintenance windows; setting: {AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)}", @<a href="@($"/servers/{Id}?tab={ServerPage.Overview}#checks")">Pre-flight check →</a>, @<AutomaticUpdatesFix Bypass="true" ByPolicy="@_client.AutomaticUpdatesByPolicy" />)
+                : new StatusRow("ok", "OK", "Automatic updates", "Windows does not install on its own", $"setting: {AutomaticUpdatesText.Describe(_client.AutoUpdateMode, _client.AutomaticUpdatesByPolicy, _client.AutomaticUpdatesManagedByAgent)}"),
+
+                _client.LastSearchAtUtc is null ? new StatusRow("neutral", "none", "Last update search", "none reported yet")
+                : _client.LastSearchSucceeded == true ? new StatusRow("ok", "OK", "Last update search", Format(_client.LastSearchAtUtc))
+                : new StatusRow("fail", "failed", "Last update search", Format(_client.LastSearchAtUtc), null, @<a href="@ServerPage.Link(Id, "missing")">Details →</a>),
+            };
+
+            var applied = AppliedSummary;
+            rows.Add(new StatusRow(applied.Kind, applied.Text, "Agent settings", $"agent {AgentVersion.ShortForm(_client.AgentVersion)}", null, @<a href="@ServerPage.Link(Id, "assignment")" data-help-term="Show agent settings">Settings →</a>));
+            if (_client.AgentUpdateError is { } agentError)
+            {
+                rows.Add(new StatusRow("fail", "failed", "Agent update", agentError));
+            }
+
+            if (AgentUpdates.IsBelowMinimum(_client.AgentVersion))
+            {
+                rows.Add(new StatusRow("fail", "too old", "Agent version", $"below minimum {AgentUpdates.Minimum}", "update the agent on the SUSyphos page"));
+            }
+
+            if (_client.MicrosoftUpdateRegistered is { } registered && registered != _client.EffectiveUseMicrosoftUpdate)
+            {
+                rows.Add(new StatusRow("queue", "changing", "Update source", _client.EffectiveUseMicrosoftUpdate ? "set: Microsoft Update" : "set: Windows Update only", "the agent applies the setting with its next heartbeat and reports it with the next inventory"));
+            }
+
+            if (_client.ServerMoveError is { } moveError)
+            {
+                rows.Add(new StatusRow("fail", "not moved", "Move", moveError, null, @<a href="/administration/backup#move">Move to a new server →</a>));
+            }
+
+            rows.Add(SupportRow(Support.Of(_client), @<a href="@ServerPage.Link(Id, ServerPage.Security)">Security →</a>));
+            return rows;
+        }
+    }
     private string EsuText => _client is null || (_client.EsuKey is null && _client.AzureArc is null && _client.Azure is null)
         ? "reported by agents from version 0.7.10"
         : string.Join("; ", new[] { _client.EsuKey == true ? "ESU key licensed" : null, _client.AzureArc == true ? "Azure Arc agent running (no proof of ESU)" : null, _client.Azure == true ? "runs in Azure" : null }.Where(s => s is not null)) is { Length: > 0 } found ? found : "nothing found (no ESU key, no Azure Arc agent, not in Azure)";
@@ -1241,6 +1377,7 @@ else
         // Preview: what the agent installs in the next window (released, not installed, due before the window closes).
         _now = Time.GetUtcNow().UtcDateTime;
         var securitySnapshot = await Baseline.LoadAsync(CancellationToken.None);
+        _securitySnapshot = securitySnapshot;
         _securityHasData = securitySnapshot.HasData;
         _serverSecurity = securitySnapshot.Of(_client);
         _securityFixes = _serverSecurity.Build is { } securityBuild ? _serverSecurity.Open.ToDictionary(v => v.Cve, v => securitySnapshot.FixesOf(v.Cve).Where(f => f.Build == securityBuild).OrderByDescending(f => f.Revision).Select(f => f.Kb).FirstOrDefault()) : [];

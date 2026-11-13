@@ -59,7 +59,7 @@ public sealed class ClientActivityTests
         using var system = await reader.GetAsync($"/servers/{client.ClientId}?tab=system");
         var facts = await system.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("0 h 5 min (since", facts, StringComparison.Ordinal);
-        Assert.Contains("<dt>Last update search</dt><dd><span class=\"pill ok\">OK</span>", facts, StringComparison.Ordinal);
+        Assert.Matches("<span class=\"pill ok\"[^>]*>OK</span>\\s*<span class=\"status-name\">Last update search</span>", facts);
     }
 
     [Fact]

@@ -55,7 +55,9 @@ public sealed class UpdateHistoryTests
 
         using (var page = await reader.GetAsync($"/servers/{client.ClientId}?tab=system"))
         {
-            Assert.Contains("installations in the last 90 days were started by Windows or an administrator", await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            var html = await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains("installations in the last 90 days", html, StringComparison.Ordinal);
+            Assert.Contains("started by Windows or an administrator", html, StringComparison.Ordinal);
         }
 
         // An inventory without history (could not be read) keeps the stored one.
