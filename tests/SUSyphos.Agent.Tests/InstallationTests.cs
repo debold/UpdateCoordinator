@@ -659,6 +659,35 @@ public sealed class InstallationRunnerTests
     }
 
     [Fact]
+    public async Task Software_InstallsInItsOwnWindows_UpdatesInTheMaintenanceWindows()
+    {
+        // Marc, 2026-11-13: software windows of their own, e.g. every evening, while Windows updates keep the patch day.
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 20, 0, 0, TimeSpan.Zero)); // Wednesday 20:00
+        var evening = new MaintenanceWindow { Days = [DayOfWeek.Wednesday], Start = TimeSpan.FromHours(19), End = TimeSpan.FromHours(22) };
+        var saturday = new MaintenanceWindow { Days = [DayOfWeek.Saturday], Start = TimeSpan.Zero, End = TimeSpan.FromDays(1) };
+        var software = new Release(Guid.NewGuid(), 1, _time.GetUtcNow().AddHours(-1), Software: new SoftwareRelease("7zip.7zip", "26.06", false));
+        var update = _release with { EarliestInstallAt = _time.GetUtcNow().AddHours(-1) };
+        _releases.Current = new ReleaseList(1, [update, software], [saturday], SoftwareWindows: [evening]);
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal([software], Assert.Single(_installer.Batches));
+    }
+
+    [Fact]
+    public async Task WithoutSoftwareWindows_SoftwareFollowsTheMaintenanceWindows()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 20, 0, 0, TimeSpan.Zero)); // Wednesday 20:00, outside Saturday
+        var saturday = new MaintenanceWindow { Days = [DayOfWeek.Saturday], Start = TimeSpan.Zero, End = TimeSpan.FromDays(1) };
+        var software = new Release(Guid.NewGuid(), 1, _time.GetUtcNow().AddHours(-1), Software: new SoftwareRelease("7zip.7zip", "26.06", false));
+        _releases.Current = new ReleaseList(1, [software], [saturday]);
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Empty(_installer.Batches);
+    }
+
+    [Fact]
     public async Task CoordinatedServer_InstallsSoftwareWithoutALease()
     {
         // Software is not coordinated (Marc, 2026-11-13).

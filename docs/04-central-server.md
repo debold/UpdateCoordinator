@@ -175,3 +175,6 @@ Decided by Marc on 2026-11-08 (concept https://claude.ai/artifact/V3Qyj25rMCKYfW
 
 - Concrete table schema (to be derived from section 2)
 - Notification/escalation for outstanding manual releases
+
+**Software windows (Marc, 2026-11-13, variant A):** besides the maintenance windows, the system default (setting SoftwareWindows.SystemDefault), every group (Groups.SoftwareWindowsJson) and every server (Clients.SoftwareWindowsJson) can set windows for installing software. The effective software windows (Clients.EffectiveSoftwareWindowsJson) are the server's own, else the union of its groups', else the system default's, else none: then software installs in the maintenance windows. They are sent with the release list (`softwareWindows`); restarts always wait for a maintenance window; one-time windows and blackouts count for both. Changes are audited (SoftwareWindows.Changed).
+

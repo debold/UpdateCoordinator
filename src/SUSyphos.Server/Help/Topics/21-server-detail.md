@@ -126,6 +126,10 @@ Groups the server belongs to by hand; tick them in the drop-down.
 
 When the server may install updates. "Inherit from groups or the system default" uses the windows of its groups, else the system default; untick it to give the server windows of its own. The editor is described under [Maintenance windows](help/maintenance-windows#editor). **Next 30 days** shows the effective weekly windows, the one-time windows and blackouts of the server on the next 30 days and the updates on hold for it, see [Next 30 days](help/maintenance-windows#preview).
 
+## Software windows {#software-windows}
+
+Below the assignment (administrators): when software packages may install on this server, as on the [maintenance windows page](help/maintenance-windows#software). **Inherit from groups or the system default** uses the software windows of its groups or of the system default, or the maintenance windows when none are set; untick it for windows of the server itself, then **Save software windows**. Readers see the effective software windows in the assignment details.
+
 ## System {#system}
 
 ![The System box of a server: status rows first, then the details](help-images/server-system.png)

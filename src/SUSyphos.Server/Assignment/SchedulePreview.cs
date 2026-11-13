@@ -28,7 +28,11 @@ public sealed record Slot(int From, int To, SlotKind Kind, string Source);
 public sealed record DayPreview(DateOnly Day, IReadOnlyList<Slot> Slots);
 
 /// <summary>The preview of a level: its days, the holds that apply there and a note on time zones.</summary>
-public sealed record SchedulePreviewResult(string Title, IReadOnlyList<DayPreview> Days, IReadOnlyList<string> Holds);
+/// <param name="Title">The level, e.g. "Group Web servers".</param>
+/// <param name="Days">One entry per day with the stretches of the maintenance windows.</param>
+/// <param name="Holds">Updates on hold at this level.</param>
+/// <param name="SoftwareDays">The days of the software windows (Marc, 2026-11-13), a second, thinner line per day; null when software uses the maintenance windows.</param>
+public sealed record SchedulePreviewResult(string Title, IReadOnlyList<DayPreview> Days, IReadOnlyList<string> Holds, IReadOnlyList<DayPreview>? SoftwareDays = null);
 
 /// <summary>
 /// When installations may start on the next days (Marc, 2026-10-27): weekly windows, one-time windows and blackout
@@ -90,7 +94,8 @@ internal sealed class SchedulePreview(ServerDbContext db, AssignmentService assi
     public async Task<SchedulePreviewResult> ForSystemAsync(CancellationToken cancellationToken)
     {
         var windows = await assignment.GetSystemWindowsAsync(cancellationToken).ConfigureAwait(false);
-        return await BuildAsync("All servers (system default)", windows, "system default", w => w.RingId == null && w.GroupId == null && w.ClientId == null, null, cancellationToken).ConfigureAwait(false);
+        var software = await assignment.GetSystemSoftwareWindowsAsync(cancellationToken).ConfigureAwait(false);
+        return await BuildAsync("All servers (system default)", windows, "system default", w => w.RingId == null && w.GroupId == null && w.ClientId == null, null, cancellationToken, software).ConfigureAwait(false);
     }
 
     public async Task<SchedulePreviewResult?> ForRingAsync(int ringId, CancellationToken cancellationToken)
@@ -102,7 +107,8 @@ internal sealed class SchedulePreview(ServerDbContext db, AssignmentService assi
         }
 
         var windows = await assignment.GetSystemWindowsAsync(cancellationToken).ConfigureAwait(false);
-        return await BuildAsync($"Ring {ring.Order} {ring.Name}", windows, "system default", w => (w.RingId == null && w.GroupId == null && w.ClientId == null) || w.RingId == ringId, h => h.RingId == ringId, cancellationToken).ConfigureAwait(false);
+        var software = await assignment.GetSystemSoftwareWindowsAsync(cancellationToken).ConfigureAwait(false);
+        return await BuildAsync($"Ring {ring.Order} {ring.Name}", windows, "system default", w => (w.RingId == null && w.GroupId == null && w.ClientId == null) || w.RingId == ringId, h => h.RingId == ringId, cancellationToken, software).ConfigureAwait(false);
     }
 
     public async Task<SchedulePreviewResult?> ForGroupAsync(int groupId, CancellationToken cancellationToken)
@@ -115,7 +121,8 @@ internal sealed class SchedulePreview(ServerDbContext db, AssignmentService assi
 
         var own = MaintenanceWindowFormat.FromJson(group.MaintenanceWindowsJson);
         var windows = own ?? await assignment.GetSystemWindowsAsync(cancellationToken).ConfigureAwait(false);
-        return await BuildAsync($"Group {group.Name}", windows, own is null ? "system default" : $"group {group.Name}", w => (w.RingId == null && w.GroupId == null && w.ClientId == null) || w.GroupId == groupId, h => h.GroupId == groupId, cancellationToken).ConfigureAwait(false);
+        var software = MaintenanceWindowFormat.FromJson(group.SoftwareWindowsJson) ?? await assignment.GetSystemSoftwareWindowsAsync(cancellationToken).ConfigureAwait(false);
+        return await BuildAsync($"Group {group.Name}", windows, own is null ? "system default" : $"group {group.Name}", w => (w.RingId == null && w.GroupId == null && w.ClientId == null) || w.GroupId == groupId, h => h.GroupId == groupId, cancellationToken, software).ConfigureAwait(false);
     }
 
     public async Task<SchedulePreviewResult?> ForClientAsync(Guid clientId, CancellationToken cancellationToken)
@@ -134,7 +141,8 @@ internal sealed class SchedulePreview(ServerDbContext db, AssignmentService assi
             "effective windows of the server",
             w => (w.RingId == null && w.GroupId == null && w.ClientId == null) || w.RingId == client.RingId || w.ClientId == clientId || (w.GroupId is { } g && groups.Contains(g)),
             h => h.RingId == client.RingId || h.ClientId == clientId || (h.GroupId is { } g && groups.Contains(g)),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            MaintenanceWindowFormat.FromJson(client.EffectiveSoftwareWindowsJson)).ConfigureAwait(false);
     }
 
     private async Task<SchedulePreviewResult> BuildAsync(
@@ -143,7 +151,8 @@ internal sealed class SchedulePreview(ServerDbContext db, AssignmentService assi
         string weeklySource,
         Func<OneTimeWindowEntity, bool> oneTimeApplies,
         Func<UpdateHoldEntity, bool>? holdApplies,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<MaintenanceWindow>? software = null)
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var until = now.AddDays(Days + 1);
@@ -169,6 +178,8 @@ internal sealed class SchedulePreview(ServerDbContext db, AssignmentService assi
                 : h.UpdateId.ToString("D")));
         }
 
-        return new SchedulePreviewResult(title, days, holds);
+        // Software windows: their own weekly windows; one-time windows and blackouts count as for Windows updates.
+        var softwareDays = software is { Count: > 0 } ? Build(software, "software window", oneTime, blocked, today, Days, Components.DisplayTime.Zone) : null;
+        return new SchedulePreviewResult(title, days, holds, softwareDays);
     }
 }

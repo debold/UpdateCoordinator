@@ -6,12 +6,14 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- Software installs in its software windows when the central server sends some (release list field `softwareWindows`); Windows updates keep the maintenance windows, restarts too.
 - An upgrade that finds no installer of the installed architecture tries again with the architecture WinGet chooses: Burn bundles such as the Visual C++ Redistributable x64 register in the 32-bit view of the registry and failed with 0x8A150010 in rc.3.
 - A coordinated server no longer keeps the lease of its group when Windows stops asking for a restart (it reported one for a moment after an installation); the lease used to expire after two hours, count as a failure and stop the group.
 - "Install now" in a coordinated group waits for the lease instead of being dropped when no lease is free; the software it already installed is not installed again while it waits.
 
 ### Central server
 
+- Software windows (Marc, 2026-11-13, variant A of the mockup): the window box on the maintenance windows page, the group page and the server page has a **Software** tab (violet) with windows of their own for installing software, for example every weekday evening, while Windows updates keep their maintenance windows. Without software windows software installs in the maintenance windows as before; server, then its groups, then the system default decide, audited. Restarts after software still wait for a maintenance window; one-time windows and blackouts count for both. **Next 30 days** shows the software windows as a second, violet line per day. Migration SoftwareWindows (Groups.SoftwareWindowsJson, Clients.SoftwareWindowsJson and EffectiveSoftwareWindowsJson).
 - The tabs of the Notifications page show only their own part: the hidden attribute always hides now, whatever the class of the element sets; the layout rules of the UI tests check it on every page.
 - The audit entry of an alarm that cleared itself names the update with KB and title, like the other rollout entries.
 - Identity: roles are tags in shades of slate (darker with more rights) and sources in their own colours, so they no longer look like states or software; the AD group table shows the role as a tag and the SID below the group name; a group every user is in (Domain Users and the like) is marked; **Switch on/off** sits in the head of the box.

@@ -625,8 +625,20 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         }
 
         var attempts = _state.Attempts.ToDictionary(a => (a.UpdateId, a.Revision), a => a.AttemptedAt);
-        var inWindow = InstallationPlanner.IsInWindow(EffectiveWindows, _timeProvider.GetLocalNow().DateTime);
-        return InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options, inWindow);
+        var localNow = _timeProvider.GetLocalNow().DateTime;
+        var inWindow = InstallationPlanner.IsInWindow(EffectiveWindows, localNow);
+        var current = _releases.Current;
+        if (current.SoftwareWindows is not { Count: > 0 } softwareWindows || !current.Releases.Any(r => r.Software is not null))
+        {
+            return InstallationPlanner.PlanBatch(current, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options, inWindow);
+        }
+
+        // Software has windows of its own (Marc, 2026-11-13): Windows updates follow the maintenance windows, software its
+        // software windows; one-time windows count for both.
+        var inSoftwareWindow = InstallationPlanner.IsInWindow([.. softwareWindows, .. EffectiveWindows.Except(current.MaintenanceWindows ?? [])], localNow);
+        var updates = InstallationPlanner.PlanBatch(current with { Releases = [.. current.Releases.Where(r => r.Software is null)] }, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options, inWindow);
+        var software = InstallationPlanner.PlanBatch(current with { Releases = [.. current.Releases.Where(r => r.Software is not null)] }, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options, inSoftwareWindow);
+        return [.. updates, .. software];
     }
 
     /// <summary>

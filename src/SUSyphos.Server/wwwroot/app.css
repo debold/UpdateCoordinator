@@ -811,6 +811,12 @@ a.ring-tag:hover { text-decoration: none; background: var(--surface-2); }
 .ring-stage.held { background: repeating-linear-gradient(135deg, var(--surface) 0 3px, color-mix(in srgb, var(--rc) 30%, var(--surface)) 3px 6px); color: var(--rc); opacity: 1; border-style: solid; }
 .ring-stage.held::after { content: none; }
 /* A preview below the fields that opens on demand ("What changes: 2 of 9 servers ›"; Marc, 2026-11-13). */
+/* The kinds of windows as tabs inside the window box (Marc, 2026-11-13): software in violet. */
+.box-tabs { display: flex; gap: 0.25rem; padding: 0 0.9rem; border-bottom: 1px solid var(--line); }
+.box-tabs a { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.8rem; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 600; font-size: 0.88rem; text-decoration: none; }
+.box-tabs a.current { color: var(--text); border-bottom-color: var(--ok); }
+.box-tabs a.sw.current { border-bottom-color: #6B4FBB; }
+.box-software .window-row { border-left: 3px solid #6B4FBB; }
 details.preview { margin-top: 0.75rem; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0.5rem 0.75rem; background: var(--surface-2); }
 details.preview > summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
 details.preview[open] > summary { margin-bottom: 0.4rem; }
@@ -895,6 +901,7 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 .preview-open, .swatch.preview-open { fill: var(--ok); background: var(--ok); opacity: 0.75; }
 .preview-once, .swatch.preview-once { fill: #0E5B3A; background: #0E5B3A; }
 .preview-blocked, .swatch.preview-blocked { fill: var(--fail); background: var(--fail); }
+.preview-software, .swatch.preview-software { fill: #6B4FBB; background: #6B4FBB; }
 .preview-closed, .swatch.preview-closed { fill: var(--line); background: var(--line); }
 
 /* A switched-off feature (FeatureOff): the page stays recognisable but blurred and unusable, the notice in front says why. */

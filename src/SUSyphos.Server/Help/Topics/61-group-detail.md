@@ -14,7 +14,7 @@ Every member with its **Ring**, how it **Joined** (*by hand* or *by rule*) and i
 
 ## Maintenance windows {#windows}
 
-"Use the system default", or untick it and enter windows of the group with the [window editor](help/maintenance-windows#editor). A server in several groups may install in the windows of all its groups together; windows of the server itself replace them. **Save windows** stores them; members get them with their next heartbeat.
+Two tabs as on the [maintenance windows page](help/maintenance-windows#software): **Windows updates** and **Software** (violet; "Inherit from the system default" or windows of the group, **Save software windows**). For Windows updates: "Use the system default", or untick it and enter windows of the group with the [window editor](help/maintenance-windows#editor). A server in several groups may install in the windows of all its groups together; windows of the server itself replace them. **Save windows** stores them; members get them with their next heartbeat.
 
 ## Reboots and Windows Update {#settings}
 

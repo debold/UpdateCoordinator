@@ -1,0 +1,27 @@
+@* The two kinds of windows of a level (Marc, 2026-11-13, software windows variant A): "Windows updates" and
+   "Software" as tabs inside the window box, software in violet. Plain links (?windows=software), so they work without
+   script; each tab says whether the level has windows of its own. *@
+<nav class="box-tabs" aria-label="Kinds of windows">
+    <a class="@(Software ? null : "current")" href="@UpdatesHref" aria-current="@(Software ? null : "page")">Windows updates <span class="pill neutral">@UpdatesState</span></a>
+    <a class="sw @(Software ? "current" : null)" href="@SoftwareHref" aria-current="@(Software ? "page" : null)" data-help-term="Software windows">Software <span class="pill sw">@SoftwareState</span></a>
+</nav>
+
+@code {
+    /// <summary>The software tab is open.</summary>
+    [Parameter]
+    public bool Software { get; set; }
+
+    [Parameter, EditorRequired]
+    public string UpdatesHref { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string SoftwareHref { get; set; } = string.Empty;
+
+    /// <summary>"2 windows" or "inherited".</summary>
+    [Parameter]
+    public string UpdatesState { get; set; } = "inherited";
+
+    /// <summary>"1 window", "inherited" or "maintenance windows".</summary>
+    [Parameter]
+    public string SoftwareState { get; set; } = "maintenance windows";
+}

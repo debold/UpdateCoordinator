@@ -391,6 +391,7 @@ else
                     <span class="actions"><a class="btn" href="@ServerPage.Link(Id, "assignment")">Discard changes</a><button type="submit" class="primary">Save assignment</button></span>
                 </footer>
             </form>
+            <SoftwareWindowsBox Title="Software windows" Help="server-detail#software-windows" FormName="server-software-windows" Own="@MaintenanceWindowFormat.FromJson(_client.SoftwareWindowsJson)" Inherited="@SoftwareWindowsInherited" InheritLabel="Inherit from groups or the system default" OnSave="SaveSoftwareWindowsAsync" />
         </Authorized>
         <NotAuthorized>
             <Box Title="Assignment" Help="server-detail#assignment" Flush="true">
@@ -398,6 +399,7 @@ else
                     <Fact Label="Ring" Note="@(_client.ManualRingId is null ? "automatic" : "manual")">@RingName(_client.RingId)</Fact>
                     <Fact Label="Groups">@if (_memberships.Count > 0) { @foreach (var membership in _memberships) { <span class="tag">@GroupName(membership.GroupId)</span> } } else { <span>–</span> }</Fact>
                     <Fact Label="Maintenance windows" Wide="true"><ChildContent>@(_effectiveWindows.Count > 0 ? WindowPickerForm.Describe(_effectiveWindows) : "none")</ChildContent><NoteContent><small><a href="@($"/servers/{Id}?tab=configuration&dialog=preview")" data-help-term="Next 30 days">Next @SUSyphos.Server.Assignment.SchedulePreview.Days days →</a></small></NoteContent></Fact>
+                    <Fact Label="Software windows" Wide="true">@(MaintenanceWindowFormat.FromJson(_client.EffectiveSoftwareWindowsJson) is { Count: > 0 } software ? WindowPickerForm.Describe(software) : "the maintenance windows")</Fact>
                     <Fact Label="Reboots">@RebootPolicyText.Label(_client.EffectiveRebootPolicy)</Fact>
                     <Fact Label="Update source">@(_client.EffectiveUseMicrosoftUpdate ? "Microsoft Update" : "Windows Update only")</Fact>
                 </FactGrid>
@@ -1764,4 +1766,17 @@ else
     private string GroupName(int id) => _groups.FirstOrDefault(g => g.Id == id)?.Name ?? "?";
 
     private WindowPickerState? _windowDraft;
+
+    /// <summary>What applies to software without windows of the server: its groups, the system default or the maintenance windows.</summary>
+    private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> SoftwareWindowsInherited =>
+        _client is null ? [] : _client.SoftwareWindowsJson is null
+            ? MaintenanceWindowFormat.FromJson(_client.EffectiveSoftwareWindowsJson) ?? _effectiveWindows
+            : _effectiveWindows;
+
+    private async Task SaveSoftwareWindowsAsync(string? windowsText)
+    {
+        var outcome = await Administration.SetSoftwareWindowsAsync(null, Id, windowsText, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The software windows were saved.");
+        await LoadAsync();
+    }
 }

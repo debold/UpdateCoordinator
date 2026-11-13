@@ -1,0 +1,65 @@
+@* The software windows of a level (system default, group or server) in the window box (Marc, 2026-11-13, variant A):
+   the same window editor, "Use the maintenance windows" or "Inherit" as the inherited choice, saved by the page through
+   OnSave. Restarts after software still wait for a maintenance window. *@
+<form method="post" @formname="@FormName" @onsubmit="SubmitAsync" class="box box-software" id="windows">
+    <AntiforgeryToken />
+    <header class="box-head"><h2>@Title<HelpLink To="@Help" Label="@Title" /></h2><span class="hint">Local server time; installations of software start only in these windows, restarts still wait for a maintenance window</span></header>
+    @Tabs
+    <div class="box-body">
+        <WindowPicker Prefix="SoftwareWindows" Draft="@_draft" Windows="@(Own ?? [])" InheritedWindows="@Inherited" AllowInherit="true" Inherited="@(Own is null)" InheritLabel="@InheritLabel" />
+    </div>
+    <footer class="box-foot"><span class="note">Delivered to the agents with their next heartbeat.</span><button type="submit" class="primary">Save software windows</button></footer>
+</form>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Windows";
+
+    [Parameter]
+    public string Help { get; set; } = "maintenance-windows#software";
+
+    /// <summary>The tabs of the box (WindowTabs).</summary>
+    [Parameter]
+    public RenderFragment? Tabs { get; set; }
+
+    /// <summary>The software windows of this level; null when it sets none.</summary>
+    [Parameter]
+    public IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow>? Own { get; set; }
+
+    /// <summary>What applies without own windows: the level above, or the maintenance windows.</summary>
+    [Parameter]
+    public IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> Inherited { get; set; } = [];
+
+    [Parameter]
+    public string InheritLabel { get; set; } = "Use the maintenance windows";
+
+    /// <summary>Saves the windows as text (null or empty: inherited).</summary>
+    [Parameter, EditorRequired]
+    public EventCallback<string?> OnSave { get; set; }
+
+    [Parameter]
+    public string FormName { get; set; } = "software-windows";
+
+    [CascadingParameter]
+    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    private WindowPickerState? _draft;
+
+    private async Task SubmitAsync()
+    {
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        if (form is null)
+        {
+            return;
+        }
+
+        if (WindowPickerForm.ReadEdit(form, "SoftwareWindows") is { } draft)
+        {
+            // Add, remove and preview of the editor show the box again without saving.
+            _draft = draft;
+            return;
+        }
+
+        await OnSave.InvokeAsync(WindowPickerForm.Read(form, "SoftwareWindows", out _));
+    }
+}

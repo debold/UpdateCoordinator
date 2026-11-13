@@ -125,7 +125,8 @@ public sealed record AvailableUpdate : UpdateInfo
 /// <param name="AgentSettings">Effective central agent settings by key (<see cref="Agents.AgentSettings"/>); settings not listed keep the agent's own value.</param>
 /// <param name="OneTimeWindows">One-time maintenance windows of the server (global, ring, groups, server) that have not ended, in addition to <paramref name="MaintenanceWindows"/>.</param>
 /// <param name="SoftwareDisabled">Software management (WinGet) is switched off on the central server: the agent does not run WinGet and reports no software.</param>
-public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, IReadOnlyList<MaintenanceWindow>? MaintenanceWindows = null, RebootPolicy? RebootPolicy = null, bool RequiresLease = false, bool ManageAutomaticUpdates = false, bool UseMicrosoftUpdate = false, IReadOnlyDictionary<string, string>? AgentSettings = null, IReadOnlyList<OneTimeWindow>? OneTimeWindows = null, bool SoftwareDisabled = false);
+/// <param name="SoftwareWindows">Windows for installing software (Marc, 2026-11-13); null: software installs in the maintenance windows. Restarts always wait for a maintenance window.</param>
+public sealed record ReleaseList(long Version, IReadOnlyList<Release> Releases, IReadOnlyList<MaintenanceWindow>? MaintenanceWindows = null, RebootPolicy? RebootPolicy = null, bool RequiresLease = false, bool ManageAutomaticUpdates = false, bool UseMicrosoftUpdate = false, IReadOnlyDictionary<string, string>? AgentSettings = null, IReadOnlyList<OneTimeWindow>? OneTimeWindows = null, bool SoftwareDisabled = false, IReadOnlyList<MaintenanceWindow>? SoftwareWindows = null);
 
 /// <summary>
 /// A released update and the earliest time it may be installed.

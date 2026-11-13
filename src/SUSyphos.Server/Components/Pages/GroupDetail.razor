@@ -73,14 +73,24 @@ else
         </ChildContent>
     </Box>
 
+    @if (WindowsKind == "software")
+    {
+        <SoftwareWindowsBox Own="@_ownSoftware" Inherited="@(_systemSoftware ?? (_ownWindows.Count > 0 ? _ownWindows : _systemWindows))" InheritLabel="Inherit from the system default" Help="group-detail#windows" OnSave="SaveSoftwareAsync">
+            <Tabs><WindowTabs Software="true" UpdatesHref="@($"{GroupPage.Link(Id)}#windows")" SoftwareHref="@($"{GroupPage.Link(Id)}?windows=software#windows")" UpdatesState="@(_ownWindows.Count > 0 ? DisplayNumber.Count(_ownWindows.Count, "window", "windows") : "inherited")" SoftwareState="@(_ownSoftware is null ? "inherited" : DisplayNumber.Count(_ownSoftware.Count, "window", "windows"))" /></Tabs>
+        </SoftwareWindowsBox>
+    }
+    else
+    {
     <form method="post" @formname="group-windows" @onsubmit="SaveWindowsAsync" class="box" id="windows">
         <AntiforgeryToken />
-        <header class="box-head"><h2>Maintenance windows<HelpLink To="group-detail#windows" Label="Maintenance windows" /></h2><span class="hint">Local server time; a value set on a server wins</span></header>
+        <header class="box-head"><h2>Windows<HelpLink To="group-detail#windows" Label="Maintenance windows" /></h2><span class="hint">Local server time; a value set on a server wins</span></header>
+        <WindowTabs Software="false" UpdatesHref="@($"{GroupPage.Link(Id)}#windows")" SoftwareHref="@($"{GroupPage.Link(Id)}?windows=software#windows")" UpdatesState="@(_ownWindows.Count > 0 ? DisplayNumber.Count(_ownWindows.Count, "window", "windows") : "inherited")" SoftwareState="@(_ownSoftware is null ? "inherited" : DisplayNumber.Count(_ownSoftware.Count, "window", "windows"))" />
         <div class="box-body">
             <WindowPicker Prefix="Windows" Draft="@_windowDraft" Windows="@_ownWindows" InheritedWindows="@_systemWindows" AllowInherit="true" Inherited="@(group.MaintenanceWindowsJson is null)" InheritLabel="Use the system default" />
         </div>
         <footer class="box-foot"><span class="note">Delivered to the members with their next heartbeat.</span><button type="submit" class="primary">Save windows</button></footer>
     </form>
+    }
 
     <div class="grid-2">
         <form method="post" @formname="group-settings" @onsubmit="SaveSettingsAsync" class="box" id="settings">
@@ -178,6 +188,17 @@ else
 
     [SupplyParameterFromQuery(Name = "dialog")] private string? Dialog { get; set; }
     [SupplyParameterFromQuery(Name = "key")] private string? SettingKey { get; set; }
+    [SupplyParameterFromQuery(Name = "windows")] private string? WindowsKind { get; set; }
+
+    private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow>? _ownSoftware;
+    private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow>? _systemSoftware;
+
+    private async Task SaveSoftwareAsync(string? windowsText)
+    {
+        var outcome = await Administration.SetSoftwareWindowsAsync(Id, null, windowsText, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The software windows were saved.");
+        await LoadAsync();
+    }
     [SupplyParameterFromForm(FormName = "group-settings")] private string? Reboot { get; set; }
     [SupplyParameterFromForm(FormName = "group-settings")] private string? AutomaticUpdates { get; set; }
     [SupplyParameterFromForm(FormName = "group-settings")] private string? MicrosoftUpdate { get; set; }
@@ -233,6 +254,8 @@ else
         _holders = (await GroupLeaseStatus.HoldersAsync(Db, [Id], CancellationToken.None)).GetValueOrDefault(Id) ?? [];
         _ownWindows = MaintenanceWindowFormat.FromJson(_group.MaintenanceWindowsJson) ?? [];
         _systemWindows = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
+        _ownSoftware = MaintenanceWindowFormat.FromJson(_group.SoftwareWindowsJson);
+        _systemSoftware = await Assignment.GetSystemSoftwareWindowsAsync(CancellationToken.None);
         _systemAgentSettings = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
         _schedulePreview = Dialog == "preview" ? await Preview.ForGroupAsync(Id, CancellationToken.None) : null;
     }

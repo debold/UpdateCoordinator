@@ -4,7 +4,7 @@
 <Dialog Title="@($"Next {SchedulePreview.Days} days: {Preview.Title}")" CloseHref="@CloseHref" Help="maintenance-windows#preview" Wide="true">
     <div class="dialog-body">
         <p class="note">When installations may start, in the time zone of the central server. A server applies its weekly windows in its own time zone; the bars show them in the time zone of the central server as an approximation. The global pause and holds still apply.</p>
-        <div class="legend"><span><span class="swatch preview-open"></span>Weekly window</span><span><span class="swatch preview-once"></span>One-time window</span><span><span class="swatch preview-blocked"></span>Blackout</span><span><span class="swatch preview-closed"></span>No window</span></div>
+        <div class="legend"><span><span class="swatch preview-open"></span>Weekly window</span><span><span class="swatch preview-once"></span>One-time window</span><span><span class="swatch preview-blocked"></span>Blackout</span><span><span class="swatch preview-closed"></span>No window</span>@if (Preview.SoftwareDays is not null) { <span><span class="swatch preview-software"></span>Software window (lower line)</span> }</div>
         <svg class="schedule-preview" viewBox="@($"0 0 {Width} {Top + (Preview.Days.Count * Row)}")" role="img" aria-label="@($"Maintenance windows of the next {Preview.Days.Count} days")">
             @for (var hour = 0; hour <= 24; hour += 6)
             {
@@ -15,9 +15,17 @@
                 var day = Preview.Days[i];
                 var y = Top + (i * Row);
                 <g><text class="day" x="0" y="@(y + 11)">@day.Day.ToString("ddd MM-dd", System.Globalization.CultureInfo.InvariantCulture)</text></g>
+                var height = Preview.SoftwareDays is null ? Row - 4 : (Row - 4) * 2 / 3;
                 @foreach (var slot in day.Slots)
                 {
-                    <rect class="@SlotClass(slot.Kind)" x="@(Left + (slot.From * BarWidth / 1440))" y="@y" width="@Math.Max(1, (slot.To - slot.From) * BarWidth / 1440)" height="@(Row - 4)"><title>@($"{day.Day:yyyy-MM-dd} {Time(slot.From)}–{Time(slot.To)}: {(slot.Kind == SlotKind.Closed ? "no window" : slot.Source)}")</title></rect>
+                    <rect class="@SlotClass(slot.Kind)" x="@(Left + (slot.From * BarWidth / 1440))" y="@y" width="@Math.Max(1, (slot.To - slot.From) * BarWidth / 1440)" height="@height"><title>@($"{day.Day:yyyy-MM-dd} {Time(slot.From)}–{Time(slot.To)}: {(slot.Kind == SlotKind.Closed ? "no window" : slot.Source)}")</title></rect>
+                }
+                @if (Preview.SoftwareDays is { } softwareDays && i < softwareDays.Count)
+                {
+                    @foreach (var slot in softwareDays[i].Slots)
+                    {
+                        <rect class="@(slot.Kind == SlotKind.Open ? "preview-software" : SlotClass(slot.Kind))" x="@(Left + (slot.From * BarWidth / 1440))" y="@(y + height + 1)" width="@Math.Max(1, (slot.To - slot.From) * BarWidth / 1440)" height="@(Row - 5 - height)"><title>@($"Software {day.Day:yyyy-MM-dd} {Time(slot.From)}–{Time(slot.To)}: {(slot.Kind == SlotKind.Closed ? "no window" : slot.Source)}")</title></rect>
+                    }
                 }
             }
         </svg>

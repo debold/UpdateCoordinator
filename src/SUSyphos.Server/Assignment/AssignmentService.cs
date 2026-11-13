@@ -21,6 +21,7 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
         var rules = await db.AssignmentRules.AsNoTracking().OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
         var groups = await db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, cancellationToken).ConfigureAwait(false);
         var systemWindows = await GetSystemWindowsAsync(cancellationToken).ConfigureAwait(false);
+        var systemSoftwareWindows = await GetSystemSoftwareWindowsAsync(cancellationToken).ConfigureAwait(false);
         var systemReboot = await GetSystemRebootPolicyAsync(cancellationToken).ConfigureAwait(false);
         var systemManage = await GetSystemManageAutomaticUpdatesAsync(cancellationToken).ConfigureAwait(false);
         var systemMicrosoftUpdate = await GetSystemMicrosoftUpdateAsync(cancellationToken).ConfigureAwait(false);
@@ -63,6 +64,13 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
                 ?? systemReboot;
 
             var json = MaintenanceWindowFormat.ToJson(windows);
+
+            // Software windows (Marc, 2026-11-13): server, else its groups, else the system default; none at all: software
+            // installs in the maintenance windows (null).
+            var softwareWindows = MaintenanceWindowFormat.FromJson(client.SoftwareWindowsJson)
+                ?? Union(groupIds.Select(g => groups.TryGetValue(g, out var group) ? MaintenanceWindowFormat.FromJson(group.SoftwareWindowsJson) : null))
+                ?? systemSoftwareWindows;
+            var softwareJson = softwareWindows is { Count: > 0 } ? MaintenanceWindowFormat.ToJson(softwareWindows) : null;
             var requiresLease = groupIds.Any(g => groups.TryGetValue(g, out var group) && group.Coordinated);
 
             // Automatic Updates and Microsoft Update: the server setting wins; among groups "leave unchanged" and "Windows Update
@@ -79,11 +87,12 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
                 .ToList();
             var agentSettings = AgentSettingValues.ToJson(AgentSettingValues.Combine(systemAgentSettings, groupSettings, AgentSettingValues.Parse(client.AgentSettingsJson)));
 
-            if (json != client.EffectiveWindowsJson || reboot != client.EffectiveRebootPolicy || requiresLease != client.RequiresLease
+            if (json != client.EffectiveWindowsJson || softwareJson != client.EffectiveSoftwareWindowsJson || reboot != client.EffectiveRebootPolicy || requiresLease != client.RequiresLease
                 || manage != client.EffectiveManageAutomaticUpdates || microsoftUpdate != client.EffectiveUseMicrosoftUpdate || agentSettings != client.EffectiveAgentSettingsJson)
             {
                 client.EffectiveAgentSettingsJson = agentSettings;
                 client.EffectiveWindowsJson = json;
+                client.EffectiveSoftwareWindowsJson = softwareJson;
                 client.EffectiveRebootPolicy = reboot;
                 client.RequiresLease = requiresLease;
                 client.EffectiveManageAutomaticUpdates = manage;
@@ -106,6 +115,17 @@ internal sealed class AssignmentService(ServerDbContext db, ReleasePlanner relea
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         return MaintenanceWindowFormat.FromJson(stored) ?? MaintenanceWindow.SystemDefault;
+    }
+
+    /// <summary>Software windows of the system default; null while none are set (software then uses the maintenance windows).</summary>
+    public async Task<IReadOnlyList<MaintenanceWindow>?> GetSystemSoftwareWindowsAsync(CancellationToken cancellationToken)
+    {
+        var stored = await db.Settings.AsNoTracking()
+            .Where(s => s.Key == SettingEntity.SystemSoftwareWindows)
+            .Select(s => s.Value)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return MaintenanceWindowFormat.FromJson(stored);
     }
 
     /// <summary>

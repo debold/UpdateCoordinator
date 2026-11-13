@@ -161,6 +161,12 @@ internal sealed class ClientEntity
     /// <summary>Effective maintenance windows delivered to the agent (JSON).</summary>
     public string? EffectiveWindowsJson { get; set; }
 
+    /// <summary>Software windows of the server itself; null: inherited from its groups or the system default.</summary>
+    public string? SoftwareWindowsJson { get; set; }
+
+    /// <summary>Effective software windows sent to the agent; null: software installs in the maintenance windows.</summary>
+    public string? EffectiveSoftwareWindowsJson { get; set; }
+
     /// <summary>Server specific reboot policy; null uses the policy of its groups or the system default.</summary>
     public SUSyphos.Contracts.Agents.RebootPolicy? RebootPolicy { get; set; }
 

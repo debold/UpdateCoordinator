@@ -64,6 +64,8 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/administration/release-rules?dialog=rule-new&kind=software",
         "/administration/maintenance",
         "/administration/maintenance?dialog=preview",
+        "/administration/maintenance?windows=software",
+        "/administration/groups/{group}?windows=software",
         "/administration/certificate",
         "/administration/notifications",
         "/administration/notifications?tab=events",

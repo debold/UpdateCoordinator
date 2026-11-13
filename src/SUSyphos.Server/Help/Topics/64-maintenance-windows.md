@@ -8,6 +8,12 @@ The default windows for every server that has no windows of its own and is in no
 
 **Save windows** stores the windows; agents get them with their next heartbeat. **Discard changes** reloads the saved windows. Without any window a server installs nothing.
 
+## Software windows {#software}
+
+The window box has two tabs: **Windows updates** (the maintenance windows above) and **Software** (in violet). Software windows say when software packages (WinGet) may install, for example every weekday evening while Windows updates keep the patch day. With **Use the maintenance windows** ticked, software installs in the maintenance windows, as before. Untick it and enter windows with the same editor; **Save software windows** stores them, and agents get them with their next heartbeat. Each tab shows how many windows the level has, or that it inherits.
+
+A package that needs a restart installs in its software window; the restart still waits for the next maintenance window. One-time windows and blackout periods count for both kinds. Groups and single servers can set software windows of their own: the server first, then its groups together, then the system default, then the maintenance windows. "Install now" ignores the windows as before.
+
 ## The window editor {#editor}
 
 The same editor for maintenance windows is used here, for [server groups](help/groups) and for [single servers](help/server-detail#windows). Each row is one window:
@@ -45,7 +51,7 @@ The servers concerned get the window with their next heartbeat (they fetch a new
 
 ## Next 30 days {#preview}
 
-**Next 30 days** (in the action band) shows when installations may start on the next 30 days, one bar per day: weekly windows green, one-time windows dark green, blackout periods red and time without a window grey. Hovering a stretch names its source (system default, a group, a one-time window with its reason, a blackout with its reason). The same preview opens for a ring (⋯ menu on the Rings tab of the release rules), a group (⋯ menu in the group list) and a server (Configuration tab and facts of the server page); there it combines what applies to that level and lists the updates on hold there.
+**Next 30 days** (in the action band) shows when installations may start on the next 30 days, one bar per day: weekly windows green, one-time windows dark green, blackout periods red and time without a window grey. Where software has windows of its own, each day gets a second, thinner line below in violet for them. Hovering a stretch names its source (system default, a group, a one-time window with its reason, a blackout with its reason). The same preview opens for a ring (⋯ menu on the Rings tab of the release rules), a group (⋯ menu in the group list) and a server (Configuration tab and facts of the server page); there it combines what applies to that level and lists the updates on hold there.
 
 Times are in the time zone of the central server. A server applies its weekly windows in its own time zone, so for servers in other time zones the bars are an approximation. The global pause is not shown.
 

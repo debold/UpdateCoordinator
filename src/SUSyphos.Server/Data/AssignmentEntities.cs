@@ -41,6 +41,9 @@ internal sealed class GroupEntity
     public string? Description { get; set; }
 
     /// <summary>Maintenance windows of the group as JSON; null uses the system default.</summary>
+    /// <summary>Software windows of the group; null: the group sets none.</summary>
+    public string? SoftwareWindowsJson { get; set; }
+
     public string? MaintenanceWindowsJson { get; set; }
 
     /// <summary>Reboot policy of the group; null leaves it to other groups or the system default.</summary>
@@ -119,6 +122,9 @@ internal sealed class AssignmentRuleEntity
 internal sealed class SettingEntity
 {
     public const string SystemMaintenanceWindows = "MaintenanceWindows.SystemDefault";
+
+    /// <summary>Software windows of the system default (Marc, 2026-11-13); missing: software uses the maintenance windows.</summary>
+    public const string SystemSoftwareWindows = "SoftwareWindows.SystemDefault";
 
     public const string SystemRebootPolicy = "Reboot.SystemDefault";
 

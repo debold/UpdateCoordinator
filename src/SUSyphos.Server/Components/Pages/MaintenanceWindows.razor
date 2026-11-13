@@ -27,9 +27,18 @@
 }
 
 <div class="grid-side">
-    <form method="post" @formname="maintenance" @onsubmit="SaveAsync" class="box">
+    @if (WindowsKind == "software")
+    {
+        <SoftwareWindowsBox Own="@_software" Inherited="@_current" OnSave="SaveSoftwareAsync">
+            <Tabs><WindowTabs Software="true" UpdatesHref="/administration/maintenance" SoftwareHref="/administration/maintenance?windows=software" UpdatesState="@DisplayNumber.Count(_current.Count, "window", "windows")" SoftwareState="@(_software is null ? "maintenance windows" : DisplayNumber.Count(_software.Count, "window", "windows"))" /></Tabs>
+        </SoftwareWindowsBox>
+    }
+    else
+    {
+    <form method="post" @formname="maintenance" @onsubmit="SaveAsync" class="box" id="windows">
         <AntiforgeryToken />
-        <header class="box-head"><h2>Maintenance windows<HelpLink To="maintenance-windows#windows" Label="Maintenance windows" /></h2><span class="hint">Local server time; a window that ends before it starts runs past midnight</span></header>
+        <header class="box-head"><h2>Windows<HelpLink To="maintenance-windows#windows" Label="Maintenance windows" /></h2><span class="hint">Local server time; a window that ends before it starts runs past midnight</span></header>
+        <WindowTabs Software="false" UpdatesHref="/administration/maintenance" SoftwareHref="/administration/maintenance?windows=software" UpdatesState="@DisplayNumber.Count(_current.Count, "window", "windows")" SoftwareState="@(_software is null ? "maintenance windows" : DisplayNumber.Count(_software.Count, "window", "windows"))" />
         <div class="box-body">
             <WindowPicker Prefix="Windows" Windows="@_current" Draft="@_windowDraft" />
         </div>
@@ -38,6 +47,7 @@
             <span class="actions"><a class="btn" href="/administration/maintenance">Discard changes</a><button type="submit" class="primary">Save windows</button></span>
         </footer>
     </form>
+    }
 
     <div class="stack">
     <form method="post" @formname="reboot" @onsubmit="SaveRebootAsync" class="box">
@@ -166,6 +176,17 @@
     private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
 
     private IReadOnlyList<MaintenanceWindow> _current = [];
+    private IReadOnlyList<MaintenanceWindow>? _software;
+
+    [SupplyParameterFromQuery(Name = "windows")]
+    private string? WindowsKind { get; set; }
+
+    private async Task SaveSoftwareAsync(string? windowsText)
+    {
+        var outcome = await Administration.SetSoftwareWindowsAsync(null, null, windowsText, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The software windows were saved and are delivered to the agents.");
+        await LoadAsync();
+    }
     private RebootPolicy _reboot;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
@@ -293,6 +314,7 @@
             .OrderBy(c => c.HostName, StringComparer.OrdinalIgnoreCase).Select(c => (c.Id, c.HostName))];
         _blackouts = await Blackouts.ListAsync(CancellationToken.None);
         _current = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
+        _software = await Assignment.GetSystemSoftwareWindowsAsync(CancellationToken.None);
         _reboot = await Assignment.GetSystemRebootPolicyAsync(CancellationToken.None);
     }
 }

@@ -91,6 +91,68 @@ internal sealed partial class AssignmentAdministration(ServerDbContext db, Assig
         return await CompleteAsync(actor, "Group.WindowsChanged", group.Name, MaintenanceWindowFormat.Format(windows), null, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Software windows (Marc, 2026-11-13) of the system default (both ids null), a group or a server; no window means
+    /// inherited (for the system default: software installs in the maintenance windows). Audited; the servers get them
+    /// with their next release list.
+    /// </summary>
+    public async Task<Outcome> SetSoftwareWindowsAsync(int? groupId, Guid? clientId, string? windowsText, string actor, CancellationToken cancellationToken)
+    {
+        if (!MaintenanceWindowFormat.TryParse(windowsText, out var windows, out var error))
+        {
+            return new Outcome(error);
+        }
+
+        var json = windows.Count > 0 ? MaintenanceWindowFormat.ToJson(windows) : null;
+        string target;
+        if (groupId is { } id)
+        {
+            var group = await db.Groups.SingleOrDefaultAsync(g => g.Id == id, cancellationToken).ConfigureAwait(false);
+            if (group is null)
+            {
+                return new Outcome("The group no longer exists.");
+            }
+
+            group.SoftwareWindowsJson = json;
+            target = group.Name;
+        }
+        else if (clientId is { } server)
+        {
+            var client = await db.Clients.SingleOrDefaultAsync(c => c.Id == server, cancellationToken).ConfigureAwait(false);
+            if (client is null)
+            {
+                return new Outcome("The server no longer exists.");
+            }
+
+            client.SoftwareWindowsJson = json;
+            target = client.HostName;
+        }
+        else
+        {
+            var setting = await db.Settings.SingleOrDefaultAsync(s => s.Key == SettingEntity.SystemSoftwareWindows, cancellationToken).ConfigureAwait(false);
+            if (json is null)
+            {
+                if (setting is not null)
+                {
+                    db.Settings.Remove(setting);
+                }
+            }
+            else if (setting is null)
+            {
+                db.Settings.Add(new SettingEntity { Key = SettingEntity.SystemSoftwareWindows, Value = json });
+            }
+            else
+            {
+                setting.Value = json;
+            }
+
+            target = "system default";
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return await CompleteAsync(actor, "SoftwareWindows.Changed", target, windows.Count > 0 ? MaintenanceWindowFormat.Format(windows) : "maintenance windows", clientId, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<Outcome> SetGroupDescriptionAsync(int groupId, string? description, string actor, CancellationToken cancellationToken)
     {
         if (description is { Length: > 256 })
