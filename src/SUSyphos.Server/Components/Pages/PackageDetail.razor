@@ -9,6 +9,7 @@
 @inject SoftwareFeature Feature
 @inject SoftwareTrust Trust
 @inject SoftwareAssignments Assignments
+@inject NavigationManager Navigation
 
 @if (_package is null)
 {
@@ -27,6 +28,15 @@ else
     <AuthorizeView Policy="@AdminRoles.Policies.Administer">
         <ActionBand>
             <a class="btn primary" href="@($"/administration/release-rules?dialog=rule-new&kind=software&package={Uri.EscapeDataString(_package.PackageId)}")"><Icon Name="list-plus" Size="16" />Create release rule…</a>
+            <div class="spacer"></div>
+            @if (RemoveBlocker is { } blocker)
+            {
+                <button type="button" class="danger" disabled title="@blocker"><Icon Name="trash-2" Size="16" />Remove from catalog…</button>
+            }
+            else
+            {
+                <a class="btn danger" href="@($"{PackagePage.Link(PackageId)}?dialog=remove")"><Icon Name="trash-2" Size="16" />Remove from catalog…</a>
+            }
         </ActionBand>
     </AuthorizeView>
     <Box Title="Rollout" Help="package-detail#rollout" Hint="how new versions of this package reach the servers" Flush="true">
@@ -40,14 +50,14 @@ else
         <FactGrid>
             <Fact Label="Publisher">@(_package.Publisher ?? "–")</Fact>
             <Fact Label="License">@(_package.License ?? "–")</Fact>
-            <Fact Label="In the catalog" Note="@(_package.CheckedAtUtc is { } checkedAt ? $"checked for new versions {DisplayTime.Format(checkedAt)}" : null)">@(_package.AddedBy == SoftwareCatalog.InventoryActor ? "from the software inventory of the servers" : $"added by {_package.AddedBy}") on @DisplayTime.Format(_package.AddedAtUtc)</Fact>
+            <Fact Label="In the catalog" Note="@(_package.CheckedAtUtc is { } checkedAt ? $"checked for new versions {DisplayTime.Format(checkedAt)}" : null)">@(_package.AddedBy == SoftwareCatalog.InventoryActor ? "from the software inventory of the servers" : $"added by {_package.AddedBy}") on <span class="nowrap">@DisplayTime.Format(_package.AddedAtUtc)</span></Fact>
             @if (Links.Count > 0)
             {
                 <Fact Label="Links" Wide="true">@for (var i = 0; i < Links.Count; i++) { if (i > 0) { <span class="note"> · </span> } <a href="@Links[i].Url" target="_blank" rel="noopener noreferrer">@Links[i].Label</a> }</Fact>
             }
             @if (_package.Tags is { Length: > 0 } tags)
             {
-                <Fact Label="Tags" Wide="true">@foreach (var tag in tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) { <span class="tag">@tag</span> }</Fact>
+                <Fact Label="Tags" Wide="true">@foreach (var tag in DistinctTags(tags)) { <span class="tag">@tag</span> }</Fact>
             }
         </FactGrid>
     </Box>
@@ -63,13 +73,18 @@ else
                     @foreach (var version in _versions)
                     {
                         var rollout = SoftwareOverview.RolloutState(_package, version, _rollouts.TryGetValue(version.UpdateId, out var state) ? state : null);
+                        if (_installed.Count > 0 && rollout.Class is "neutral" or "pend" && _installed.All(i => i.Version is not null && SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(i.Version, version.Version) >= 0))
+                        {
+                            // Every server with the package has this version or a newer one: nothing to roll out (Marc, 2026-11-13).
+                            rollout = ("Installed everywhere", "ok");
+                        }
                         var scan = SoftwareOverview.ScanLabel(version.ScanState);
                         <tr>
                             <td class="nowrap"><a href="/updates/@version.UpdateId/@SoftwarePackages.SoftwareRevision">@version.Version</a></td>
                             <td class="nowrap">@(version.ReleaseDate?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? "–")</td>
                             <td><span class="pill @rollout.Class">@rollout.Label</span></td>
                             <td><span class="pill @scan.Class" title="@version.ScanDetail">@scan.Label</span></td>
-                            <td class="nowrap">@(version.CachedAtUtc is { } cached ? $"since {DisplayTime.Format(cached)}" : "no")</td>
+                            <td class="nowrap">@if (version.CachedAtUtc is { } cached) { <span class="pill ok">yes</span><div class="note">since @DisplayTime.Format(cached)</div> } else { <span class="pill neutral">no</span> }</td>
                         </tr>
                     }
                 </tbody>
@@ -113,18 +128,19 @@ else
     <Box Title="Installed on" Help="package-detail#installed" Flush="true" Hint="Approved servers that report the package installed">
         <div class="scroll">
             <table>
-                <thead><tr><th>Server</th><th>Installed version</th><th>Matched by</th></tr></thead>
+                <thead><tr><th>Server</th><th>Installed version</th><th>State</th><th>Matched by</th></tr></thead>
                 <tbody>
                     @if (_installed.Count == 0)
                     {
-                        <tr><td colspan="3" class="note">No server reports the package installed.</td></tr>
+                        <tr><td colspan="4" class="note">No server reports the package installed.</td></tr>
                     }
                     @foreach (var item in _installed)
                     {
                         <tr>
                             <td><a href="@ServerPage.Link(item.ClientId, "software")">@item.HostName</a></td>
                             <td class="nowrap">@(item.Version ?? "–")</td>
-                            <td>@(item.Match == SoftwareMatch.WinGet ? "WinGet" : "product code")</td>
+                            <td>@{ var installedState = InstalledState(item.Version); }<span class="pill @installedState.Class">@installedState.Label</span></td>
+                            <td>@if (item.Match == SoftwareMatch.WinGet) { <CategoryTag Text="WinGet" Index="8" /> } else { <CategoryTag Text="Product code" Index="0" /> }</td>
                         </tr>
                     }
                 </tbody>
@@ -160,6 +176,17 @@ else
         </form>
     </Dialog>
 }
+else if (_package is not null && Dialog == "remove" && RemoveBlocker is null)
+{
+    <Dialog Title="@($"Remove {_package.Name} from the catalog?")" CloseHref="@PackagePage.Link(PackageId)" Help="package-detail#remove">
+        <form method="post" @formname="package-remove" @onsubmit="RemoveAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="RemoveConfirmed" value="true" />
+            <div class="dialog-body"><p>@_package.Name and its versions leave the catalog; no server has it installed and it is not assigned. The removal is recorded in the audit log. You can add it again any time.</p></div>
+            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="danger">Remove from catalog</button></div>
+        </form>
+    </Dialog>
+}
 else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDefault(a => a.Id == DialogNumber) is { } doomed)
 {
     <Dialog Title="Remove assignment?" CloseHref="@PackagePage.Link(PackageId)" Help="package-detail#assignments">
@@ -179,6 +206,30 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
     [SupplyParameterFromForm(FormName = "package-assign")] private string? Version { get; set; }
     [SupplyParameterFromForm(FormName = "package-assign")] private string? UninstallOnRemoval { get; set; }
     [SupplyParameterFromForm(FormName = "package-unassign")] private int? AssignmentId { get; set; }
+    [SupplyParameterFromForm(FormName = "package-remove")] private string? RemoveConfirmed { get; set; }
+
+    /// <summary>Why the package cannot be removed now; null when it can (added by hand, not installed, not assigned, no rollout running).</summary>
+    private string? RemoveBlocker => _package is null ? null
+        : _package.AddedBy == SoftwareCatalog.InventoryActor ? "It comes from the software inventory and would come back with the next inventory"
+        : _installed.Count > 0 ? "Servers have it installed"
+        : _assignments.Count > 0 ? "Remove its assignments first"
+        : _rollouts.Values.Any(r => r == RolloutState.Active) ? "A version is rolling out; stop the rollout first"
+        : null;
+
+    private async Task RemoveAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? new Outcome("Only administrators remove packages.")
+            : RemoveConfirmed != "true" ? new Outcome("Invalid request.")
+            : await Catalog.RemovePackageAsync(PackageId, await GetActorAsync(), CancellationToken.None);
+        if (outcome.Succeeded)
+        {
+            Navigation.NavigateTo("/software");
+            return;
+        }
+
+        ShowResult(outcome.Error, string.Empty);
+        await LoadAsync();
+    }
 
     private List<PackageAssignmentEntity> _assignments = [];
     private List<GroupEntity> _groups = [];
@@ -313,5 +364,24 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
             : new Outcome("Only administrators accept agreements.");
         ShowResult(outcome.Error, "The agreements were accepted; versions of the package can now start automatically.");
         await LoadAsync();
+    }
+
+    /// <summary>The tags without repeats that differ only in "-" or "." (microsoft-iis-url-rewrite = microsoftiisurlrewrite).</summary>
+    internal static IReadOnlyList<string> DistinctTags(string tags) =>
+        [.. tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .GroupBy(t => new string([.. t.Where(char.IsLetterOrDigit)]), StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())];
+
+    /// <summary>A server's version against the newest one: up to date, older or newer than the source.</summary>
+    private (string Label, string Class) InstalledState(string? installed)
+    {
+        var newest = _versions.Select(v => v.Version).OrderByDescending(v => v, SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance).FirstOrDefault();
+        if (installed is null || newest is null)
+        {
+            return ("unknown", "neutral");
+        }
+
+        var compared = SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, newest);
+        return compared < 0 ? ("older", "queue") : compared > 0 ? ("newer than the source", "neutral") : ("up to date", "ok");
     }
 }

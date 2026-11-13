@@ -26,9 +26,9 @@ The texts come from the manifest of the newest version in the WinGet community s
 Every known version, newest first. The version opens its update page, where its rollout is started, followed and stopped like that of a Windows update.
 
 - **Released**: the release date of the manifest.
-- **Rollout**: as on the [Software page](help/software#packages).
+- **Rollout**: as on the [Software page](help/software#packages); *Installed everywhere* (green) when every server with the package has this version or a newer one.
 - **Virus scan**: *Clean*, *Threat found* (never offered, the files are deleted), *Not scanned (failed)* (the scan failed; with the mode Enforce it is not offered; installers above the AMSI limit go through the Windows check for downloaded files) or *Not scanned* (no rollout yet, scanning switched off, or no antivirus product registered on the central server). The tooltip shows what the scanner reported.
-- **In the source**: since when the WinGet source of the central server offers the version; the newest two versions per package and every version still rolling out stay cached.
+- **In the source**: *yes* with since when the WinGet source of the central server offers the version, or *no*; the newest two versions per package and every version still rolling out stay cached.
 
 ## Assignments {#assignments}
 
@@ -50,4 +50,8 @@ New installations (administrators): the servers of an assigned group, or an assi
 
 ## Installed on {#installed}
 
-Approved servers that report the package installed, with the installed version and how it was matched: by **WinGet** on the server, or by the **product code** in the community index. The server name opens its Software tab.
+Approved servers that report the package installed, with the installed version, its **State** against the newest version (*up to date*, *older*, *newer than the source*) and how it was matched (tag): by **WinGet** on the server, or by the **Product code** in the community index. The server name opens its Software tab.
+
+## Remove from the catalog {#remove}
+
+**Remove from catalog…** (administrators, red on the right of the band) removes a package that was added by mistake or for a test, with its versions. It works only for a package added by hand that no server has installed, that is not assigned and has no version rolling out; otherwise the button is greyed and its tooltip says why. A package from the inventory would come back with the next inventory. The dialog asks once more; the removal is recorded in the audit log, and the package can be added again any time.

@@ -145,6 +145,56 @@ internal sealed partial class SoftwareCatalog(
     }
 
     /// <summary>
+    /// Removes a package an administrator added by mistake or for a test (Marc, 2026-11-13): only one added by hand that no
+    /// approved server reports installed, that has no assignment and no running rollout. Its versions, their update
+    /// entries, releases and finished rollouts go with it; the audit log keeps the removal. A package from the inventory
+    /// would come back with the next inventory and cannot be removed.
+    /// </summary>
+    public async Task<Outcome> RemovePackageAsync(string? packageId, string actor, CancellationToken cancellationToken)
+    {
+        var package = await db.Packages.SingleOrDefaultAsync(p => p.PackageId == packageId, cancellationToken).ConfigureAwait(false);
+        if (package is null)
+        {
+            return new Outcome("The package is not in the catalog.");
+        }
+
+        if (package.AddedBy == InventoryActor)
+        {
+            return new Outcome("The package comes from the software inventory of the servers and would come back with the next inventory.");
+        }
+
+        var installed = await db.ClientSoftware.CountAsync(s => s.PackageId == package.PackageId, cancellationToken).ConfigureAwait(false);
+        if (installed > 0)
+        {
+            return new Outcome($"{DisplayCount(installed)} report the package installed; it stays in the catalog while it is installed anywhere.");
+        }
+
+        if (await db.PackageAssignments.AnyAsync(a => a.PackageId == package.PackageId, cancellationToken).ConfigureAwait(false))
+        {
+            return new Outcome("The package is assigned; remove its assignments first.");
+        }
+
+        var updateIds = await db.PackageVersions.Where(v => v.PackageId == package.PackageId).Select(v => v.UpdateId).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (await db.Rollouts.AnyAsync(r => updateIds.Contains(r.UpdateId) && r.State == RolloutState.Active, cancellationToken).ConfigureAwait(false))
+        {
+            return new Outcome("A version of the package is rolling out; stop its rollout first.");
+        }
+
+        await db.Releases.Where(r => updateIds.Contains(r.UpdateId)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        await db.RolloutRings.Where(r => updateIds.Contains(r.UpdateId)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        await db.Rollouts.Where(r => updateIds.Contains(r.UpdateId)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        await db.UpdateHolds.Where(h => updateIds.Contains(h.UpdateId)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        await db.PackageVersions.Where(v => v.PackageId == package.PackageId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        await db.Updates.Where(u => updateIds.Contains(u.UpdateId)).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        db.Packages.Remove(package);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Package.Removed", package.PackageId, package.Name, cancellationToken).ConfigureAwait(false);
+        return Outcome.Ok;
+    }
+
+    private static string DisplayCount(int servers) => servers == 1 ? "1 server" : string.Create(CultureInfo.InvariantCulture, $"{servers} servers");
+
+    /// <summary>
     /// An Admin accepts the agreements (licence terms) of a package once (Marc, 2026-11-08); from then on its versions can
     /// start automatically and the agent installs them accepting the agreements. Audited.
     /// </summary>

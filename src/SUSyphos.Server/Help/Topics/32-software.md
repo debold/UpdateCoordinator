@@ -42,10 +42,10 @@ One row per package of the catalog.
 
 - **Package**: logo, name and WinGet ID; the name opens the [package page](help/package-detail). The central server takes the logo from the manifest or the website symbol of the product or publisher page and serves it itself; without one the initials of the package stand in a circle.
 - **Publisher**: as the manifest of the package names it.
-- **Installed**: on how many approved servers the package is installed, with the installed versions.
+- **Installed**: on how many approved servers the package is installed, with the installed versions; the same version written differently (26.06 and 26.06.00.0) is listed once.
 - **Newest**: the newest version the community source has, and how many servers run an older one.
-- **Rollout**: the state of the newest version: *Queued* (no rollout yet), *Rolling out*, *Stopped*, *Agreements not accepted* (the package carries licence terms an administrator accepts on the package page first), *Threat found* (the virus scan found a threat in the installer; the version is never offered) or *No version*.
-- **Added**: "from the inventory" for packages the servers have installed, "by …" for packages an administrator added.
+- **Rollout**: the state of the newest version: *Queued* (no rollout yet), *Rolling out*, *Stopped*, *Agreements not accepted* (the package carries licence terms an administrator accepts on the package page first), *Threat found* (the virus scan found a threat in the installer; the version is never offered) or *No version*. Where the package is installed and no server runs an older version, it says *Up to date* (green), or *Newer than the source* (grey) when every server runs a newer version than the WinGet source offers, as programs that update themselves do (Microsoft 365 Apps, Copilot).
+- **Added**: the tag *Inventory* for packages the servers have installed, *Added* with the name below for packages an administrator added.
 
 ## Add a package {#add}
 

@@ -39,16 +39,40 @@ internal sealed class SoftwareOverview(ServerDbContext db)
         {
             var newest = versions[package.PackageId].OrderByDescending(v => v.Version, VersionComparer.Instance).FirstOrDefault();
             var onServers = installed[package.PackageId].ToList();
-            return new SoftwareRow(
-                package,
-                onServers.Select(s => s.ClientId).Distinct().Count(),
-                [.. onServers.Select(s => s.InstalledVersion).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).OrderByDescending(v => v, VersionComparer.Instance)],
-                newest,
-                RolloutState(package, newest, newest is not null && rollouts.TryGetValue(newest.UpdateId, out var state) ? state : null))
+            var outdated = newest is null ? 0 : onServers.Where(s => s.InstalledVersion is not null && VersionComparer.Instance.Compare(s.InstalledVersion, newest.Version) < 0).Select(s => s.ClientId).Distinct().Count();
+            var newer = newest is null ? 0 : onServers.Where(s => s.InstalledVersion is not null && VersionComparer.Instance.Compare(s.InstalledVersion, newest.Version) > 0).Select(s => s.ClientId).Distinct().Count();
+            var servers = onServers.Select(s => s.ClientId).Distinct().Count();
+            var state = RolloutState(package, newest, newest is not null && rollouts.TryGetValue(newest.UpdateId, out var rollout) ? rollout : null);
+
+            // Nobody runs an older version: nothing to roll out (Marc, 2026-11-13), whatever the rollout of the newest says.
+            if (servers > 0 && outdated == 0 && state.Class is "neutral" or "pend")
             {
-                Outdated = newest is null ? 0 : onServers.Where(s => s.InstalledVersion is not null && VersionComparer.Instance.Compare(s.InstalledVersion, newest.Version) < 0).Select(s => s.ClientId).Distinct().Count(),
+                state = newer == servers ? ("Newer than the source", "neutral") : ("Up to date", "ok");
+            }
+
+            return new SoftwareRow(package, servers, Distinct(onServers.Select(s => s.InstalledVersion).OfType<string>()), newest, state)
+            {
+                Outdated = outdated,
             };
         })];
+    }
+
+    /// <summary>
+    /// Versions without repeats, newest first: "26.06" and "26.06.00.0" are the same version and shown once, in the shorter
+    /// spelling (Marc, 2026-11-13).
+    /// </summary>
+    internal static IReadOnlyList<string> Distinct(IEnumerable<string> versions)
+    {
+        var result = new List<string>();
+        foreach (var version in versions.OrderBy(v => v.Length))
+        {
+            if (!result.Any(known => VersionComparer.Instance.Compare(known, version) == 0))
+            {
+                result.Add(version);
+            }
+        }
+
+        return [.. result.OrderByDescending(v => v, VersionComparer.Instance)];
     }
 
     /// <summary>The state of the newest version as a pill: no version, blocked by the virus scan, waiting for the agreements, queued, rolling out or stopped.</summary>

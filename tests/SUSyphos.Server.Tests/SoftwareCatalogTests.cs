@@ -136,6 +136,40 @@ public sealed class SoftwareCatalogTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task PackageAddedByHand_CanBeRemoved_WithItsVersions()
+    {
+        Assert.True((await WithCatalogAsync(c => c.AddPackageAsync("7zip.7zip", "admin", CancellationToken.None))).Succeeded);
+
+        Assert.True((await WithCatalogAsync(c => c.RemovePackageAsync("7zip.7zip", "admin", CancellationToken.None))).Succeeded);
+
+        Assert.False(await _factory.WithDbAsync(db => db.Packages.AnyAsync(TestContext.Current.CancellationToken)));
+        Assert.False(await _factory.WithDbAsync(db => db.PackageVersions.AnyAsync(TestContext.Current.CancellationToken)));
+        Assert.False(await _factory.WithDbAsync(db => db.Updates.AnyAsync(u => u.Kind == UpdateKind.Software, TestContext.Current.CancellationToken)));
+        Assert.True(await _factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "Package.Removed", TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task PackageFromTheInventory_OrAssigned_IsNotRemoved()
+    {
+        Assert.True((await WithCatalogAsync(c => c.AddPackageAsync("7zip.7zip", SoftwareCatalog.InventoryActor, CancellationToken.None))).Succeeded);
+        var fromInventory = await WithCatalogAsync(c => c.RemovePackageAsync("7zip.7zip", "admin", CancellationToken.None));
+        Assert.Contains("inventory", fromInventory.Error, StringComparison.Ordinal);
+
+        await _factory.WithDbAsync(async db =>
+        {
+            (await db.Packages.SingleAsync(TestContext.Current.CancellationToken)).AddedBy = "admin";
+            var group = new GroupEntity { Name = "Web" };
+            db.Groups.Add(group);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.PackageAssignments.Add(new PackageAssignmentEntity { PackageId = "7zip.7zip", GroupId = group.Id, CreatedBy = "admin" });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        var assigned = await WithCatalogAsync(c => c.RemovePackageAsync("7zip.7zip", "admin", CancellationToken.None));
+        Assert.Contains("assignments", assigned.Error, StringComparison.Ordinal);
+        Assert.False((await WithCatalogAsync(c => c.RemovePackageAsync("Nope.Nope", "admin", CancellationToken.None))).Succeeded);
+    }
+
+    [Fact]
     public async Task PackageWithAgreements_IsMarked_AndANewAgreementNeedsANewAcceptance()
     {
         Assert.True((await WithCatalogAsync(c => c.AddPackageAsync("Vendor.Licensed", "admin", CancellationToken.None))).Succeeded);

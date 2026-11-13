@@ -47,10 +47,10 @@
             <tr>
                 <td class="wrap"><div class="pkg-name"><PackageLogo Name="@row.Package.Name" LogoFile="@row.Package.LogoFile" /><div><a href="@PackagePage.Link(row.Package.PackageId)">@row.Package.Name</a><div class="note mono">@row.Package.PackageId</div></div></div></td>
                 <td>@(row.Package.Publisher ?? "–")</td>
-                <td class="nowrap">@if (row.Servers == 0) { <span class="note">none</span> } else { <span>@DisplayNumber.Count(row.Servers, "server", "servers")</span><div class="note">@string.Join(", ", row.InstalledVersions.Take(3))@(row.InstalledVersions.Count > 3 ? ", …" : null)</div> }</td>
+                <td class="nowrap">@if (row.Servers == 0) { <span class="note">–</span> } else { <span>@DisplayNumber.Count(row.Servers, "server", "servers")</span><div class="note">@string.Join(", ", row.InstalledVersions.Take(3))@(row.InstalledVersions.Count > 3 ? ", …" : null)</div> }</td>
                 <td class="nowrap">@(row.Newest?.Version ?? "–")@if (row.Outdated > 0) { <div class="note">@DisplayNumber.Count(row.Outdated, "server runs", "servers run") an older one</div> }</td>
                 <td><span class="pill @row.Rollout.Class">@row.Rollout.Label</span></td>
-                <td class="nowrap">@(row.Package.AddedBy == SoftwareCatalog.InventoryActor ? "from the inventory" : $"by {row.Package.AddedBy}")</td>
+                <td class="nowrap">@if (row.Package.AddedBy == SoftwareCatalog.InventoryActor) { <CategoryTag Text="Inventory" Index="0" /> } else { <CategoryTag Text="Added" Index="8" /><div class="note">by @row.Package.AddedBy</div> }</td>
             </tr>
         </Row>
     </ListTable>
