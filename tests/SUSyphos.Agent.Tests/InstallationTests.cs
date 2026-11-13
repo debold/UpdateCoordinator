@@ -659,6 +659,34 @@ public sealed class InstallationRunnerTests
     }
 
     [Fact]
+    public async Task CoordinatedServer_InstallsSoftwareWithoutALease()
+    {
+        // Software is not coordinated (Marc, 2026-11-13).
+        var software = new Release(Guid.NewGuid(), 1, _time.GetUtcNow().AddHours(-1), Software: new SoftwareRelease("7zip.7zip", "26.06", false));
+        _releases.Current = new ReleaseList(1, [_release, software], null, null, RequiresLease: true);
+        _client.LeaseAnswer = new LeaseResponse(false, null, "All leases of group DCs are taken.");
+
+        Assert.True(await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken));
+
+        Assert.Equal([software], Assert.Single(_installer.Batches));
+        Assert.Null(_store.State.Lease);
+    }
+
+    [Fact]
+    public async Task CoordinatedServer_OnlySoftware_NeverAsksForALease()
+    {
+        var software = new Release(Guid.NewGuid(), 1, _time.GetUtcNow().AddHours(-1), Software: new SoftwareRelease("7zip.7zip", "26.06", false));
+        _releases.Current = new ReleaseList(1, [software], null, null, RequiresLease: true);
+        _updates.LastMissingUpdates = new HashSet<(Guid, int)>();
+        _installer.ResultCode = InstallResultCode.Failed;
+
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Single(_installer.Batches);
+        Assert.Equal(0, _client.LeaseRequests);
+    }
+
+    [Fact]
     public async Task WaitingForALease_IsLoggedOnce_NotWithEveryCycle()
     {
         _releases.Current = new ReleaseList(1, [_release], null, null, RequiresLease: true);
@@ -862,7 +890,7 @@ public sealed class InstallationRunnerTests
 
         await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
 
-        Assert.Equal([_release, software], Assert.Single(_installer.Batches));
+        Assert.Equal([software, _release], _installer.Batches.SelectMany(b => b));
     }
 
     [Fact]
@@ -892,7 +920,9 @@ public sealed class InstallationRunnerTests
         runner.RequestInstallNow(restartNow: false, scope);
         await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
 
-        var batch = Assert.Single(_installer.Batches);
+        // Software and Windows updates run as separate batches (software needs no lease).
+        var batch = _installer.Batches.SelectMany(b => b).ToList();
+        var batches = _installer.Batches.Count;
         Assert.Equal(count, batch.Count);
         Assert.True(scope switch
         {
@@ -904,7 +934,7 @@ public sealed class InstallationRunnerTests
 
         // What was not chosen waits for the window: the next cycle installs nothing.
         await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
-        Assert.Single(_installer.Batches);
+        Assert.Equal(batches, _installer.Batches.Count);
     }
 
     private static AgentAction Uninstall(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow, Guid.NewGuid(), 1, "5040434");

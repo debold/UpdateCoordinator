@@ -32,7 +32,7 @@ A released update installs only inside a maintenance window of the server, in th
 
 ## Groups and coordination {#groups}
 
-Groups give servers common settings and, when **coordinated**, make sure that only a part of the group installs and restarts at the same time, for example domain controllers or cluster nodes ([Server groups](help/groups)).
+Groups give servers common settings and, when **coordinated**, make sure that only a part of the group installs and restarts at the same time, for example domain controllers or cluster nodes ([Server groups](help/groups)). Software (WinGet) is not coordinated: it installs without waiting for a slot, and a failed package does not stop the group; only a restart it needs waits for a slot.
 
 ## Assignment {#assignment}
 

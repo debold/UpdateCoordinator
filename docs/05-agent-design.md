@@ -114,7 +114,7 @@ Windows can install updates by itself, independent of the agent. Then updates ar
 - **Global pause:** the agent starts no new installations but continues health check, search and reporting.
 - **Manual override per update:** the update is placed into the next possible installation window.
 - **Optional random delay** for ungrouped servers.
-- **Lease** only for servers in a coordinated group: the agent waits for the lease before installing; all others install on their own.
+- **Lease** only for servers in a coordinated group: the agent waits for the lease before installing Windows updates; all others install on their own. Software (WinGet) is not coordinated (Marc, 2026-11-13): it installs without a lease and its result does not count for the lease, so a failed package never stops a group; a restart it needs waits for the lease like every restart.
 - Reboots only as configured and within the allowed window (see `02-guidelines.md`).
 
 ## 5. Reporting

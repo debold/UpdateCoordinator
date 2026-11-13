@@ -135,16 +135,36 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             }
             else
             {
-                // In a coordinated group only a lease holder may install; without a free lease the batch waits.
-                var lease = await EnsureLeaseAsync(identity, cancellationToken).ConfigureAwait(false);
+                // Software is not coordinated (Marc, 2026-11-13): it installs without a lease, and its result does not
+                // count for the lease, so a failed package never stops a coordinated group. A restart it needs still
+                // waits for the lease like every restart.
+                IReadOnlyList<Release> software = [.. batch.Where(r => r.Software is not null)];
+                IReadOnlyList<Release> updates = [.. batch.Where(r => r.Software is null)];
+                if (software.Count > 0)
+                {
+                    await InstallAsync(software, cancellationToken).ConfigureAwait(false);
+                    if (!await FlushOutboxAsync(identity, cancellationToken).ConfigureAwait(false))
+                    {
+                        return false;
+                    }
+                }
+
+                // In a coordinated group only a lease holder may install Windows updates; without a free lease they wait.
+                var lease = updates.Count == 0 ? false : await EnsureLeaseAsync(identity, cancellationToken).ConfigureAwait(false);
                 if (lease is null)
                 {
                     return false;
                 }
 
+                if (updates.Count == 0 && installNow is not null)
+                {
+                    FinishInstallNow(installNow);
+                    installNow = null;
+                }
+
                 if (lease.Value)
                 {
-                    var succeeded = await InstallAsync(batch, cancellationToken).ConfigureAwait(false);
+                    var succeeded = await InstallAsync(updates, cancellationToken).ConfigureAwait(false);
                     if (installNow is not null)
                     {
                         FinishInstallNow(installNow);
