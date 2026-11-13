@@ -60,33 +60,6 @@
         <footer class="box-foot"><span></span><button type="submit" class="primary">Save reboot policy</button></footer>
     </form>
 
-    <form method="post" @formname="automatic-updates" @onsubmit="SaveAutomaticUpdatesAsync" class="box" id="automatic-updates">
-        <AntiforgeryToken />
-        <header class="box-head"><h2>Windows Automatic Updates and update source<HelpLink To="maintenance-windows#automatic-updates" Label="Windows Automatic Updates and update source" /></h2></header>
-        <div class="box-body form">
-            <label class="field"><span>System default</span>
-                <select name="AutomaticUpdates">
-                    <option value="leave" selected="@(!_manageAutomaticUpdates)">Leave unchanged, only warn</option>
-                    <option value="prevent" selected="@_manageAutomaticUpdates">Keep Windows from installing on its own</option>
-                </select>
-            </label>
-            <p class="note">
-                "Keep Windows from installing on its own" turns Automatic Updates off (NoAutoUpdate = 1) where no group policy sets them; the agent takes it
-                back when switched off or uninstalled. Group policy always wins; "leave unchanged" in one group wins.
-            </p>
-            <label class="field"><span>Other Microsoft products</span>
-                <select name="MicrosoftUpdate">
-                    <option value="windows" selected="@(!_useMicrosoftUpdate)">Windows Update only</option>
-                    <option value="microsoft" selected="@_useMicrosoftUpdate">Microsoft Update: also SQL Server, Office and other Microsoft products</option>
-                </select>
-            </label>
-            <p class="note">
-                Microsoft Update also covers SQL Server, Office and other Microsoft products, also on servers that use WSUS. Switched off, the agent removes
-                only its own registration; "Windows Update only" in one group wins.
-            </p>
-        </div>
-        <footer class="box-foot"><span></span><button type="submit" class="primary">Save</button></footer>
-    </form>
     </div>
 </div>
 
@@ -188,20 +161,12 @@
     [SupplyParameterFromForm(FormName = "reboot")]
     private string? Reboot { get; set; }
 
-    [SupplyParameterFromForm(FormName = "automatic-updates")]
-    private string? AutomaticUpdates { get; set; }
-
-    [SupplyParameterFromForm(FormName = "automatic-updates")]
-    private string? MicrosoftUpdate { get; set; }
-
-    private bool _useMicrosoftUpdate;
 
     [CascadingParameter]
     private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
 
     private IReadOnlyList<MaintenanceWindow> _current = [];
     private RebootPolicy _reboot;
-    private bool _manageAutomaticUpdates;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -229,29 +194,6 @@
             ? await Administration.SetSystemRebootPolicyAsync(value, await GetActorAsync(), CancellationToken.None)
             : new Outcome("The reboot policy is invalid.");
         ShowResult(outcome.Error, "The reboot policy was saved and is delivered to the agents.");
-        await LoadAsync();
-    }
-
-    private async Task SaveAutomaticUpdatesAsync()
-    {
-        var outcome = AutomaticUpdates switch
-        {
-            "prevent" => await Administration.SetSystemManageAutomaticUpdatesAsync(true, await GetActorAsync(), CancellationToken.None),
-            "leave" => await Administration.SetSystemManageAutomaticUpdatesAsync(false, await GetActorAsync(), CancellationToken.None),
-            _ => new Outcome("The Automatic Updates setting is invalid."),
-        };
-        if (outcome.Succeeded)
-        {
-            outcome = MicrosoftUpdate switch
-            {
-                "microsoft" => await Administration.SetSystemMicrosoftUpdateAsync(true, await GetActorAsync(), CancellationToken.None),
-                "windows" => await Administration.SetSystemMicrosoftUpdateAsync(false, await GetActorAsync(), CancellationToken.None),
-                null => Outcome.Ok,
-                _ => new Outcome("The Microsoft Update setting is invalid."),
-            };
-        }
-
-        ShowResult(outcome.Error, "The update source settings were saved and are delivered to the agents.");
         await LoadAsync();
     }
 
@@ -352,7 +294,5 @@
         _blackouts = await Blackouts.ListAsync(CancellationToken.None);
         _current = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
         _reboot = await Assignment.GetSystemRebootPolicyAsync(CancellationToken.None);
-        _manageAutomaticUpdates = await Assignment.GetSystemManageAutomaticUpdatesAsync(CancellationToken.None);
-        _useMicrosoftUpdate = await Assignment.GetSystemMicrosoftUpdateAsync(CancellationToken.None);
     }
 }

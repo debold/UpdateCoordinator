@@ -38,3 +38,25 @@ Which value applies: a value set on the server wins; then its groups (if several
 - **Warning before a restart (minutes)**: how long signed-in users are warned before the agent restarts the server, 1 to 30.
 - **Message to signed-in users**: the text of that warning, at most 200 characters, no quotes.
 - **Trust the central server's own certificate for WinGet** (section Software): off by default. WinGet checks the certificate of the WinGet source of the central server like Windows does, not through the trust anchor. With a certificate of a certification authority the servers trust (for example from AD CS) nothing is needed. With the central server's own self-signed certificate, switched on, the agent adds exactly that certificate (the one it verified through its trust anchor) to the trusted root certificates of the server; it never adds a certificate of a CA. When the certificate changes, the setting is switched off or the agent is uninstalled, the agent removes what it added. While the central server uses a self-signed certificate and this setting is off, the overview and the software pages show a banner **Certificate** (see [The certificate of the central server](help/software#certificate)).
+
+## Windows Update {#windows-update}
+
+The box **Windows Update** (moved here from the maintenance windows page) sets how the agent sets up Windows Update on every server; groups can override it on their [page](help/group-detail#settings). **Save** stores both settings; agents get them with their next heartbeat.
+
+### Windows Automatic Updates {#automatic-updates}
+
+Windows can install updates and restart on its own (Automatic Updates), outside rings and maintenance windows. The setting **Windows Automatic Updates** decides what the agent does about it:
+
+- **Leave unchanged, only warn**: the agent does not touch the setting; servers on which Windows may install by itself get a warning. That includes Windows Server without any setting: its Update Orchestrator installs updates after its scheduled scan.
+- **Keep Windows from installing on its own**: on servers where no group policy controls Automatic Updates, the agent turns them off (NoAutoUpdate = 1, as Azure Update Manager does for manual patching). Windows then neither downloads nor installs nor offers updates by itself; SUSyphos keeps searching and installing through the Windows Update API. The agent removes its value when this is switched off again or the agent is uninstalled. A group policy always wins.
+
+Windows Update for Business deferrals set by group policy ("Select when Quality Updates are received") hold updates back for the deferral days, also from the agent's search; the pre-flight check warns about them.
+
+Groups can override the default; "leave unchanged" in one group wins. 
+
+### Other Microsoft products {#microsoft-update}
+
+- **Windows Update only**: updates for Windows and its components.
+- **Microsoft Update**: the agent also registers the Microsoft Update service (like "Receive updates for other Microsoft products" in Windows) and searches and installs through it, so SQL Server, Office and other Microsoft products are covered, also on servers that otherwise use WSUS. When switched off, the agent removes only a registration it made itself.
+
+Groups can override the default; "Windows Update only" in one group wins.

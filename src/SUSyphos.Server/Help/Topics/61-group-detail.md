@@ -19,8 +19,8 @@ Every member with its **Ring**, how it **Joined** (*by hand* or *by rule*) and i
 ## Reboots and Windows Update {#settings}
 
 - **Reboots**: "Inherit from the system default", "Reboot inside the maintenance window" or "Never reboot (report only)". If one of a server's groups says "Never", that wins.
-- **Windows Automatic Updates**: inherit, "Leave unchanged, only warn" or "Keep Windows from installing on its own" ([details](help/maintenance-windows#automatic-updates)). "Leave unchanged" in one group wins.
-- **Other Microsoft products**: inherit, "Windows Update only" or "Microsoft Update" ([details](help/maintenance-windows#microsoft-update)). "Windows Update only" in one group wins.
+- **Windows Automatic Updates**: inherit, "Leave unchanged, only warn" or "Keep Windows from installing on its own" ([details](help/agent-settings#automatic-updates)). "Leave unchanged" in one group wins.
+- **Other Microsoft products**: inherit, "Windows Update only" or "Microsoft Update" ([details](help/agent-settings#microsoft-update)). "Windows Update only" in one group wins.
 - **Description**: free text.
 
 **Save** stores this section.

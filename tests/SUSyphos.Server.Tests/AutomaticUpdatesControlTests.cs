@@ -60,26 +60,26 @@ public sealed class AutomaticUpdatesControlTests
         {
         }
 
-        using (var saved = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "prevent" }))
+        using (var saved = await browser.PostFormAsync("/administration/agent-settings", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "prevent" }))
         {
             Assert.Contains("update source settings were saved", await saved.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
         Assert.Equal("true", await factory.WithDbAsync(db => db.Settings.Where(s => s.Key == SettingEntity.SystemManageAutomaticUpdates).Select(s => s.Value).SingleAsync(TestContext.Current.CancellationToken)));
 
-        using (var invalid = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "<script>" }))
+        using (var invalid = await browser.PostFormAsync("/administration/agent-settings", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "<script>" }))
         {
             Assert.Contains("setting is invalid", await invalid.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
-        using (var microsoft = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "leave", ["MicrosoftUpdate"] = "microsoft" }))
+        using (var microsoft = await browser.PostFormAsync("/administration/agent-settings", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "leave", ["MicrosoftUpdate"] = "microsoft" }))
         {
             Assert.Contains("update source settings were saved", await microsoft.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
         Assert.Equal("true", await factory.WithDbAsync(db => db.Settings.Where(s => s.Key == SettingEntity.SystemMicrosoftUpdate).Select(s => s.Value).SingleAsync(TestContext.Current.CancellationToken)));
 
-        using (var invalid = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "leave", ["MicrosoftUpdate"] = "bing" }))
+        using (var invalid = await browser.PostFormAsync("/administration/agent-settings", new Dictionary<string, string> { ["_handler"] = "automatic-updates", ["AutomaticUpdates"] = "leave", ["MicrosoftUpdate"] = "bing" }))
         {
             Assert.Contains("Microsoft Update setting is invalid", await invalid.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }

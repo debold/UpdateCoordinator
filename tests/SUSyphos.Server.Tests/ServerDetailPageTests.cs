@@ -389,7 +389,7 @@ public sealed class ServerDetailPageTests
 
         Assert.Contains(expected, page, StringComparison.Ordinal);
         Assert.DoesNotContain("bypasses rings", page, StringComparison.Ordinal);
-        Assert.Equal(bypass, page.Contains("href=\"/administration/maintenance#automatic-updates\"", StringComparison.Ordinal));
+        Assert.Equal(bypass, page.Contains("href=\"/administration/agent-settings#automatic-updates\"", StringComparison.Ordinal));
         Assert.Equal(bypass, page.Contains($"href=\"/servers/{client.ClientId}?tab=overview#checks\"", StringComparison.Ordinal));
     }
 
@@ -417,7 +417,7 @@ public sealed class ServerDetailPageTests
 
         Assert.Contains("a group policy sets Automatic Updates, so SUSyphos cannot change it", page, StringComparison.Ordinal);
         Assert.Contains("Select when Quality Updates are received", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("href=\"/administration/maintenance#automatic-updates\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/administration/agent-settings#automatic-updates\"", page, StringComparison.Ordinal);
     }
 
     [Fact]

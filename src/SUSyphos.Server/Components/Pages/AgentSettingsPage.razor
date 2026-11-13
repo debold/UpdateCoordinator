@@ -4,6 +4,7 @@
 @using SUSyphos.Contracts.Agents
 @using SUSyphos.Server.Assignment
 @inject AssignmentAdministration Administration
+@inject SUSyphos.Server.Assignment.AssignmentService Assignment
 
 <PageTitle>Agent settings</PageTitle>
 
@@ -42,11 +43,43 @@
     }
 </Box>
 
+<form method="post" @formname="automatic-updates" @onsubmit="SaveAutomaticUpdatesAsync" class="box" id="automatic-updates">
+    <AntiforgeryToken />
+    <header class="box-head"><h2>Windows Update<HelpLink To="agent-settings#windows-update" Label="Windows Update" /></h2><span class="hint">How the agent sets up Windows Update on every server; groups can override it</span></header>
+    <div class="box-body form">
+        <label class="field"><span>Windows Automatic Updates</span>
+            <select name="AutomaticUpdates">
+                <option value="leave" selected="@(!_manageAutomaticUpdates)">Leave unchanged, only warn</option>
+                <option value="prevent" selected="@_manageAutomaticUpdates">Keep Windows from installing on its own</option>
+            </select>
+        </label>
+        <p class="note">
+            "Keep Windows from installing on its own" turns Automatic Updates off (NoAutoUpdate = 1) where no group policy sets them; the agent takes it
+            back when switched off or uninstalled. Group policy always wins; "leave unchanged" in one group wins.
+        </p>
+        <label class="field"><span>Other Microsoft products</span>
+            <select name="MicrosoftUpdate">
+                <option value="windows" selected="@(!_useMicrosoftUpdate)">Windows Update only</option>
+                <option value="microsoft" selected="@_useMicrosoftUpdate">Microsoft Update</option>
+            </select>
+        </label>
+        <p class="note">
+            Microsoft Update also covers SQL Server, Office and other Microsoft products, also on servers that use WSUS. Switched off, the agent removes
+            only its own registration; "Windows Update only" in one group wins.
+        </p>
+    </div>
+    <footer class="box-foot"><span></span><button type="submit" class="primary">Save</button></footer>
+</form>
+
 @code {
     private Dictionary<string, string> _values = [];
     private Dictionary<string, string?>? _posted;
 
-    protected override async Task OnInitializedAsync() => _values = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
+    protected override async Task OnInitializedAsync()
+    {
+        _values = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
+        await LoadWindowsUpdateAsync();
+    }
 
     /// <summary>After a refused save the posted values stay in the fields.</summary>
     private string? ValueOf(string key) => _posted is not null ? _posted.GetValueOrDefault(key) : _values.GetValueOrDefault(key);
@@ -73,5 +106,44 @@
     }
 
     private static string Anchor(string section) => section.ToLowerInvariant().Replace(' ', '-').Replace("pre-flight-check", "pre-flight", StringComparison.Ordinal);
+
+
+    [SupplyParameterFromForm(FormName = "automatic-updates")]
+    private string? AutomaticUpdates { get; set; }
+
+    [SupplyParameterFromForm(FormName = "automatic-updates")]
+    private string? MicrosoftUpdate { get; set; }
+
+    private bool _useMicrosoftUpdate;
+    private bool _manageAutomaticUpdates;
+
+    /// <summary>The Windows Update defaults moved here from the maintenance windows page (Marc, 2026-11-13): they say how the agent sets up Windows, not when it installs.</summary>
+    private async Task LoadWindowsUpdateAsync()
+    {
+        _manageAutomaticUpdates = await Assignment.GetSystemManageAutomaticUpdatesAsync(CancellationToken.None);
+        _useMicrosoftUpdate = await Assignment.GetSystemMicrosoftUpdateAsync(CancellationToken.None);
+    }
+    private async Task SaveAutomaticUpdatesAsync()
+    {
+        var outcome = AutomaticUpdates switch
+        {
+            "prevent" => await Administration.SetSystemManageAutomaticUpdatesAsync(true, await GetActorAsync(), CancellationToken.None),
+            "leave" => await Administration.SetSystemManageAutomaticUpdatesAsync(false, await GetActorAsync(), CancellationToken.None),
+            _ => new Outcome("The Automatic Updates setting is invalid."),
+        };
+        if (outcome.Succeeded)
+        {
+            outcome = MicrosoftUpdate switch
+            {
+                "microsoft" => await Administration.SetSystemMicrosoftUpdateAsync(true, await GetActorAsync(), CancellationToken.None),
+                "windows" => await Administration.SetSystemMicrosoftUpdateAsync(false, await GetActorAsync(), CancellationToken.None),
+                null => Outcome.Ok,
+                _ => new Outcome("The Microsoft Update setting is invalid."),
+            };
+        }
+
+        ShowResult(outcome.Error, "The update source settings were saved and are delivered to the agents.");
+        await LoadWindowsUpdateAsync();
+    }
 
 }

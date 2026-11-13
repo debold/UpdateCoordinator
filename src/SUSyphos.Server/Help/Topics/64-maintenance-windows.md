@@ -1,6 +1,6 @@
 # Maintenance windows and reboots {#top}
 
-The system defaults for when servers may install updates and restart, how Windows' own update setting is handled, and periods in which nothing is installed at all. Groups and single servers can override the defaults; a server uses its own setting first, then its groups, then the system default. Administrators only.
+The system defaults for when servers may install updates and restart, and periods in which nothing is installed at all. How the agent sets up Windows Update itself is on [Agent settings](help/agent-settings#windows-update). Groups and single servers can override the defaults; a server uses its own setting first, then its groups, then the system default. Administrators only.
 
 ## Maintenance windows {#windows}
 
@@ -33,24 +33,6 @@ The **System default** for restarts after updates, used by every server without 
 - **Never reboot (report only)**: the agent only reports the pending restart.
 
 A server's own policy wins; otherwise its groups decide, and one group with "Never" wins over the others. A server can always forbid restarts locally with the registry value `AllowReboot` = 0. **Save reboot policy** stores the default.
-
-## Windows Automatic Updates {#automatic-updates}
-
-Windows can install updates and restart on its own (Automatic Updates), outside rings and maintenance windows. The **System default** decides what the agent does about it:
-
-- **Leave unchanged, only warn**: the agent does not touch the setting; servers on which Windows may install by itself get a warning. That includes Windows Server without any setting: its Update Orchestrator installs updates after its scheduled scan.
-- **Keep Windows from installing on its own**: on servers where no group policy controls Automatic Updates, the agent turns them off (NoAutoUpdate = 1, as Azure Update Manager does for manual patching). Windows then neither downloads nor installs nor offers updates by itself; SUSyphos keeps searching and installing through the Windows Update API. The agent removes its value when this is switched off again or the agent is uninstalled. A group policy always wins.
-
-Windows Update for Business deferrals set by group policy ("Select when Quality Updates are received") hold updates back for the deferral days, also from the agent's search; the pre-flight check warns about them.
-
-Groups can override the default; "leave unchanged" in one group wins. **Save** stores this box (together with the Microsoft Update setting).
-
-### Other Microsoft products {#microsoft-update}
-
-- **Windows Update only**: updates for Windows and its components.
-- **Microsoft Update**: the agent also registers the Microsoft Update service (like "Receive updates for other Microsoft products" in Windows) and searches and installs through it, so SQL Server, Office and other Microsoft products are covered, also on servers that otherwise use WSUS. When switched off, the agent removes only a registration it made itself.
-
-Groups can override the default; "Windows Update only" in one group wins.
 
 ## One-time windows {#one-time}
 

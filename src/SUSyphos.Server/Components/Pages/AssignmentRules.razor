@@ -92,7 +92,7 @@
                     <p class="warning" role="alert">@DisplayNumber.Count(overlaps.Count, "server would be", "servers would be") in more than one coordinated group (@string.Join(", ", overlaps.Take(5).Select(o => o.HostName + ": " + o.Other))). Such a server needs a lease of every group, and a failure counts in each.</p>
                 }
                 <details class="preview" open="@(Preview == "yes")">
-                    <summary>What changes: @changes.Count(c => c.Class != "neutral") of @_approved.Count approved servers ›</summary>
+                    <summary data-help-term="What changes">What changes: @changes.Count(c => c.Class != "neutral") of @_approved.Count approved servers ›</summary>
                     @if (changes.Count == 0)
                     {
                         <p class="help">No approved server matches these conditions. Every condition must match; a rule needs at least one.</p>

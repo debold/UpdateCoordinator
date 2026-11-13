@@ -161,7 +161,7 @@ Where the title carries a KB number, the KB links to Microsoft's release notes a
 
 ## Pre-flight checks {#checks}
 
-Before each update run the agent checks: **Disk space**, **Windows Update service**, **Update source** (WSUS) and **Windows Automatic Updates**. Each is OK, Warning or Failed, with details. A failed check stops installations on this server until it is fixed. For **Windows Automatic Updates** a line "Fix:" says what to do: choose "Keep Windows from installing on its own" under [Maintenance windows](help/maintenance-windows#automatic-updates) (for all servers or a group of the server), or, where a group policy sets Automatic Updates, set "Configure Automatic Updates" to Disabled in that policy; Windows Update for Business deferrals are removed from the group policy. If the last update search failed, its error code and explanation are shown below the table.
+Before each update run the agent checks: **Disk space**, **Windows Update service**, **Update source** (WSUS) and **Windows Automatic Updates**. Each is OK, Warning or Failed, with details. A failed check stops installations on this server until it is fixed. For **Windows Automatic Updates** a line "Fix:" says what to do: choose "Keep Windows from installing on its own" under [Maintenance windows](help/agent-settings#automatic-updates) (for all servers or a group of the server), or, where a group policy sets Automatic Updates, set "Configure Automatic Updates" to Disabled in that policy; Windows Update for Business deferrals are removed from the group policy. If the last update search failed, its error code and explanation are shown below the table.
 
 ## Installed by SUSyphos {#history}
 
