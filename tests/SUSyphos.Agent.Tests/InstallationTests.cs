@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
@@ -658,6 +659,30 @@ public sealed class InstallationRunnerTests
     }
 
     [Fact]
+    public async Task WaitingForALease_IsLoggedOnce_NotWithEveryCycle()
+    {
+        _releases.Current = new ReleaseList(1, [_release], null, null, RequiresLease: true);
+        _client.LeaseAnswer = new LeaseResponse(false, null, "Group MyServers is stopped after failed leases.");
+        var logger = new ListLogger();
+        var runner = Create(logger: logger);
+
+        for (var i = 0; i < 5; i++)
+        {
+            await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+            _time.Advance(TimeSpan.FromSeconds(10));
+        }
+
+        Assert.Single(logger.Lines, l => l.StartsWith("Waiting for a lease", StringComparison.Ordinal));
+
+        // Another reason, or an hour later, is logged again.
+        _client.LeaseAnswer = new LeaseResponse(false, null, "All leases of group MyServers are taken.");
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        _time.Advance(TimeSpan.FromHours(1));
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal(3, logger.Lines.Count(l => l.StartsWith("Waiting for a lease", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task CoordinatedServer_InstallsWithLease_AndReleasesIt()
     {
         _releases.Current = new ReleaseList(1, [_release], null, null, RequiresLease: true);
@@ -892,7 +917,7 @@ public sealed class InstallationRunnerTests
         Results = [new InstallResult { UpdateId = Guid.NewGuid(), Revision = 1, ResultCode = InstallResultCode.Succeeded }],
     };
 
-    private InstallationRunner Create(InstallationOptions? options = null)
+    private InstallationRunner Create(InstallationOptions? options = null, ILogger<InstallationRunner>? logger = null)
     {
         var preFlight = new PreFlightCheck(_probe, _disk, Microsoft.Extensions.Options.Options.Create(new UpdateOptions()));
         return new InstallationRunner(
@@ -908,7 +933,20 @@ public sealed class InstallationRunnerTests
             _restart,
             Microsoft.Extensions.Options.Options.Create(options ?? new InstallationOptions()),
             _time,
-            NullLogger<InstallationRunner>.Instance);
+            logger ?? NullLogger<InstallationRunner>.Instance);
+    }
+
+    /// <summary>Keeps the formatted log lines.</summary>
+    private sealed class ListLogger : ILogger<InstallationRunner>
+    {
+        public List<string> Lines { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) => Lines.Add(formatter(state, exception));
     }
 
     private sealed class FakeInstaller : IUpdateInstaller

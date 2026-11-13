@@ -208,13 +208,26 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
         if (!response.Granted)
         {
-            LogLeaseWaiting(response.Reason ?? "no lease available");
+            // Logged when the reason changes and then once an hour, not with every cycle (LABVEX01, 2026-11-13: every 10 seconds).
+            var reason = response.Reason ?? "no lease available";
+            var now = _timeProvider.GetUtcNow();
+            if (reason != _leaseWaitLogged || now - _leaseWaitLoggedAt >= TimeSpan.FromHours(1))
+            {
+                LogLeaseWaiting(reason);
+                (_leaseWaitLogged, _leaseWaitLoggedAt) = (reason, now);
+            }
+
             return false;
         }
+
+        _leaseWaitLogged = null;
 
         Save(_state with { Lease = new LeaseHold(_timeProvider.GetUtcNow(), InstallationSucceeded: true, AwaitingReboot: false) });
         return true;
     }
+
+    private string? _leaseWaitLogged;
+    private DateTimeOffset _leaseWaitLoggedAt;
 
     public bool RestartRequested => _state.RestartRequestedAt is not null;
 

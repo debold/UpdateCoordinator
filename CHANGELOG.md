@@ -11,6 +11,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - An upgrade keeps the architecture of the installed program: a 32-bit program (uninstall key in the 32-bit registry view, or installed below "Program Files (x86)") is upgraded with the x86 installer, never replaced by the x64 one, which installers such as TeamViewer refuse (exit code 2; lab, 2026-11-13).
 - A failed software installation reports the exit code of the installer to the central server.
 - An update installed successfully is not installed again in every window while it only waits for its restart (lab, LABVEX01: Windows refused the restart, so the cumulative update was installed again and again).
+- "Waiting for a lease of the coordinated group" is logged when the reason changes and then once an hour, not with every cycle (every 10 seconds on LABVEX01).
 - When Windows refuses the restart the agent requests, the heartbeat reports it with the exit code of the shutdown tool until the server has started again.
 - "Request logs" also packs the logs of the WinGet helper and WinGet's own logs of SYSTEM (`WinGet/` and `WinGetCOM/` in the archive).
 
