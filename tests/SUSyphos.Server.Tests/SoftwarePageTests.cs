@@ -196,6 +196,26 @@ public sealed class SoftwarePageTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task UpdateList_ShowsSoftwareAsSoftware_WithItsPackage()
+    {
+        var (browser, _) = await SeedAsync(AdminRoles.Reader);
+        await _factory.WithDbAsync(async db =>
+        {
+            var update = await db.Updates.Where(u => u.Kind == UpdateKind.Software).OrderBy(u => u.Title).FirstAsync(TestContext.Current.CancellationToken);
+            db.Rollouts.Add(new RolloutEntity { UpdateId = update.UpdateId, Revision = update.Revision, State = RolloutState.Active, StartedAtUtc = DateTime.UtcNow, StartedBy = "admin" });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        using (browser)
+        {
+            var html = await (await browser.GetAsync("/updates?f.classification=Software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+            Assert.Contains("class=\"tag\" href=\"/software/", html, StringComparison.Ordinal);
+            Assert.Contains("<span class=\"pill neutral\">Usually none</span>", html, StringComparison.Ordinal);
+            Assert.DoesNotContain(">Unclassified<", html, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task PackagePage_ShowsHowNewVersionsStart_AndOffersARuleForThePackage()
     {
         var (browser, _) = await SeedAsync(AdminRoles.Admin);

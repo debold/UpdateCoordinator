@@ -63,14 +63,14 @@
                         <tr class="@(_table.Open == row.Key ? "expanded" : null)">
                             <td>@if (!row.Outside) { <input type="checkbox" data-help-term="Select" form="bulk" name="Selected" value="@row.Key" aria-label="Select @row.Title" /> }</td>
 
-                            <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }<div><KbLinks Kb="@row.Kb" /></div>@if (MatchingCves(row) is { Count: > 0 } fixedCves) { <div class="note">fixes @string.Join(", ", fixedCves.Take(3))@(fixedCves.Count > 3 ? $" and {fixedCves.Count - 3} more" : null)</div> }</td>
+                            <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }@if (row.SameTitle) { <span class="note"> · revision @row.Revision</span> }<div>@if (row.PackageId is { } packageId) { <a class="tag" href="@PackagePage.Link(packageId)">@packageId</a> } else { <KbLinks Kb="@row.Kb" /> }</div>@if (MatchingCves(row) is { Count: > 0 } fixedCves) { <div class="note">fixes @string.Join(", ", fixedCves.Take(3))@(fixedCves.Count > 3 ? $" and {fixedCves.Count - 3} more" : null)</div> }</td>
                             <td><ClassificationTag Text="@row.Classification" /></td>
-                            <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
-                            <td class="nowrap">@row.Restart</td>
+                            <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="pill neutral">none</span> }</td>
+                            <td class="nowrap"><span class="pill @RestartClass(row.Restart)">@row.Restart</span></td>
                             <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
                             <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }</td>
                             <td class="nowrap">@foreach (var stage in row.Stages ?? []) { <span class="ring-stage r@(RingTag.Palette(stage.Order)) @stage.Class" title="@($"{stage.Order} {stage.Name}: {stage.Label}")">@stage.Order</span> }</td>
-                            <td class="nowrap"><span class="donut-cell" title="@($"{row.Missing} servers still miss it; {row.Counts.Successful} of {row.Counts.Total} installed, {row.Counts.Failed} failed")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
+                            <td class="nowrap"><span class="donut-cell" title="@($"{Charts.Describe(row.Counts)}; {row.Missing} servers still miss it")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
                             <td class="n"><ExpandToggle Table="_table" Key="@row.Key" Label="@row.Title" /></td>
                         </tr>
                         @if (_table.Open == row.Key)
@@ -108,7 +108,10 @@
 @code {
     private const int MaxRows = 5000;
 
-    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts, string Restart, NewerUpdate? Newer = null, bool Completed = false, bool Outside = false, bool Linked = true, IReadOnlyList<(int Order, string Name, string Label, string Class)>? Stages = null);
+    private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts, string Restart, NewerUpdate? Newer = null, bool Completed = false, bool Outside = false, bool Linked = true, IReadOnlyList<(int Order, string Name, string Label, string Class)>? Stages = null, string? PackageId = null, bool SameTitle = false);
+
+    /// <summary>A restart as a tag: grey when none is expected, amber when one may follow (Marc, 2026-11-13).</summary>
+    private static string RestartClass(string restart) => restart is "Restart required" or "May restart" ? "queue" : "neutral";
 
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["classification"] = "Classification", ["severity"] = "Severity", ["rollout"] = "Rollout", ["restart"] = "Restart" };
     private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("classification", "Classification"), ("severity", "Severity"), ("restart", "Restart"), ("rollout", "Rollout")];
@@ -277,7 +280,7 @@
                     string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{u.UpdateId:D}:{u.Revision}"),
                     u.KbArticle ?? string.Empty,
                     u.Title,
-                    u.Classification ?? "Unclassified",
+                    u.Kind == UpdateKind.Software ? "Software" : u.Classification ?? "Unclassified",
                     u.MsrcSeverity ?? string.Empty,
                     u.FirstSeenAtUtc,
                     rollout,
@@ -285,14 +288,19 @@
                     detail,
                     missing.GetValueOrDefault(key),
                     deployment,
-                    UpdateText.Restart(u.RebootBehavior),
+                    u.Kind == UpdateKind.Software ? "Usually none" : UpdateText.Restart(u.RebootBehavior),
                     newerUpdate,
                     completed,
+                    PackageId: u.PackageId,
                     Stages: Stages(rollouts.GetValueOrDefault(key), ringStates[key], rings, counts[key], [.. heldRings[key]]));
             })];
 
         // Superseded, completed, withdrawn, outside and archived updates are values of the rollout filter; the default view hides them.
         rows.AddRange(await OutsideRowsAsync([.. keys, .. rows.Select(r => (r.UpdateId, r.Revision))]));
+
+        // Two entries with the same title (two revisions or update IDs, e.g. the MSRT; Marc, 2026-11-13) name their revision.
+        var repeated = rows.GroupBy(r => r.Title, StringComparer.Ordinal).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
+        rows = [.. rows.Select(r => repeated.Contains(r.Title) ? r with { SameTitle = true } : r)];
 
         // The search also finds CVEs: an update matches when its KB fixes one (security data from Microsoft).
         _cves = (await Baseline.LoadAsync(CancellationToken.None)).CvesByKb();

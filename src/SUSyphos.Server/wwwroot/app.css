@@ -707,6 +707,8 @@ details.release-notes > .release-notes-body { padding: 0 0.8rem 0.6rem; }
 .release-notes-body ul, .release-notes-body ol { padding-left: 1.2rem; display: grid; gap: 0.2rem; }
 
 /* Overview statistics: categorical slots in a fixed order (validated palette), status colours for states. */
+/* Ring colours (Marc, 2026-11-13): never amber, green or red, so a ring never reads as a state. */
+:root { --ring-1: #2a78d6; --ring-2: #0e8a93; --ring-3: #4a55b8; --ring-4: #5a6b85; --ring-5: #c2549a; --ring-6: #8d6e63; --ring-7: #00838f; --ring-8: #1f3a93; }
 :root { --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-8: #e34948; }
 .chart-picker { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 0.5rem; }
 .field.inline { flex-direction: row; align-items: center; gap: 0.5rem; }
@@ -773,10 +775,10 @@ details.menu.align-right .menu-pop { left: auto; right: 0; }
 .ring-tag { display: inline-flex; align-items: center; height: 20px; padding: 0 0.5rem; border: 1px solid var(--idle); border-radius: 4px; color: var(--text); font-size: 0.78rem; font-weight: 600; white-space: nowrap; background: var(--surface); }
 a.ring-tag:hover { text-decoration: none; background: var(--surface-2); }
 .ring-tag::before { content: ""; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; background: var(--idle); }
-.ring-tag.r1 { border-color: var(--series-1); } .ring-tag.r2 { border-color: var(--series-2); } .ring-tag.r3 { border-color: var(--series-3); } .ring-tag.r4 { border-color: var(--series-4); }
-.ring-tag.r5 { border-color: var(--series-5); } .ring-tag.r6 { border-color: var(--series-6); } .ring-tag.r7 { border-color: var(--series-7); } .ring-tag.r8 { border-color: var(--series-8); }
-.ring-tag.r1::before { background: var(--series-1); } .ring-tag.r2::before { background: var(--series-2); } .ring-tag.r3::before { background: var(--series-3); } .ring-tag.r4::before { background: var(--series-4); }
-.ring-tag.r5::before { background: var(--series-5); } .ring-tag.r6::before { background: var(--series-6); } .ring-tag.r7::before { background: var(--series-7); } .ring-tag.r8::before { background: var(--series-8); }
+.ring-tag.r1 { border-color: var(--ring-1); } .ring-tag.r2 { border-color: var(--ring-2); } .ring-tag.r3 { border-color: var(--ring-3); } .ring-tag.r4 { border-color: var(--ring-4); }
+.ring-tag.r5 { border-color: var(--ring-5); } .ring-tag.r6 { border-color: var(--ring-6); } .ring-tag.r7 { border-color: var(--ring-7); } .ring-tag.r8 { border-color: var(--ring-8); }
+.ring-tag.r1::before { background: var(--ring-1); } .ring-tag.r2::before { background: var(--ring-2); } .ring-tag.r3::before { background: var(--ring-3); } .ring-tag.r4::before { background: var(--ring-4); }
+.ring-tag.r5::before { background: var(--ring-5); } .ring-tag.r6::before { background: var(--ring-6); } .ring-tag.r7::before { background: var(--ring-7); } .ring-tag.r8::before { background: var(--ring-8); }
 
 /* Page tabs with badges (docs/06-dashboard.md, section 8 "Tabs"). */
 .tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.2rem; height: 1.2rem; margin-left: 0.4rem; padding: 0 0.35rem; border-radius: 999px; background: var(--line); color: var(--muted); font-size: 0.72rem; font-weight: 700; }
@@ -797,8 +799,8 @@ a.ring-tag:hover { text-decoration: none; background: var(--surface-2); }
    not reached yet is dashed and faded, a released ring is filled in its colour; a small badge says done (green check),
    failed (red "!") or waiting at a gate (amber); a held ring is hatched. */
 .ring-stage { --rc: var(--idle); position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; margin-right: 5px; padding: 0 4px; border: 2px solid var(--rc); border-radius: 5px; background: var(--surface); color: var(--rc); font-size: 0.75rem; font-weight: 700; text-box: trim-both cap alphabetic; }
-.ring-stage.r1 { --rc: var(--series-1); } .ring-stage.r2 { --rc: var(--series-2); } .ring-stage.r3 { --rc: var(--series-3); } .ring-stage.r4 { --rc: var(--series-4); }
-.ring-stage.r5 { --rc: var(--series-5); } .ring-stage.r6 { --rc: var(--series-6); } .ring-stage.r7 { --rc: var(--series-7); } .ring-stage.r8 { --rc: var(--series-8); }
+.ring-stage.r1 { --rc: var(--ring-1); } .ring-stage.r2 { --rc: var(--ring-2); } .ring-stage.r3 { --rc: var(--ring-3); } .ring-stage.r4 { --rc: var(--ring-4); }
+.ring-stage.r5 { --rc: var(--ring-5); } .ring-stage.r6 { --rc: var(--ring-6); } .ring-stage.r7 { --rc: var(--ring-7); } .ring-stage.r8 { --rc: var(--ring-8); }
 .ring-stage.neutral { border-style: dashed; opacity: 0.55; }
 .ring-stage.pend, .ring-stage.ok, .ring-stage.fail { background: var(--rc); color: #fff; }
 .ring-stage.ok::after, .ring-stage.fail::after, .ring-stage.queue::after { position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center; width: 13px; height: 13px; border: 1.5px solid var(--surface); border-radius: 50%; color: #fff; font-size: 0.55rem; font-weight: 800; line-height: 1; }
