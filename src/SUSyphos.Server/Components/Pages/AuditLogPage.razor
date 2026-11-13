@@ -35,14 +35,24 @@ else
                 {
                     <tr><td colspan="5" class="note">No entry matches.</td></tr>
                 }
+                @{ string? day = null; }
                 @foreach (var entry in _entries)
                 {
+                    var entryDay = DisplayTime.FormatDate(entry.AtUtc);
+                    if (entryDay != day && _table.Sort == "time")
+                    {
+                        day = entryDay;
+                        <tr class="group-row"><td colspan="5">@entryDay</td></tr>
+                    }
+
+                    var target = AuditText.SplitId(entry.Target);
+                    var details = AuditText.SplitId(entry.Details);
                     <tr>
-                        <td class="nowrap">@DisplayTime.FormatSeconds(entry.AtUtc)</td>
-                        <td>@entry.Actor</td>
-                        <td class="nowrap">@entry.Action</td>
-                        <td>@entry.Target</td>
-                        <td>@entry.Details</td>
+                        <td class="nowrap">@(_table.Sort == "time" ? DisplayTime.FormatSeconds(entry.AtUtc)[^8..] : DisplayTime.FormatSeconds(entry.AtUtc))</td>
+                        <td>@if (AuditText.IsAutomatic(entry.Actor)) { <span class="pill neutral" title="@entry.Actor">automatic</span> } else { @entry.Actor }</td>
+                        <td class="nowrap"><CategoryTag Text="@AuditText.Area(entry.Action)" Index="@AuditText.AreaIndex(entry.Action)" /> <span title="@entry.Action">@AuditText.Readable(entry.Action)</span></td>
+                        <td>@target.Text@if (target.Id is { } id) { <div class="note mono">@id</div> }</td>
+                        <td>@details.Text@if (details.Id is { } detailId) { <div class="note mono">@detailId</div> }</td>
                     </tr>
                 }
             </tbody>
