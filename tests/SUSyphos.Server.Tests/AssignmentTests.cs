@@ -582,7 +582,7 @@ public sealed class AssignmentPageTests
         });
         var html = await preview.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        Assert.Contains("What changes (1 of 2 approved servers)", html, StringComparison.Ordinal);
+        Assert.Contains("What changes: 1 of 2 approved servers ›", html, StringComparison.Ordinal);
         Assert.Contains("SQL01</a>", html, StringComparison.Ordinal);
         Assert.Contains(">moves</span>", html, StringComparison.Ordinal);
         Assert.Contains("ring set by hand stays", html, StringComparison.Ordinal);

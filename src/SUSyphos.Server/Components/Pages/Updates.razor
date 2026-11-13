@@ -65,8 +65,8 @@
 
                             <td class="wrap">@if (row.Linked) { <a href="/updates/@row.UpdateId/@row.Revision">@row.Title</a> } else { <span>@row.Title</span> }@if (row.SameTitle) { <span class="note"> · revision @row.Revision</span> }<div>@if (row.PackageId is { } packageId) { <a class="tag" href="@PackagePage.Link(packageId)">@packageId</a> } else { <KbLinks Kb="@row.Kb" /> }</div>@if (MatchingCves(row) is { Count: > 0 } fixedCves) { <div class="note">fixes @string.Join(", ", fixedCves.Take(3))@(fixedCves.Count > 3 ? $" and {fixedCves.Count - 3} more" : null)</div> }</td>
                             <td><ClassificationTag Text="@row.Classification" /></td>
-                            <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="pill neutral">none</span> }</td>
-                            <td class="nowrap"><span class="pill @RestartClass(row.Restart)">@row.Restart</span></td>
+                            <td>@if (row.Severity.Length > 0) { <span class="pill @SeverityClass(row.Severity)">@row.Severity</span> } else { <span class="note">–</span> }</td>
+                            <td class="nowrap"><span class="pill @RestartClass(row.Restart)" title="@row.Restart">@RestartShort(row.Restart)</span></td>
                             <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
                             <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }</td>
                             <td class="nowrap">@foreach (var stage in row.Stages ?? []) { <span class="ring-stage r@(RingTag.Palette(stage.Order)) @stage.Class" title="@($"{stage.Order} {stage.Name}: {stage.Label}")">@stage.Order</span> }</td>
@@ -111,6 +111,16 @@
     private sealed record Row(Guid UpdateId, int Revision, string Key, string Kb, string Title, string Classification, string Severity, DateTime FirstSeen, string Rollout, string RolloutClass, string? RolloutDetail, int Missing, DeploymentCounts Counts, string Restart, NewerUpdate? Newer = null, bool Completed = false, bool Outside = false, bool Linked = true, IReadOnlyList<(int Order, string Name, string Label, string Class)>? Stages = null, string? PackageId = null, bool SameTitle = false);
 
     /// <summary>A restart as a tag: grey when none is expected, amber when one may follow (Marc, 2026-11-13).</summary>
+    /// <summary>The restart in one word in the list (the column says "Restart"); the tooltip has the full text.</summary>
+    private static string RestartShort(string restart) => restart switch
+    {
+        "No restart" => "none",
+        "May restart" => "may",
+        "Restart required" => "required",
+        "Usually none" => "usually none",
+        _ => "unknown",
+    };
+
     private static string RestartClass(string restart) => restart is "Restart required" or "May restart" ? "queue" : "neutral";
 
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["classification"] = "Classification", ["severity"] = "Severity", ["rollout"] = "Rollout", ["restart"] = "Restart" };

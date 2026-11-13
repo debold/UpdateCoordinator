@@ -210,7 +210,7 @@ public sealed class SoftwarePageTests : IAsyncDisposable
             var html = await (await browser.GetAsync("/updates?f.classification=Software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
             Assert.Contains("class=\"tag\" href=\"/software/", html, StringComparison.Ordinal);
-            Assert.Contains("<span class=\"pill neutral\">Usually none</span>", html, StringComparison.Ordinal);
+            Assert.Contains("<span class=\"pill neutral\" title=\"Usually none\">usually none</span>", html, StringComparison.Ordinal);
             Assert.DoesNotContain(">Unclassified<", html, StringComparison.Ordinal);
         }
     }
