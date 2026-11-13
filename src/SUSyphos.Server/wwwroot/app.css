@@ -117,7 +117,8 @@ button.ghost, .btn.ghost { border-color: transparent; background: transparent; }
 button:disabled, .btn.disabled { opacity: 0.5; cursor: not-allowed; }
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .inline-form { display: inline; }
-.row-actions { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; justify-content: flex-end; }
+/* Edit and ⋯ stay side by side (Marc, 2026-11-13: stacked they made every row twice as high). */
+.row-actions { display: inline-flex; flex-wrap: nowrap; gap: 0.25rem; justify-content: flex-end; }
 .row-actions form { display: inline; }
 .row-actions button, .row-actions .btn { min-height: 1.85rem; padding: 0 0.6rem; font-size: 0.85rem; }
 

@@ -38,15 +38,15 @@
                     var final = i == _rings.Count - 1;
                     <tr>
                         <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@Servers.Link("ring", ring.Name)" Title="Show the servers of this ring" /></td>
-                        <td class="n">@_servers.GetValueOrDefault(ring.Id)</td>
+                        <td class="n"><a href="@Servers.Link("ring", ring.Name)">@_servers.GetValueOrDefault(ring.Id)</a></td>
                         <td>
                             @if (final)
                             {
-                                <span class="note">Final ring; servers without manual or rule-based assignment land here</span>
+                                <span class="pill neutral">Final ring</span> <span>servers without a ring set by hand or by a rule land here</span>
                             }
                             else if (_transitions.GetValueOrDefault(ring.Id) is { } t)
                             {
-                                <span>to @_rings[i + 1].Name @Days(t.MinimumWait)–@Days(t.MaximumWait) days after its release in @ring.Name, feedback ≥ @t.MinimumFeedbackPercent %, success ≥ @t.MinimumSuccessPercent %</span>
+                                <span class="transition" title="@($"to {_rings[i + 1].Name} {Days(t.MinimumWait)}–{Days(t.MaximumWait)} days after its release in {ring.Name}, when at least {t.MinimumFeedbackPercent} % reported and at least {t.MinimumSuccessPercent} % of them succeeded")">→ <RingTag Name="@_rings[i + 1].Name" Order="@_rings[i + 1].Order" /> <span class="tag">@Days(t.MinimumWait)–@Days(t.MaximumWait) d</span> <span class="tag">feedback ≥ @t.MinimumFeedbackPercent %</span> <span class="tag">success ≥ @t.MinimumSuccessPercent %</span></span>
                                 @if (t.ManualGate)
                                 {
                                     <span class="pill queue">manual gate</span>
@@ -80,13 +80,11 @@ else
         <Row Context="rule">
                     <tr>
                         <td class="n">@rule.Priority</td>
-                        <td>@KindText(rule.Kind)</td>
-                        <td>@(rule.Classification ?? "any")</td>
-                        <td>@(rule.MsrcSeverity ?? "any")</td>
-                        <td class="mono">@foreach (var condition in PatternConditions(rule)) { <div>@condition</div> }</td>
-                        <td>@(rule.RebootBehavior is null ? "any" : UpdateText.Restart(rule.RebootBehavior))</td>
-                        <td>@StartText(rule)</td>
-                        <td>@foreach (var ring in RingsOf(rule)) { <RingTag Name="@ring.Name" Order="@ring.Order" /> }</td>
+                        <td><span class="pill @(rule.Kind == UpdateKind.Software ? "sw" : "neutral")">@KindText(rule.Kind)</span></td>
+                        <td class="wrap">@{ var conditions = Conditions(rule); }@if (conditions.Count == 0) { <span class="note">@(rule.Kind == UpdateKind.Software ? "all packages" : "all updates")</span> } else { @for (var c = 0; c < conditions.Count; c++) { if (c > 0) { <span class="note"> · </span> } <span class="@(conditions[c].Mono ? "mono" : null)">@conditions[c].Text</span> } }</td>
+                        <td>@if (rule.RebootBehavior is null) { <span class="note">any</span> } else { <span class="pill neutral">@UpdateText.Restart(rule.RebootBehavior)</span> }</td>
+                        <td><span class="pill @(rule.Mode == StartMode.Automatic ? "ok" : "neutral")" title="@StartText(rule)">@StartShort(rule)</span>@if (rule.Mode == StartMode.Automatic && rule.Delay > TimeSpan.Zero) { <div class="note">after @((int)rule.Delay.TotalHours) h</div> }</td>
+                        <td class="nowrap">@{ var ruleRings = RingsOf(rule).ToList(); }@if (ruleRings.Count > 1 && ruleRings.Count == _rings.Count) { <span class="pill neutral">All rings</span> } else { @foreach (var ring in ruleRings) { <RingTag Name="@ring.Name" Order="@ring.Order" /> } }</td>
                         <td class="n"><span class="row-actions">
                             <a class="btn icon-button" href="@Path?dialog=rule&id=@rule.Id" title="Edit start rule @rule.Priority" aria-label="Edit start rule @rule.Priority" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
                             <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for start rule {rule.Priority}")">
@@ -448,13 +446,29 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
     [
         new("priority", "Priority", r => r.Priority, Class: "n"),
         new("kind", "Kind", r => r.Kind, r => [KindText(r.Kind)]),
-        new("classification", "Classification", r => r.Classification, r => [r.Classification ?? "any"]),
-        new("severity", "Severity", r => r.MsrcSeverity, r => [r.MsrcSeverity ?? "any"]),
-        new("pattern", "Pattern", r => r.TitlePattern ?? r.PackageIdPattern ?? r.Publisher),
+        new("conditions", "Conditions", r => string.Join(" ", Conditions(r).Select(c => c.Text)), r => [.. Conditions(r).Where(c => !c.Mono).Select(c => c.Text)]),
         new("restart", "Restart", r => r.RebootBehavior, r => [r.RebootBehavior is null ? "any" : UpdateText.Restart(r.RebootBehavior)]),
         new("start", "Start", r => StartText(r), r => [r.Mode == StartMode.Automatic ? "Automatically" : "Manually"]),
         new("rings", "Starts in", r => r.StartRingIds, r => [.. StartRingNames(r)], Sortable: false),
     ];
+
+    /// <summary>
+    /// The conditions a rule sets, without "any" (Marc, 2026-11-13): classification and severity as words, title, package
+    /// and publisher patterns in monospace.
+    /// </summary>
+    private static List<(string Text, bool Mono)> Conditions(StartRuleEntity rule)
+    {
+        var list = new List<(string Text, bool Mono)>();
+        if (rule.Classification is { } classification) { list.Add((classification, false)); }
+        if (rule.MsrcSeverity is { } severity) { list.Add((severity, false)); }
+        if (rule.TitlePattern is { } title) { list.Add((title, true)); }
+        if (rule.PackageIdPattern is { } package) { list.Add(($"package {package}", true)); }
+        if (rule.Publisher is { } publisher) { list.Add(($"publisher {publisher}", true)); }
+        return list;
+    }
+
+    private static string StartShort(StartRuleEntity rule) =>
+        rule.Mode != StartMode.Automatic ? "Manual" : rule.OutsideWindows ? "Automatic, outside windows" : "Automatic";
 
     private static string StartText(StartRuleEntity rule) =>
         (rule.Mode == StartMode.Automatic ? (rule.Delay == TimeSpan.Zero ? "Automatically" : $"Automatically after {(int)rule.Delay.TotalHours} hours") : "Manually")

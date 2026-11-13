@@ -11,7 +11,7 @@ The drop-down button **New** in the band:
 
 ## Rings and transitions {#transitions}
 
-All rings in order with their number of servers and the transition rule to the next ring: how many days after its release in this ring an update may move on (minimum–maximum wait), with which feedback and success rate, whether a manual gate is in place, and the spread of installations. The last ring is the final ring: servers without manual or rule-based assignment land there, and it has no transition.
+All rings in order with their number of servers (opens the server list of the ring) and the transition to the next ring in compact form: → the next ring, the wait in days (minimum–maximum after its release in this ring), the feedback and success rates, a **manual gate** tag where an operator approves, and the spread of installations; the tooltip says it as a sentence. The last ring carries the tag **Final ring**: servers without a ring set by hand or by a rule land there, and it has no transition.
 
 The next ring gets an update after the minimum wait when enough servers reported (feedback) and enough of them succeeded (success). At the maximum wait a good success rate is enough, even if feedback is missing. A poor success rate, or no report at all at the maximum wait, raises an alarm that an operator decides. A server counts as successful when its last result succeeded or it has the update installed by now. When no server of a ring needs the update ("no server needs it" instead of the rates), it moves on once the minimum wait has passed; a manual gate still waits for an operator. The days count for each update separately, from its release in the ring it is in (in the first ring: after the delay of its start rule), not from the start of the rollout.
 
@@ -33,7 +33,7 @@ A new ring is added before the final ring and starts with a transition of 2–7 
 
 ## Start rules {#start-rules}
 
-When an approved server reports an update for the first time, the matching start rule with the lowest priority number decides how its rollout starts. Without a matching rule the update stays queued until an operator starts it. The table shows **Priority**, the conditions (**Kind**, **Classification**, **Severity**, **Pattern** with the title pattern and, for software, package ID pattern and publisher, **Restart**; "any" means no condition), **Start** (automatically, with delay, or manually, and "outside maintenance windows" where allowed) and **Starts in** (the rings the update is released to at once).
+When an approved server reports an update for the first time, the matching start rule with the lowest priority number decides how its rollout starts. Without a matching rule the update stays queued until an operator starts it. The table shows **Priority**, **Kind** (Windows updates, or Software in violet), **Conditions** (only what the rule sets: classification, severity and, in monospace, the title pattern or for software the package ID pattern and publisher; "all updates" or "all packages" when it sets none), **Restart** (a tag, "any" when not set), **Start** (*Automatic*, *Automatic, outside windows* or *Manual*, with the delay below; the tooltip has the full text) and **Starts in** (the rings the update is released to at once; *All rings* when it is every ring).
 
 Rules are applied when a server reports an update, when a rule is saved and every minute to all waiting updates. A rule decides only once per update; changing it later does not change running rollouts.
 
