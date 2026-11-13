@@ -134,7 +134,79 @@ public sealed class SoftwarePageTests : IAsyncDisposable
         {
             using var add = await browser.PostFormAsync("/software?dialog=add", new Dictionary<string, string> { ["_handler"] = "software-add", ["PackageId"] = "Contoso.Tool" });
 
-            Assert.Contains("has not been loaded yet", await add.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            // The reason shows inside the dialog, not hidden behind it.
+            var html = await add.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            var dialog = html.IndexOf("role=\"dialog\"", StringComparison.Ordinal);
+            Assert.True(dialog >= 0);
+            Assert.Contains("<p class=\"error\" role=\"alert\">The package index of the WinGet community source has not been loaded yet.", html[dialog..], StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>A server whose community source has an index, so a package can be added.</summary>
+    private sealed class IndexedFactory(FakeSoftwareSource source) : ServerFactory
+    {
+        protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            Microsoft.AspNetCore.TestHost.WebHostBuilderExtensions.ConfigureTestServices(builder, services => services.AddSingleton<ISoftwareSource>(source));
+        }
+    }
+
+    [Fact]
+    public async Task Admin_AddingAPackage_OpensItsPage()
+    {
+        using var source = new FakeSoftwareSource(Path.Combine(Path.GetTempPath(), "SUSyphos.Tests", "add-" + Guid.NewGuid().ToString("N")));
+        source.SetIndex(new TestIndexPackage("Vendor.Tool", "Vendor Tool", "2.0"));
+        await using var factory = new IndexedFactory(source);
+        factory.StartServer();
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        using var add = await browser.PostFormAsync("/software?dialog=add", new Dictionary<string, string> { ["_handler"] = "software-add", ["PackageId"] = "Vendor.Tool" });
+
+        Assert.Equal(HttpStatusCode.Redirect, add.StatusCode);
+        var location = add.Headers.Location!.IsAbsoluteUri ? add.Headers.Location.PathAndQuery : add.Headers.Location.ToString();
+        Assert.Equal(SUSyphos.Server.Components.PackagePage.Link("Vendor.Tool"), location);
+        Assert.Contains("Vendor.Tool", await (await browser.GetAsync(location)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AddDialog_PagesTheSearchResults()
+    {
+        using var source = new FakeSoftwareSource(Path.Combine(Path.GetTempPath(), "SUSyphos.Tests", "add-" + Guid.NewGuid().ToString("N")));
+        source.SetIndex([.. Enumerable.Range(1, 25).Select(i => new TestIndexPackage($"Vendor.Tool{i:00}", $"Tool {i:00}", "1.0"))]);
+        await using var factory = new IndexedFactory(source);
+        factory.StartServer();
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        var first = await (await browser.GetAsync("/software?dialog=add&q=Vendor")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var third = await (await browser.GetAsync("/software?dialog=add&q=Vendor&add.page=3")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("Vendor.Tool01", first, StringComparison.Ordinal);
+        Assert.DoesNotContain("Vendor.Tool11", first, StringComparison.Ordinal);
+        Assert.Contains("Vendor.Tool21", third, StringComparison.Ordinal);
+        Assert.DoesNotContain("Vendor.Tool01", third, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PackagePage_ShowsHowNewVersionsStart_AndOffersARuleForThePackage()
+    {
+        var (browser, _) = await SeedAsync(AdminRoles.Admin);
+        using (browser)
+        {
+            var html = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync(SUSyphos.Server.Components.PackagePage.Link("7zip.7zip"))).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+            Assert.Contains("release-rules?dialog=rule-new&kind=software&package=7zip.7zip", html, StringComparison.Ordinal);
+            Assert.Contains("Start rule", html, StringComparison.Ordinal);
+            Assert.Contains("Assignments", html, StringComparison.Ordinal);
+            Assert.Contains("new versions wait for a manual start", html, StringComparison.Ordinal);
         }
     }
 

@@ -248,6 +248,30 @@ public sealed class RestSourceTests : IDisposable
     }
 
     [Fact]
+    public async Task CacheAsync_ReadsAThrottledManifestAgain()
+    {
+        var throttled = 0;
+        using var http = new HttpClient(new FakeHandler(Responses(new string('0', 64), []), refuse: url => url.EndsWith(".installer.yaml", StringComparison.Ordinal) && throttled++ == 0 ? HttpStatusCode.TooManyRequests : null));
+        var manifests = new CommunityManifests(http) { MaxThrottleWait = TimeSpan.Zero };
+
+        // The installer itself is refused by the hash check later; the point is that the throttled manifest was read again.
+        await Assert.ThrowsAnyAsync<Exception>(() => manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", _ => { }, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Equal(2, throttled);
+    }
+
+    [Fact]
+    public async Task CacheAsync_GivesUpOnAManifestThatStaysThrottled()
+    {
+        using var http = new HttpClient(new FakeHandler(Responses(new string('0', 64), []), refuse: url => url.EndsWith(".installer.yaml", StringComparison.Ordinal) ? HttpStatusCode.TooManyRequests : null));
+        var manifests = new CommunityManifests(http) { MaxThrottleWait = TimeSpan.Zero, Attempts = 2 };
+
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() => manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", _ => { }, cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, error.StatusCode);
+        Assert.Contains("try again in a minute", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CacheAsync_RejectsAnInstallerWithAnotherHash()
     {
         using var http = new HttpClient(new FakeHandler(Responses(new string('0', 64), Encoding.ASCII.GetBytes("tampered"))));
@@ -450,11 +474,16 @@ public sealed class RestSourceTests : IDisposable
     }
 
     /// <summary>Answers from a table; <paramref name="stall"/> picks addresses whose body never arrives.</summary>
-    private sealed class FakeHandler(Dictionary<string, object> responses, Func<string, bool>? stall = null) : HttpMessageHandler
+    private sealed class FakeHandler(Dictionary<string, object> responses, Func<string, bool>? stall = null, Func<string, HttpStatusCode?>? refuse = null) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var url = request.RequestUri!.ToString();
+            if (refuse?.Invoke(url) is { } status)
+            {
+                return Task.FromResult(new HttpResponseMessage(status) { Headers = { RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromMinutes(5)) } });
+            }
+
             if (!responses.TryGetValue(url, out var body))
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));

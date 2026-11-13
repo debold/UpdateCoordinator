@@ -2,6 +2,15 @@
 
 One package of the [software catalog](help/software): what it is, its versions and the servers it is installed on. The line under the title shows the publisher and the WinGet ID.
 
+**Create release rule…** (administrators) opens a new [start rule for software](help/release-rules#start-rule-dialog) with the ID of this package, so new versions of it start the way you want.
+
+## Rollout {#rollout}
+
+How new versions of the package reach the servers, at a glance:
+
+- **Start rule**: the start rule that decides for the newest version: "automatic" (with its delay) or "manual", with its conditions; **Edit rule →** opens it (administrators). A package whose agreements are not accepted never starts automatically, whatever the rule says. "none" when no start rule matches: new versions wait for a manual start on their update page.
+- **Assignments**: how many groups or servers the package is assigned to for new installations; **Assignments →** jumps to the list. Without assignments only servers that have the package installed get its new versions.
+
 ## About this package {#about}
 
 The texts come from the manifest of the newest version in the WinGet community source.
@@ -9,7 +18,7 @@ The texts come from the manifest of the newest version in the WinGet community s
 - **Publisher** and **License**: as the manifest names them.
 - **Links**: product page, publisher, release notes and licence, where the manifest gives an https address; they open in a new tab.
 - **Tags**: keywords of the manifest.
-- **Agreements**: whether the installation accepts licence terms of the publisher. Such a package never starts automatically until an administrator accepts its agreements once; **Accept agreements** (administrators only) does that and is recorded in the audit log. Read the terms on the publisher's page first: every server installs the package accepting them.
+- **Agreements** (a status row above the details): whether the installation accepts licence terms of the publisher. Such a package never starts automatically until an administrator accepts its agreements once; **Accept agreements** (administrators only, at the right of the row) does that and is recorded in the audit log. Read the terms on the publisher's page first: every server installs the package accepting them.
 - **In the catalog**: whether the package came from the software inventory of the servers or was added by an administrator, and when the central server last looked for new versions.
 
 ## Versions {#versions}

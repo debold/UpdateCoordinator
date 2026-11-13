@@ -105,12 +105,36 @@ public sealed partial class CommunityManifests(HttpClient http)
         return new CachedVersion(id, version, defaultLocale, ManifestConverter.Installers(installerManifest, keepX86));
     }
 
+    /// <summary>Longest wait for a manifest that GitHub throttles (429) or cannot serve right now (503).</summary>
+    public TimeSpan MaxThrottleWait { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Reads one manifest file. GitHub answers 429 when many manifests are read in a short time (lab, 2026-11-13, adding
+    /// packages): the read is tried again after the wait GitHub names (at most <see cref="MaxThrottleWait"/>), up to
+    /// <see cref="Attempts"/> times, so a single add no longer fails on it.
+    /// </summary>
     private async Task<string> GetTextAsync(string path, CancellationToken cancellationToken)
     {
-        using var response = await http.GetAsync(new Uri(Repository, path), cancellationToken);
-        return response.IsSuccessStatusCode
-            ? await response.Content.ReadAsStringAsync(cancellationToken)
-            : throw new HttpRequestException($"{new Uri(Repository, path)} answered {(int)response.StatusCode}.", null, response.StatusCode);
+        var address = new Uri(Repository, path);
+        for (var attempt = 1; ; attempt++)
+        {
+            using var response = await http.GetAsync(address, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync(cancellationToken);
+            }
+
+            var throttled = response.StatusCode is System.Net.HttpStatusCode.TooManyRequests or System.Net.HttpStatusCode.ServiceUnavailable;
+            if (!throttled || attempt >= Attempts)
+            {
+                throw new HttpRequestException(throttled
+                    ? $"GitHub limits the reads of the WinGet manifests right now ({(int)response.StatusCode}); try again in a minute."
+                    : $"{address} answered {(int)response.StatusCode}.", null, response.StatusCode);
+            }
+
+            var wait = response.Headers.RetryAfter?.Delta ?? (response.Headers.RetryAfter?.Date is { } date ? date - DateTimeOffset.UtcNow : RetryDelay * attempt);
+            await Task.Delay(wait < TimeSpan.Zero ? TimeSpan.Zero : wait > MaxThrottleWait ? MaxThrottleWait : wait, cancellationToken);
+        }
     }
 
     /// <summary>A download that receives nothing for this long is broken off and tried again.</summary>

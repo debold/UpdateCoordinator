@@ -44,6 +44,8 @@ Implemented 2026-11-09: the page **Software** lists the packages of the catalog 
 
 After the first lab test (Marc, 2026-11-10): a banner **Certificate** (shared component `SoftwareTrustBanner`) on the overview, the Software page and the package pages warns while the central server uses a self-signed certificate and the agent setting "Trust the central server's own certificate for WinGet" is off, and names in red the servers whose last software installation failed because they do not trust the certificate (also on the server page), with a link to the agent settings; the setting stays off by default. Start rules are for one kind, Windows updates or software: **New** offers both, the dialog shows only the conditions of its kind, and "Create release rule…" on a software version opens a software rule with its package ID. The page of a software version names "Software", the package and its version in its header.
 
+Adding software (Marc, 2026-11-13): the dialog pages the search results (10 per page) and shows errors inside itself; after **Add** the package page opens. The list and the dialog search name, ID, publisher and tags. The package page is where a package is managed: the box **Rollout** shows as status rows the start rule that starts its new versions (or that they wait for a manual start) and the number of assignments, and the action band offers administrators **Create release rule…** (a software rule with the package ID).
+
 ## 4. Server detail view
 
 - Health status, agent version, build number/OS level

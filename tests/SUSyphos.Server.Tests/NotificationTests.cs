@@ -57,14 +57,20 @@ public sealed class NotificationTests
         Assert.Single(channel.Messages);
         Assert.Contains(channel.Messages[0].Events, e => e.Key == $"client.pending:{client}");
 
-        Assert.Equal(0, await RunAsync(factory, channel));
-        Assert.Single(channel.Messages);
+        // Counted by key: background workers of the test server (e.g. the compliance snapshot behind the daily summary)
+        // may add events of their own between the runs (CI, 2026-11-13).
+        var key = $"client.pending:{client}";
+        int Sent() => channel.Messages.SelectMany(m => m.Events).Count(e => e.Key == key);
+
+        await RunAsync(factory, channel);
+        Assert.Equal(1, Sent());
 
         await SetStateAsync(factory, client, RegistrationState.Approved);
-        Assert.Equal(0, await RunAsync(factory, channel));
+        await RunAsync(factory, channel);
+        Assert.Equal(1, Sent());
         await SetStateAsync(factory, client, RegistrationState.Pending);
-        Assert.Equal(1, await RunAsync(factory, channel));
-        Assert.Equal(2, channel.Messages.Count);
+        await RunAsync(factory, channel);
+        Assert.Equal(2, Sent());
     }
 
     [Fact]

@@ -42,7 +42,7 @@
 </AuthorizeView>
 
 <Box Title="Packages" Help="software#packages" Flush="true" Hint="Newest version from the WinGet community source; installed versions as the servers report them">
-    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search name, ID or publisher" Noun="packages" Empty="No package yet: they appear when servers report software WinGet knows, or when an administrator adds one.">
+    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search name, ID, publisher or tag" Noun="packages" Empty="No package yet: they appear when servers report software WinGet knows, or when an administrator adds one.">
         <Row Context="row">
             <tr>
                 <td class="wrap"><div class="pkg-name"><PackageLogo Name="@row.Package.Name" LogoFile="@row.Package.LogoFile" /><div><a href="@PackagePage.Link(row.Package.PackageId)">@row.Package.Name</a><div class="note mono">@row.Package.PackageId</div></div></div></td>
@@ -81,6 +81,10 @@ else if (_dialog == "add" && _enabled)
                 {
                     <p class="notice">The package index of the WinGet community source has not been loaded yet. It is loaded with the next check; "Check for new versions now" loads it at once.</p>
                 }
+                @if (MessageIsError)
+                {
+                    <p class="error" role="alert">@Message</p>
+                }
                 <label class="field"><span>Search the WinGet community source</span><input name="q" maxlength="100" value="@Query" placeholder="Name, ID or tag, e.g. 7zip" /></label>
                 @if (_results is { } results)
                 {
@@ -93,7 +97,7 @@ else if (_dialog == "add" && _enabled)
                         <table>
                             <thead><tr><th>Package</th><th>Newest</th><th class="n">Add</th></tr></thead>
                             <tbody>
-                                @foreach (var result in results)
+                                @foreach (var result in _resultPage.Rows)
                                 {
                                     <tr>
                                         <td class="wrap">@result.Name<div class="note mono">@result.Id</div></td>
@@ -103,6 +107,7 @@ else if (_dialog == "add" && _enabled)
                                 }
                             </tbody>
                         </table>
+                        <Pager Table="@_resultTable" Page="@PageInfo.Of(_resultPage)" Noun="packages" />
                     }
                 }
                 <p class="help">Adding a package takes its newest version into the catalog; the start rules for software decide when it rolls out (by default it waits for a manual start). Assign it to groups or servers for new installations.</p>
@@ -172,9 +177,23 @@ else if (_dialog == "add" && _enabled)
         var rows = await Overview.ListAsync(CancellationToken.None);
         _known = [.. rows.Select(r => r.Package.PackageId)];
         _table = TableQuery.From(Navigation, "name");
-        _page = TablePaging.Apply(rows, _table, Columns, r => $"{r.Package.Name} {r.Package.PackageId} {r.Package.Publisher}");
-        _results = _dialog == "add" && !string.IsNullOrWhiteSpace(Query) && Source.Index is { } index ? index.Search(Query, 25) : null;
+        _page = TablePaging.Apply(rows, _table, Columns, r => $"{r.Package.Name} {r.Package.PackageId} {r.Package.Publisher} {r.Package.Tags}");
+        _results = _dialog == "add" && !string.IsNullOrWhiteSpace(Query) && Source.Index is { } index ? index.Search(Query, MaxResults) : null;
+        _resultTable = TableQuery.From(Navigation, "name", prefix: "add.", defaultPageSize: 10);
+        _resultPage = TablePaging.Apply(_results ?? [], _resultTable, ResultColumns, r => $"{r.Name} {r.Id}");
     }
+
+    /// <summary>Matches of a search in the community index; the dialog pages through them.</summary>
+    private const int MaxResults = 200;
+
+    private TableQuery _resultTable = default!;
+    private TablePage<SUSyphos.WinGet.Catalog.IndexPackage> _resultPage = default!;
+
+    private static readonly IReadOnlyList<TableColumn<SUSyphos.WinGet.Catalog.IndexPackage>> ResultColumns =
+    [
+        new("name", "Package", r => r.Name),
+        new("newest", "Newest", r => r.LatestVersion, Sortable: false),
+    ];
 
     private async Task AddAsync()
     {
@@ -187,8 +206,16 @@ else if (_dialog == "add" && _enabled)
         var outcome = _enabled || await Feature.IsEnabledAsync(CancellationToken.None)
             ? await Catalog.AddPackageAsync(PackageId, await GetActorAsync(), CancellationToken.None)
             : new Outcome("Software management is switched off.");
-        _dialog = outcome.Succeeded ? null : DialogName;
-        ShowResult(outcome.Error, $"The package {PackageId} was added to the catalog.");
+        if (outcome.Succeeded && PackageId is { } added)
+        {
+            // The package page is where it is managed next (Marc, 2026-11-13); the filtered list may not even show it.
+            Navigation.NavigateTo(PackagePage.Link(added));
+            return;
+        }
+
+        // The error shows in the dialog, where the search stays open, not hidden behind it.
+        _dialog = DialogName;
+        ShowResult(outcome.Error, string.Empty);
         await LoadAsync();
     }
 

@@ -49,7 +49,7 @@ One row per package of the catalog.
 
 ## Add a package {#add}
 
-- **Search the WinGet community source**: name, ID or tag of the package, for example `7zip` or `editor`; **Search** lists up to 25 matches with their newest version.
-- **Add**: takes the package with its newest version into the catalog; a package already in the catalog shows "in the catalog".
+- **Search the WinGet community source**: name, ID or tag of the package, for example `7zip` or `editor`; **Search** lists up to 200 matches with their newest version, 10 per page (the pages below the list).
+- **Add**: takes the package with its newest version into the catalog and opens its [package page](help/package-detail), where you create its release rule and assignments; a package already in the catalog shows "in the catalog". If the manifest cannot be read, the reason shows in the dialog; when GitHub limits the reads for a moment, the central server waits and tries again by itself.
 
 **Cancel** closes the dialog. Without a loaded package index the dialog says so; **Check for new versions now** loads it.
