@@ -4,6 +4,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.9.0-rc.3] - 2026-11-13
+
 ### Agent
 
 - Software installations no longer hang under SYSTEM (lab, Server 2019, 7-Zip): WinGet marks every installer it downloads with the zone of its address, and an address with dots is in the Internet zone, so Windows waited for a confirmation of the "Open File - Security Warning" that nobody under SYSTEM can see. The agent now puts exactly the host of the central server into the "Local intranet" zone of the SYSTEM account (Marc, 2026-11-10: by default), while software management is on; it removes its entry when the address changes, software management is switched off or the agent is uninstalled.
