@@ -810,7 +810,11 @@ a.ring-tag:hover { text-decoration: none; background: var(--surface-2); }
 .ring-stage.queue::after { content: ""; background: var(--queue); }
 .ring-stage.held { background: repeating-linear-gradient(135deg, var(--surface) 0 3px, color-mix(in srgb, var(--rc) 30%, var(--surface)) 3px 6px); color: var(--rc); opacity: 1; border-style: solid; }
 .ring-stage.held::after { content: none; }
-fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0.15rem 0; }
+/* A preview below the fields that opens on demand ("What changes: 2 of 9 servers ›"; Marc, 2026-11-13). */
+details.preview { margin-top: 0.75rem; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0.5rem 0.75rem; background: var(--surface-2); }
+details.preview > summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+details.preview[open] > summary { margin-bottom: 0.4rem; }
+details.preview ul.plain li, fieldset.preview ul.plain li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0.15rem 0; }
 /* Wide dialogs with a preview: the fields on the left, what the change affects on the right. */
 .dialog-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem); gap: 1rem; align-items: start; }
 .dialog-main { display: grid; gap: 0.85rem; min-width: 0; }

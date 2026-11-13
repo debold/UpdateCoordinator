@@ -21,10 +21,8 @@
         <Row Context="rule">
                     <tr>
                         <td class="n">@rule.Priority</td>
-                        <td><a href="@TargetLink(rule)">@TargetName(rule)</a></td>
-                        <td>@foreach (var role in AssignmentAdministration.RuleRoles(rule.Role)) { <span class="tag">@role</span> }</td>
-                        <td>@rule.Domain</td>
-                        <td class="mono">@rule.HostNamePattern</td>
+                        <td class="nowrap"><span class="pill neutral">@(rule.Target == AssignmentTarget.Ring ? "Ring" : "Group")</span> @if (rule.Target == AssignmentTarget.Ring && _rings.FirstOrDefault(r => r.Id == rule.TargetId) is { } ring) { <RingTag Name="@ring.Name" Order="@ring.Order" Href="@TargetLink(rule)" /> } else { <a href="@TargetLink(rule)">@TargetName(rule)[6..]</a> }</td>
+                        <td class="wrap">@foreach (var role in AssignmentAdministration.RuleRoles(rule.Role)) { <span class="tag">@role</span> }@if (rule.Domain is { Length: > 0 } domain) { <span class="note"> · domain </span><span>@domain</span> }@if (rule.HostNamePattern is { Length: > 0 } pattern) { <span class="note"> · host </span><span class="mono">@pattern</span> }</td>
                         <td class="n"><a href="/servers?rule=@rule.Id" title="Approved servers whose role, domain and host name match this rule">@_matches.GetValueOrDefault(rule.Id)</a></td>
                         <td class="n"><span class="row-actions">
                             <a class="btn icon-button" href="@Path?dialog=edit&id=@rule.Id" title="Edit rule @rule.Priority" aria-label="Edit rule @rule.Priority" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
@@ -44,12 +42,12 @@
     var rule = Editing;
     var selectedRoles = Roles ?? (AssignmentAdministration.RuleRoles(rule?.Role).ToArray());
     var target = Target ?? (rule is null ? PrefillTarget : $"{(rule.Target == AssignmentTarget.Ring ? "ring" : "group")}:{rule.TargetId}");
-    <Dialog Title="@(rule is null ? "New assignment rule" : "Edit assignment rule")" CloseHref="@Path" Wide="true" Help="assignment-rules#dialog">
+    <Dialog Title="@(rule is null ? "New assignment rule" : "Edit assignment rule")" CloseHref="@Path" Help="assignment-rules#dialog">
         <form method="post" @formname="rule-dialog" @onsubmit="SaveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="Mode" value="@(rule is null ? "create" : "edit")" />
             <input type="hidden" name="Id" value="@rule?.Id" />
-            <div class="dialog-body dialog-split"><div class="dialog-main">
+            <div class="dialog-body">
                 @if (MessageIsError)
                 {
                     <p class="error" role="alert">@Message</p>
@@ -85,12 +83,16 @@
                     <label class="field"><span>Domain</span><input name="Domain" maxlength="253" value="@(Domain ?? rule?.Domain)" placeholder="e.g. lab.local" /></label>
                     <label class="field"><span>Host name pattern</span><input name="HostNamePattern" maxlength="63" value="@(HostNamePattern ?? rule?.HostNamePattern)" placeholder="e.g. SQL* or WEB0?" /></label>
                 </div>
-                </div>
                 @{
                     var changes = PreviewChanges(rule, target);
+                    var overlaps = CoordinatedOverlaps(changes, target);
                 }
-                <fieldset class="preview">
-                    <legend>What changes (@changes.Count(c => c.Class != "neutral") of @_approved.Count approved servers)</legend>
+                @if (overlaps.Count > 0)
+                {
+                    <p class="warning" role="alert">@DisplayNumber.Count(overlaps.Count, "server would be", "servers would be") in more than one coordinated group (@string.Join(", ", overlaps.Take(5).Select(o => o.HostName + ": " + o.Other))). Such a server needs a lease of every group, and a failure counts in each.</p>
+                }
+                <details class="preview" open="@(Preview == "yes")">
+                    <summary>What changes: @changes.Count(c => c.Class != "neutral") of @_approved.Count approved servers ›</summary>
                     @if (changes.Count == 0)
                     {
                         <p class="help">No approved server matches these conditions. Every condition must match; a rule needs at least one.</p>
@@ -113,7 +115,7 @@
                         <p class="help">and @(changes.Count - 15) more.</p>
                     }
                     <p class="help">Saving applies the rule to every approved server at once; a ring set by hand on a server always wins.</p>
-                </fieldset>
+                </details>
             </div>
             <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" name="Preview" value="yes">Preview</button><button type="submit" class="primary">@(rule is null ? "Create rule" : "Save")</button></div>
         </form>
@@ -178,9 +180,7 @@ else if (_dialog == "delete" && Editing is { } doomed)
     [
         new("priority", "Priority", r => r.Priority, Class: "n"),
         new("assigns", "Assigns", r => TargetName(r), r => [TargetName(r)]),
-        new("roles", "Roles", r => r.Role, r => AssignmentAdministration.RuleRoles(r.Role).ToArray() is { Length: > 0 } roles ? roles : [string.Empty]),
-        new("domain", "Domain", r => r.Domain, r => [r.Domain ?? string.Empty]),
-        new("pattern", "Host name pattern", r => r.HostNamePattern),
+        new("conditions", "Conditions", r => $"{r.Role} {r.Domain} {r.HostNamePattern}", r => [.. AssignmentAdministration.RuleRoles(r.Role), .. r.Domain is { Length: > 0 } domain ? new[] { domain } : []]),
         new("servers", "Servers", r => _matches.GetValueOrDefault(r.Id), Class: "n"),
     ];
 
@@ -282,6 +282,25 @@ else if (_dialog == "delete" && Editing is { } doomed)
     private HashSet<(Guid ClientId, int GroupId)> _memberships = [];
 
     private sealed record ServerChange(ClientEntity Client, string Change, string Class, RingEntity? From = null, RingEntity? To = null);
+
+    /// <summary>
+    /// Servers a group rule for a coordinated group would put into a second coordinated group (Marc, 2026-11-13: LABVEX01
+    /// in two groups needed two leases and stopped both): host name and the other coordinated groups.
+    /// </summary>
+    private List<(string HostName, string Other)> CoordinatedOverlaps(List<ServerChange> changes, string? target)
+    {
+        if (target is null || !target.StartsWith("group:", StringComparison.Ordinal)
+            || !int.TryParse(target[6..], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var groupId)
+            || _groups.FirstOrDefault(g => g.Id == groupId) is not { Coordinated: true })
+        {
+            return [];
+        }
+
+        var coordinated = _groups.Where(g => g.Coordinated && g.Id != groupId).ToDictionary(g => g.Id, g => g.Name);
+        return [.. changes.Where(c => c.Class != "neutral" || _memberships.Contains((c.Client.Id, groupId)))
+            .Select(c => (HostName: c.Client.HostName ?? c.Client.Id.ToString(), Other: string.Join(", ", _memberships.Where(m => m.ClientId == c.Client.Id && coordinated.ContainsKey(m.GroupId)).Select(m => coordinated[m.GroupId]))))
+            .Where(o => o.Other.Length > 0)];
+    }
 
     /// <summary>
     /// What the rule as typed would change if saved: for a ring rule each server whose ring moves (or that the rule matches
