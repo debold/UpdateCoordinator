@@ -83,4 +83,7 @@ public enum RebootWait
 
     /// <summary>All leases of the coordinated group are taken.</summary>
     WaitingForLease = 7,
+
+    /// <summary>Windows refused the last restart request (exit code in <c>HeartbeatRequest.RestartRefusedCode</c>); tried again after the cooldown.</summary>
+    RestartRefused = 8,
 }

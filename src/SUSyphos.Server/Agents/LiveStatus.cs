@@ -78,9 +78,10 @@ internal static class LiveStatus
             : "Idle";
     }
 
-    /// <summary>Plain-language reason why a pending reboot waits.</summary>
-    public static string RebootWaitText(RebootWait wait) => wait switch
+    /// <summary>Plain-language reason why a pending reboot waits; <paramref name="refusedCode"/>: exit code of the shutdown tool when Windows refused the restart.</summary>
+    public static string RebootWaitText(RebootWait wait, int? refusedCode = null) => wait switch
     {
+        RebootWait.RestartRefused => "Windows refused the restart the agent requested (" + RefusalText(refusedCode) + "); the agent tries again after 6 hours",
         RebootWait.Restarting => "the agent is restarting the server",
         RebootWait.NotAllowedByPolicy => "waits: the reboot policy is \"Never\"",
         RebootWait.LocalVeto => "waits: reboots are forbidden locally on this server (AllowReboot)",
@@ -90,5 +91,16 @@ internal static class LiveStatus
         RebootWait.RecentlyRequested => "waits: a restart was requested within the last 6 hours and did not happen",
         RebootWait.WaitingForLease => "waits for a free slot in its coordinated group",
         _ => wait.ToString(),
+    };
+
+    /// <summary>The exit code of the shutdown tool in words; 1722 seen on LABVEX01 (2026-11-13).</summary>
+    internal static string RefusalText(int? code) => code switch
+    {
+        null => "no reason reported",
+        -1 => "the shutdown tool did not start or answer",
+        1190 => "exit code 1190: a shutdown is already scheduled",
+        1722 => "exit code 1722: the RPC server is unavailable, the service Windows uses for restarts did not answer",
+        5 => "exit code 5: access denied",
+        _ => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"exit code {code}"),
     };
 }

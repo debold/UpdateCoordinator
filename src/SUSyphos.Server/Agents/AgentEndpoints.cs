@@ -292,6 +292,7 @@ internal static class AgentEndpoints
 
         var activity = LiveStatus.Normalize(request.Activity, now);
         RebootWait? rebootWait = (request.RebootPending || request.RestartRequested) && request.RebootWait is { } wait && Enum.IsDefined(wait) ? wait : null;
+        int? restartRefused = rebootWait == RebootWait.RestartRefused ? request.RestartRefusedCode : null;
 
         // Plans of the agent are shown only if plausible: up to a day late (agent busy) and at most 30 days ahead.
         DateTime? Plausible(DateTimeOffset? value) => value is { } v && v.UtcDateTime > now.AddDays(-1) && v.UtcDateTime < now.AddDays(30) ? v.UtcDateTime : null;
@@ -326,6 +327,7 @@ internal static class AgentEndpoints
                         .SetProperty(c => c.OsVersion, c => request.OsVersion ?? c.OsVersion)
                         .SetProperty(c => c.RebootPending, request.RebootPending)
                         .SetProperty(c => c.RebootWait, rebootWait)
+                        .SetProperty(c => c.RestartRefusedCode, restartRefused)
                         .SetProperty(c => c.RestartRequested, request.RestartRequested)
                         .SetProperty(c => c.PlannedRestartAtUtc, plannedRestart)
                         .SetProperty(c => c.RestartAnnouncedAtUtc, restartAnnounced)

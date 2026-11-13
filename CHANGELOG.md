@@ -10,6 +10,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - A WinGet helper stopped after 30 minutes is reported with its own code (0x800705B4, explained in the dashboard) instead of 0x80004005.
 - An upgrade keeps the architecture of the installed program: a 32-bit program (uninstall key in the 32-bit registry view, or installed below "Program Files (x86)") is upgraded with the x86 installer, never replaced by the x64 one, which installers such as TeamViewer refuse (exit code 2; lab, 2026-11-13).
 - A failed software installation reports the exit code of the installer to the central server.
+- An update installed successfully is not installed again in every window while it only waits for its restart (lab, LABVEX01: Windows refused the restart, so the cumulative update was installed again and again).
+- When Windows refuses the restart the agent requests, the heartbeat reports it with the exit code of the shutdown tool until the server has started again.
 - "Request logs" also packs the logs of the WinGet helper and WinGet's own logs of SYSTEM (`WinGet/` and `WinGetCOM/` in the archive).
 
 ### Central server
@@ -21,6 +23,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Adding software (Marc, 2026-11-13): the results of the search in the add dialog are paged; an error such as "only administrators" or "the index has not been loaded yet" shows inside the dialog instead of behind it; after **Add** the package page opens; the list and the dialog search the same fields (name, ID, publisher and tags).
 - The package page is the place to manage a package: a **Rollout** box shows as status which start rule starts its new versions (or that they wait for a manual start) and how many assignments it has, and administrators find **Create release rule…** there, which opens a software rule with the package ID.
 - Reading the WinGet manifests from GitHub tries again after a 429 or 503 (waiting as GitHub asks, at most 10 seconds, up to three attempts) instead of failing the add of a package; when GitHub keeps refusing, the message says to try again in a minute.
+- An installed update that Windows still reports missing while a restart is pending shows **Restart pending** instead of "Successful" (server and update pages), and does not count as missing again.
+- A restart Windows refused shows in red on the server page, with the exit code of the shutdown tool and its meaning (e.g. 1722, RPC server unavailable).
+- A rollout alarm clears itself when the rule of the transition is met again (Marc, 2026-11-13), e.g. when the failed server has the update installed by now; the rollout then goes on to the gate or the next ring. Recorded in the audit log.
 - Plain texts for 0x800705B4 (timeout of the WinGet helper), 0x80004005 and 0x8A150006 (the installer ended with an error exit code).
 
 ## [0.9.0-rc.2] - 2026-11-10

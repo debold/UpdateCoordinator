@@ -123,6 +123,7 @@ internal sealed partial class AgentWorker(
                     RestartRequested = installation.RestartRequested,
                     PlannedRestartAt = installation.PlannedRestartAt,
                     RestartAnnouncedAt = installation.RestartAnnouncedAt,
+                    RestartRefusedCode = installation.RestartRefusedCode,
                     NextSearchAt = updates.NextRunAt,
                     NextInventoryAt = inventory.NextCollectionAt,
                 },

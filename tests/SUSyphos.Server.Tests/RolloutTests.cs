@@ -259,6 +259,11 @@ public sealed class RolloutTests
         });
         var statistics = await scenario.WithServiceAsync<RolloutService, RingStatistics>(s => s.GetStatisticsAsync(update.UpdateId, 1, RingEntity.PilotId, CancellationToken.None));
         Assert.Equal(100, statistics.SuccessPercent);
+
+        // The alarm clears itself now that the rule is met again (Marc, 2026-11-13), and the transition goes on.
+        await scenario.AdvanceAsync();
+        Assert.NotEqual(RingRolloutState.Alarm, await scenario.RingStateAsync(update.UpdateId, RingEntity.TestId));
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "Rollout.AlarmCleared", TestContext.Current.CancellationToken)));
     }
 
     [Fact]
@@ -277,6 +282,10 @@ public sealed class RolloutTests
 
         Assert.Equal(RingRolloutState.Alarm, await scenario.RingStateAsync(update.UpdateId, RingEntity.TestId));
         Assert.Empty((await scenario.ReleasesAsync(test)).Releases);
+
+        // Still failing: the alarm stays.
+        await scenario.AdvanceAsync();
+        Assert.Equal(RingRolloutState.Alarm, await scenario.RingStateAsync(update.UpdateId, RingEntity.TestId));
 
         Assert.True((await scenario.AdministerAsync(admin => admin.ApproveRingAsync(update.UpdateId, 1, RingEntity.TestId, "operator", CancellationToken.None))).Succeeded);
         Assert.Single((await scenario.ReleasesAsync(test)).Releases);

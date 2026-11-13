@@ -62,6 +62,9 @@ public sealed record HeartbeatRequest
     /// <summary>When the restart the agent announced to Windows happens (the warning period runs, signed-in users see the message); null when none is announced.</summary>
     public DateTimeOffset? RestartAnnouncedAt { get; init; }
 
+    /// <summary>Exit code of the Windows shutdown tool when Windows refused the last restart request (-1: it did not run or answer); null otherwise.</summary>
+    public int? RestartRefusedCode { get; init; }
+
     /// <summary>When the agent plans its next update search; null before the first one (then with the next cycle).</summary>
     public DateTimeOffset? NextSearchAt { get; init; }
 

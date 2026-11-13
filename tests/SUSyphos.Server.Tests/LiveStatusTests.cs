@@ -156,6 +156,28 @@ public sealed class LiveStatusTests
     }
 
     [Fact]
+    public async Task Heartbeat_RefusedRestart_IsShownWithItsCode()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+
+        await HeartbeatAsync(scenario, client, new HeartbeatRequest { AgentVersion = "0.9.0", RebootPending = true, RebootWait = RebootWait.RestartRefused, RestartRefusedCode = 1722 });
+
+        await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        var page = System.Net.WebUtility.HtmlDecode(await (await reader.GetAsync($"/servers/{client.ClientId}?tab=system")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("Windows refused the restart the agent requested (exit code 1722", page, StringComparison.Ordinal);
+
+        // The code is kept only with the refusal.
+        await HeartbeatAsync(scenario, client, new HeartbeatRequest { AgentVersion = "0.9.0", RebootPending = true, RebootWait = RebootWait.OutsideWindow, RestartRefusedCode = 1722 });
+        Assert.Null(await scenario.Factory.WithDbAsync(db => db.Clients.Where(c => c.Id == client.ClientId).Select(c => c.RestartRefusedCode).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
     public async Task Heartbeat_CarriesTheActivity_AndAnUnknownRebootWaitIsIgnored()
     {
         await using var scenario = await RolloutScenario.CreateAsync();

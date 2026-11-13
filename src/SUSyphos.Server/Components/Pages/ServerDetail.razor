@@ -226,7 +226,7 @@ else
             <Row Context="row">
                 <tr>
                     <td class="wrap"><a href="/updates/@row.Entry.UpdateId/@row.Entry.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /></td>
-                    <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@OpenStatus(row.Entry)</span></td>
+                    <td><span class="pill @DeploymentText.PillClass(row.Entry)">@OpenStatus(row.Entry)</span></td>
                     <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
                     <td>@(row.Entry.HResult is { } hresult ? UpdateHistoryText.Failure(hresult, row.Entry.InstallerExitCode) : null)</td>
                 </tr>
@@ -793,7 +793,8 @@ else
             {
                 _client.RestartAnnouncedAtUtc is { } restartAt ? new StatusRow("pend", "restarting", "Restart", $"at {Format(restartAt)}", "announced to Windows by the agent")
                 : !_client.RebootPending ? new StatusRow("ok", "not pending", "Restart", "no restart pending", policy)
-                : new StatusRow("queue", "pending", "Restart", _client.RebootWait is { } wait ? LiveStatus.RebootWaitText(wait) : "the agent reports why it waits from version 0.7", policy),
+                : _client.RebootWait == SUSyphos.Contracts.Agents.RebootWait.RestartRefused ? new StatusRow("fail", "refused", "Restart", LiveStatus.RebootWaitText(_client.RebootWait.Value, _client.RestartRefusedCode), policy)
+                : new StatusRow("queue", "pending", "Restart", _client.RebootWait is { } wait ? LiveStatus.RebootWaitText(wait, _client.RestartRefusedCode) : "the agent reports why it waits from version 0.7", policy),
 
                 _externalInstalls > 0
                     ? new StatusRow("queue", DisplayNumber.Format(_externalInstalls), "Outside SUSyphos", $"installations in the last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days", "started by Windows or an administrator, not by SUSyphos", @<a href="@ServerPage.Link(Id, "windows-history")">History →</a>)
@@ -1066,7 +1067,7 @@ else
                 var by = requested is null ? string.Empty : $"Requested by {requested.RequestedBy} at {Format(requested.RequestedAtUtc)}. ";
                 var when = _client.RebootWait == SUSyphos.Contracts.Agents.RebootWait.Restarting
                     ? "The agent is restarting the server now."
-                    : _client.PlannedRestartAtUtc is { } planned ? $"The agent plans the restart for {Format(planned)}" + (_client.RebootWait is { } wait ? $"; {LiveStatus.RebootWaitText(wait)}." : ".") : "The agent has not reported a planned time (no maintenance window?).";
+                    : _client.PlannedRestartAtUtc is { } planned ? $"The agent plans the restart for {Format(planned)}" + (_client.RebootWait is { } wait ? $"; {LiveStatus.RebootWaitText(wait, _client.RestartRefusedCode)}." : ".") : "The agent has not reported a planned time (no maintenance window?).";
                 return by + when;
             }
 
@@ -1424,7 +1425,7 @@ else
     private TableQuery _actionTable = default!;
     private TablePage<AgentActionEntity> _actionPage = default!;
 
-    private static string OpenStatus(DeploymentEntry entry) => entry.State == DeploymentState.Queued ? "Not released" : entry.State.ToString();
+    private static string OpenStatus(DeploymentEntry entry) => DeploymentText.Label(entry);
 
     private static string HResultCode(int? hresult) => hresult is { } value ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{value:X8}") : string.Empty;
 
@@ -1562,7 +1563,7 @@ else
             if (!_client.RestartRequested && _client.RestartAnnouncedAtUtc is null && (restartPlanned || (planned.Count > 0 && _client.EffectiveRebootPolicy == SUSyphos.Contracts.Agents.RebootPolicy.InsideMaintenanceWindow)))
             {
                 tasks.Add(new(window.Start.AddSeconds(1), Format(window.Start), "Restart", "fail", restartPlanned
-                    ? $"A restart is pending; allowed in the window if it stays open at least 30 more minutes{(_client.RebootWait is { } wait ? $" ({LiveStatus.RebootWaitText(wait)})" : string.Empty)}"
+                    ? $"A restart is pending; allowed in the window if it stays open at least 30 more minutes{(_client.RebootWait is { } wait ? $" ({LiveStatus.RebootWaitText(wait, _client.RestartRefusedCode)})" : string.Empty)}"
                     : "If the installation needs one; allowed in the window if it stays open at least 30 more minutes", []));
             }
         }
@@ -1579,7 +1580,7 @@ else
         }
         else if (_client.RestartRequested)
         {
-            tasks.Add(new(_client.PlannedRestartAtUtc ?? DateTime.MaxValue, _client.PlannedRestartAtUtc is { } plannedRestart ? Format(plannedRestart) : "unknown", "Restart", "fail", $"Requested by an administrator{(_client.RebootWait is { } wait ? $"; {LiveStatus.RebootWaitText(wait)}" : string.Empty)}", []));
+            tasks.Add(new(_client.PlannedRestartAtUtc ?? DateTime.MaxValue, _client.PlannedRestartAtUtc is { } plannedRestart ? Format(plannedRestart) : "unknown", "Restart", "fail", $"Requested by an administrator{(_client.RebootWait is { } wait ? $"; {LiveStatus.RebootWaitText(wait, _client.RestartRefusedCode)}" : string.Empty)}", []));
         }
 
         return [.. tasks.OrderBy(t => t.Sort)];

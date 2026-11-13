@@ -319,6 +319,7 @@ else
         Failed,
         Pending,
         Planned,
+        RestartPending,
         WaitingForRelease,
         Installed,
         NotNeeded,
@@ -332,6 +333,7 @@ else
         ServerUpdateStatus.Failed => "Failed",
         ServerUpdateStatus.Pending => "Pending: window or installing",
         ServerUpdateStatus.Planned => "Planned",
+        ServerUpdateStatus.RestartPending => "Restart pending",
         ServerUpdateStatus.WaitingForRelease => "Waiting for release",
         ServerUpdateStatus.Installed => "Installed",
         _ => "Not needed",
@@ -340,7 +342,7 @@ else
     private static string StatusClass(ServerUpdateStatus status) => status switch
     {
         ServerUpdateStatus.Failed => "fail",
-        ServerUpdateStatus.Pending or ServerUpdateStatus.Planned => "pend",
+        ServerUpdateStatus.Pending or ServerUpdateStatus.Planned or ServerUpdateStatus.RestartPending => "pend",
         ServerUpdateStatus.WaitingForRelease => "queue",
         ServerUpdateStatus.Installed => "ok",
         _ => "neutral",
@@ -709,7 +711,7 @@ else
             var entry = byClient.GetValueOrDefault(c.Id);
             var status = entry?.State switch
             {
-                DeploymentState.Successful => ServerUpdateStatus.Installed,
+                DeploymentState.Successful => entry.RestartPending ? ServerUpdateStatus.RestartPending : ServerUpdateStatus.Installed,
                 DeploymentState.Failed => ServerUpdateStatus.Failed,
                 DeploymentState.Pending => entry.EarliestInstallAtUtc > now ? ServerUpdateStatus.Planned : ServerUpdateStatus.Pending,
                 DeploymentState.Queued => ServerUpdateStatus.WaitingForRelease,

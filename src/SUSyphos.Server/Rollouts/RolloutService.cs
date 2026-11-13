@@ -206,7 +206,7 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
             for (var i = 0; i < rings.Count - 1; i++)
             {
                 if (!states.TryGetValue(rings[i].Id, out var from) || !states.TryGetValue(rings[i + 1].Id, out var to)
-                    || from.State != RingRolloutState.Released || to.State != RingRolloutState.Waiting
+                    || from.State != RingRolloutState.Released || to.State is not (RingRolloutState.Waiting or RingRolloutState.Alarm)
                     || !transitions.TryGetValue(rings[i].Id, out var rule)
                     || heldRings.Contains((rollout.UpdateId, rollout.Revision, rings[i].Id)))
                 {
@@ -218,6 +218,20 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
                 if (decision == TransitionDecision.Wait)
                 {
                     continue;
+                }
+
+                // An alarm clears itself once the rule is met again (Marc, 2026-11-13), e.g. when a server that failed has
+                // installed the update by now; the transition then goes on as it would have (gate or release).
+                if (to.State == RingRolloutState.Alarm)
+                {
+                    if (decision != TransitionDecision.Proceed)
+                    {
+                        continue;
+                    }
+
+                    reason = "Alarm cleared: the rule is met again (" + to.Reason + ")";
+                    LogAlarmCleared(rollout.UpdateId, rollout.Revision, rings[i + 1].Name);
+                    await audit.WriteAsync(RuleActor, "Rollout.AlarmCleared", string.Create(CultureInfo.InvariantCulture, $"{rollout.UpdateId} revision {rollout.Revision}"), $"ring {rings[i + 1].Name}: the rule is met again", cancellationToken).ConfigureAwait(false);
                 }
 
                 to.StateChangedAtUtc = now;
@@ -507,4 +521,7 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Update {UpdateId} revision {Revision} stopped before ring {Ring}: {Reason}")]
     private partial void LogAlarm(Guid updateId, int revision, string ring, string reason);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The alarm of update {UpdateId} revision {Revision} before ring {Ring} cleared itself: the rule is met again.")]
+    private partial void LogAlarmCleared(Guid updateId, int revision, string ring);
 }

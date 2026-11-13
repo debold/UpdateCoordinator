@@ -294,3 +294,6 @@ One way to write each kind of value, produced by shared helpers in the code.
 - **Versions and updates:** "v0.7.7", "KB5066791".
 - **Buttons:** verb first, sentence case, "…" only when a dialog follows ("Restart server…"); never "OK".
 - **Titles and labels:** sentence case, no full stop. **Notes and messages:** full sentences with a full stop that say what happened.
+
+Restart pending and refused restarts (2026-11-13, LABVEX01): an update installed by SUSyphos that the server still reports missing while a restart is pending shows **Restart pending** (pill pend) in the open updates of the server and on the update page, not Successful, and does not count as missing again; a restart Windows refused shows as a red status row **Restart** on the server page (tab System) with the exit code of the shutdown tool in words.
+

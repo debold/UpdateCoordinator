@@ -95,6 +95,30 @@ public sealed class DeploymentStateTests
     }
 
     [Fact]
+    public async Task InstalledUpdate_StillMissing_WithARestartPending_ShowsRestartPending()
+    {
+        // LABVEX01, 2026-11-13: Windows refused the restart, the update was installed again without "restart required".
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Security Updates") with { UpdateId = Guid.NewGuid() };
+        await scenario.ReportAsync(pilot, update);
+        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Succeeded);
+        await scenario.Factory.WithDbAsync(db => db.Clients.Where(c => c.Id == pilot.ClientId).ExecuteUpdateAsync(s => s.SetProperty(c => c.RebootPending, true).SetProperty(c => c.LastBootAtUtc, DateTime.UtcNow.AddDays(-3)), TestContext.Current.CancellationToken));
+        await scenario.ReportAsync(pilot, update);
+
+        var entry = await EntryAsync(scenario, pilot.ClientId, update.UpdateId);
+        Assert.Equal(DeploymentState.Successful, entry!.State);
+        Assert.True(entry.RestartPending);
+        Assert.False(entry.MissingAgain);
+        Assert.Equal("Restart pending", DeploymentText.Label(entry));
+        Assert.Contains("waits for the restart", DeploymentText.Result(entry), StringComparison.Ordinal);
+
+        // Without a pending restart the same report means it is missing again.
+        await scenario.Factory.WithDbAsync(db => db.Clients.Where(c => c.Id == pilot.ClientId).ExecuteUpdateAsync(s => s.SetProperty(c => c.RebootPending, false), TestContext.Current.CancellationToken));
+        Assert.False((await EntryAsync(scenario, pilot.ClientId, update.UpdateId))!.RestartPending);
+    }
+
+    [Fact]
     public void AlreadyInstalled_LeavesTheUpdateInstalled_OtherFailuresDoNot()
     {
         Assert.True(InstallEvidence.LeavesInstalled((int)InstallResultCode.Failed, unchecked((int)0x80070103)));
@@ -108,5 +132,11 @@ public sealed class DeploymentStateTests
         await using var scope = scenario.Factory.Services.CreateAsyncScope();
         var entries = await scope.ServiceProvider.GetRequiredService<DeploymentStatus>().GetAsync(null, clientId, [updateId], TestContext.Current.CancellationToken);
         return entries.SingleOrDefault()?.State;
+    }
+
+    private static async Task<DeploymentEntry?> EntryAsync(RolloutScenario scenario, Guid clientId, Guid updateId)
+    {
+        await using var scope = scenario.Factory.Services.CreateAsyncScope();
+        return (await scope.ServiceProvider.GetRequiredService<DeploymentStatus>().GetAsync(null, clientId, [updateId], TestContext.Current.CancellationToken)).SingleOrDefault();
     }
 }

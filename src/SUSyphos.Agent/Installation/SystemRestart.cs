@@ -11,6 +11,9 @@ internal interface ISystemRestart
     /// <summary>Cancels a restart announced with <see cref="Schedule"/>; returns false if none was pending or Windows refused.</summary>
     bool Abort();
 
+    /// <summary>Exit code of the shutdown tool when Windows refused the last <see cref="Schedule"/> (-1: the tool did not run or answer); null after an accepted one.</summary>
+    int? LastRefusal { get; }
+
     /// <summary>When the restart announced with <see cref="Schedule"/> happens; null when none is announced or it is overdue (cancelled elsewhere, e.g. shutdown /a).</summary>
     DateTimeOffset? AnnouncedFor { get; }
 }
@@ -45,20 +48,23 @@ internal sealed partial class ShutdownToolRestart(Microsoft.Extensions.Options.I
 
     public DateTimeOffset? AnnouncedFor => _announcement.At;
 
+    public int? LastRefusal { get; private set; }
+
     public bool Schedule(TimeSpan warning)
     {
-        var accepted = Run(["/r", "/t", ((int)warning.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture), "/d", "p:2:17", "/c", options.Value.RestartMessage is { Length: > 0 } custom ? custom : Message]);
-        if (accepted)
+        var exitCode = Run(["/r", "/t", ((int)warning.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture), "/d", "p:2:17", "/c", options.Value.RestartMessage is { Length: > 0 } custom ? custom : Message]);
+        LastRefusal = exitCode == 0 ? null : exitCode;
+        if (exitCode == 0)
         {
             _announcement.Announce(warning);
         }
 
-        return accepted;
+        return exitCode == 0;
     }
 
     public bool Abort()
     {
-        var aborted = Run(["/a"]);
+        var aborted = Run(["/a"]) == 0;
         if (aborted)
         {
             _announcement.Clear();
@@ -67,7 +73,8 @@ internal sealed partial class ShutdownToolRestart(Microsoft.Extensions.Options.I
         return aborted;
     }
 
-    private bool Run(string[] arguments)
+    /// <summary>Runs the shutdown tool; its exit code, -1 if it did not start or answer.</summary>
+    private int Run(string[] arguments)
     {
         var startInfo = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "shutdown.exe"))
         {
@@ -85,22 +92,21 @@ internal sealed partial class ShutdownToolRestart(Microsoft.Extensions.Options.I
             if (process is null || !process.WaitForExit(TimeSpan.FromSeconds(30)))
             {
                 LogFailed(-1);
-                return false;
+                return -1;
             }
 
             if (process.ExitCode != 0)
             {
-                // E.g. 1190 (ERROR_SHUTDOWN_IS_SCHEDULED): a restart is already pending.
+                // E.g. 1190 (ERROR_SHUTDOWN_IS_SCHEDULED): a restart is already pending; 1722 (RPC server unavailable): LABVEX01, 2026-11-13.
                 LogFailed(process.ExitCode);
-                return false;
             }
 
-            return true;
+            return process.ExitCode;
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
             LogStartFailed(ex);
-            return false;
+            return -1;
         }
     }
 

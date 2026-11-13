@@ -641,6 +641,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<DateTime?>("RestartAnnouncedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("RestartRefusedCode")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("RestartRequested")
                         .HasColumnType("INTEGER");
 

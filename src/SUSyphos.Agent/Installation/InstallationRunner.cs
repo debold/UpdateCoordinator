@@ -37,6 +37,9 @@ internal interface IInstallationRunner
     /// <summary>When the restart this agent announced to Windows happens (the warning period runs); null when none is announced.</summary>
     DateTimeOffset? RestartAnnouncedAt { get; }
 
+    /// <summary>Exit code of the shutdown tool when Windows refused the last restart request; null otherwise.</summary>
+    int? RestartRefusedCode { get; }
+
     /// <summary>Installs every released update the server misses with the next cycle (remote action); a needed restart follows at once or in the next window.</summary>
     void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All);
 
@@ -238,6 +241,9 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
     public DateTimeOffset? RestartAnnouncedAt => _restart.AnnouncedFor;
 
+    /// <summary>Exit code of the shutdown tool when Windows refused the last restart request; null otherwise.</summary>
+    public int? RestartRefusedCode => _state.RestartRefusedCode;
+
     public DateTimeOffset? PlannedRestartAt
     {
         get
@@ -281,6 +287,11 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         if (_state.RestartRequestedAt is { } requested && _environment.LastBootAt > requested)
         {
             Save(_state with { RestartRequestedAt = null });
+        }
+
+        if (_state.RestartRefusedCode is not null && _state.LastRebootRequestAt is { } asked && _environment.LastBootAt > asked)
+        {
+            Save(_state with { RestartRefusedCode = null });
         }
     }
 
@@ -339,7 +350,9 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             _timeProvider.GetLocalNow().DateTime,
             _state.LastRebootRequestAt,
             now);
-        RebootWait = ToRebootWait(decision);
+        RebootWait = decision == RebootDecision.RecentlyRequested && _state.RestartRefusedCode is not null
+            ? Contracts.Agents.RebootWait.RestartRefused
+            : ToRebootWait(decision);
         if (decision != RebootDecision.Reboot)
         {
             return decision;
@@ -360,7 +373,14 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         Save(_state with { LastRebootRequestAt = now, Lease = _state.Lease is { } hold ? hold with { AwaitingReboot = true } : null });
         if (_restart.Schedule(_options.Value.RestartWarning))
         {
+            Save(_state with { RestartRefusedCode = null });
             LogRebootScheduled(_options.Value.RestartWarning);
+        }
+        else
+        {
+            // Reported with the heartbeat, so the dashboard names it instead of only "did not happen".
+            Save(_state with { RestartRefusedCode = _restart.LastRefusal ?? -1 });
+            RebootWait = Contracts.Agents.RebootWait.RestartRefused;
         }
 
         return decision;
@@ -389,7 +409,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
     private IReadOnlyList<Release> PlanInstallNow(InstallScope scope)
     {
-        var missing = WithSoftware(_updates.LastMissingUpdates);
+        var missing = WithSoftware(WithoutAwaitingRestart(_updates.LastMissingUpdates));
         return !_options.Value.Enabled || missing is null
             ? []
             : [.. InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, new Dictionary<(Guid, int), DateTimeOffset>(), _timeProvider.GetUtcNow(), _options.Value, everything: true)
@@ -548,7 +568,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     internal IReadOnlyList<Release> PlanBatch()
     {
         var options = _options.Value;
-        var missing = WithSoftware(_updates.LastMissingUpdates);
+        var missing = WithSoftware(WithoutAwaitingRestart(_updates.LastMissingUpdates));
         if (!options.Enabled || missing is null)
         {
             return [];
@@ -559,7 +579,32 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         return InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options, inWindow);
     }
 
-    /// <summary>Installs a batch, buffers the report and returns true if every update succeeded and the server is healthy afterwards.</summary>
+    /// <summary>
+    /// The missing updates without those installed successfully since the last start of Windows while a restart is
+    /// pending: Windows searches them as missing until the restart, and installing them again in every window changes
+    /// nothing (lab, LABVEX01, 2026-11-13: Windows refused the restart, the CU was installed again and again).
+    /// </summary>
+    internal IReadOnlySet<(Guid UpdateId, int Revision)>? WithoutAwaitingRestart(IReadOnlySet<(Guid UpdateId, int Revision)>? missing)
+    {
+        if (missing is null || !_environment.RebootPending)
+        {
+            return missing;
+        }
+
+        var awaiting = _state.Attempts.Where(a => a.Succeeded == true && a.AttemptedAt > _environment.LastBootAt).Select(a => (a.UpdateId, a.Revision)).ToHashSet();
+        if (awaiting.Count == 0 || !missing.Overlaps(awaiting))
+        {
+            return missing;
+        }
+
+        var remaining = missing.Where(m => !awaiting.Contains(m)).ToHashSet();
+        LogAwaitingRestart(missing.Count - remaining.Count);
+        return remaining;
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "{Count} installed updates wait for the restart and are not installed again.")]
+    private partial void LogAwaitingRestart(int count);
+
     /// <summary>
     /// The updates the last search found missing plus the released software versions: the central server releases a
     /// software version only to servers whose inventory has an older one, and WinGet decides on the server.
@@ -590,8 +635,9 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
         var attempted = batch.Select(r => (r.UpdateId, r.Revision)).ToHashSet();
         var outbox = _state.Outbox.Append(report).TakeLast(MaxOutbox).ToList();
+        var installed = results.Where(r => r.ResultCode is InstallResultCode.Succeeded or InstallResultCode.SucceededWithErrors).Select(r => (r.UpdateId, r.Revision)).ToHashSet();
         var attempts = _state.Attempts.Where(a => !attempted.Contains((a.UpdateId, a.Revision)))
-            .Concat(batch.Select(r => new InstallAttempt(r.UpdateId, r.Revision, started)))
+            .Concat(batch.Select(r => new InstallAttempt(r.UpdateId, r.Revision, started, r.Software is null && installed.Contains((r.UpdateId, r.Revision)))))
             .ToList();
         Save(_state with { Outbox = outbox, Attempts = attempts });
 

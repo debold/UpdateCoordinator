@@ -6,7 +6,8 @@ namespace SUSyphos.Agent.Installation;
 /// <summary>
 /// Install reports not yet delivered and the last attempt per update. Persisted so that no result is lost
 /// when the central server is unreachable, no update is retried in a loop after a service restart and a restart is not
-/// requested again right after the server came back.
+/// requested again right after the server came back. <c>RestartRefusedCode</c>: Windows refused the last restart request
+/// (exit code of the shutdown tool), until the server has started again.
 /// </summary>
 internal sealed record InstallationState(
     List<InstallReport> Outbox,
@@ -16,7 +17,8 @@ internal sealed record InstallationState(
     DateTimeOffset? RestartRequestedAt = null,
     InstallNowRequest? InstallNow = null,
     List<UninstallRequest>? Uninstalls = null,
-    List<ActionOutcome>? ActionOutbox = null)
+    List<ActionOutcome>? ActionOutbox = null,
+    int? RestartRefusedCode = null)
 {
     public static InstallationState Empty => new([], []);
 }
@@ -36,7 +38,8 @@ internal sealed record ActionOutcome(Guid ActionId, AgentActionResult Result);
 /// </summary>
 internal sealed record InstallNowRequest(DateTimeOffset RequestedAt, bool RestartNow, InstallScope? Scope = null);
 
-internal sealed record InstallAttempt(Guid UpdateId, int Revision, DateTimeOffset AttemptedAt);
+/// <summary>The last attempt to install an update; <paramref name="Succeeded"/>: Windows reported it installed (null in states from before 0.9.0-rc.3).</summary>
+internal sealed record InstallAttempt(Guid UpdateId, int Revision, DateTimeOffset AttemptedAt, bool? Succeeded = null);
 
 internal interface IInstallationStateStore
 {

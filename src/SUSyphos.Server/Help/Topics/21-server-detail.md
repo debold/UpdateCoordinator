@@ -63,7 +63,7 @@ The tags in the table:
 - **Update search**: the next scheduled search, with the time of the last one.
 - **Inventory**: the next scheduled inventory.
 - **Installation**: released updates that will be installed in the next maintenance window, with their titles; "tried again" marks an update whose last installation failed.
-- **Restart**: a restart expected after the installation, or one requested by an administrator, with the reason when it waits (for example the reboot policy is "Never", a local veto, the window closes within 30 minutes).
+- **Restart**: a restart expected after the installation, or one requested by an administrator, with the reason when it waits (for example the reboot policy is "Never", a local veto, the window closes within 30 minutes). In red when Windows refused the restart the agent requested, with the exit code of the shutdown tool (for example 1722: the RPC server is unavailable); the agent tries again after 6 hours.
 
 Heartbeats are not listed.
 
@@ -157,7 +157,7 @@ The programs the agent reports with its inventory ("Programs and Features" and p
 
 ## Missing updates {#missing}
 
-Where the title carries a KB number, the KB links to Microsoft's release notes and **Catalog** to the Microsoft Update Catalog (also in both histories). Updates the last search of the agent found missing. **Status**: *Not released* (not released to the server's ring yet), *Pending* (released, waits for the maintenance window), *Failed* (last installation failed). An update installed before and reported missing again (uninstalled) is *Pending* again with the note "Missing again after the installation of …". **Earliest installation** is the time the release allows the installation from (in the past: in the next maintenance window); **Result** shows the error code of a failed installation with a plain explanation.
+Where the title carries a KB number, the KB links to Microsoft's release notes and **Catalog** to the Microsoft Update Catalog (also in both histories). Updates the last search of the agent found missing. **Status**: *Not released* (not released to the server's ring yet), *Pending* (released, waits for the maintenance window), *Failed* (last installation failed), *Restart pending* (installed, Windows reports it missing until the restart that completes it; the agent does not install it again meanwhile). An update installed before and reported missing again (uninstalled) is *Pending* again with the note "Missing again after the installation of …". **Earliest installation** is the time the release allows the installation from (in the past: in the next maintenance window); **Result** shows the error code of a failed installation with a plain explanation.
 
 ## Pre-flight checks {#checks}
 

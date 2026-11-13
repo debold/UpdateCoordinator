@@ -91,6 +91,7 @@ Every approved server, with the **Server** and its operating system below (the f
 - **Failed**: the last installation failed (the result shows the error code and an explanation).
 - **Pending: window or installing**: released and due; installs in the current or next maintenance window.
 - **Planned**: released, but the earliest installation is still ahead (a start delay or the spread of the ring).
+- **Restart pending**: installed, but Windows reports it missing until the restart that completes it; the agent does not install it again meanwhile.
 - **Waiting for release**: reported as missing, not released to the server's ring yet.
 - **Installed**: installed, by SUSyphos or outside it (reported by the inventory).
 - **Not needed**: the server does not need it.

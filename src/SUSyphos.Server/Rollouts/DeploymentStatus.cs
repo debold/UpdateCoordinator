@@ -35,7 +35,8 @@ internal sealed record DeploymentEntry(
     DateTime? LastResultAtUtc,
     int? HResult,
     bool MissingAgain = false,
-    int? InstallerExitCode = null);
+    int? InstallerExitCode = null,
+    bool RestartPending = false);
 
 /// <summary>Counts per deployment state, e.g. for a ring or an update.</summary>
 /// <param name="Queued">Reported as missing, not released yet.</param>
@@ -88,7 +89,7 @@ internal sealed class DeploymentStatus(ServerDbContext db)
             .Where(c => c.State == RegistrationState.Approved)
             .Where(c => ringId == null || c.RingId == ringId)
             .Where(c => clientId == null || c.Id == clientId)
-            .Select(c => new { c.Id, c.RingId, c.LastBootAtUtc })
+            .Select(c => new { c.Id, c.RingId, c.LastBootAtUtc, c.RebootPending })
             .ToDictionaryAsync(c => c.Id, cancellationToken)
             .ConfigureAwait(false);
         if (clients.Count == 0)
@@ -150,9 +151,17 @@ internal sealed class DeploymentStatus(ServerDbContext db)
             // Missing again after a success (uninstalled, by SUSyphos or otherwise; Marc, 2026-10-27): a search after the
             // installation reports it again, and the installation needed no restart or the server restarted since, so the
             // search is not just waiting for the restart that completes the installation. It counts as not installed.
-            var missingAgain = succeeded
+            // Installed, but Windows still searches it as missing until the restart completes it (LABVEX01, 2026-11-13: Windows
+            // refused the restart): "Restart pending", not "Successful", and not missing again either, even when a later
+            // repeated installation reported no restart needed.
+            var client = clients[key.ClientId];
+            var restartPending = succeeded
+                && missing.Contains((key.ClientId, key.UpdateId))
+                && client.RebootPending
+                && !(client.LastBootAtUtc > result!.FinishedAtUtc);
+            var missingAgain = succeeded && !restartPending
                 && reportedAt.TryGetValue(key, out var seen) && seen > result!.FinishedAtUtc
-                && (!result.RebootRequired || clients[key.ClientId].LastBootAtUtc > result.FinishedAtUtc);
+                && (!result.RebootRequired || client.LastBootAtUtc > result.FinishedAtUtc);
 
             // A release after a failure stays Failed until a new result arrives; a success without a new search is final.
             var state = result is null || missingAgain
@@ -169,7 +178,8 @@ internal sealed class DeploymentStatus(ServerDbContext db)
                 result?.FinishedAtUtc,
                 result is null || succeeded ? null : result.HResult,
                 missingAgain,
-                result is null || succeeded ? null : result.InstallerExitCode));
+                result is null || succeeded ? null : result.InstallerExitCode,
+                state == DeploymentState.Successful && restartPending));
         }
 
         return entries;
@@ -180,6 +190,19 @@ internal sealed class DeploymentStatus(ServerDbContext db)
 internal static class DeploymentText
 {
     /// <summary>CSS class of the status pill.</summary>
+    public static string PillClass(DeploymentEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.RestartPending ? "pend" : PillClass(entry.State);
+    }
+
+    /// <summary>Short status of an entry, e.g. in the open updates of a server.</summary>
+    public static string Label(DeploymentEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.RestartPending ? "Restart pending" : entry.State == DeploymentState.Queued ? "Not released" : entry.State.ToString();
+    }
+
     public static string PillClass(DeploymentState state) => state switch
     {
         DeploymentState.Successful => "ok",
@@ -193,6 +216,7 @@ internal static class DeploymentText
         ArgumentNullException.ThrowIfNull(entry);
         return entry.State switch
         {
+            DeploymentState.Successful when entry.RestartPending => $"Installed {Format(entry.LastResultAtUtc)} UTC; waits for the restart that completes it",
             DeploymentState.Successful => $"Installed {Format(entry.LastResultAtUtc)} UTC",
             DeploymentState.Failed => UpdateHistoryText.Failure(entry.HResult ?? 0, entry.InstallerExitCode),
             DeploymentState.Pending when entry.MissingAgain => $"Missing again after the installation of {Format(entry.LastResultAtUtc)} UTC (uninstalled); waiting for the maintenance window",

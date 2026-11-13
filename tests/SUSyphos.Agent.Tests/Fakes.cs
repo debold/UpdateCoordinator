@@ -264,6 +264,8 @@ internal sealed class FakeInstallationRunner : IInstallationRunner
 
     public DateTimeOffset? RestartAnnouncedAt { get; set; }
 
+    public int? RestartRefusedCode { get; set; }
+
     public DateTimeOffset? RequestRestart()
     {
         RestartRequested = true;
@@ -303,9 +305,12 @@ internal sealed class FakeRestart : SUSyphos.Agent.Installation.ISystemRestart
 
     public bool Accept { get; set; } = true;
 
+    public int? LastRefusal { get; private set; }
+
     public bool Schedule(TimeSpan warning)
     {
         Requests.Add(warning);
+        LastRefusal = Accept ? null : 1722;
         return Accept;
     }
 

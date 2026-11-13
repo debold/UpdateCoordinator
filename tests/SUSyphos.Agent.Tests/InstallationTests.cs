@@ -559,6 +559,67 @@ public sealed class InstallationRunnerTests
     }
 
     [Fact]
+    public async Task RefusedRestart_IsReportedWithItsCode_UntilTheServerStarted()
+    {
+        _releases.Current = new ReleaseList(1, [], null, RebootPolicy.InsideMaintenanceWindow);
+        _environment.RebootPending = true;
+        _restart.Accept = false;
+        var runner = Create();
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal(RebootWait.RestartRefused, runner.RebootWait);
+        Assert.Equal(1722, runner.RestartRefusedCode);
+
+        // Within the cooldown it stays "refused", not just "requested recently".
+        _time.Advance(TimeSpan.FromMinutes(30));
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal(RebootWait.RestartRefused, runner.RebootWait);
+
+        // Restarted by hand: the refusal is over.
+        _environment.LastBootAt = _time.GetUtcNow();
+        _environment.RebootPending = false;
+        _time.Advance(TimeSpan.FromMinutes(5));
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Null(runner.RestartRefusedCode);
+    }
+
+    [Fact]
+    public async Task InstalledUpdate_WaitingForTheRestart_IsNotInstalledAgain()
+    {
+        _environment.RebootPending = true;
+        _restart.Accept = false;
+        var runner = Create();
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Single(_installer.Batches);
+
+        // Windows still searches it as missing until the restart; a day later (retry delay over) it is not installed again.
+        _time.Advance(TimeSpan.FromDays(1));
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Single(_installer.Batches);
+
+        // After a restart it is still missing and no restart is pending: something went wrong, so it is installed again.
+        _environment.LastBootAt = _time.GetUtcNow();
+        _environment.RebootPending = false;
+        _time.Advance(TimeSpan.FromMinutes(5));
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal(2, _installer.Batches.Count);
+    }
+
+    [Fact]
+    public async Task FailedUpdate_IsTriedAgain_EvenWithARestartPending()
+    {
+        _environment.RebootPending = true;
+        _installer.ResultCode = InstallResultCode.Failed;
+        var runner = Create();
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        _time.Advance(TimeSpan.FromDays(1));
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, _installer.Batches.Count);
+    }
+
+    [Fact]
     public async Task WithoutPolicyOrWithLocalVeto_NeverRestarts()
     {
         _environment.RebootPending = true;
