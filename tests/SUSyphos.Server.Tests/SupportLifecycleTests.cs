@@ -65,13 +65,13 @@ public sealed class SupportLifecycleTests
     [Theory]
     [InlineData(true, false, "ESU")]
     [InlineData(null, true, "ESU")]
-    [InlineData(false, false, "Out of support")]
+    [InlineData(false, false, "Unsupported")]
     public void AfterTheEnd_EsuFoundByTheAgentCounts(bool? key, bool? azure, string label)
     {
         var info = Create().Of("10.0.19045.6456", "Professional", null, SupportLifecycle.Detected(key, azure));
 
         Assert.Equal(label, info.Label);
-        Assert.Equal(label == "Out of support" ? "fail" : "queue", SupportLifecycle.Class(info.State));
+        Assert.Equal(label == "Unsupported" ? "fail" : "esu", SupportLifecycle.Class(info.State));
     }
 
     [Fact]

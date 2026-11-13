@@ -164,7 +164,12 @@ public sealed class MsrcTests
 
         Assert.Contains("Windows Server 2022", page, StringComparison.Ordinal);
         Assert.Contains("CVE-2026-100201", page, StringComparison.Ordinal);
-        Assert.Contains("20348.5761", page, StringComparison.Ordinal);
+        // The row stays short; baseline, patch day to installation and the support text are in its details.
+        Assert.DoesNotContain("Patch day to installation</dt>", page, StringComparison.Ordinal);
+        var expanded = await GetAsync("/operating-systems?os.open=20348");
+        Assert.Contains("Patch day to installation</dt>", expanded, StringComparison.Ordinal);
+        Assert.Contains("1 server ›", expanded, StringComparison.Ordinal);
+        Assert.Contains("20348.5761", expanded, StringComparison.Ordinal);
         Assert.Contains("1 behind", security, StringComparison.Ordinal);
         Assert.Contains("CVE-2026-100201", security, StringComparison.Ordinal);
         Assert.DoesNotContain("CVE-2026-69354", security, StringComparison.Ordinal);

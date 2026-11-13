@@ -55,23 +55,34 @@ else if (_status.LastError is { } error)
 <Box Title="Windows versions" Anchor="versions" Help="operating-systems#versions" Hint="approved servers by Windows version" Flush="true">
     <div class="scroll">
         <table>
-            <thead><tr><th>Version</th><th class="n">Servers</th><th>On baseline</th><th>Baseline</th><th>Open vulnerabilities</th><th class="n">Patch day to installation</th><th>Support</th></tr></thead>
+            <thead><tr><th>Version</th><th class="n">Servers</th><th>On baseline</th><th>Open vulnerabilities</th><th>Support</th><th class="n">Details</th></tr></thead>
             <tbody>
                 @if (_versions.Count == 0)
                 {
-                    <tr><td colspan="7" class="note">No approved server with a known Windows version yet.</td></tr>
+                    <tr><td colspan="6" class="note">No approved server with a known Windows version yet.</td></tr>
                 }
                 @foreach (var version in _versions)
                 {
-                    <tr>
+                    var key = version.Build.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    <tr class="@(_versionTable.Open == key ? "expanded" : null)">
                         <td class="nowrap">@version.Name<div class="note mono">@version.Build</div></td>
                         <td class="n"><a href="@Servers.Link("os", version.Name)">@DisplayNumber.Format(version.Servers)</a></td>
                         <td class="nowrap">@if (version.Baseline is null) { <span class="note">no data</span> } else { <svg class="share-bar" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="@($"{version.Current} of {version.Servers} servers on the baseline")"><rect class="track" width="100" height="8" rx="4"></rect><rect class="@(version.Current == version.Servers ? "ok" : "queue")" width="@(version.Percent ?? 0)" height="8" rx="4"></rect></svg> <span>@DisplayNumber.Percent(version.Percent)</span> }</td>
-                        <td class="nowrap">@if (version.Baseline is { } baseline) { <span class="mono">@baseline.Build.@baseline.Revision</span> <div class="note"><KbLinks Kb="@baseline.Kb" /> · @baseline.Month</div> } else { <span class="note">–</span> }</td>
-                        <td>@if (version.Open.Count == 0) { <span class="note">@(version.Baseline is null ? "–" : "none")</span> } else { <span class="cell-pills"><span>@DisplayNumber.Format(version.Open.Count)</span>@if (version.Critical > 0) { <span class="pill fail">@version.Critical critical</span> }@if (version.Exploited > 0) { <span class="pill fail">@version.Exploited exploited</span> }</span> }</td>
-                        <td class="n">@(version.MedianDays is { } days ? $"{days:0.#} days" : "–")</td>
-                        <td><StatusTag Text="@version.Support.Label" Kind="@SupportLifecycle.Class(version.Support.State)" /><div class="note">@SupportLifecycle.Describe(version.Support)</div></td>
+                        <td>@if (version.Baseline is null) { <span class="note">–</span> } else if (version.Open.Count == 0) { <span class="pill ok">none</span> } else { <span class="cell-pills"><span class="pill @(version.Critical > 0 || version.Exploited > 0 ? "fail" : "queue")">@DisplayNumber.Format(version.Open.Count) open</span>@if (version.Critical > 0) { <span class="pill fail">@version.Critical critical</span> }@if (version.Exploited > 0) { <span class="pill fail">@version.Exploited exploited</span> }</span> }</td>
+                        <td class="nowrap"><StatusTag Text="@version.Support.Label" Kind="@SupportLifecycle.Class(version.Support.State)" Title="@SupportLifecycle.Describe(version.Support)" />@if (SupportLifecycle.ShortDate(version.Support) is { } until) { <div class="note">@until</div> }</td>
+                        <td class="n"><ExpandToggle Table="_versionTable" Key="@key" Label="@version.Name" /></td>
                     </tr>
+                    @if (_versionTable.Open == key)
+                    {
+                        <tr class="details-row"><td colspan="6">
+                            <FactGrid Embedded="true">
+                                <Fact Label="Baseline">@if (version.Baseline is { } baseline) { <span class="mono">@baseline.Build.@baseline.Revision</span> <KbLinks Kb="@baseline.Kb" /> <span class="note">@baseline.Month</span> } else { <span class="note">no security data</span> }</Fact>
+                                <Fact Label="Patch day to installation">@(version.MedianDays is { } days ? $"{days:0.#} days (median)" : "–")</Fact>
+                                <Fact Label="Support" Wide="true">@SupportLifecycle.Describe(version.Support)</Fact>
+                                <Fact Label="Not on the baseline">@if (version.Servers - version.Current is > 0 and var behind && version.Baseline is not null) { <a href="@Servers.Link("os", version.Name)">@DisplayNumber.Count(behind, "server", "servers") ›</a> } else { <span class="note">none</span> }</Fact>
+                            </FactGrid>
+                        </td></tr>
+                    }
                 }
             </tbody>
         </table>
@@ -102,6 +113,7 @@ else if (_status.LastError is { } error)
     private int _known;
     private int _exploitedServers;
     private bool _snapshotHasData;
+    private TableQuery _versionTable = default!;
     private TableQuery _table = default!;
     private TablePage<OpenVulnerability> _page = default!;
     private SUSyphos.Server.Rollouts.ChartData _durationChart = new(SUSyphos.Server.Rollouts.StatisticKind.SecurityDuration, SUSyphos.Server.Rollouts.ChartForm.Ranking, [], [], string.Empty, null, string.Empty);
@@ -150,6 +162,7 @@ else if (_status.LastError is { } error)
         _current = states.Count(s => s.State == BaselineState.Current);
         _exploitedServers = states.Count(s => s.Exploited > 0);
         _table = TableQuery.From(Navigation, "exploit", defaultDescending: true, prefix: "cve.", defaultPageSize: 10, views: VulnerabilityColumns.Views);
+        _versionTable = TableQuery.From(Navigation, "name", prefix: "os.");
         _page = TablePaging.Apply(_open, _table, Columns, o => VulnerabilityColumns.SearchText(o.Vulnerability));
         _durationChart = SUSyphos.Server.Rollouts.DashboardStatistics.DurationChart(_versions);
     }

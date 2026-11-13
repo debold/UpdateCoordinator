@@ -24,10 +24,9 @@ One row per Windows version of the approved servers:
 
 - **Servers**: approved servers of the version; the number opens the server list filtered to it.
 - **On baseline**: share of the servers on the security baseline.
-- **Baseline**: the build of the newest baseline with the KB that brings it (release notes and **Catalog**) and the month.
-- **Open vulnerabilities**: CVEs open on at least one server of the version, with the critical and exploited ones.
-- **Patch day to installation**: median days from the release of a baseline to its installation on the servers of the version (installations by SUSyphos and in the Windows Update history).
-- **Support**: the support phase of the version and its end, see [Servers](help/servers#columns).
+- **Open vulnerabilities**: "none" in green, or the number of CVEs open on at least one server of the version, with the critical and exploited ones in red.
+- **Support**: the support phase as a tag (Mainstream and Extended green, Ending and Ended amber, ESU blue-violet, Unsupported red) with one date below: the end of the current phase, or since when it ended; the tooltip has the full text, see [Servers](help/servers#columns).
+- ▾ (**Details**) opens the details of the version: **Baseline** (the build of the newest baseline with the KB that brings it, release notes and **Catalog**, and the month), **Patch day to installation** (median days from the release of a baseline to its installation on the servers of the version, installations by SUSyphos and in the Windows Update history), the **Support** text with the days left, and the servers **Not on the baseline** (opens the filtered server list).
 
 ## Open vulnerabilities {#vulnerabilities}
 

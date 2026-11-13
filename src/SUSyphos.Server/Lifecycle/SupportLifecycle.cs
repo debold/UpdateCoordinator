@@ -150,15 +150,18 @@ internal sealed class SupportLifecycle(IOptions<LifecycleOptions> options, TimeP
         : !string.IsNullOrWhiteSpace(productName) ? productName.Contains("Server", StringComparison.OrdinalIgnoreCase)
         : Entries.Any(e => e.Server && e.Build == build);
 
-    /// <summary>The tag of a phase in Microsoft's lifecycle words; the ESU source goes to the tooltip (<see cref="Describe"/>).</summary>
+    /// <summary>
+    /// The tag of a phase (Marc, 2026-11-13): short words, Mainstream and Extended green, Ending and Ended amber, ESU in its
+    /// own blue-violet (covered, but paid and limited), Unsupported red; the ESU source goes to the tooltip (<see cref="Describe"/>).
+    /// </summary>
     public static string Label(SupportState state) => state switch
     {
         SupportState.Mainstream => "Mainstream",
         SupportState.Extended => "Extended",
-        SupportState.EndingSoon => "End of support soon",
+        SupportState.EndingSoon => "Ending",
         SupportState.Esu => "ESU",
-        SupportState.Ended => "End of support",
-        SupportState.OutOfSupport => "Out of support",
+        SupportState.Ended => "Ended",
+        SupportState.OutOfSupport => "Unsupported",
         _ => "Unknown",
     };
 
@@ -174,7 +177,8 @@ internal sealed class SupportLifecycle(IOptions<LifecycleOptions> options, TimeP
     public static string Class(SupportState state) => state switch
     {
         SupportState.Mainstream or SupportState.Extended => "ok",
-        SupportState.EndingSoon or SupportState.Esu or SupportState.Ended => "queue",
+        SupportState.Esu => "esu",
+        SupportState.EndingSoon or SupportState.Ended => "queue",
         SupportState.OutOfSupport => "fail",
         _ => "neutral",
     };
@@ -187,6 +191,21 @@ internal sealed class SupportLifecycle(IOptions<LifecycleOptions> options, TimeP
     /// (in 77 days)" or "Support ended 2025-10-14 (378 days ago); ESU through a licensed key"; "–" when unknown. Versions
     /// without a mainstream date (Windows 10/11 releases) have one "Support" end.
     /// </summary>
+    /// <summary>One date for a list: "until 2029-11-13" (end of the current phase), "since 2025-10-14" after the end; null if unknown.</summary>
+    public static string? ShortDate(SupportInfo info)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+        if (info.End is not { } end)
+        {
+            return null;
+        }
+
+        var phaseEnd = info.State == SupportState.Mainstream && info.MainstreamEnd is { } mainstream && mainstream < end ? mainstream : end;
+        return info.DaysLeft is < 0
+            ? "since " + end.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            : "until " + phaseEnd.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
+
     public static string Describe(SupportInfo info)
     {
         ArgumentNullException.ThrowIfNull(info);

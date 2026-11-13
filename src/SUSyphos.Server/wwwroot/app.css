@@ -253,6 +253,8 @@ main { container: page / inline-size; }
 .pill.queue { color: var(--queue); }
 .pill.fail { color: var(--fail); }
 .pill.neutral { color: var(--muted); }
+.pill.esu { color: #4F46C8; }
+.pill.sw { color: #6B4FBB; }
 /* Optical middle from the font's own metrics, so it holds for every font (Segoe UI on Windows Server 2016 to 2022 sits
    differently in its line box than Segoe UI Variable on Windows 11): the text box is trimmed to cap height and baseline. */
 .pill, .cat-tag, .tab-badge, .pill-info .pill-text { text-box: trim-both cap alphabetic; }
