@@ -63,6 +63,36 @@ public sealed class SoftwareCacheTests : IAsyncDisposable
     private Task<PackageVersionEntity> VersionAsync(string version = "26.06") =>
         _factory.WithDbAsync(db => db.PackageVersions.AsNoTracking().SingleAsync(v => v.Version == version, TestContext.Current.CancellationToken));
 
+    private async Task AddServerWithAsync(SUSyphos.Contracts.Agents.SoftwareView view)
+    {
+        using var http = _factory.CreateClient();
+        var credentials = await RegisterTests.RegisterAsync(http);
+        await _factory.WithDbAsync(async db =>
+        {
+            var client = await db.Clients.SingleAsync(c => c.Id == credentials.ClientId, TestContext.Current.CancellationToken);
+            client.State = SUSyphos.Contracts.Agents.RegistrationState.Approved;
+            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client.Id, View = view, KeyName = "7-Zip", DisplayName = "7-Zip", PackageId = "7zip.7zip", InstalledVersion = "26.05", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+    }
+
+    [Fact]
+    public async Task X86Installers_AreCachedOnce_WhenAServerHasThe32BitProgram()
+    {
+        await AddPackageAsync();
+        await AddServerWithAsync(SUSyphos.Contracts.Agents.SoftwareView.Machine64);
+        await StartRolloutAsync("26.06");
+
+        Assert.Equal(1, await CacheAsync());
+        Assert.Equal([false], _source.KeepX86);
+
+        // A server with the 32-bit program appears: the offered version is cached again with its x86 installers, once.
+        await AddServerWithAsync(SUSyphos.Contracts.Agents.SoftwareView.Machine32);
+        Assert.Equal(1, await CacheAsync());
+        Assert.Equal(0, await CacheAsync());
+        Assert.Equal([false, true], _source.KeepX86);
+    }
+
     [Fact]
     public async Task VersionWithoutRollout_IsNotDownloaded()
     {

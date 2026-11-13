@@ -69,6 +69,31 @@ public sealed class RestSourceTests : IDisposable
     }
 
     [Fact]
+    public void Installers_KeepX86_KeepsBothServerArchitectures_ButNoArm()
+    {
+        var installers = ManifestConverter.Installers(ManifestConverter.Parse(InstallerYaml), keepX86: true);
+
+        Assert.Equal(["x64", "x86"], installers.Select(i => i["Architecture"]!.GetValue<string>()));
+        Assert.True(ManifestConverter.HasX86(installers));
+        Assert.False(ManifestConverter.HasX86(ManifestConverter.Installers(ManifestConverter.Parse(InstallerYaml))));
+    }
+
+    [Theory]
+    [InlineData(@"C:\Program Files (x86)\TeamViewer", "X86")]
+    [InlineData(@"c:\program files\7-Zip\", "X64")]
+    [InlineData(@"C:\Tools\Portable", null)]
+    [InlineData(null, null)]
+    public void InstalledArchitecture_FollowsTheProgramFolder(string? location, string? expected) =>
+        Assert.Equal(expected, WinGetClient.Architecture(location, @"C:\Program Files (x86)", @"C:\Program Files")?.ToString());
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(@"..\..\Run")]
+    [InlineData("SUSyphos-no-such-key-{00000000-0000-0000-0000-000000000000}")]
+    public void UnknownOrInvalidUninstallKeys_AreNot32Bit(string keyName) =>
+        Assert.False(UninstallInventory.IsIn32BitViewOnly(keyName));
+
+    [Fact]
     public void Installers_FallsBackToX86WithoutX64()
     {
         var withoutX64 = ManifestConverter.Parse(InstallerYaml);
@@ -168,7 +193,7 @@ public sealed class RestSourceTests : IDisposable
         var cache = PackageCache.Open(_folder, [], verifyFiles: false);
         var log = new List<string>();
 
-        var cached = await new CommunityManifests(http).CacheAsync(cache, "Vendor.Tool", "1.2", log.Add, TestContext.Current.CancellationToken);
+        var cached = await new CommunityManifests(http).CacheAsync(cache, "Vendor.Tool", "1.2", log.Add, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("Tool", cached.DefaultLocale["PackageName"]!.GetValue<string>());
         var file = Assert.Single(cached.Installers)["CachedFile"]!.GetValue<string>();
@@ -177,7 +202,7 @@ public sealed class RestSourceTests : IDisposable
         Assert.Single(PackageCache.Open(_folder, [], verifyFiles: true).Versions);
 
         // A second run finds the file and does not download it again.
-        await new CommunityManifests(http).CacheAsync(cache, "Vendor.Tool", "1.2", log.Add, TestContext.Current.CancellationToken);
+        await new CommunityManifests(http).CacheAsync(cache, "Vendor.Tool", "1.2", log.Add, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Contains(log, line => line.Contains("already cached", StringComparison.Ordinal));
         Assert.Single(PackageCache.Open(_folder, [], verifyFiles: true).Versions);
     }
@@ -192,7 +217,7 @@ public sealed class RestSourceTests : IDisposable
         var log = new List<string>();
         var manifests = new CommunityManifests(http) { StallTimeout = TimeSpan.FromMilliseconds(200), RetryDelay = TimeSpan.Zero };
 
-        await manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", log.Add, TestContext.Current.CancellationToken);
+        await manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", log.Add, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Contains(log, line => line.Contains("sent nothing", StringComparison.Ordinal));
         Assert.Contains(log, line => line.Contains("attempt 2 of 3", StringComparison.Ordinal));
@@ -205,7 +230,7 @@ public sealed class RestSourceTests : IDisposable
         using var http = new HttpClient(new FakeHandler(responses, url => url.EndsWith(".msi", StringComparison.Ordinal)));
         var manifests = new CommunityManifests(http) { StallTimeout = TimeSpan.FromMilliseconds(100), RetryDelay = TimeSpan.Zero, Attempts = 2 };
 
-        await Assert.ThrowsAsync<TimeoutException>(() => manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", _ => { }, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<TimeoutException>(() => manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", _ => { }, cancellationToken: TestContext.Current.CancellationToken));
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(_folder, PackageCache.FilesFolderName)));
     }
 
@@ -218,7 +243,7 @@ public sealed class RestSourceTests : IDisposable
         var log = new List<string>();
         var manifests = new CommunityManifests(http) { RetryDelay = TimeSpan.Zero };
 
-        await Assert.ThrowsAsync<HttpRequestException>(() => manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", log.Add, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<HttpRequestException>(() => manifests.CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", log.Add, cancellationToken: TestContext.Current.CancellationToken));
         Assert.DoesNotContain(log, line => line.Contains("attempt 2", StringComparison.Ordinal));
     }
 
@@ -228,7 +253,7 @@ public sealed class RestSourceTests : IDisposable
         using var http = new HttpClient(new FakeHandler(Responses(new string('0', 64), Encoding.ASCII.GetBytes("tampered"))));
         var cache = PackageCache.Open(_folder, [], verifyFiles: false);
 
-        var error = await Assert.ThrowsAsync<InvalidDataException>(() => new CommunityManifests(http).CacheAsync(cache, "Vendor.Tool", "1.2", _ => { }, TestContext.Current.CancellationToken));
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => new CommunityManifests(http).CacheAsync(cache, "Vendor.Tool", "1.2", _ => { }, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Contains("SHA-256", error.Message, StringComparison.Ordinal);
         Assert.Empty(Directory.EnumerateFiles(cache.FilesFolder));
@@ -243,7 +268,7 @@ public sealed class RestSourceTests : IDisposable
             "PackageIdentifier: Vendor.Tool\nInstallers:\n- Architecture: x64\n  InstallerUrl: http://example.org/tool.msi\n  InstallerSha256: " + new string('0', 64) + "\n";
         using var http = new HttpClient(new FakeHandler(responses));
 
-        await Assert.ThrowsAsync<InvalidDataException>(() => new CommunityManifests(http).CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", _ => { }, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new CommunityManifests(http).CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", _ => { }, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -251,7 +276,7 @@ public sealed class RestSourceTests : IDisposable
     {
         using var http = new HttpClient(new FakeHandler([]));
 
-        var error = await Assert.ThrowsAsync<HttpRequestException>(() => new CommunityManifests(http).CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", _ => { }, TestContext.Current.CancellationToken));
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() => new CommunityManifests(http).CacheAsync(PackageCache.Open(_folder, [], false), "Vendor.Tool", "1.2", _ => { }, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal(HttpStatusCode.NotFound, error.StatusCode);
     }

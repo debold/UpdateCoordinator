@@ -8,11 +8,15 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 - Software installations no longer hang under SYSTEM (lab, Server 2019, 7-Zip): WinGet marks every installer it downloads with the zone of its address, and an address with dots is in the Internet zone, so Windows waited for a confirmation of the "Open File - Security Warning" that nobody under SYSTEM can see. The agent now puts exactly the host of the central server into the "Local intranet" zone of the SYSTEM account (Marc, 2026-11-10: by default), while software management is on; it removes its entry when the address changes, software management is switched off or the agent is uninstalled.
 - A WinGet helper stopped after 30 minutes is reported with its own code (0x800705B4, explained in the dashboard) instead of 0x80004005.
+- An upgrade keeps the architecture of the installed program: a 32-bit program (uninstall key in the 32-bit registry view, or installed below "Program Files (x86)") is upgraded with the x86 installer, never replaced by the x64 one, which installers such as TeamViewer refuse (exit code 2; lab, 2026-11-13).
+- A failed software installation reports the exit code of the installer to the central server.
 - "Request logs" also packs the logs of the WinGet helper and WinGet's own logs of SYSTEM (`WinGet/` and `WinGetCOM/` in the archive).
 
 ### Central server
 
-- Plain texts for 0x800705B4 (timeout of the WinGet helper), 0x80004005 and 0x8A150006 (WinGet could not start the installer).
+- The installer cache also keeps the x86 installers of a version while an approved server has the package installed as a 32-bit program (until now only x64 installers were cached where there were any); an offered version is cached again once such a server appears.
+- The dashboard shows the exit code of the installer next to the result of a failed software installation.
+- Plain texts for 0x800705B4 (timeout of the WinGet helper), 0x80004005 and 0x8A150006 (the installer ended with an error exit code).
 
 ## [0.9.0-rc.2] - 2026-11-10
 

@@ -34,7 +34,8 @@ internal sealed record DeploymentEntry(
     DateTime? EarliestInstallAtUtc,
     DateTime? LastResultAtUtc,
     int? HResult,
-    bool MissingAgain = false);
+    bool MissingAgain = false,
+    int? InstallerExitCode = null);
 
 /// <summary>Counts per deployment state, e.g. for a ring or an update.</summary>
 /// <param name="Queued">Reported as missing, not released yet.</param>
@@ -112,7 +113,7 @@ internal sealed class DeploymentStatus(ServerDbContext db)
             .ConfigureAwait(false);
         var installations = await db.Installations.AsNoTracking()
             .Where(i => ids.Contains(i.ClientId) && (updateIds == null || updateIds.Contains(i.UpdateId)))
-            .Select(i => new { i.Id, i.ClientId, i.UpdateId, i.Revision, i.ResultCode, i.HResult, i.RebootRequired, i.FinishedAtUtc })
+            .Select(i => new { i.Id, i.ClientId, i.UpdateId, i.Revision, i.ResultCode, i.HResult, i.RebootRequired, i.FinishedAtUtc, i.InstallerExitCode })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -167,7 +168,8 @@ internal sealed class DeploymentStatus(ServerDbContext db)
                 hasRelease ? earliest : null,
                 result?.FinishedAtUtc,
                 result is null || succeeded ? null : result.HResult,
-                missingAgain));
+                missingAgain,
+                result is null || succeeded ? null : result.InstallerExitCode));
         }
 
         return entries;
@@ -192,7 +194,7 @@ internal static class DeploymentText
         return entry.State switch
         {
             DeploymentState.Successful => $"Installed {Format(entry.LastResultAtUtc)} UTC",
-            DeploymentState.Failed => string.Create(CultureInfo.InvariantCulture, $"0x{entry.HResult ?? 0:X8}: {HResultCatalog.Describe(entry.HResult ?? 0)}"),
+            DeploymentState.Failed => UpdateHistoryText.Failure(entry.HResult ?? 0, entry.InstallerExitCode),
             DeploymentState.Pending when entry.MissingAgain => $"Missing again after the installation of {Format(entry.LastResultAtUtc)} UTC (uninstalled); waiting for the maintenance window",
             DeploymentState.Pending => "Waiting for the maintenance window",
             _ => "Not released for the server's ring",

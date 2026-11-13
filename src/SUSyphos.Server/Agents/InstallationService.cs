@@ -70,6 +70,7 @@ internal sealed partial class InstallationService(ServerDbContext db, ClientActi
             Revision = result.Revision,
             ResultCode = (int)result.ResultCode,
             HResult = result.HResult,
+            InstallerExitCode = result.InstallerExitCode,
             RebootRequired = result.RebootRequired,
             StartedAtUtc = started,
             FinishedAtUtc = finished,

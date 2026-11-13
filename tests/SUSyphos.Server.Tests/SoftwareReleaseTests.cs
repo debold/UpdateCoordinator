@@ -107,6 +107,38 @@ public sealed class SoftwareReleaseTests
     }
 
     [Fact]
+    public async Task InstallerExitCode_IsStored_AndShownWithTheResult()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var server = await AddServerWithZipAsync(scenario, "OLD01", "26.05");
+        await StartRolloutAsync(scenario);
+        var report = new InstallReport
+        {
+            RunId = Guid.NewGuid(),
+            StartedAt = DateTimeOffset.UtcNow.AddMinutes(-1),
+            FinishedAt = DateTimeOffset.UtcNow,
+            Results = [new InstallResult { UpdateId = NewZip, Revision = 1, ResultCode = InstallResultCode.Failed, HResult = unchecked((int)0x8A150006), InstallerExitCode = 2 }],
+        };
+        using (var request = new HttpRequestMessage(HttpMethod.Post, new Uri(SUSyphos.Contracts.ApiRoutes.AgentInstallReport, UriKind.Relative)) { Content = System.Net.Http.Json.JsonContent.Create(report) })
+        {
+            request.Headers.Authorization = AgentCredentials.ToHeader(server.ClientId, server.ClientSecret);
+            using var response = await scenario.Http.SendAsync(request, TestContext.Current.CancellationToken);
+            Assert.Equal(System.Net.HttpStatusCode.NoContent, response.StatusCode);
+        }
+
+        Assert.Equal(2, await scenario.Factory.WithDbAsync(db => db.Installations.Select(i => i.InstallerExitCode).SingleAsync(TestContext.Current.CancellationToken)));
+        await scenario.Factory.CreateUserAsync("reader", "Reader-Passw0rd!", AdminRoles.Reader);
+        var browser = new DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("reader", "Reader-Passw0rd!"))
+        {
+        }
+
+        var history = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/servers/{server.ClientId}?tab=history&hist.view=all")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("Installer exit code 2.", history, StringComparison.Ordinal);
+        Assert.Contains("ended with an error exit code", history, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SwitchedOff_NoSoftwareIsReleased()
     {
         await using var scenario = await RolloutScenario.CreateAsync();

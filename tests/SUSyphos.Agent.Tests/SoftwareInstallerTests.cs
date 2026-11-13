@@ -100,6 +100,7 @@ public sealed class SoftwareInstallerTests
         var result = Assert.Single(await Installer(runner).InstallAsync([Software("7zip.7zip", "26.06")], TestContext.Current.CancellationToken));
 
         Assert.Equal(InstallResultCode.Failed, result.ResultCode);
+        Assert.Equal(1603, result.InstallerExitCode);
     }
 
     [Fact]

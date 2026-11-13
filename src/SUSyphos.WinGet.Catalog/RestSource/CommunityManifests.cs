@@ -39,11 +39,12 @@ public sealed partial class CommunityManifests(HttpClient http)
     /// <param name="version">Package version.</param>
     /// <param name="log">Receives one line per step.</param>
     /// <param name="cancellationToken">Stops downloads.</param>
-    public async Task<CachedVersion> CacheAsync(PackageCache cache, string id, string version, Action<string> log, CancellationToken cancellationToken = default)
+    /// <param name="keepX86">Also cache the x86 installers where x64 ones exist (servers with the 32-bit program).</param>
+    public async Task<CachedVersion> CacheAsync(PackageCache cache, string id, string version, Action<string> log, bool keepX86 = false, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(cache);
         ArgumentNullException.ThrowIfNull(log);
-        var manifest = await ReadAsync(id, version, cancellationToken);
+        var manifest = await ReadAsync(id, version, keepX86, cancellationToken);
 
         Directory.CreateDirectory(cache.FilesFolder);
         var installers = new List<JsonObject>();
@@ -87,7 +88,7 @@ public sealed partial class CommunityManifests(HttpClient http)
     /// </summary>
     /// <exception cref="HttpRequestException">The repository does not have the version.</exception>
     /// <exception cref="InvalidDataException">The manifests are not usable.</exception>
-    public async Task<CachedVersion> ReadAsync(string id, string version, CancellationToken cancellationToken = default)
+    public async Task<CachedVersion> ReadAsync(string id, string version, bool keepX86 = false, CancellationToken cancellationToken = default)
     {
         var folder = Folder(id, version);
         var versionManifest = ManifestConverter.Parse(await GetTextAsync(folder + $"{id}.yaml", cancellationToken));
@@ -101,7 +102,7 @@ public sealed partial class CommunityManifests(HttpClient http)
         var localeManifest = ManifestConverter.Parse(await GetTextAsync(folder + $"{id}.locale.{locale}.yaml", cancellationToken));
         var defaultLocale = ManifestConverter.Locale(localeManifest);
         defaultLocale["PackageLocale"] ??= locale;
-        return new CachedVersion(id, version, defaultLocale, ManifestConverter.Installers(installerManifest));
+        return new CachedVersion(id, version, defaultLocale, ManifestConverter.Installers(installerManifest, keepX86));
     }
 
     private async Task<string> GetTextAsync(string path, CancellationToken cancellationToken)

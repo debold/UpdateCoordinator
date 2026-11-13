@@ -46,9 +46,10 @@ public static class ManifestConverter
     /// The installers of an installer manifest as the REST protocol lists them: fields given once at the top of the
     /// manifest are copied into every installer that does not set them itself (switches field by field). Servers run x64:
     /// when there is an x64 installer, only x64 and neutral ones are kept, otherwise x86 and neutral ones; others (ARM)
-    /// are always left out.
+    /// are always left out. With <paramref name="keepX86"/> the x86 installers stay next to the x64 ones, for servers
+    /// that have the 32-bit program installed and must keep it (an upgrade never changes the architecture).
     /// </summary>
-    public static IReadOnlyList<JsonObject> Installers(JsonObject installerManifest)
+    public static IReadOnlyList<JsonObject> Installers(JsonObject installerManifest, bool keepX86 = false)
     {
         ArgumentNullException.ThrowIfNull(installerManifest);
         if (installerManifest["Installers"] is not JsonArray installers)
@@ -84,7 +85,7 @@ public static class ManifestConverter
             result.Add(merged);
         }
 
-        if (result.Any(installer => Architecture(installer) == "x64"))
+        if (!keepX86 && result.Any(installer => Architecture(installer) == "x64"))
         {
             result.RemoveAll(installer => Architecture(installer) == "x86");
         }
@@ -107,6 +108,9 @@ public static class ManifestConverter
 
         return locale;
     }
+
+    /// <summary>True when the installers have one for x86 (to tell whether a cached version serves 32-bit programs).</summary>
+    public static bool HasX86(IEnumerable<JsonObject> installers) => installers.Any(installer => Architecture(installer) == "x86");
 
     private static string? Architecture(JsonObject installer) => installer["Architecture"]?.GetValue<string>().ToLowerInvariant();
 

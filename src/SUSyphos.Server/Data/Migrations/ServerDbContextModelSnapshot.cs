@@ -957,6 +957,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<int>("HResult")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("InstallerExitCode")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("RebootRequired")
                         .HasColumnType("INTEGER");
 

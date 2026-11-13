@@ -62,7 +62,21 @@ internal sealed partial class SoftwareSourceCache(IOptions<SoftwareOptions> opti
     public const string FilesPath = "/winget/files/";
 
     private readonly Lock _gate = new();
+    private readonly HashSet<string> _x86Checked = new(StringComparer.OrdinalIgnoreCase);
     private PackageCache? _cache;
+
+    /// <summary>
+    /// Remembers that a version was cached asking for its x86 installers, so a manifest without any is not fetched again
+    /// in every run; after a restart such a version is checked once more.
+    /// </summary>
+    public bool X86Checked(string packageId, string version, bool set = false)
+    {
+        lock (_gate)
+        {
+            var key = $"{packageId}|{version}";
+            return set ? _x86Checked.Add(key) || true : _x86Checked.Contains(key);
+        }
+    }
 
     public string Folder => Path.Combine(options.Value.Directory, "cache");
 
@@ -133,16 +147,21 @@ internal sealed partial class SoftwareCacheService(
     public async Task<int> CacheReleasedAsync(CancellationToken cancellationToken)
     {
         var active = db.Rollouts.Where(r => r.State == RolloutState.Active).Select(r => r.UpdateId);
-        var pending = await db.PackageVersions
-            .Where(v => v.CachedAtUtc == null && v.ScanState != InstallerScanState.Detected && active.Contains(v.UpdateId))
+        var x86 = (await X86PackagesAsync(cancellationToken).ConfigureAwait(false)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var candidates = await db.PackageVersions
+            .Where(v => v.ScanState != InstallerScanState.Detected && active.Contains(v.UpdateId))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        // Not offered yet, or offered without the x86 installer that a server with the 32-bit program now needs.
+        var pending = candidates.Where(v => v.CachedAtUtc is null || (x86.Contains(v.PackageId) && !OffersX86(v))).ToList();
         var offered = 0;
         foreach (var version in pending)
         {
             try
             {
-                if (await CacheAsync(version, cancellationToken).ConfigureAwait(false))
+                var keepX86 = x86.Contains(version.PackageId);
+                if (await CacheAsync(version, keepX86, cancellationToken).ConfigureAwait(false))
                 {
                     offered++;
                 }
@@ -161,10 +180,34 @@ internal sealed partial class SoftwareCacheService(
         return offered;
     }
 
-    private async Task<bool> CacheAsync(PackageVersionEntity version, CancellationToken cancellationToken)
+    /// <summary>
+    /// Packages that an approved server has installed as a 32-bit program (registry view of 32-bit programs): their x86
+    /// installers are cached too, because an upgrade keeps the architecture (lab, 2026-11-10: TeamViewer Host x86).
+    /// </summary>
+    private Task<List<string>> X86PackagesAsync(CancellationToken cancellationToken)
+    {
+        var approved = db.Clients.Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).Select(c => c.Id);
+        return db.ClientSoftware
+            .Where(s => s.PackageId != null && s.View == SUSyphos.Contracts.Agents.SoftwareView.Machine32 && approved.Contains(s.ClientId))
+            .Select(s => s.PackageId!)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
+    private bool OffersX86(PackageVersionEntity version) =>
+        served.X86Checked(version.PackageId, version.Version)
+        || served.Change(cache => cache.Versions.FirstOrDefault(v => string.Equals(v.PackageIdentifier, version.PackageId, StringComparison.OrdinalIgnoreCase) && v.PackageVersion == version.Version) is { } cached
+            && ManifestConverter.HasX86(cached.Installers));
+
+    private async Task<bool> CacheAsync(PackageVersionEntity version, bool keepX86, CancellationToken cancellationToken)
     {
         var staging = PackageCache.Open(Path.Combine(options.Value.Directory, "staging"), [], verifyFiles: false);
-        var cached = await source.CacheInstallersAsync(staging, version.PackageId, version.Version, cancellationToken).ConfigureAwait(false);
+        var cached = await source.CacheInstallersAsync(staging, version.PackageId, version.Version, keepX86, cancellationToken).ConfigureAwait(false);
+        if (keepX86)
+        {
+            served.X86Checked(version.PackageId, version.Version, set: true);
+        }
+
         var files = cached.Installers.Select(i => i["CachedFile"]?.GetValue<string>()).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var mode = options.Value.ScanMode;
         var now = timeProvider.GetUtcNow().UtcDateTime;

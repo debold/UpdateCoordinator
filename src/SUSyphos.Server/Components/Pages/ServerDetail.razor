@@ -228,7 +228,7 @@ else
                     <td class="wrap"><a href="/updates/@row.Entry.UpdateId/@row.Entry.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /></td>
                     <td><span class="pill @DeploymentText.PillClass(row.Entry.State)">@OpenStatus(row.Entry)</span></td>
                     <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
-                    <td>@(row.Entry.HResult is { } hresult ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"0x{hresult:X8}: {SUSyphos.Server.Agents.HResultCatalog.Describe(hresult)}") : null)</td>
+                    <td>@(row.Entry.HResult is { } hresult ? UpdateHistoryText.Failure(hresult, row.Entry.InstallerExitCode) : null)</td>
                 </tr>
             </Row>
         </ListTable>
@@ -287,7 +287,7 @@ else
                     <td class="wrap"><a href="/updates/@row.Installation.UpdateId/@row.Installation.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /></td>
                     <td><ClassificationTag Text="@row.Category" /></td>
                     <td><StatusTag Text="SUSyphos" Kind="ok" /></td>
-                    <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Kind="@UpdateHistoryText.ResultClass((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Detail="@UpdateHistoryText.ResultDetail((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" /></td>
+                    <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Kind="@UpdateHistoryText.ResultClass((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Detail="@UpdateHistoryText.ResultDetail((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult, row.Installation.InstallerExitCode)" /></td>
                     <td>@{ var reboot = RebootTag(row.Installation); }<StatusTag Text="@reboot.Text" Kind="@reboot.Kind" Detail="@reboot.Detail" /></td>
                     <td class="n"><UninstallRowMenu Show="@IsUninstallable(row.Installation.UpdateId)" Allowed="@_canAdminister" Href="@UninstallLink(row.Installation.UpdateId)" Title="@row.Title" /></td>
                 </tr>

@@ -57,7 +57,12 @@ internal interface ISoftwareSource
     Task<CachedVersion> ReadManifestAsync(string packageId, string version, CancellationToken cancellationToken);
 
     /// <summary>Downloads the installers of one version into a cache, each checked against the SHA-256 of the manifest.</summary>
-    Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, CancellationToken cancellationToken);
+    /// <param name="cache">Cache to fill (the staging cache before the scan).</param>
+    /// <param name="packageId">WinGet package id.</param>
+    /// <param name="version">Package version.</param>
+    /// <param name="keepX86">Also the x86 installers where x64 ones exist, for servers with the 32-bit program.</param>
+    /// <param name="cancellationToken">Stops downloads.</param>
+    Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, bool keepX86, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -145,10 +150,10 @@ internal sealed partial class CommunitySoftwareSource(HttpClient http, IOptions<
     }
 
     public Task<CachedVersion> ReadManifestAsync(string packageId, string version, CancellationToken cancellationToken) =>
-        new CommunityManifests(http).ReadAsync(packageId, version, cancellationToken);
+        new CommunityManifests(http).ReadAsync(packageId, version, cancellationToken: cancellationToken);
 
-    public Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, CancellationToken cancellationToken) =>
-        new CommunityManifests(http).CacheAsync(cache, packageId, version, line => LogDownload(line), cancellationToken);
+    public Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, bool keepX86, CancellationToken cancellationToken) =>
+        new CommunityManifests(http).CacheAsync(cache, packageId, version, line => LogDownload(line), keepX86, cancellationToken);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "WinGet source: {Line}")]
     private partial void LogDownload(string line);

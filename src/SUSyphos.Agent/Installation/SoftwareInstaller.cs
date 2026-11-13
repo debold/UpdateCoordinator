@@ -98,7 +98,7 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
                 LogFailed(software.PackageId, software.Version, FailureText(outcome));
             }
 
-            return Result(release, outcome.Succeeded, outcome.RebootRequired, outcome.HResult);
+            return Result(release, outcome.Succeeded, outcome.RebootRequired, outcome.HResult, outcome.Succeeded || outcome.InstallerExitCode == 0 ? null : unchecked((int)outcome.InstallerExitCode));
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or IOException or JsonException)
         {
@@ -139,8 +139,9 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
         + (outcome.Detail is { } detail ? $": {detail}" : string.Empty);
 
     /// <summary>The result for the report; a failure carries the HRESULT the helper named, else the generic one.</summary>
-    private static InstallResult Result(Release release, bool succeeded, bool rebootRequired, int hresult = 0) => new()
+    private static InstallResult Result(Release release, bool succeeded, bool rebootRequired, int hresult = 0, int? installerExitCode = null) => new()
     {
+        InstallerExitCode = installerExitCode,
         UpdateId = release.UpdateId,
         Revision = release.Revision,
         ResultCode = succeeded ? InstallResultCode.Succeeded : InstallResultCode.Failed,

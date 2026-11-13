@@ -59,10 +59,14 @@ internal static class UpdateHistoryText
     };
 
     /// <summary>Error code and its explanation next to the tag; null for a success.</summary>
-    public static string? ResultDetail(InstallResultCode code, int hresult) =>
+    public static string? ResultDetail(InstallResultCode code, int hresult, int? installerExitCode = null) =>
         code is InstallResultCode.Succeeded or InstallResultCode.SucceededWithErrors
             ? null
-            : string.Create(CultureInfo.InvariantCulture, $"0x{hresult:X8}: {HResultCatalog.Describe(hresult)}");
+            : Failure(hresult, installerExitCode);
+
+    /// <summary>Error code, its explanation and, for software, the exit code of the installer.</summary>
+    public static string Failure(int hresult, int? installerExitCode) =>
+        string.Create(CultureInfo.InvariantCulture, $"0x{hresult:X8}: {HResultCatalog.Describe(hresult)}{(installerExitCode is { } exit ? $" Installer exit code {exit}." : null)}");
 
     /// <summary>Result with error code and its explanation for anything but success.</summary>
     public static string Result(InstallResultCode code, int hresult) =>

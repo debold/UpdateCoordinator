@@ -20,6 +20,9 @@ internal sealed class InstallationEntity
 
     public int HResult { get; set; }
 
+    /// <summary>For software: the exit code of the installer when one ran and failed; null otherwise.</summary>
+    public int? InstallerExitCode { get; set; }
+
     public bool RebootRequired { get; set; }
 
     public DateTime StartedAtUtc { get; set; }

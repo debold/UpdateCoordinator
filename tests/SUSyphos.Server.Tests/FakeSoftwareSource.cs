@@ -61,9 +61,13 @@ internal sealed class FakeSoftwareSource(string directory) : ISoftwareSource, ID
 
     public int Downloads { get; private set; }
 
-    public async Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, CancellationToken cancellationToken)
+    /// <summary>Whether each download asked for the x86 installers too.</summary>
+    public List<bool> KeepX86 { get; } = [];
+
+    public async Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, bool keepX86, CancellationToken cancellationToken)
     {
         Downloads++;
+        KeepX86.Add(keepX86);
         if (DownloadFailure is not null)
         {
             throw DownloadFailure;

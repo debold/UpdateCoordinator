@@ -69,5 +69,8 @@ public sealed record InstallResult
     /// <summary>Windows Update error code (0 on success); translated into text by the central server.</summary>
     public int HResult { get; init; }
 
+    /// <summary>For software: the exit code of the installer when one ran and failed; null otherwise (and from agents before 0.9).</summary>
+    public int? InstallerExitCode { get; init; }
+
     public bool RebootRequired { get; init; }
 }

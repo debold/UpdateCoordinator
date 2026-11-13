@@ -224,6 +224,15 @@ public sealed class WinGetClient(WinGetEngine engine)
                 ?? throw new WinGetException($"The source has no version {version} of {id}; it offers {string.Join(", ", package.AvailableVersions.Take(15).Select(candidate => candidate.Version))}.");
         }
 
+        // An upgrade keeps the architecture of the installed program: installers refuse to put x64 over x86 or the
+        // other way round (lab, 2026-11-10: TeamViewer Host x86 ended with exit code 2).
+        if (operation == "upgrade" && InstalledArchitecture(package) is { } architecture)
+        {
+            install.AllowedArchitectures.Clear();
+            install.AllowedArchitectures.Add(architecture);
+            Trace?.Invoke($"Keeping the installed architecture {architecture}.");
+        }
+
         Trace?.Invoke($"Starting the {operation} of {id} {install.PackageVersionId?.Version ?? package.DefaultInstallVersion?.Version}.");
         var watch = Stopwatch.StartNew();
         var running = operation == "upgrade"
@@ -245,6 +254,40 @@ public sealed class WinGetClient(WinGetEngine engine)
             watch.Elapsed,
             logFile,
             result.ExtendedErrorCode?.HResult ?? 0);
+    }
+
+    /// <summary>
+    /// The architecture of the installed program: x86 when its uninstall key is in the 32-bit view of the registry or it
+    /// lives below "Program Files (x86)", x64 when it lives below "Program Files"; null when neither tells.
+    /// </summary>
+    internal static Windows.System.ProcessorArchitecture? InstalledArchitecture(CatalogPackage package)
+    {
+        var installed = package.InstalledVersion;
+        if (installed is null)
+        {
+            return null;
+        }
+
+        if (installed.ProductCodes.Any(code => UninstallInventory.IsIn32BitViewOnly(code)))
+        {
+            return Windows.System.ProcessorArchitecture.X86;
+        }
+
+        return Architecture(Metadata(installed, PackageVersionMetadataField.InstalledLocation),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+            Environment.GetEnvironmentVariable("ProgramW6432") ?? Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+    }
+
+    /// <summary>The architecture from the install location, given the 32-bit and 64-bit program folders.</summary>
+    internal static Windows.System.ProcessorArchitecture? Architecture(string? location, string programFilesX86, string programFiles)
+    {
+        static bool Below(string path, string folder) =>
+            folder.Length > 0 && path.StartsWith(folder.TrimEnd('\\') + '\\', StringComparison.OrdinalIgnoreCase);
+
+        return location is null ? null
+            : Below(location, programFilesX86) ? Windows.System.ProcessorArchitecture.X86
+            : Below(location, programFiles) ? Windows.System.ProcessorArchitecture.X64
+            : null;
     }
 
     private static string LogFile(string folder, string operation, string id) =>

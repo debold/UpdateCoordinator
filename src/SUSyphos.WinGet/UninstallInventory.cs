@@ -29,6 +29,24 @@ public static class UninstallInventory
 {
     private const string UninstallPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
 
+    /// <summary>True when the uninstall key exists only in the 32-bit view (a 32-bit program on a 64-bit Windows).</summary>
+    public static bool IsIn32BitViewOnly(string keyName)
+    {
+        if (string.IsNullOrEmpty(keyName) || keyName.Contains('\\', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return Exists(RegistryView.Registry32, keyName) && !Exists(RegistryView.Registry64, keyName);
+
+        static bool Exists(RegistryView view, string name)
+        {
+            using var hive = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+            using var key = hive.OpenSubKey($@"{UninstallPath}\{name}");
+            return key is not null;
+        }
+    }
+
     /// <summary>Reads both registry views of the local machine.</summary>
     public static IReadOnlyList<UninstallEntry> ReadMachine()
     {
