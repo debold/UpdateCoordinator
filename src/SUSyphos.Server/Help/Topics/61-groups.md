@@ -6,42 +6,27 @@ A new group is empty. Servers join it in one of three ways: select them in the [
 
 ## Group list {#list}
 
-- **New group**: opens the [group dialog](#dialog).
+- **New group**: opens the [short dialog](#dialog).
 
-The table shows each group with **Description**, number of **Members** (the name opens the server list filtered to the group), its **Maintenance windows** ("system default" if it has none), **Reboots** ("inherit" if not set) and **Coordination** (share and maximum, "Stopped" when its installations were stopped after failures, or "not coordinated").
+The table shows each group with its name (opens the [group page](help/group-detail)), **Description**, number of **Members** (opens the server list filtered to the group), its **Maintenance windows** and **Reboots** as tags (*inherited* when the group sets none), **Coordination** (*Coordinated* with share and maximum below, or *Not coordinated*) and the **State**: *Stopped* in red when its installations were stopped after failed leases, or which server holds the lease and until when.
 
-- **Edit** (the pencil at the end of the row): opens the group dialog. **More** (⋯) has **Show members** (the server list filtered to the group), **Next 30 days** (the [maintenance windows, one-time windows and blackouts](help/maintenance-windows#preview) of the group on the next 30 days, with its holds) and:
+- **Open** (the pencil at the end of the row): opens the group page. **More** (⋯) has **Show members** (the server list filtered to the group), **Next 30 days** (the [maintenance windows, one-time windows and blackouts](help/maintenance-windows#preview) of the group on the next 30 days, with its holds), **Resume group** for a stopped group, and:
 - **Delete group…**: opens a confirmation. With **Delete group**, members leave the group and fall back to the system defaults; assignment rules that point to the group are removed too.
 
-## New group and edit {#dialog}
+## New group {#dialog}
 
-![The dialog to create or edit a group](help-images/groups-dialog.png)
+![The dialog to create a group](help-images/groups-dialog.png)
 
 - **Name**: unique name of the group, at most 64 characters; cannot be changed later.
 - **Description**: free text, for example what the servers have in common.
-- **Maintenance windows**: "Use the system default", or untick it and enter windows of the group with the [window editor](help/maintenance-windows#editor). A server in several groups may install in the windows of all its groups together; windows of the server itself replace them.
-- **Reboots**: "Inherit from the system default", "Reboot inside the maintenance window" or "Never reboot (report only)". If one of a server's groups says "Never", that wins.
-- **Windows Automatic Updates**: inherit, "Leave unchanged, only warn" or "Keep Windows from installing on its own" ([details](help/maintenance-windows#automatic-updates)). "Leave unchanged" in one group wins.
-- **Other Microsoft products**: inherit, "Windows Update only" or "Microsoft Update" ([details](help/maintenance-windows#microsoft-update)). "Windows Update only" in one group wins.
+- **Coordinated**: only part of the group installs and restarts at the same time (25 %, at most 1 at once; changeable on the group page).
 
-**Applies to** lists the members of the group (up to 15, each linked), so you see which servers a change affects; a value set on a server itself still wins.
+**Create and open** stores the group and opens its [page](help/group-detail), where members, windows, reboots and agent settings are set; everything starts as inherited. **Cancel** closes the dialog.
 
-**Create group** or **Save** stores the group; **Cancel** closes the dialog. Members get the changes with their next heartbeat.
+## Coordination (leases) {#coordination}
 
-### Coordination (leases) {#coordination}
-
-With **Only part of the group installs at the same time** ticked, members ask the central server for an installation slot (a lease) before they install or restart:
-
-- **Share of members**: at most this percentage of the members at once (default 25 %).
-- **At most at once**: an upper limit in servers (default 5). At least one server always gets a slot, so small groups progress too.
-
-A slot lasts two hours and is returned with the result right after the installation, or after the restart when the agent restarts the server. A server in several coordinated groups needs a slot in all of them. If slots fail or expire several times in a row (two, or the number of members if fewer), the central server stops the group: no member installs until an operator resumes it under [Approvals](help/approvals#groups).
+How coordination works and how it is set: see [Coordination](help/group-detail#coordination) on the group page.
 
 ## Agent settings of a group {#agent-settings}
 
-The **Agent settings** section of the dialog (collapsed while the group sets none) lists every [agent setting](help/agent-settings) with the value that applies to the group and where it comes from; settings set on the group are in bold. A new group has to be saved first.
-
-- **Edit** (pencil) opens a small dialog for that one setting: **Value** with the allowed range, and **Inherit**, which takes the system default again (the field is then locked). **Save** stores just this setting at once and returns to the group; **Cancel** goes back without a change.
-- **Reset** (arrow) appears for settings set on the group and takes the inherited value again at once.
-
-Both act immediately; other unsaved changes in the group dialog are not saved by them. If a server is in several groups that set the same setting, the lowest number wins, for other settings the group first by name; a value set on the server wins over all groups.
+See [Agent settings](help/group-detail#agent-settings) on the group page.

@@ -86,7 +86,7 @@ public sealed class AgentSettingsTests
         {
         }
 
-        var dialog = $"/administration/groups?dialog=agent-setting&id={groupId}&key=heartbeat-interval";
+        var dialog = $"/administration/groups/{groupId}?dialog=agent-setting&key=heartbeat-interval";
         using (var refused = await browser.PostFormAsync(dialog, new Dictionary<string, string> { ["_handler"] = "agent-setting-edit", ["Value"] = "2" }))
         {
             Assert.Contains("Heartbeat: a whole number from 5 to 600 seconds.", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
@@ -98,8 +98,8 @@ public sealed class AgentSettingsTests
 
         Assert.Equal("{\"heartbeat-interval\":\"30\",\"log-level\":\"Debug\"}", await GroupSettingsAsync(factory, groupId));
 
-        // Saving the group dialog leaves the agent settings alone.
-        using (await browser.PostFormAsync($"/administration/groups?dialog=edit&id={groupId}", new Dictionary<string, string> { ["_handler"] = "group-dialog", ["Mode"] = "edit", ["Id"] = groupId.ToString(System.Globalization.CultureInfo.InvariantCulture), ["Name"] = "Databases", ["Percent"] = "25", ["Max"] = "5", ["WindowsInherit"] = "yes" }))
+        // Saving another section of the group page leaves the agent settings alone.
+        using (await browser.PostFormAsync($"/administration/groups/{groupId}", new Dictionary<string, string> { ["_handler"] = "group-coordination", ["Percent"] = "25", ["Max"] = "5" }))
         {
         }
 
@@ -110,7 +110,7 @@ public sealed class AgentSettingsTests
         {
         }
 
-        using (await browser.PostFormAsync($"/administration/groups?dialog=edit&id={groupId}", new Dictionary<string, string> { ["_handler"] = "agent-setting-reset", ["ResetKey"] = "log-level" }))
+        using (await browser.PostFormAsync($"/administration/groups/{groupId}", new Dictionary<string, string> { ["_handler"] = "agent-setting-reset", ["ResetKey"] = "log-level" }))
         {
         }
 

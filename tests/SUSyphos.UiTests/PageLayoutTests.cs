@@ -52,6 +52,8 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/administration/users?dialog=new",
         "/administration/groups",
         "/administration/groups?dialog=new",
+        "/administration/groups/{group}",
+        "/administration/groups/{group}?dialog=agent-setting&key=heartbeat-interval",
         "/administration/rules",
         "/administration/rules?dialog=new",
         "/administration/release-rules",
@@ -242,6 +244,15 @@ public sealed class PageLayoutTests(UiFixture ui)
             await page.GotoAsync("/updates");
             var href = await page.GetAttributeAsync("main a[href^='/updates/']", "href");
             path = path.Replace("/updates/{update}", href ?? "/updates", StringComparison.Ordinal);
+        }
+
+        if (path.Contains("{group}", StringComparison.Ordinal))
+        {
+            await using var context = await ui.NewContextAsync();
+            var page = await context.NewPageAsync();
+            await page.GotoAsync("/administration/groups");
+            var href = await page.GetAttributeAsync("main td a[href^='/administration/groups/']", "href");
+            path = path.Replace("/administration/groups/{group}", href ?? "/administration/groups", StringComparison.Ordinal);
         }
 
         return path.Replace("{main}", ui.MainServerId.ToString(), StringComparison.Ordinal);

@@ -1,0 +1,354 @@
+@page "/administration/groups/{Id:int}"
+@attribute [Authorize(Policy = AdminRoles.Policies.Administer)]
+@inherits DashboardPageBase
+@using SUSyphos.Server.Assignment
+@inject ServerDbContext Db
+@inject AssignmentAdministration Administration
+@inject AssignmentService Assignment
+@inject LeaseService Leases
+@inject NavigationManager Navigation
+@inject SUSyphos.Server.Assignment.SchedulePreview Preview
+
+@* The page of a server group (Marc, 2026-11-13, mockup "Group page"): members, coordination with the lease holder and
+   the settings of the group, each section at full width and saved on its own. *@
+@if (_group is null)
+{
+    <PageTitle>Server group</PageTitle>
+    <PageHeader Title="Server group not found" Icon="@PageIcons.ServerGroups" Crumbs="@([("Administration", null), ("Server groups", "/administration/groups"), ("Not found", null)])" />
+    <p class="note">The group does not exist (any more). <a href="/administration/groups">Back to the server groups</a></p>
+}
+else
+{
+    var group = _group;
+    <PageTitle>@group.Name</PageTitle>
+    <PageHeader Title="@group.Name" Icon="@PageIcons.ServerGroups" Subtitle="@Subtitle" Help="group-detail" Crumbs="@([("Administration", null), ("Server groups", "/administration/groups"), (group.Name, null)])" />
+    <StatusMessage Text="@Message" IsError="@MessageIsError" />
+
+    <ActionBand>
+        <a class="btn" href="@($"{GroupPage.Link(Id)}?dialog=preview")"><Icon Name="calendar-clock" Size="16" />Next @SchedulePreview.Days days</a>
+        <a class="btn" href="@($"/administration/rules?dialog=new&target=group:{Id}")"><Icon Name="list-plus" Size="16" />Create assignment rule…</a>
+        <div class="spacer"></div>
+        <a class="btn danger" href="@($"{GroupPage.Link(Id)}?dialog=delete")"><Icon Name="trash-2" Size="16" />Delete group…</a>
+    </ActionBand>
+
+    <section class="tiles" aria-label="Status">
+        <Tile Title="Members" Href="@GroupPage.Link(Id, "members")" Footer="@(_members.Count == 0 ? "no member yet" : string.Join(", ", _members.Take(4).Select(m => m.HostName)) + (_members.Count > 4 ? ", …" : string.Empty))">
+            <TileValue Value="@DisplayNumber.Format(_members.Count)" />
+        </Tile>
+        <Tile Title="Coordination" Href="@GroupPage.Link(Id, "coordination")" Edge="@(group.LeasesHalted ? "fail" : null)" Footer="@CoordinationFooter">
+            <TileValue><StatusTag Text="@(!group.Coordinated ? "Not coordinated" : group.LeasesHalted ? "Stopped" : "Coordinated")" Kind="@(!group.Coordinated ? "neutral" : group.LeasesHalted ? "fail" : "ok")" /></TileValue>
+        </Tile>
+        <Tile Title="Lease" Footer="@LeaseFooter">
+            <TileValue>@if (_holders.Count == 0) { <StatusTag Text="free" Kind="neutral" /> } else { <StatusTag Text="@_holders[0].HostName" Kind="pend" /> }</TileValue>
+        </Tile>
+        <Tile Title="Maintenance windows" Href="@GroupPage.Link(Id, "windows")" Footer="@(_ownWindows.Count > 0 ? "own windows" : "inherited from the system default")">
+            <TileValue><StatusTag Text="@(_ownWindows.Count > 0 ? DisplayNumber.Count(_ownWindows.Count, "window", "windows") : "inherited")" Kind="neutral" /></TileValue>
+        </Tile>
+    </section>
+
+    <Box Title="Members" Anchor="members" Help="group-detail#members" Flush="true" Hint="by hand (server list, server page) or through an assignment rule">
+        <Header><a class="btn" href="@Servers.Link("group", group.Name)"><Icon Name="server" Size="16" />Show in the server list</a></Header>
+        <ChildContent>
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>Server</th><th>Ring</th><th>Joined</th><th>Lease</th></tr></thead>
+                    <tbody>
+                        @if (_members.Count == 0)
+                        {
+                            <tr><td colspan="4" class="note">No member yet: add servers in the server list (select, then Assign) or <a href="@($"/administration/rules?dialog=new&target=group:{Id}")">create an assignment rule</a>.</td></tr>
+                        }
+                        @foreach (var member in _members)
+                        {
+                            var holder = _holders.FirstOrDefault(h => h.ClientId == member.Id);
+                            <tr>
+                                <td><a href="@ServerPage.Link(member.Id, ServerPage.Overview)">@member.HostName</a></td>
+                                <td class="nowrap">@if (member.Ring is { } ring) { <RingTag Name="@ring.Name" Order="@ring.Order" /> } else { <span class="note">–</span> }</td>
+                                <td><CategoryTag Text="@(member.Manual ? "by hand" : "by rule")" Index="0" /></td>
+                                <td class="nowrap">@if (holder is not null) { <span class="pill pend">holds it until @DisplayTime.Format(holder.ExpiresAtUtc)</span> } else if (group.Coordinated && member.WaitsForLease) { <span class="pill queue">waits for a lease</span> } else { <span class="note">–</span> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </ChildContent>
+    </Box>
+
+    <form method="post" @formname="group-windows" @onsubmit="SaveWindowsAsync" class="box" id="windows">
+        <AntiforgeryToken />
+        <header class="box-head"><h2>Maintenance windows<HelpLink To="group-detail#windows" Label="Maintenance windows" /></h2><span class="hint">Local server time; a value set on a server wins</span></header>
+        <div class="box-body">
+            <WindowPicker Prefix="Windows" Draft="@_windowDraft" Windows="@_ownWindows" InheritedWindows="@_systemWindows" AllowInherit="true" Inherited="@(group.MaintenanceWindowsJson is null)" InheritLabel="Use the system default" />
+        </div>
+        <footer class="box-foot"><span class="note">Delivered to the members with their next heartbeat.</span><button type="submit" class="primary">Save windows</button></footer>
+    </form>
+
+    <div class="grid-2">
+        <form method="post" @formname="group-settings" @onsubmit="SaveSettingsAsync" class="box" id="settings">
+            <AntiforgeryToken />
+            <header class="box-head"><h2>Reboots and Windows Update<HelpLink To="group-detail#settings" Label="Reboots and Windows Update" /></h2></header>
+            <div class="box-body form">
+                <label class="field"><span>Reboots</span>
+                    <select name="Reboot">
+                        <option value="" selected="@(group.RebootPolicy is null)">Inherit from the system default</option>
+                        @foreach (var policy in Enum.GetValues<SUSyphos.Contracts.Agents.RebootPolicy>())
+                        {
+                            <option value="@policy" selected="@(group.RebootPolicy == policy)">@RebootPolicyText.Label(policy)</option>
+                        }
+                    </select>
+                </label>
+                <label class="field"><span>Windows Automatic Updates</span>
+                    <select name="AutomaticUpdates">
+                        <option value="" selected="@(group.ManageAutomaticUpdates is null)">Inherit from the system default</option>
+                        <option value="leave" selected="@(group.ManageAutomaticUpdates == false)">Leave unchanged, only warn</option>
+                        <option value="prevent" selected="@(group.ManageAutomaticUpdates == true)">Keep Windows from installing on its own</option>
+                    </select>
+                </label>
+                <label class="field"><span>Other Microsoft products</span>
+                    <select name="MicrosoftUpdate">
+                        <option value="" selected="@(group.UseMicrosoftUpdate is null)">Inherit from the system default</option>
+                        <option value="windows" selected="@(group.UseMicrosoftUpdate == false)">Windows Update only</option>
+                        <option value="microsoft" selected="@(group.UseMicrosoftUpdate == true)">Microsoft Update</option>
+                    </select>
+                </label>
+                <label class="field"><span>Description</span><input name="Description" maxlength="256" value="@group.Description" /></label>
+            </div>
+            <footer class="box-foot"><span class="note">"Never" or "leave unchanged" in one group wins.</span><button type="submit" class="primary">Save</button></footer>
+        </form>
+
+        <form method="post" @formname="group-coordination" @onsubmit="SaveCoordinationAsync" class="box" id="coordination">
+            <AntiforgeryToken />
+            <header class="box-head"><h2>Coordination<HelpLink To="group-detail#coordination" Label="Coordination" /></h2>@if (group.LeasesHalted) { <span class="pill fail">Stopped</span> }</header>
+            <div class="box-body form">
+                <fieldset class="gated">
+                    <legend class="visually-hidden">Coordination (leases)</legend>
+                    <label class="check gate"><input type="checkbox" name="Coordinated" value="true" checked="@group.Coordinated" /> Only part of the group installs and restarts at the same time</label>
+                    <div class="form-row gated-body">
+                        <label class="field"><span>Share of members</span><input name="Percent" type="number" min="1" max="100" value="@group.LeasePercent" /></label>
+                        <label class="field"><span>At most at once</span><input name="Max" type="number" min="1" max="1000" value="@group.LeaseMaximum" /></label>
+                    </div>
+                </fieldset>
+                @if (group.Coordinated)
+                {
+                    <p class="note">@DisplayNumber.Count(_members.Count, "member", "members") → @DisplayNumber.Count(LeaseService.Capacity(_members.Count, group.LeasePercent, group.LeaseMaximum), "server", "servers") at a time. Software installs without a lease.@if (group.LeasesHalted) { <span> Stopped after failed leases: check the servers, then resume.</span> }</p>
+                }
+            </div>
+            <footer class="box-foot">
+                @if (group.LeasesHalted) { <button type="submit" form="group-resume">Resume group</button> } else { <span></span> }
+                <button type="submit" class="primary">Save</button>
+            </footer>
+        </form>
+    </div>
+
+    <form id="group-resume" method="post" @formname="group-resume" @onsubmit="ResumeAsync" class="detached"><AntiforgeryToken /></form>
+
+    <Box Title="Agent settings" Anchor="agent-settings" Help="group-detail#agent-settings" Flush="true" Hint="Values set here win over the agent default; a value set on a server wins over the group">
+        <div class="box-body">
+            <AgentSettingOverrides Explained="@AgentSettingValues.Explain(_systemAgentSettings, [], AgentSettingValues.Parse(group.AgentSettingsJson), "this group")" Own="@AgentSettingValues.Parse(group.AgentSettingsJson)" EditHref="@(key => SettingHref(key))" Help="group-detail#agent-settings" />
+        </div>
+    </Box>
+
+    @* Resets one agent setting of the group; its buttons sit in the list above but belong to this form. *@
+    <form id="agent-setting-reset" method="post" @formname="agent-setting-reset" @onsubmit="ResetSettingAsync" class="detached"><AntiforgeryToken /></form>
+
+    @if (Dialog == "agent-setting" && SUSyphos.Contracts.Agents.AgentSettings.Find(SettingKey) is { } definition)
+    {
+        var inherited = AgentSettingValues.Explain(_systemAgentSettings, [], new Dictionary<string, string>(), "this group").First(e => e.Definition.Key == definition.Key);
+        <AgentSettingDialog Definition="definition" Scope="@($"group {group.Name}")" Own="@AgentSettingValues.Parse(group.AgentSettingsJson).GetValueOrDefault(definition.Key)"
+                            InheritedValue="@inherited.Value" InheritedSource="@inherited.Source" CancelHref="@GroupPage.Link(Id, "agent-settings")" Error="@_settingError" Help="group-detail#agent-settings" OnSave="SaveSettingAsync" />
+    }
+    else if (Dialog == "preview" && _schedulePreview is not null)
+    {
+        <SchedulePreviewDialog Preview="@_schedulePreview" CloseHref="@GroupPage.Link(Id)" />
+    }
+    else if (Dialog == "delete")
+    {
+        <Dialog Title="@($"Delete group {group.Name}?")" CloseHref="@GroupPage.Link(Id)" Help="group-detail">
+            <form method="post" @formname="group-delete" @onsubmit="DeleteAsync">
+                <AntiforgeryToken />
+                <input type="hidden" name="DeleteConfirmed" value="true" />
+                <div class="dialog-body"><p>Members leave the group and fall back to the system default; assignment rules pointing to this group are removed too.</p></div>
+                <div class="dialog-foot"><a class="btn" href="@GroupPage.Link(Id)">Cancel</a><button type="submit" class="danger">Delete group</button></div>
+            </form>
+        </Dialog>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "dialog")] private string? Dialog { get; set; }
+    [SupplyParameterFromQuery(Name = "key")] private string? SettingKey { get; set; }
+    [SupplyParameterFromForm(FormName = "group-settings")] private string? Reboot { get; set; }
+    [SupplyParameterFromForm(FormName = "group-settings")] private string? AutomaticUpdates { get; set; }
+    [SupplyParameterFromForm(FormName = "group-settings")] private string? MicrosoftUpdate { get; set; }
+    [SupplyParameterFromForm(FormName = "group-settings")] private string? Description { get; set; }
+    [SupplyParameterFromForm(FormName = "group-coordination")] private string? Coordinated { get; set; }
+    [SupplyParameterFromForm(FormName = "group-coordination")] private string? Percent { get; set; }
+    [SupplyParameterFromForm(FormName = "group-coordination")] private string? Max { get; set; }
+    [SupplyParameterFromForm(FormName = "group-delete")] private string? DeleteConfirmed { get; set; }
+
+    [CascadingParameter]
+    private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    private sealed record Member(Guid Id, string HostName, RingEntity? Ring, bool Manual, bool WaitsForLease);
+
+    private GroupEntity? _group;
+    private List<Member> _members = [];
+    private List<LeaseHolder> _holders = [];
+    private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _ownWindows = [];
+    private IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow> _systemWindows = [];
+    private Dictionary<string, string> _systemAgentSettings = [];
+    private WindowPickerState? _windowDraft;
+    private SchedulePreviewResult? _schedulePreview;
+    private string? _settingError;
+
+    private string Subtitle => $"{(_group?.Description is { Length: > 0 } description ? description + " · " : string.Empty)}{(_group?.Coordinated == true ? "coordinated" : "not coordinated")} · {DisplayNumber.Count(_members.Count, "member", "members")}";
+
+    private string CoordinationFooter => _group is not { Coordinated: true } group ? "members install on their own"
+        : group.LeasesHalted ? "stopped after failed leases"
+        : $"{group.LeasePercent} %, at most {group.LeaseMaximum} at once";
+
+    private string LeaseFooter => _holders.Count == 0 ? "nobody holds a lease"
+        : $"until {DisplayTime.Format(_holders[0].ExpiresAtUtc)}{(_holders.Count > 1 ? $", and {_holders.Count - 1} more" : string.Empty)}";
+
+    private string SettingHref(string key) => $"{GroupPage.Link(Id)}?dialog=agent-setting&key={Uri.EscapeDataString(key)}";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _group = await Db.Groups.AsNoTracking().SingleOrDefaultAsync(g => g.Id == Id);
+        if (_group is null)
+        {
+            return;
+        }
+
+        var rings = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id);
+        var members = await Db.ClientGroups.AsNoTracking().Where(m => m.GroupId == Id)
+            .Join(Db.Clients, m => m.ClientId, c => c.Id, (m, c) => new { c.Id, c.HostName, c.RingId, m.Manual, c.RebootWait })
+            .OrderBy(c => c.HostName)
+            .Take(1000)
+            .ToListAsync();
+        _members = [.. members.Select(m => new Member(m.Id, m.HostName ?? m.Id.ToString(), m.RingId is { } ring ? rings.GetValueOrDefault(ring) : null, m.Manual, m.RebootWait == SUSyphos.Contracts.Agents.RebootWait.WaitingForLease))];
+        _holders = (await GroupLeaseStatus.HoldersAsync(Db, [Id], CancellationToken.None)).GetValueOrDefault(Id) ?? [];
+        _ownWindows = MaintenanceWindowFormat.FromJson(_group.MaintenanceWindowsJson) ?? [];
+        _systemWindows = await Assignment.GetSystemWindowsAsync(CancellationToken.None);
+        _systemAgentSettings = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
+        _schedulePreview = Dialog == "preview" ? await Preview.ForGroupAsync(Id, CancellationToken.None) : null;
+    }
+
+    private async Task SaveWindowsAsync()
+    {
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        if (form is not null && WindowPickerForm.ReadEdit(form, "Windows") is { } draft)
+        {
+            // Add, remove and preview of the picker show the section again without saving.
+            _windowDraft = draft;
+            await LoadAsync();
+            return;
+        }
+
+        var outcome = form is null ? new Outcome("Invalid request.")
+            : await Administration.SetGroupWindowsAsync(Id, WindowPickerForm.Read(form, "Windows", out _), await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The maintenance windows were saved.");
+        await LoadAsync();
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        var actor = await GetActorAsync();
+        Outcome outcome;
+        if (!RebootPolicyText.TryParse(Reboot, out var reboot))
+        {
+            outcome = new Outcome("The reboot policy is invalid.");
+        }
+        else if (AutomaticUpdates is not (null or "" or "leave" or "prevent") || MicrosoftUpdate is not (null or "" or "windows" or "microsoft"))
+        {
+            outcome = new Outcome("The Windows Update setting is invalid.");
+        }
+        else
+        {
+            outcome = await Administration.SetGroupRebootPolicyAsync(Id, reboot, actor, CancellationToken.None);
+            if (outcome.Succeeded)
+            {
+                outcome = await Administration.SetGroupManageAutomaticUpdatesAsync(Id, AutomaticUpdates switch { "prevent" => true, "leave" => false, _ => null }, actor, CancellationToken.None);
+            }
+
+            if (outcome.Succeeded)
+            {
+                outcome = await Administration.SetGroupMicrosoftUpdateAsync(Id, MicrosoftUpdate switch { "microsoft" => true, "windows" => false, _ => null }, actor, CancellationToken.None);
+            }
+
+            if (outcome.Succeeded)
+            {
+                outcome = await Administration.SetGroupDescriptionAsync(Id, Description, actor, CancellationToken.None);
+            }
+        }
+
+        ShowResult(outcome.Error, "The settings were saved.");
+        await LoadAsync();
+    }
+
+    private async Task SaveCoordinationAsync()
+    {
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+        var outcome = !int.TryParse(Percent, System.Globalization.NumberStyles.None, invariant, out var percent) || !int.TryParse(Max, System.Globalization.NumberStyles.None, invariant, out var maximum)
+            ? new Outcome("Share and maximum must be whole numbers.")
+            : await Administration.SetGroupCoordinationAsync(Id, Coordinated == "true", percent, maximum, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The coordination was saved.");
+        await LoadAsync();
+    }
+
+    private async Task ResumeAsync()
+    {
+        var outcome = await Leases.ResumeAsync(Id, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The group was resumed; its servers get leases again.");
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        var outcome = DeleteConfirmed == "true" ? await Administration.DeleteGroupAsync(Id, await GetActorAsync(), CancellationToken.None) : new Outcome("Invalid request.");
+        if (outcome.Succeeded)
+        {
+            Navigation.NavigateTo("/administration/groups");
+            return;
+        }
+
+        ShowResult(outcome.Error, string.Empty);
+        await LoadAsync();
+    }
+
+    private async Task SaveSettingAsync()
+    {
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        var key = form?["SettingKey"].ToString();
+        if (form is null || string.IsNullOrEmpty(key))
+        {
+            ShowResult("Invalid request.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var value = form["Inherit"] == "yes" ? null : form["Value"].ToString();
+        var outcome = await Administration.SetGroupAgentSettingAsync(Id, key, value, await GetActorAsync(), CancellationToken.None);
+        if (outcome.Succeeded)
+        {
+            Navigation.NavigateTo(GroupPage.Link(Id, "agent-settings"));
+            return;
+        }
+
+        _settingError = outcome.Error;
+        await LoadAsync();
+    }
+
+    private async Task ResetSettingAsync()
+    {
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        var key = form?["ResetKey"].ToString();
+        var outcome = string.IsNullOrEmpty(key) ? new Outcome("Invalid request.")
+            : await Administration.SetGroupAgentSettingAsync(Id, key, null, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The setting was reset to the inherited value.");
+        await LoadAsync();
+    }
+}

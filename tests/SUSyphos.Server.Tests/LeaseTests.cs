@@ -37,6 +37,38 @@ public sealed class LeaseTests
     private const string Password = "correct horse battery";
 
     [Fact]
+    public async Task GroupPageAndServerPage_ShowTheLeaseHolder_AndAStoppedGroup()
+    {
+        // Marc, 2026-11-13: who holds the lease, and that a group is stopped, must be visible where one looks.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var (first, second, groupId) = await CoordinatedGroupAsync(scenario, "DC01", "DC02");
+        Assert.True((await AcquireAsync(scenario, first)).Granted);
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        async Task<string> GetAsync(string path) => await (await browser.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var group = await GetAsync(SUSyphos.Server.Components.GroupPage.Link(groupId));
+        Assert.Contains("holds it until", group, StringComparison.Ordinal);
+        Assert.Contains("DC01", group, StringComparison.Ordinal);
+        var list = await GetAsync("/administration/groups");
+        Assert.Contains("DC01 holds the lease", list, StringComparison.Ordinal);
+        var server = await GetAsync($"/servers/{second.ClientId}");
+        Assert.Contains($"href=\"/administration/groups/{groupId}\"", server, StringComparison.Ordinal);
+
+        await scenario.Factory.WithDbAsync(db => db.Groups.Where(g => g.Id == groupId).ExecuteUpdateAsync(s => s.SetProperty(g => g.LeasesHalted, true), TestContext.Current.CancellationToken));
+        Assert.Contains("is stopped after failed leases", await GetAsync($"/servers/{second.ClientId}"), StringComparison.Ordinal);
+        Assert.Contains(">Resume group</button>", await GetAsync(SUSyphos.Server.Components.GroupPage.Link(groupId)), StringComparison.Ordinal);
+        using (await browser.PostFormAsync(SUSyphos.Server.Components.GroupPage.Link(groupId), new Dictionary<string, string> { ["_handler"] = "group-resume" }))
+        {
+        }
+
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.Groups.Where(g => g.Id == groupId).Select(g => g.LeasesHalted).SingleAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
     public async Task Leases_AreLimitedPerGroup_AndFreedOnRelease()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
@@ -185,12 +217,9 @@ public sealed class LeaseTests
         {
         }
 
-        using (await browser.PostFormAsync($"/administration/groups?dialog=edit&id={groupId}", new Dictionary<string, string>
+        using (await browser.PostFormAsync(SUSyphos.Server.Components.GroupPage.Link(groupId), new Dictionary<string, string>
         {
-            ["_handler"] = "group-dialog",
-            ["Mode"] = "edit",
-            ["Id"] = groupId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["Windows.inherit"] = "yes",
+            ["_handler"] = "group-coordination",
             ["Coordinated"] = "true",
             ["Percent"] = "50",
             ["Max"] = "3",
@@ -198,7 +227,7 @@ public sealed class LeaseTests
         {
         }
 
-        using (var refused = await browser.PostFormAsync($"/administration/groups?dialog=edit&id={groupId}", new Dictionary<string, string> { ["_handler"] = "group-dialog", ["Mode"] = "edit", ["Id"] = groupId.ToString(System.Globalization.CultureInfo.InvariantCulture), ["Percent"] = "fifty", ["Max"] = "3" }))
+        using (var refused = await browser.PostFormAsync(SUSyphos.Server.Components.GroupPage.Link(groupId), new Dictionary<string, string> { ["_handler"] = "group-coordination", ["Percent"] = "fifty", ["Max"] = "3" }))
         {
             Assert.Contains("Share and maximum must be whole numbers.", await refused.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }

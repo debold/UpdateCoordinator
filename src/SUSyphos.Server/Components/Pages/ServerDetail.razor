@@ -26,8 +26,14 @@
 }
 else
 {
-    <PageHeader Title="@_client.HostName" Icon="@PageIcons.Servers" Subtitle="@Subtitle" Help="server-detail" Crumbs="@([("Servers", "/servers"), (_client.HostName, null)])" />
+    <PageHeader Title="@_client.HostName" Icon="@PageIcons.Servers" Subtitle="@Subtitle" Help="server-detail" Crumbs="@([("Servers", "/servers"), (_client.HostName, null)])">
+        <Below>@if (_memberships.Count > 0) { <span>groups </span>@for (var g = 0; g < _memberships.Count; g++) { var groupId = _memberships[g].GroupId; if (g > 0) { <span>, </span> } <a href="@GroupPage.Link(groupId)">@GroupName(groupId)</a>@if (_groups.FirstOrDefault(x => x.Id == groupId) is { Coordinated: true } coordinated) { <span class="note"> (coordinated@(coordinated.LeasesHalted ? ", stopped" : null))</span> } } }</Below>
+    </PageHeader>
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
+    @foreach (var stopped in StoppedGroups)
+    {
+        <p class="warning" role="alert">The coordinated group <a href="@GroupPage.Link(stopped.Id)">@stopped.Name</a> is stopped after failed leases: this server installs no Windows update until the group is resumed (group page or Approvals).</p>
+    }
 
     <form id="actions" method="post" @formname="action" @onsubmit="HandleActionAsync" class="detached"><AntiforgeryToken /></form>
     <form id="cancel-restart" method="post" @formname="cancel-restart" @onsubmit="CancelRestartAsync" class="detached"><AntiforgeryToken /></form>
@@ -911,6 +917,34 @@ else
     /// <summary>Below the next window: how many updates it installs.</summary>
     private string NextWindowFooter => _window is null ? "no installation planned" : _planned.Count == 0 ? "nothing to install" : $"{DisplayNumber.Format(_planned.Count)} {(_planned.Count == 1 ? "update" : "updates")} to install";
 
+    /// <summary>Coordinated groups of this server that are stopped after failed leases (Marc, 2026-11-13).</summary>
+    private IEnumerable<GroupEntity> StoppedGroups => _memberships.Select(m => _groups.FirstOrDefault(g => g.Id == m.GroupId)).OfType<GroupEntity>().Where(g => g.Coordinated && g.LeasesHalted);
+
+    private Dictionary<int, List<SUSyphos.Server.Assignment.LeaseHolder>> _leaseHolders = [];
+
+    /// <summary>Why an installation waits in a coordinated group: stopped, held by another server, or simply needs a lease.</summary>
+    private string LeaseNote()
+    {
+        if (StoppedGroups.FirstOrDefault() is { } stopped)
+        {
+            return $"coordinated group {stopped.Name} is stopped: nothing installs until it is resumed";
+        }
+
+        foreach (var membership in _memberships)
+        {
+            if (_leaseHolders.GetValueOrDefault(membership.GroupId) is { Count: > 0 } holders && holders.All(h => h.ClientId != Id)
+                && _groups.FirstOrDefault(g => g.Id == membership.GroupId) is { Coordinated: true } group
+                && holders.Count >= SUSyphos.Server.Assignment.LeaseService.Capacity(_groupSizes.GetValueOrDefault(group.Id), group.LeasePercent, group.LeaseMaximum))
+            {
+                return $"coordinated group {group.Name}: waits for the lease, held by {holders[0].HostName} until {DisplayTime.Format(holders[0].ExpiresAtUtc)}";
+            }
+        }
+
+        return _leaseHolders.Values.Any(h => h.Any(l => l.ClientId == Id)) ? "coordinated group: this server holds the lease" : "coordinated group: installs only with a lease";
+    }
+
+    private Dictionary<int, int> _groupSizes = [];
+
     private string Subtitle => _client is null
         ? string.Empty
         : $"{(_client.DomainName is { Length: > 0 } domain ? $"{_client.HostName.ToLowerInvariant()}.{domain}" : _client.HostName)} · {OperatingSystems.Name(_client.OsProductName, _client.OsVersion, _client.OsEditionId)}, build {OperatingSystems.Build(_client.OsVersion)} · ring {RingName(_client.RingId)}";
@@ -1317,6 +1351,9 @@ else
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         _memberships = await Db.ClientGroups.AsNoTracking().Where(m => m.ClientId == Id).ToListAsync();
+        var memberGroupIds = _memberships.Select(m => m.GroupId).ToList();
+        _leaseHolders = await SUSyphos.Server.Assignment.GroupLeaseStatus.HoldersAsync(Db, memberGroupIds, CancellationToken.None);
+        _groupSizes = await Db.ClientGroups.AsNoTracking().Where(m => memberGroupIds.Contains(m.GroupId)).GroupBy(m => m.GroupId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count);
         _pendingRemoval = await Removal.PendingAsync(Id, CancellationToken.None);
         await LoadSoftwareAsync();
         _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(MaxHistory).ToListAsync();
@@ -1550,7 +1587,7 @@ else
 
             if (_client.RequiresLease)
             {
-                notes.Add("coordinated group: installs only with a lease");
+                notes.Add(LeaseNote());
             }
 
             if (planned.Count > 0)

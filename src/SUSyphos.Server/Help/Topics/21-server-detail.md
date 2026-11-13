@@ -1,6 +1,6 @@
 # Server details {#top}
 
-Everything about one server: its state, what the agent does next, its configuration, its updates and its history. Open it from the [server list](help/servers) or any link with the server name. The line under the name shows the fully qualified name, operating system, build and ring.
+Everything about one server: its state, what the agent does next, its configuration, its updates and its history. Open it from the [server list](help/servers) or any link with the server name. The line under the name shows the fully qualified name, operating system, build and ring; the line below names the groups of the server, each linked to its [group page](help/group-detail), coordinated ones marked as such (and as stopped). While a coordinated group of the server is stopped after failed leases, a warning says so with a link to the group: the server installs no Windows update until it is resumed. In **Tasks**, the installation of a server in a coordinated group says why it may wait: the group is stopped, or another server holds the lease until a given time.
 
 ![The tiles at the top of a server page: status, updates, next maintenance window and last heartbeat](help-images/server-page.png)
 

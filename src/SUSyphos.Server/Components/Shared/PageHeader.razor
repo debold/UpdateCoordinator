@@ -22,6 +22,10 @@
         {
             <div class="sub">@Subtitle</div>
         }
+        @if (Below is not null)
+        {
+            <div class="sub">@Below</div>
+        }
     </div>
     @ChildContent
 </div>
@@ -32,6 +36,10 @@
 
     [Parameter]
     public string? Subtitle { get; set; }
+
+    /// <summary>A second line of context with links, e.g. the groups of a server.</summary>
+    [Parameter]
+    public RenderFragment? Below { get; set; }
 
     /// <summary>Icon before the title, the same as in the navigation (<see cref="PageIcons"/>).</summary>
     [Parameter]
