@@ -28,6 +28,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Operating systems: each version is one calm row (version, servers, baseline bar, open vulnerabilities as tags, support tag with one date); baseline, patch day to installation and the support text are in its details (▾).
 - Support tags (Marc, 2026-11-13): Mainstream and Extended green, Ending (from 180 days before the end) and Ended (no ESU found yet) amber, ESU in its own blue-violet, Unsupported red.
 - Approvals: the ring of a transition is shown as its tag, the alarm reason below the state, and the server decisions are greyed while no server waits.
+- Help (Marc, 2026-11-13, variant C of the mockup): the pages are grouped into six areas in a list on the left with a search on top, the page uses the full width, and **On this page** on the right lists its sections and marks the one being read; both lists stay in place while the text scrolls. The full-text search finds the section of a page that contains every word (an error code, a button, a setting) and marks the hit; the start page offers the search and one tile per area.
 
 ## [0.9.0-rc.3] - 2026-11-13
 

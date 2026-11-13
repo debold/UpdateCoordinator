@@ -690,6 +690,32 @@
         // Nothing to restore.
     }
 
+    // Help (Marc, 2026-11-13): "On this page" marks the section being read while the text scrolls. Without script the
+    // list still stays in place; only the mark does not move.
+    const markHelpSection = () => {
+        const links = [...document.querySelectorAll('.help-toc a[data-section]')];
+        if (links.length === 0) {
+            return;
+        }
+
+        const headings = links.map((link) => document.getElementById(link.dataset.section)).filter((h) => h !== null);
+        const update = () => {
+            let current = headings[0];
+            for (const heading of headings) {
+                if (heading.getBoundingClientRect().top <= 120) {
+                    current = heading;
+                }
+            }
+
+            for (const link of links) {
+                link.classList.toggle('current', current !== undefined && link.dataset.section === current.id);
+            }
+        };
+        window.addEventListener('scroll', update, { passive: true });
+        update();
+    };
+
     applyGates();
     fillFromAddress();
+    markHelpSection();
 })();

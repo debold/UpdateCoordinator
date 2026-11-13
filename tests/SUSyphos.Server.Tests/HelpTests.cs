@@ -106,6 +106,70 @@ public sealed class HelpTests
         Assert.Contains("help-", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Search_FindsTheSection_WithTheWordMarked()
+    {
+        var catalog = new HelpCatalog([
+            new("10-overview", "# Overview\n\nIntro text.\n\n## Leases {#leases}\n\nA lease lets one server of a group restart."),
+            new("20-servers", "# Servers\n\nThe list of servers."),
+        ]);
+
+        var hit = Assert.Single(catalog.Search("lease restart"));
+
+        Assert.Equal("overview", hit.Topic.Slug);
+        Assert.Equal("leases", hit.Anchor);
+        Assert.Equal("lease", hit.Match, ignoreCase: true);
+    }
+
+    [Fact]
+    public void LinksWithinAPage_PointToThatPage()
+    {
+        var topic = new HelpCatalog([new("10-overview", "# Overview\n\nSee [leases](#leases) and [servers](servers#list).\n\n## Leases {#leases}\n\nText.")]).Find("overview")!;
+
+        Assert.Contains("href=\"help/overview#leases\"", topic.Html, StringComparison.Ordinal);
+        Assert.Contains("href=\"servers#list\"", topic.Html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("x")]
+    [InlineData("nothing-like-this")]
+    public void Search_ReturnsNothing_ForEmptyTooShortOrUnknownQueries(string? query) =>
+        Assert.Empty(new HelpCatalog([new("10-overview", "# Overview\n\nText about servers.")]).Search(query));
+
+    [Fact]
+    public void Areas_PlaceEveryPageExactlyOnce()
+    {
+        var catalog = new HelpCatalog();
+
+        var placed = catalog.Areas.SelectMany(a => a.Topics).ToList();
+
+        Assert.Equal(catalog.Topics.Count, placed.Count);
+        Assert.Equal(catalog.Topics.Select(t => t.Slug).Order(), placed.Select(t => t.Slug).Order());
+        Assert.All(catalog.Topics, t => Assert.NotNull(catalog.AreaOf(t)));
+    }
+
+    [Fact]
+    public async Task SearchPage_MarksTheHits_AndATopicHasOnThisPage()
+    {
+        await using var factory = new ServerFactory();
+        using var browser = new DashboardClient(factory);
+
+        var search = await (await browser.GetAsync("/help?q=lease")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("help-hits", search, StringComparison.Ordinal);
+        Assert.Contains("<mark>", search, StringComparison.Ordinal);
+
+        var none = await (await browser.GetAsync("/help?q=%3Cscript%3Ezzqq")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Nothing found", none, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script>zzqq", none, StringComparison.Ordinal);
+
+        var topic = await (await browser.GetAsync("/help/server-detail")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("help-toc", topic, StringComparison.Ordinal);
+        Assert.Contains("data-section=", topic, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("/help/missing")]
     [InlineData("/help/Over_view")]

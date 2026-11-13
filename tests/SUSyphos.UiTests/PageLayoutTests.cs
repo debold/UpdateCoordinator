@@ -71,6 +71,9 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/administration/notifications?tab=events",
         "/administration/backup",
         "/administration/audit",
+        "/help",
+        "/help?q=lease",
+        "/help/server-detail",
     ];
 
     [Theory]

@@ -4,57 +4,105 @@
 @inject HelpCatalog Catalog
 @inject NavigationManager Navigation
 
-@* Open to everyone, also before sign-in: the help describes the product and contains no data of this installation. *@
-@if (_topic is null && Topic is null)
-{
-    <PageTitle>Help</PageTitle>
-    <PageHeader Title="Help" Icon="@PageIcons.Help" Subtitle="Every page of the dashboard explained: what each box shows and what each field and button does." />
-    <Box Flush="true">
-        <ul class="help-index">
-            @foreach (var topic in Catalog.Topics)
-            {
-                <li><a href="@($"help/{topic.Slug}")">@topic.Title</a><span class="sub">@topic.Summary</span></li>
-            }
-        </ul>
-    </Box>
-}
-else if (_topic is not null)
-{
-    <PageTitle>Help: @_topic.Title</PageTitle>
-    <nav class="crumbs" aria-label="Breadcrumb"><a href="help">Help</a><span aria-hidden="true">/</span><span>@_topic.Title</span></nav>
-    <div class="help-layout">
-        @* Every topic at hand, the current one with its sections, so readers move between pages without going back. *@
-        <nav class="help-nav box" aria-label="Help topics">
+@* Open to everyone, also before sign-in: the help describes the product and contains no data of this installation.
+   Layout variant C (Marc, 2026-11-13, mockup "Help layout"): a slim list of the areas with their topics on the left with
+   the search on top, the page in the middle at full width, "On this page" on the right; both side lists stay in place
+   while the text scrolls, and the script marks the section being read. *@
+<div class="help-layout">
+    <nav class="help-nav" aria-label="Help topics">
+        <form class="help-search" method="get" action="help" role="search">
+            <label class="visually-hidden" for="help-q">Search the help</label>
+            <input id="help-q" name="q" type="search" maxlength="100" value="@Query" placeholder="Search the help" />
+        </form>
+        <a class="help-home @(_topic is null && Query is null ? "current" : null)" href="help">Start</a>
+        @foreach (var area in Catalog.Areas)
+        {
+            <div class="help-area">@area.Name</div>
             <ul>
-                @foreach (var topic in Catalog.Topics)
+                @foreach (var topic in area.Topics)
                 {
-                    var current = topic.Slug == _topic.Slug;
-                    <li class="@(current ? "current" : null)">
-                        <a href="@($"help/{topic.Slug}")" aria-current="@(current ? "page" : null)">@topic.Title</a>
-                        @if (current && topic.Sections.Count > 0)
-                        {
-                            <ul>
-                                @foreach (var (id, title) in topic.Sections)
-                                {
-                                    <li><a href="@($"help/{topic.Slug}#{id}")">@title</a></li>
-                                }
-                            </ul>
-                        }
+                    var current = topic.Slug == _topic?.Slug;
+                    <li class="@(current ? "current" : null)"><a href="@($"help/{topic.Slug}")" aria-current="@(current ? "page" : null)">@topic.Title</a></li>
+                }
+            </ul>
+        }
+    </nav>
+
+    <div class="help-main">
+        @if (_topic is not null)
+        {
+            <PageTitle>Help: @_topic.Title</PageTitle>
+            <nav class="crumbs" aria-label="Breadcrumb"><a href="help">Help</a><span aria-hidden="true">/</span><span>@Catalog.AreaOf(_topic).Name</span><span aria-hidden="true">/</span><span>@_topic.Title</span></nav>
+            <article class="box help-article">
+                <div class="box-body">@((MarkupString)_topic.Html)</div>
+            </article>
+        }
+        else if (Query is { } query)
+        {
+            var hits = Catalog.Search(query);
+            <PageTitle>Help: search</PageTitle>
+            <PageHeader Title="Search the help" Icon="@PageIcons.Help" Subtitle="@(hits.Count == 0 ? $"Nothing found for \"{query}\"" : $"{DisplayNumber.Count(hits.Count, "result", "results")} for \"{query}\", best first")" Crumbs="@([("Help", "help"), ("Search", null)])" />
+            @if (hits.Count == 0)
+            {
+                <p class="note">Every word must appear in the same part of a page. Try fewer or other words, an error code like 0x8A150010 or the name of a button.</p>
+            }
+            <ul class="help-hits">
+                @foreach (var hit in hits)
+                {
+                    <li class="box">
+                        <a class="hit-title" href="@($"help/{hit.Topic.Slug}{(hit.Anchor is null ? null : "#" + hit.Anchor)}")">@hit.Topic.Title@if (hit.Anchor is not null) { <span> › @hit.Heading</span> }</a>
+                        <CategoryTag Text="@Catalog.AreaOf(hit.Topic).Name" Index="0" />
+                        <p>@hit.Before<mark>@hit.Match</mark>@hit.After</p>
                     </li>
                 }
             </ul>
-        </nav>
-        <article class="box help-article">
-            <div class="box-body">@((MarkupString)_topic.Html)</div>
-        </article>
+        }
+        else
+        {
+            <PageTitle>Help</PageTitle>
+            <PageHeader Title="How can we help?" Icon="@PageIcons.Help" Subtitle="Every page of the dashboard explained: what each box shows and what each field and button does." />
+            <form class="help-search large" method="get" action="help" role="search">
+                <label class="visually-hidden" for="help-q-start">Search the help</label>
+                <input id="help-q-start" name="q" type="search" maxlength="100" placeholder="Search for a page, a setting or an error code" />
+                <button type="submit" class="primary">Search</button>
+            </form>
+            <div class="help-tiles">
+                @foreach (var area in Catalog.Areas)
+                {
+                    <section class="box help-tile">
+                        <h2>@area.Name</h2>
+                        <p class="note">@area.Description</p>
+                        <p class="help-tile-links">@foreach (var topic in area.Topics) { <a href="@($"help/{topic.Slug}")">@topic.Title</a> }</p>
+                    </section>
+                }
+            </div>
+        }
     </div>
-}
+
+    @if (_topic is { Sections.Count: > 0 } withSections)
+    {
+        <nav class="help-toc" aria-label="On this page">
+            <div class="help-area">On this page</div>
+            <ul>
+                @foreach (var (id, title) in withSections.Sections)
+                {
+                    <li><a href="@($"help/{withSections.Slug}#{id}")" data-section="@id">@title</a></li>
+                }
+            </ul>
+        </nav>
+    }
+</div>
 
 @code {
     private HelpTopic? _topic;
 
     [Parameter]
     public string? Topic { get; set; }
+
+    [SupplyParameterFromQuery(Name = "q")]
+    private string? QueryText { get; set; }
+
+    private string? Query => string.IsNullOrWhiteSpace(QueryText) ? null : QueryText.Trim()[..Math.Min(100, QueryText.Trim().Length)];
 
     protected override void OnParametersSet()
     {

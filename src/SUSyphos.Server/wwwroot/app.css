@@ -626,20 +626,35 @@ th:nth-last-child(-n+5) .filter-pop { left: auto; right: 0.5rem; }
 .help-link:hover, .help-link:focus-visible { color: #FFFFFF; background: var(--accent); border-color: var(--accent); text-decoration: none; }
 h1 .help-link { vertical-align: 0.3em; }
 .nav .nav-help { margin-top: 0.75rem; }
-.help-index { list-style: none; margin: 0; padding: 0; }
-.help-index li { display: grid; gap: 0.15rem; padding: 0.75rem 1.1rem; border-top: 1px solid var(--line); }
-.help-index li:first-child { border-top: 0; }
-.help-index a { font-weight: 600; }
 /* Help page: the topics on the left (sticky, current topic with its sections), the article in the rest of the width. */
-.help-layout { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1rem; align-items: start; }
-.help-nav { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; padding: 0.5rem 0; font-size: 0.86rem; }
-.help-nav ul { list-style: none; margin: 0; padding: 0; }
-.help-nav li a { display: block; padding: 0.3rem 1rem; color: var(--text); border-left: 3px solid transparent; }
-.help-nav li a:hover { background: var(--surface-2); text-decoration: none; }
-.help-nav li.current > a { color: var(--accent); font-weight: 600; border-left-color: var(--accent); background: var(--accent-soft); }
-.help-nav li ul a { padding: 0.2rem 1rem 0.2rem 1.8rem; color: var(--muted); font-size: 0.8rem; }
-@media (max-width: 1100px) { .help-layout { grid-template-columns: minmax(0, 1fr); } .help-nav { position: static; max-height: none; } }
-.help-article .box-body { max-width: 72rem; line-height: 1.55; }
+/* Help, variant C (Marc, 2026-11-13): areas and topics left, the page at full width, "On this page" right; both side
+   lists stay in place while the text scrolls. */
+.help-layout { display: grid; grid-template-columns: 14rem minmax(0, 1fr) 13rem; gap: 1.25rem; align-items: start; }
+.help-layout:not(:has(.help-toc)) { grid-template-columns: 14rem minmax(0, 1fr); }
+.help-nav, .help-toc { position: sticky; top: 1rem; font-size: 0.85rem; }
+.help-nav ul, .help-toc ul { list-style: none; margin: 0; padding: 0; }
+.help-nav .help-area, .help-toc .help-area { padding: 0.7rem 0.5rem 0.2rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.help-nav li a, .help-home { display: block; padding: 0.18rem 0.5rem; color: var(--text); border-radius: var(--r-sm); }
+.help-nav li a:hover, .help-home:hover { background: var(--surface-2); text-decoration: none; }
+.help-nav li.current > a, .help-home.current { color: var(--accent-dark); font-weight: 600; background: var(--accent-soft); }
+.help-search input { width: 100%; height: 2.1rem; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 0.6rem; font: inherit; background: var(--surface); }
+.help-search.large { display: flex; gap: 0.5rem; max-width: 46rem; margin: 0.5rem 0 1.25rem; }
+.help-search.large input { height: 2.7rem; font-size: 1rem; }
+.help-toc li a { display: block; padding: 0.2rem 0 0.2rem 0.75rem; border-left: 2px solid var(--line); color: var(--muted); }
+.help-toc li a:hover { color: var(--text); text-decoration: none; }
+.help-toc li a.current { border-left-color: var(--accent); color: var(--accent-dark); font-weight: 600; }
+.help-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
+.help-tile { padding: 1rem 1.15rem; }
+.help-tile h2 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+.help-tile-links { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; margin: 0.5rem 0 0; }
+.help-hits { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; max-width: 60rem; }
+.help-hits li { padding: 0.8rem 1.1rem; }
+.help-hits .hit-title { font-weight: 600; margin-right: 0.5rem; }
+.help-hits p { margin: 0.35rem 0 0; }
+.help-hits mark { background: #FFF1B8; border-radius: 3px; padding: 0 2px; }
+@media (max-width: 1280px) { .help-layout { grid-template-columns: 13rem minmax(0, 1fr); } .help-toc { display: none; } }
+@media (max-width: 900px) { .help-layout { grid-template-columns: minmax(0, 1fr); } .help-nav { position: static; } }
+.help-article .box-body { line-height: 1.55; }
 .help-article h1 { margin-bottom: 0.6rem; }
 .help-article h2 { margin: 1.8rem 0 0.4rem; font-size: 1.15rem; }
 .help-article h3 { margin: 1.3rem 0 0.3rem; font-size: 1rem; }
