@@ -4,6 +4,17 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Agent
+
+- An upgrade that finds no installer of the installed architecture tries again with the architecture WinGet chooses: Burn bundles such as the Visual C++ Redistributable x64 register in the 32-bit view of the registry and failed with 0x8A150010 in rc.3.
+- A coordinated server no longer keeps the lease of its group when Windows stops asking for a restart (it reported one for a moment after an installation); the lease used to expire after two hours, count as a failure and stop the group.
+- "Install now" in a coordinated group waits for the lease instead of being dropped when no lease is free; the software it already installed is not installed again while it waits.
+
+### Central server
+
+- The tabs of the Notifications page show only their own part: the hidden attribute always hides now, whatever the class of the element sets; the layout rules of the UI tests check it on every page.
+- The audit entry of an alarm that cleared itself names the update with KB and title, like the other rollout entries.
+
 ## [0.9.0-rc.3] - 2026-11-13
 
 ### Agent

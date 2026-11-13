@@ -263,7 +263,7 @@ public sealed class RolloutTests
         // The alarm clears itself now that the rule is met again (Marc, 2026-11-13), and the transition goes on.
         await scenario.AdvanceAsync();
         Assert.NotEqual(RingRolloutState.Alarm, await scenario.RingStateAsync(update.UpdateId, RingEntity.TestId));
-        Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "Rollout.AlarmCleared", TestContext.Current.CancellationToken)));
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "Rollout.AlarmCleared" && e.Target!.Contains(update.Title), TestContext.Current.CancellationToken)));
     }
 
     [Fact]

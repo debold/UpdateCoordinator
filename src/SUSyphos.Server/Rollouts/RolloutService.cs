@@ -231,7 +231,8 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
 
                     reason = "Alarm cleared: the rule is met again (" + to.Reason + ")";
                     LogAlarmCleared(rollout.UpdateId, rollout.Revision, rings[i + 1].Name);
-                    await audit.WriteAsync(RuleActor, "Rollout.AlarmCleared", string.Create(CultureInfo.InvariantCulture, $"{rollout.UpdateId} revision {rollout.Revision}"), $"ring {rings[i + 1].Name}: the rule is met again", cancellationToken).ConfigureAwait(false);
+                    var cleared = await db.Updates.AsNoTracking().Where(u => u.UpdateId == rollout.UpdateId && u.Revision == rollout.Revision).Select(u => new { u.KbArticle, u.Title }).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+                    await audit.WriteAsync(RuleActor, "Rollout.AlarmCleared", Describe(cleared?.KbArticle, cleared?.Title ?? string.Empty, rollout.UpdateId, rollout.Revision), $"ring {rings[i + 1].Name}: the rule is met again", cancellationToken).ConfigureAwait(false);
                 }
 
                 to.StateChangedAtUtc = now;

@@ -126,6 +126,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         }
 
         var batch = installNow is null ? PlanBatch() : PlanInstallNow(installNow.Scope ?? InstallScope.All);
+        var waitingForLease = false;
         if (batch.Count > 0)
         {
             // Never install on a server that fails its health check.
@@ -162,6 +163,17 @@ internal sealed partial class InstallationRunner : IInstallationRunner
                     installNow = null;
                 }
 
+                // "Install now" waits for the lease instead of being dropped (lab, LABVDC01, 2026-11-13); the software it
+                // already installed is not installed again while it waits.
+                if (!lease.Value && updates.Count > 0)
+                {
+                    waitingForLease = true;
+                    if (installNow is not null && software.Count > 0)
+                    {
+                        Save(_state with { InstallNow = installNow with { Scope = InstallScope.WindowsUpdates } });
+                    }
+                }
+
                 if (lease.Value)
                 {
                     var succeeded = await InstallAsync(updates, cancellationToken).ConfigureAwait(false);
@@ -185,7 +197,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         }
 
         // Nothing to install or the server failed its health check: the request is answered with what is there.
-        if (installNow is not null && (batch.Count == 0 || _state.InstallNow is not null))
+        if (installNow is not null && !waitingForLease && (batch.Count == 0 || _state.InstallNow is not null))
         {
             FinishInstallNow(installNow);
         }
@@ -337,10 +349,15 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         }
     }
 
-    /// <summary>Releases a held lease unless it is kept for a reboot that is still allowed to happen.</summary>
+    /// <summary>
+    /// Releases a held lease unless it is kept for a reboot that is still due and allowed to happen. A reboot Windows no
+    /// longer asks for does not keep the lease (lab, LABVEX01, 2026-11-13: Windows reported a restart for a moment after
+    /// an installation, the lease was kept until it expired and the group stopped).
+    /// </summary>
     private async Task<bool> ReleaseLeaseIfDoneAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
-        if (_state.Lease is not { } hold || (hold.AwaitingReboot && RebootMayFollow()))
+        var rebootDue = _environment.RebootPending || _state.RestartRequestedAt is not null || _restart.AnnouncedFor is not null;
+        if (_state.Lease is not { } hold || (hold.AwaitingReboot && rebootDue && RebootMayFollow()))
         {
             return true;
         }

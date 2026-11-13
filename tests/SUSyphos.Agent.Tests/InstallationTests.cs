@@ -747,6 +747,54 @@ public sealed class InstallationRunnerTests
     }
 
     [Fact]
+    public async Task InstallNow_InACoordinatedGroup_WaitsForTheLease()
+    {
+        // LABVDC01, 2026-11-13: without a free lease the request was dropped and the updates stayed.
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero)); // Wednesday noon, no window
+        var software = new Release(Guid.NewGuid(), 1, _time.GetUtcNow().AddDays(2), Software: new SoftwareRelease("7zip.7zip", "26.06", false));
+        var update = _release with { EarliestInstallAt = _time.GetUtcNow().AddDays(2) };
+        _releases.Current = new ReleaseList(1, [update, software], null, null, RequiresLease: true);
+        _client.LeaseAnswer = new LeaseResponse(false, null, "All leases of group MyServers are taken.");
+        var runner = Create();
+
+        runner.RequestInstallNow(restartNow: false);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal([software], Assert.Single(_installer.Batches));
+        Assert.NotNull(_store.State.InstallNow);
+
+        // Still no lease: the software is not installed again, the request keeps waiting.
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Single(_installer.Batches);
+        Assert.NotNull(_store.State.InstallNow);
+
+        // The lease is free: the Windows update installs, and the request is done.
+        _client.LeaseAnswer = new LeaseResponse(true, _time.GetUtcNow().AddHours(2));
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Equal([update], _installer.Batches[1]);
+        Assert.Null(_store.State.InstallNow);
+    }
+
+    [Fact]
+    public async Task LeaseIsReleased_WhenWindowsNoLongerAsksForARestart()
+    {
+        // LABVEX01, 2026-11-13: Windows reported a restart for a moment after the installation, then no longer.
+        _releases.Current = new ReleaseList(1, [_release], null, RebootPolicy.InsideMaintenanceWindow, RequiresLease: true);
+        _environment.RebootPending = true;
+        _restart.Accept = false;
+        var runner = Create();
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Empty(_client.LeaseReleases);
+
+        _environment.RebootPending = false;
+        _updates.LastMissingUpdates = new HashSet<(Guid, int)>();
+        _time.Advance(TimeSpan.FromMinutes(5));
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal([true], _client.LeaseReleases);
+        Assert.Null(_store.State.Lease);
+    }
+
+    [Fact]
     public async Task WithoutRebootPermission_LeaseIsReleasedRightAfterInstallation()
     {
         _releases.Current = new ReleaseList(1, [_release], null, RebootPolicy.Never, RequiresLease: true);

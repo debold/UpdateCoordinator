@@ -27,6 +27,13 @@ internal static class LayoutAudit
                 return `${el.tagName.toLowerCase()}${cls} "${text}"`;
             };
 
+            // An element with the hidden attribute is never shown, whatever its class sets (Notifications tabs, 2026-11-13).
+            for (const el of document.querySelectorAll('main [hidden]')) {
+                if (getComputedStyle(el).display !== 'none') {
+                    issues.push(`hidden element is shown: ${describe(el)}`);
+                }
+            }
+
             if (doc.scrollWidth > doc.clientWidth + 1) {
                 issues.push(`page scrolls sideways: ${doc.scrollWidth}px content in a ${doc.clientWidth}px window`);
             }

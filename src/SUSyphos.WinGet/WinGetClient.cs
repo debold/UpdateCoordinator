@@ -226,21 +226,29 @@ public sealed class WinGetClient(WinGetEngine engine)
 
         // An upgrade keeps the architecture of the installed program: installers refuse to put x64 over x86 or the
         // other way round (lab, 2026-11-10: TeamViewer Host x86 ended with exit code 2).
+        var keptArchitecture = false;
         if (operation == "upgrade" && InstalledArchitecture(package) is { } architecture)
         {
             install.AllowedArchitectures.Clear();
             install.AllowedArchitectures.Add(architecture);
+            keptArchitecture = true;
             Trace?.Invoke($"Keeping the installed architecture {architecture}.");
         }
 
         Trace?.Invoke($"Starting the {operation} of {id} {install.PackageVersionId?.Version ?? package.DefaultInstallVersion?.Version}.");
         var watch = Stopwatch.StartNew();
-        var running = operation == "upgrade"
-            ? _manager.UpgradePackageAsync(package, install)
-            : _manager.InstallPackageAsync(package, install);
-        var progress = new ProgressTrace(Trace);
-        running.Progress = (_, state) => progress.Report(state);
-        var result = await running;
+        var result = await ExecuteAsync(operation, package, install);
+
+        // The guess can be wrong: Burn bundles such as the Visual C++ Redistributable x64 register in the 32-bit view of
+        // the registry although they are x64 (lab, 2026-11-13: 0x8A150010). Without an installer of that architecture
+        // WinGet decides itself, as it would without the guess.
+        if (keptArchitecture && result.Status == InstallResultStatus.NoApplicableInstallers)
+        {
+            install.AllowedArchitectures.Clear();
+            Trace?.Invoke("No installer of the installed architecture; trying again with the architecture WinGet chooses.");
+            result = await ExecuteAsync(operation, package, install);
+        }
+
         watch.Stop();
         Trace?.Invoke($"WinGet answered {result.Status} after {watch.Elapsed.TotalSeconds:0.0} s (installer exit code {result.InstallerErrorCode}).");
         return new WinGetOperationResult(
@@ -254,6 +262,16 @@ public sealed class WinGetClient(WinGetEngine engine)
             watch.Elapsed,
             logFile,
             result.ExtendedErrorCode?.HResult ?? 0);
+    }
+
+    private async Task<InstallResult> ExecuteAsync(string operation, CatalogPackage package, InstallOptions install)
+    {
+        var running = operation == "upgrade"
+            ? _manager.UpgradePackageAsync(package, install)
+            : _manager.InstallPackageAsync(package, install);
+        var progress = new ProgressTrace(Trace);
+        running.Progress = (_, state) => progress.Report(state);
+        return await running;
     }
 
     /// <summary>
