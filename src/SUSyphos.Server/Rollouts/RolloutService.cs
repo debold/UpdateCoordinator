@@ -479,14 +479,17 @@ internal sealed partial class RolloutService(ServerDbContext db, ReleasePlanner 
 
         var results = await db.Installations
             .Where(i => i.UpdateId == updateId && i.Revision == revision && ringClients.Contains(i.ClientId))
-            .Select(i => new { i.ClientId, i.Id, i.ResultCode })
+            .Select(i => new { i.ClientId, i.Id, i.ResultCode, i.HResult })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        // The last result per server counts, so a successful retry replaces an earlier failure.
+        // The last result per server counts, so a successful retry replaces an earlier failure; a server that has the
+        // update installed by now (inventory, Windows history, "already installed") counts as successful, as on the
+        // update page (lab, 2026-11-13: the ring showed 50 % while both servers had it installed).
         var last = results.GroupBy(r => r.ClientId).Select(g => g.MaxBy(r => r.Id)!).ToList();
+        var installed = await InstallEvidence.InstalledAsync(db, [.. last.Select(r => r.ClientId)], [updateId], cancellationToken).ConfigureAwait(false);
         var targeted = releasedTo.Concat(last.Select(r => r.ClientId)).Distinct().Count();
-        var succeeded = last.Count(r => r.ResultCode is (int)InstallResultCode.Succeeded or (int)InstallResultCode.SucceededWithErrors);
+        var succeeded = last.Count(r => InstallEvidence.LeavesInstalled(r.ResultCode, r.HResult) || installed.Contains((r.ClientId, updateId)));
         return new RingStatistics(targeted, last.Count, succeeded);
     }
 

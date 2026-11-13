@@ -16,6 +16,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 - The installer cache also keeps the x86 installers of a version while an approved server has the package installed as a 32-bit program (until now only x64 installers were cached where there were any); an offered version is cached again once such a server appears.
 - The dashboard shows the exit code of the installer next to the result of a failed software installation.
+- The success rate of a ring counts a server as successful when it has the update installed by now (inventory, Windows history or "already installed"), as the update page does; the ring showed 50 % while both servers had the update.
 - Plain texts for 0x800705B4 (timeout of the WinGet helper), 0x80004005 and 0x8A150006 (the installer ended with an error exit code).
 
 ## [0.9.0-rc.2] - 2026-11-10

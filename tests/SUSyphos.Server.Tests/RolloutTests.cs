@@ -238,6 +238,30 @@ public sealed class RolloutTests
     }
 
     [Fact]
+    public async Task SuccessRate_CountsAServerThatHasTheUpdateInstalledLater()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var pilot = await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        var test = await scenario.AddClientAsync("TEST01", RingEntity.TestId);
+        var update = RolloutScenario.Update("Security Updates");
+        await scenario.ReportAsync(pilot, update);
+        await scenario.ReportAsync(test, update);
+        await scenario.InstallAsync(pilot, update.UpdateId, InstallResultCode.Failed);
+        await scenario.AgeRingAsync(update.UpdateId, RingEntity.PilotId, TimeSpan.FromDays(2));
+        await scenario.AdvanceAsync();
+        Assert.Equal(RingRolloutState.Alarm, await scenario.RingStateAsync(update.UpdateId, RingEntity.TestId));
+
+        // The server reports the update installed after all (Windows installed it, or a later run did).
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            db.ClientUpdates.Add(new ClientUpdateEntity { ClientId = pilot.ClientId, UpdateId = update.UpdateId, Revision = 1, ReportedAtUtc = DateTime.UtcNow });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        var statistics = await scenario.WithServiceAsync<RolloutService, RingStatistics>(s => s.GetStatisticsAsync(update.UpdateId, 1, RingEntity.PilotId, CancellationToken.None));
+        Assert.Equal(100, statistics.SuccessPercent);
+    }
+
+    [Fact]
     public async Task PoorSuccessRate_RaisesAlarm_ThatAnOperatorCanOverrule()
     {
         await using var scenario = await RolloutScenario.CreateAsync();
