@@ -102,7 +102,7 @@ tr.unusable td { color: var(--muted); }
 /* Action band: one place for every page action; primary first, destructive at the end. */
 .band { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 0.5rem 0.65rem; box-shadow: var(--shadow); }
 .band form { display: contents; }
-.band .spacer { flex: 1 1 auto; }
+.band .spacer, .box-head .spacer { flex: 1 1 auto; }
 .band .sep { width: 1px; align-self: stretch; background: var(--line); margin: 0.15rem 0.25rem; }
 .band .note { font-size: 0.85rem; }
 
@@ -475,6 +475,9 @@ details.multi .options label:hover { background: var(--surface-2); }
 }
 .fact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); margin: 0; background: var(--surface-2); border-radius: 0 0 var(--r) var(--r); }
 .status-part + .fact-grid, .baseline-track + .status-part { border-top: 1px solid var(--line); }
+/* Thumbprints and other long codes stay on one line: such a fact takes two columns. */
+.fact-grid .fact:has(> dd.mono) { grid-column: span 2; }
+.fact-grid dd.mono { white-space: nowrap; }
 .fact-grid.embedded { border-radius: var(--r-sm); border: 1px solid var(--line); }
 .fact-grid > .section-label { grid-column: 1 / -1; padding-bottom: 0; }
 .fact { padding: 0.55rem 1.15rem 0.65rem; min-width: 0; }
@@ -848,6 +851,7 @@ td .kb-links { margin-top: 0.2rem; }
 
 /* Category tags tell kinds apart with a tint of the categorical palette (not a status colour). */
 .cat-tag { --cat: var(--series-1); display: inline-flex; align-items: center; height: 20px; padding: 0 0.6rem; border: 1px solid color-mix(in srgb, var(--cat) 45%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--cat) 14%, var(--surface)); color: var(--text); font-size: 0.78rem; white-space: nowrap; vertical-align: middle; }
+.cat-tag.c5 { --cat: #2F3B4C; } .cat-tag.c6 { --cat: #566273; } .cat-tag.c7 { --cat: #687282; } .cat-tag.c8 { --cat: #0E7C86; }
 .cat-tag.c0 { --cat: var(--idle); } .cat-tag.c1 { --cat: var(--series-5); } .cat-tag.c2 { --cat: var(--series-7); } .cat-tag.c3 { --cat: var(--series-3); } .cat-tag.c4 { --cat: var(--series-8); }
 
 /* Expanded rows (ListTable Details): the row stays tinted, the details open right below it, indented and shaded. */

@@ -10,7 +10,10 @@
     [Parameter]
     public string? Title { get; set; }
 
-    /// <summary>Position in the categorical palette (1 to 4, 0 for grey), the same for the same kind on every page.</summary>
+    /// <summary>
+    /// Position in the palette, the same for the same kind on every page: 1 to 4 categorical colours, 0 grey, 5 to 7 slate
+    /// shades for the dashboard roles (darker with more rights), 8 teal for Active Directory.
+    /// </summary>
     [Parameter]
     public int Index { get; set; } = 1;
 }

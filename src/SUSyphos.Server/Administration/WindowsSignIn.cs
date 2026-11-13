@@ -303,6 +303,18 @@ internal sealed partial class WindowsSignIn(
             || (sid.StartsWith("S-1-5-21-", StringComparison.OrdinalIgnoreCase) && (sid.EndsWith("-512", StringComparison.Ordinal) || sid.EndsWith("-518", StringComparison.Ordinal) || sid.EndsWith("-519", StringComparison.Ordinal) || sid.EndsWith("-520", StringComparison.Ordinal)));
     }
 
+    /// <summary>
+    /// Groups every user of the domain or the server is in (Everyone, Authenticated Users, Users, Domain Users, Domain
+    /// Guests): allowed, but the dashboard points out that everybody can sign in with that role.
+    /// </summary>
+    public static bool IsBroad(string sid)
+    {
+        ArgumentNullException.ThrowIfNull(sid);
+        string[] wellKnown = ["S-1-1-0", "S-1-5-11", "S-1-5-32-545", "S-1-5-32-546"];
+        return wellKnown.Contains(sid, StringComparer.OrdinalIgnoreCase)
+            || (sid.StartsWith("S-1-5-21-", StringComparison.OrdinalIgnoreCase) && (sid.EndsWith("-513", StringComparison.Ordinal) || sid.EndsWith("-514", StringComparison.Ordinal)));
+    }
+
     [GeneratedRegex(@"^S-1-[0-9]+(-[0-9]+){1,14}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 1000)]
     private static partial Regex SidRegex();
 }

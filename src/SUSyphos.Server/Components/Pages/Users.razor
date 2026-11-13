@@ -25,8 +25,8 @@
         <Row Context="user">
                     <tr>
                         <td>@user.UserName</td>
-                        <td>@if (user.Windows) { <CategoryTag Text="Active Directory" Index="1" /> } else { <CategoryTag Text="Local" Index="2" /> }</td>
-                        <td>@if (user.Role is { Length: > 0 } role) { <CategoryTag Text="@role" Index="@RoleIndex(role)" /> } else { <span class="note">–</span> } @if (user.Windows) { <div class="note">from AD groups</div> }</td>
+                        <td>@if (user.Windows) { <CategoryTag Text="Active Directory" Index="8" /> } else { <CategoryTag Text="Local" Index="0" /> }</td>
+                        <td>@if (user.Role is { Length: > 0 } role) { <CategoryTag Text="@role" Index="@RoleIndex(role)" /> } else { <span class="note">–</span> } @if (user.Windows) { <div class="note"><a href="/administration/users#ad-sign-in">from the AD group mappings</a></div> }</td>
                         <td>
                             @if (user.LockedOut)
                             {
@@ -62,11 +62,20 @@
     </ListTable>
 </section>
 
-<form method="post" @formname="windows-sign-in" @onsubmit="WindowsAsync" class="box">
+<form method="post" @formname="windows-sign-in" @onsubmit="WindowsAsync" class="box" id="ad-sign-in">
     <AntiforgeryToken />
     <header class="box-head">
         <h2>Active Directory sign-in<HelpLink To="users#windows" Label="Active Directory sign-in" /></h2>
         <span class="pill @(_windowsEnabled ? "ok" : "neutral")">@(_windowsEnabled ? "on" : "off")</span>
+        <span class="spacer"></span>
+        @if (_windowsEnabled)
+        {
+            <button type="submit" name="WindowsAction" value="disable">Switch off</button>
+        }
+        else
+        {
+            <button type="submit" name="WindowsAction" value="enable" class="primary">Switch on</button>
+        }
     </header>
     <div class="box-body form">
         @if (!Windows.AllowedByConfiguration)
@@ -80,18 +89,17 @@
         </p>
         <div class="scroll">
             <table>
-                <thead><tr><th>AD group</th><th>SID</th><th>Role</th><th class="n"></th></tr></thead>
+                <thead><tr><th>AD group</th><th>Role</th><th class="n"></th></tr></thead>
                 <tbody>
                     @if (_mappings.Count == 0)
                     {
-                        <tr><td colspan="4" class="note">No group mapped yet.</td></tr>
+                        <tr><td colspan="3" class="note">No group mapped yet.</td></tr>
                     }
                     @foreach (var mapping in _mappings)
                     {
                         <tr>
-                            <td>@mapping.Name@if (WindowsSignIn.IsFilteredByUac(mapping.Sid)) { <div title="@WindowsSignIn.UacRefusal(mapping.Name)"><StatusTag Text="Filtered by UAC" Kind="fail" /></div> }</td>
-                            <td class="mono note">@mapping.Sid</td>
-                            <td>@mapping.Role</td>
+                            <td>@mapping.Name<div class="mono note">@mapping.Sid</div>@if (WindowsSignIn.IsFilteredByUac(mapping.Sid)) { <div title="@WindowsSignIn.UacRefusal(mapping.Name)"><StatusTag Text="Filtered by UAC" Kind="fail" /></div> }</td>
+                            <td><CategoryTag Text="@mapping.Role" Index="@RoleIndex(mapping.Role)" />@if (WindowsSignIn.IsBroad(mapping.Sid)) { <div class="note">every user of the domain can sign in with this role</div> }</td>
                             <td class="n"><ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {mapping.Name}")"><MenuItem Name="WindowsAction" Value="@($"remove:{mapping.Sid}")" Icon="trash-2" Danger="true">Remove mapping</MenuItem></ActionMenu></td>
                         </tr>
                     }
@@ -114,18 +122,6 @@
             <Note>The group as DOMAIN\Group or its SID; suggestions appear while typing. Groups Windows filters by User Account Control (Domain Admins, Administrators and the like) are refused, because their members would get no role.</Note>
         </AddEntry>
     </div>
-    <footer class="box-foot">
-        <span class="actions">
-            @if (_windowsEnabled)
-            {
-                <button type="submit" name="WindowsAction" value="disable">Switch off</button>
-            }
-            else
-            {
-                <button type="submit" name="WindowsAction" value="enable" class="primary">Switch on</button>
-            }
-        </span>
-    </footer>
 </form>
 
 @if (_dialog is "new" or "edit")
@@ -229,11 +225,12 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
     private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("source", "Source")];
 
     /// <summary>Colour of a role tag, the same on every page.</summary>
+    /// <summary>Roles in shades of one slate colour, darker with more rights, so they never read as a state (Marc, 2026-11-13).</summary>
     private static int RoleIndex(string role) => role switch
     {
-        AdminRoles.Admin => 1,
-        AdminRoles.Operator => 2,
-        _ => 3,
+        AdminRoles.Admin => 5,
+        AdminRoles.Operator => 6,
+        _ => 7,
     };
 
     /// <summary>The views of the account list, default first.</summary>

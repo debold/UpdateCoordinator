@@ -25,10 +25,10 @@
 }
 
 <ActionBand>
-    <button type="submit" form="decision" name="Action" value="approve-selected" class="primary"><Icon Name="check" Size="16" />Approve selected servers</button>
+    <button type="submit" form="decision" name="Action" value="approve-selected" class="primary" disabled="@(_pending.Count == 0)" title="@(_pending.Count == 0 ? "No server is waiting for approval" : null)"><Icon Name="check" Size="16" />Approve selected servers</button>
     <div class="spacer"></div>
     <span class="note">Approve only servers you expect</span>
-    <button type="submit" form="decision" name="Action" value="reject-selected" class="danger"><Icon Name="x" Size="16" />Reject selected servers</button>
+    <button type="submit" form="decision" name="Action" value="reject-selected" class="danger" disabled="@(_pending.Count == 0)" title="@(_pending.Count == 0 ? "No server is waiting for approval" : null)"><Icon Name="x" Size="16" />Reject selected servers</button>
 </ActionBand>
 
 @* One form that is always rendered, so a decision posted after the list changed still reaches the handler. The list
@@ -91,8 +91,8 @@
                     }
                         <tr>
                             <td class="wrap"><a href="/updates/@gate.Ring.UpdateId/@gate.Ring.Revision">@gate.Title</a></td>
-                            <td>@gate.RingName</td>
-                            <td>@if (gate.Ring.State == RingRolloutState.Alarm) { <span class="pill fail">Alarm</span> <span class="note">@gate.Ring.Reason</span> } else { <span class="pill queue">Awaiting approval</span> }</td>
+                            <td class="nowrap"><RingTag Name="@gate.RingName" Order="@_ringOrders.GetValueOrDefault(gate.RingName)" /></td>
+                            <td>@if (gate.Ring.State == RingRolloutState.Alarm) { <span class="pill fail">Alarm</span><div class="note">@gate.Ring.Reason</div> } else { <span class="pill queue">Awaiting approval</span> }</td>
                             <td class="nowrap">@Format(gate.Ring.StateChangedAtUtc)</td>
                             <td class="n"><span class="row-actions">
                                 <button type="submit" form="transition" name="Transition" value="approve:@key:@gate.Ring.RingId" class="primary">@(gate.Ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve")</button>
@@ -257,6 +257,7 @@
 
     private List<ClientEntity> _pending = [];
     private List<(RolloutRingEntity Ring, string Title, string RingName)> _gates = [];
+    private Dictionary<string, int> _ringOrders = [];
     private TableQuery _pendingTable = default!;
     private TablePage<ClientEntity> _pendingPage = default!;
     private TableQuery _gateTable = default!;
@@ -421,6 +422,7 @@
         var ids = waiting.Select(r => r.UpdateId).Distinct().ToList();
         var updates = await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync();
         var rings = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Id, r => r.Name);
+        _ringOrders = await Db.Rings.AsNoTracking().ToDictionaryAsync(r => r.Name, r => r.Order);
         _gates = [.. waiting.Select(r =>
         {
             var update = updates.FirstOrDefault(u => u.UpdateId == r.UpdateId && u.Revision == r.Revision);

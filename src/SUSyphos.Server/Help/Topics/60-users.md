@@ -44,7 +44,8 @@ Their role comes from the AD groups mapped here; if a user is in several mapped 
 - **Role**: the role members of this group get.
 - **Add** (next to the role) adds the mapping. A privileged group (Domain Admins, Enterprise Admins, Schema Admins, Group Policy Creator Owners, Administrators and the built-in operator groups) is refused with "Filtered by UAC": Windows filters these groups to "deny only" in a logon without elevation, so their members would get no role. They are recognised by their well-known SID, whatever language the domain uses. A mapping of such a group saved by an earlier version stays in the table with a red **Filtered by UAC** tag (the tooltip says why) until you remove it.
 - **Remove mapping** (in the ⋯ menu of a row) deletes a mapping.
-- **Switch on** / **Switch off** turns Windows sign-in on or off. Local accounts keep working either way.
+- The table shows each mapped group with its SID below the name and its role as a tag. A group every user is in (Domain Users, Domain Guests, Authenticated Users, Users, Everyone) is allowed, but the row says that every user of the domain can sign in with that role.
+- **Switch on** / **Switch off** (in the head of the box, next to the on/off state) turns Windows sign-in on or off. Local accounts keep working either way.
 
 If the configuration file sets `Authentication:Windows:Enabled` to false (emergency switch), nobody can sign in with Windows, whatever is set here. The central server must be a domain member and be opened by its DNS name for Kerberos to work.
 

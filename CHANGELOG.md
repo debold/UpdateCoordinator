@@ -14,6 +14,9 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 - The tabs of the Notifications page show only their own part: the hidden attribute always hides now, whatever the class of the element sets; the layout rules of the UI tests check it on every page.
 - The audit entry of an alarm that cleared itself names the update with KB and title, like the other rollout entries.
+- Identity: roles are tags in shades of slate (darker with more rights) and sources in their own colours, so they no longer look like states or software; the AD group table shows the role as a tag and the SID below the group name; a group every user is in (Domain Users and the like) is marked; **Switch on/off** sits in the head of the box.
+- TLS certificate: the certificate in use is marked **self-signed** where it is; a usable certificate is grey instead of blue, and amber with "Expires in … days" in its last 30 days; the thumbprint stays on one line.
+- Approvals: the ring of a transition is shown as its tag, the alarm reason below the state, and the server decisions are greyed while no server waits.
 
 ## [0.9.0-rc.3] - 2026-11-13
 

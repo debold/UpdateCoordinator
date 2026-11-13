@@ -60,6 +60,11 @@ public sealed class CertificateAdministrationTests
         var html = await (await browser.GetAsync("/administration/certificate")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("uc01.lab.local", html, StringComparison.Ordinal);
         Assert.DoesNotContain("old.lab.local", html, StringComparison.Ordinal);
+
+        // The test certificates are self-signed and valid for one day: named as such, and close to the end in yellow.
+        Assert.Contains(">self-signed</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"pill queue\">Expires", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<span class=\"pill pend\">Usable", html, StringComparison.Ordinal);
         Assert.Contains("View: Usable certificates (default)", html, StringComparison.Ordinal);
         Assert.Contains("href=\"/administration/certificate?cert.view=all\"", html, StringComparison.Ordinal);
 

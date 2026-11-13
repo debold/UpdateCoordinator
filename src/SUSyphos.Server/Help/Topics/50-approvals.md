@@ -6,7 +6,7 @@ Decisions that wait for an operator: new servers, ring transitions, stopped coor
 
 Tick new servers in the list below (**Select**), then:
 
-- **Approve selected servers**: the servers become managed. They get their ring and groups from the assignment rules right away (the inventory is already there) and start receiving releases.
+- **Approve selected servers** (greyed while no server waits): the servers become managed. They get their ring and groups from the assignment rules right away (the inventory is already there) and start receiving releases.
 - **Reject selected servers**: the servers get nothing and send nothing until they are deleted.
 
 Approve only servers you expect: a new agent registers without any secret, so anyone who can reach the central server could register a machine.
@@ -17,7 +17,7 @@ Agents that registered and wait for a decision, with host name and domain, **Reg
 
 ## Ring transitions {#transitions}
 
-Updates that wait at a manual gate (**Awaiting approval**) or stopped on an **Alarm** before a ring, with the reason and since when.
+Updates that wait at a manual gate (**Awaiting approval**) or stopped on an **Alarm** before a ring, with the ring as its tag, the reason below the state and since when. An alarm clears itself once the rule of the transition is met again.
 
 - **Approve** (gate) or **Release anyway** (alarm): the update is released to the ring.
 - **Stop rollout**: withdraws the update from all servers that have not installed it yet. It can be resumed on the [update details](help/update-detail#actions).

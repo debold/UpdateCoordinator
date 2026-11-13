@@ -88,8 +88,12 @@ public sealed class WindowsSignInTests
             Assert.Equal(HttpStatusCode.OK, users.StatusCode);
             var html = await users.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.Contains(@"LAB\alice", html, StringComparison.Ordinal);
-            Assert.Contains("from AD groups", html, StringComparison.Ordinal);
+            Assert.Contains("from the AD group mappings", html, StringComparison.Ordinal);
         }
+
+        Assert.True(WindowsSignIn.IsBroad("S-1-5-21-1-2-3-513"));
+        Assert.True(WindowsSignIn.IsBroad("S-1-5-11"));
+        Assert.False(WindowsSignIn.IsBroad("S-1-5-21-1-2-3-1182"));
 
         var account = await WithUsersAsync(factory, async users =>
         {
@@ -126,6 +130,10 @@ public sealed class WindowsSignInTests
         using (await WindowsGetAsync(second, WindowsSignIn.Route, Alice, @"LAB\alice-renamed", Operators))
         {
         }
+
+        Assert.True(WindowsSignIn.IsBroad("S-1-5-21-1-2-3-513"));
+        Assert.True(WindowsSignIn.IsBroad("S-1-5-11"));
+        Assert.False(WindowsSignIn.IsBroad("S-1-5-21-1-2-3-1182"));
 
         var account = await WithUsersAsync(factory, async users =>
         {

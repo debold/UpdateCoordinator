@@ -13,7 +13,7 @@
 <StatusMessage Text="@Message" IsError="@MessageIsError" />
 
 <Box Title="In use" Help="certificate#in-use" Flush="true">
-    <Header><span class="pill @(_daysLeft < 30 ? "queue" : "ok")">@_daysLeft days left</span></Header>
+    <Header>@if (SelfSigned) { <span class="pill queue" title="Subject and issuer are the same: the servers trust it only through the trust anchor; WinGet needs a CA certificate or the agent setting for its own certificate.">self-signed</span> }<span class="pill @(_daysLeft < 30 ? "queue" : "ok")">@_daysLeft days left</span></Header>
     <ChildContent>
         <FactGrid>
             <Fact Label="Subject" Wide="true">@_current.Subject</Fact>
@@ -137,8 +137,25 @@
     private static string Name(CertificateCandidate candidate) =>
         candidate.DnsNames.FirstOrDefault() ?? (candidate.Subject.StartsWith("CN=", StringComparison.OrdinalIgnoreCase) ? candidate.Subject[3..].Split(',')[0] : candidate.Subject);
 
-    private (string Text, string Kind) State(CertificateCandidate candidate) =>
-        IsInUse(candidate) ? ("In use", "ok") : candidate.Unusable is null ? ("Usable", "pend") : (NotUsable, "neutral");
+    /// <summary>In use green, usable grey (blue would read as "running"), close to its end yellow, not usable grey.</summary>
+    private (string Text, string Kind) State(CertificateCandidate candidate)
+    {
+        if (IsInUse(candidate))
+        {
+            return ("In use", "ok");
+        }
+
+        if (candidate.Unusable is not null)
+        {
+            return (NotUsable, "neutral");
+        }
+
+        var days = (int)Math.Floor((candidate.NotAfterUtc - Time.GetUtcNow().UtcDateTime).TotalDays);
+        return days < 30 ? (days < 1 ? "Expires today" : $"Expires in {DisplayNumber.Count(days, "day", "days")}", "queue") : ("Usable", "neutral");
+    }
+
+    /// <summary>The certificate in use is self-signed (subject and issuer are the same).</summary>
+    private bool SelfSigned => _current.SubjectName.RawData.AsSpan().SequenceEqual(_current.IssuerName.RawData);
 
     private bool IsInUse(CertificateCandidate candidate) => string.Equals(candidate.Thumbprint, _current.Thumbprint, StringComparison.OrdinalIgnoreCase);
 
