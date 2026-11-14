@@ -88,7 +88,9 @@ public sealed class WindowsSignInTests
             Assert.Equal(HttpStatusCode.OK, users.StatusCode);
             var html = await users.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.Contains(@"LAB\alice", html, StringComparison.Ordinal);
-            Assert.Contains("from the AD group mappings", html, StringComparison.Ordinal);
+            // The group that gave the role is named, from the last sign-in (Marc, 2026-11-14).
+            Assert.Contains($">{Admins}</a>, at sign-in ", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("from the AD group mappings", html, StringComparison.Ordinal);
         }
 
         Assert.True(WindowsSignIn.IsBroad("S-1-5-21-1-2-3-513"));
@@ -142,6 +144,10 @@ public sealed class WindowsSignInTests
         });
         Assert.Equal(@"LAB\alice-renamed", account.UserName);
         Assert.Equal([AdminRoles.Operator], account.Item2);
+        var source = await WithUsersAsync(factory, async users => WindowsSignIn.ReadRoleSource(await users.GetClaimsAsync((await users.FindByLoginAsync(WindowsSignIn.LoginProvider, Alice))!)));
+        Assert.Equal(Operators, source.Group);
+        Assert.NotNull(source.At);
+        Assert.Single(await WithUsersAsync(factory, async users => (await users.GetClaimsAsync((await users.FindByLoginAsync(WindowsSignIn.LoginProvider, Alice))!)).Where(c => c.Type == WindowsSignIn.RoleSourceClaim).ToList()));
 
         await factory.WithDbAsync(async db =>
         {
@@ -154,6 +160,29 @@ public sealed class WindowsSignInTests
         using var third = new DashboardClient(factory);
         using var locked = await WindowsGetAsync(third, WindowsSignIn.Route, Alice, @"LAB\alice-renamed", Operators);
         Assert.Equal("/login?windows=locked", locked.Headers.Location?.OriginalString);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("no separator")]
+    [InlineData("not a time|LAB\\group")]
+    [InlineData("2026-11-14T06:00:00.0000000Z|")]
+    public void RoleSource_ThatIsMissingOrMalformed_IsUnknown(string? value)
+    {
+        var claims = value is null ? [] : new[] { new System.Security.Claims.Claim(WindowsSignIn.RoleSourceClaim, value) };
+
+        Assert.Equal((null, null), WindowsSignIn.ReadRoleSource(claims));
+    }
+
+    [Fact]
+    public void RoleSource_IsRead_AsGroupAndUtcTime()
+    {
+        var (group, at) = WindowsSignIn.ReadRoleSource([new(WindowsSignIn.RoleSourceClaim, @"2026-11-14T06:00:00.0000000Z|LAB\SUSyphos-Admins")]);
+
+        Assert.Equal(@"LAB\SUSyphos-Admins", group);
+        Assert.Equal(new DateTime(2026, 11, 14, 6, 0, 0, DateTimeKind.Utc), at);
+        Assert.Equal(DateTimeKind.Utc, at!.Value.Kind);
     }
 
     [Fact]

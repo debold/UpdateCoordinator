@@ -381,7 +381,7 @@ else
                     </div>
                     <div class="field">
                         <span class="field-label">Maintenance windows</span>
-                        <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" />
+                        <WindowPicker Prefix="Windows" Windows="@_ownWindows" Draft="@_windowDraft" InheritedWindows="@_effectiveWindows" AllowInherit="true" Inherited="@(_ownWindows.Count == 0)" InheritLabel="Inherit from groups or the system default" CompareWindows="@MaintenanceWindowFormat.FromJson(_client.EffectiveSoftwareWindowsJson)" CompareSoftware="true" />
                         <p class="note"><a href="@($"/servers/{Id}?tab=configuration&dialog=preview")" data-help-term="Next 30 days">Next @SUSyphos.Server.Assignment.SchedulePreview.Days days</a>: weekly and one-time windows and blackouts of this server together.</p>
                     </div>
                     <AgentSettingOverrides Explained="@_agentSettings" Own="@_ownAgentSettings" Applied="@_appliedSettings" EditHref="@(key => SettingHref(key))" Help="server-detail#agent-settings" />
@@ -391,7 +391,7 @@ else
                     <span class="actions"><a class="btn" href="@ServerPage.Link(Id, "assignment")">Discard changes</a><button type="submit" class="primary">Save assignment</button></span>
                 </footer>
             </form>
-            <SoftwareWindowsBox Title="Software windows" Help="server-detail#software-windows" FormName="server-software-windows" Own="@MaintenanceWindowFormat.FromJson(_client.SoftwareWindowsJson)" Inherited="@SoftwareWindowsInherited" InheritLabel="Inherit from groups or the system default" OnSave="SaveSoftwareWindowsAsync" />
+            <SoftwareWindowsBox Title="Software windows" Help="server-detail#software-windows" FormName="server-software-windows" Own="@MaintenanceWindowFormat.FromJson(_client.SoftwareWindowsJson)" Inherited="@SoftwareWindowsInherited" InheritLabel="Inherit from groups or the system default" Compare="@_effectiveWindows" OnSave="SaveSoftwareWindowsAsync" />
         </Authorized>
         <NotAuthorized>
             <Box Title="Assignment" Help="server-detail#assignment" Flush="true">

@@ -10,7 +10,9 @@ namespace SUSyphos.Server.Administration;
 /// <param name="LockedOut">Locked by an administrator or after failed attempts.</param>
 /// <param name="LockoutEnd">End of the lock.</param>
 /// <param name="Windows">The account signs in with Windows; its role comes from its AD groups.</param>
-internal sealed record UserSummary(string Id, string UserName, string? Role, bool LockedOut, DateTimeOffset? LockoutEnd, bool Windows = false);
+/// <param name="RoleSource">For a Windows account: the mapped AD group that gave the role at its last sign-in.</param>
+/// <param name="RoleSourceAt">When that sign-in was (UTC).</param>
+internal sealed record UserSummary(string Id, string UserName, string? Role, bool LockedOut, DateTimeOffset? LockoutEnd, bool Windows = false, string? RoleSource = null, DateTime? RoleSourceAt = null);
 
 /// <summary>
 /// Account management in the dashboard (docs/06-dashboard.md, users and roles): create, change role, lock, unlock,
@@ -27,7 +29,9 @@ internal sealed class UserAdministration(UserManager<IdentityUser> users, AuditL
         foreach (var account in accounts)
         {
             var roles = await users.GetRolesAsync(account).ConfigureAwait(false);
-            result.Add(new UserSummary(account.Id, account.UserName ?? string.Empty, roles.FirstOrDefault(), account.LockoutEnd > now, account.LockoutEnd, await WindowsSignIn.IsWindowsAccountAsync(users, account).ConfigureAwait(false)));
+            var windows = await WindowsSignIn.IsWindowsAccountAsync(users, account).ConfigureAwait(false);
+            var (source, at) = windows ? WindowsSignIn.ReadRoleSource(await users.GetClaimsAsync(account).ConfigureAwait(false)) : (null, null);
+            result.Add(new UserSummary(account.Id, account.UserName ?? string.Empty, roles.FirstOrDefault(), account.LockoutEnd > now, account.LockoutEnd, windows, source, at));
         }
 
         return result;

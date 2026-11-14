@@ -83,5 +83,28 @@ public sealed class SoftwareWindowsTests
         }
 
         Assert.NotNull(await scenario.WithServiceAsync<AssignmentService, IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow>?>(s => s.GetSystemSoftwareWindowsAsync(CancellationToken.None)));
+
+        // Each tab draws the other kind as a thin second line per day, with a legend naming both (mockup variant A).
+        var softwareTab = await (await browser.GetAsync("/administration/maintenance?windows=software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("week-legend", softwareTab, StringComparison.Ordinal);
+        Assert.Contains("lane lane-mw", softwareTab, StringComparison.Ordinal);
+        var updatesTab = await (await browser.GetAsync("/administration/maintenance")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("lane lane-sw on", updatesTab, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WithoutSoftwareWindows_TheUpdatesTab_DrawsNoSecondLine()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var browser = new DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("admin", Password))
+        {
+        }
+
+        var page = await (await browser.GetAsync("/administration/maintenance")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain("week-legend", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("lane lane-sw", page, StringComparison.Ordinal);
     }
 }

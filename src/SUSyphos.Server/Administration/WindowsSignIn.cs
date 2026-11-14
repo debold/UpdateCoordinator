@@ -76,7 +76,8 @@ internal sealed partial class WindowsSignIn(
     ServerDbContext db,
     AuditLog audit,
     IAccountResolver resolver,
-    IOptions<WindowsSignInOptions> options)
+    IOptions<WindowsSignInOptions> options,
+    TimeProvider timeProvider)
 {
     public const string LoginProvider = "Windows";
 
@@ -89,6 +90,9 @@ internal sealed partial class WindowsSignIn(
     public const string GroupsKey = "WindowsSignIn.Groups";
 
     public const int MaxMappings = 50;
+
+    /// <summary>User claim with the time of the last Windows sign-in and the mapped group that gave the role.</summary>
+    public const string RoleSourceClaim = "susyphos:role-source";
 
     /// <summary>Roles ordered from least to most rights; the highest mapped one wins.</summary>
     private static readonly string[] RoleOrder = [AdminRoles.Reader, AdminRoles.Operator, AdminRoles.Admin];
@@ -135,11 +139,12 @@ internal sealed partial class WindowsSignIn(
         }
 
         var memberships = windowsUser.FindAll(ClaimTypes.GroupSid).Select(c => c.Value).Append(sid).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var role = (await GetMappingsAsync(cancellationToken).ConfigureAwait(false))
+        var winner = (await GetMappingsAsync(cancellationToken).ConfigureAwait(false))
             .Where(m => memberships.Contains(m.Sid))
-            .Select(m => m.Role)
-            .OrderByDescending(r => Array.IndexOf(RoleOrder, r))
+            .OrderByDescending(m => Array.IndexOf(RoleOrder, m.Role))
+            .ThenBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
+        var role = winner?.Role;
         if (role is null)
         {
             // Groups Windows filters for this logon (User Account Control) arrive as deny-only SIDs and give no rights.
@@ -185,9 +190,40 @@ internal sealed partial class WindowsSignIn(
             await audit.WriteAsync(name, "User.RoleFromWindows", name, role, cancellationToken).ConfigureAwait(false);
         }
 
+        await StoreRoleSourceAsync(account, winner!.Name).ConfigureAwait(false);
         await signIn.SignInAsync(account, isPersistent: false, authenticationMethod: LoginProvider).ConfigureAwait(false);
         await audit.WriteAsync(name, "Login.Succeeded", null, "Windows", cancellationToken).ConfigureAwait(false);
         return null;
+    }
+
+    /// <summary>
+    /// Remembers which mapped group gave the role and when (Marc, 2026-11-14), so the account list can name it; a user
+    /// claim of the account, replaced at every sign-in, so it always shows the state of the last sign-in.
+    /// </summary>
+    private async Task StoreRoleSourceAsync(IdentityUser account, string group)
+    {
+        var value = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{timeProvider.GetUtcNow().UtcDateTime:O}|{group}");
+        var existing = (await users.GetClaimsAsync(account).ConfigureAwait(false)).Where(c => c.Type == RoleSourceClaim).ToList();
+        if (existing.Count > 0)
+        {
+            await users.RemoveClaimsAsync(account, existing).ConfigureAwait(false);
+        }
+
+        await users.AddClaimAsync(account, new Claim(RoleSourceClaim, value)).ConfigureAwait(false);
+    }
+
+    /// <summary>The group that gave the role at the last sign-in and when, or nulls when unknown or malformed.</summary>
+    public static (string? Group, DateTime? At) ReadRoleSource(IEnumerable<Claim> claims)
+    {
+        ArgumentNullException.ThrowIfNull(claims);
+        var value = claims.FirstOrDefault(c => c.Type == RoleSourceClaim)?.Value;
+        if (value?.Split('|', 2) is [var time, { Length: > 0 and <= 256 } group]
+            && DateTime.TryParse(time, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var at))
+        {
+            return (group, DateTime.SpecifyKind(at, DateTimeKind.Utc));
+        }
+
+        return (null, null);
     }
 
     public async Task<Outcome> SetEnabledAsync(bool enabled, string actor, CancellationToken cancellationToken)

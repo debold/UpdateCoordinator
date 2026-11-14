@@ -47,11 +47,13 @@ public sealed class UserAdministrationTests
         var grouped = await (await browser.GetAsync("/administration/users")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         var ungrouped = await (await browser.GetAsync("/administration/users?acc.group=")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        Assert.Contains("<tr class=\"group-row\"><td colspan=\"5\">Local · 1</td></tr>", grouped, StringComparison.Ordinal);
-        Assert.Contains("cat-tag c0\">Local", grouped, StringComparison.Ordinal);
+        // Grouped by source, the Source column is left out: the group row names it (Marc, 2026-11-13).
+        Assert.Contains("<tr class=\"group-row\"><td colspan=\"4\">Local · 1</td></tr>", grouped, StringComparison.Ordinal);
+        Assert.DoesNotContain("cat-tag c0\">Local", grouped, StringComparison.Ordinal);
         Assert.Contains("Group: <b>Source</b>", grouped, StringComparison.Ordinal);
         Assert.Contains("<span class=\"cat-tag c5\">Admin</span>", grouped, StringComparison.Ordinal);
         Assert.DoesNotContain("group-row", ungrouped, StringComparison.Ordinal);
+        Assert.Contains("cat-tag c0\">Local", ungrouped, StringComparison.Ordinal);
     }
 
     [Theory]

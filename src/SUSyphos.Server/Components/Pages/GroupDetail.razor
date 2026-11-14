@@ -75,7 +75,7 @@ else
 
     @if (WindowsKind == "software")
     {
-        <SoftwareWindowsBox Own="@_ownSoftware" Inherited="@(_systemSoftware ?? (_ownWindows.Count > 0 ? _ownWindows : _systemWindows))" InheritLabel="Inherit from the system default" Help="group-detail#windows" OnSave="SaveSoftwareAsync">
+        <SoftwareWindowsBox Own="@_ownSoftware" Inherited="@(_systemSoftware ?? (_ownWindows.Count > 0 ? _ownWindows : _systemWindows))" InheritLabel="Inherit from the system default" Compare="@(_ownWindows.Count > 0 ? _ownWindows : _systemWindows)" Help="group-detail#windows" OnSave="SaveSoftwareAsync">
             <Tabs><WindowTabs Software="true" UpdatesHref="@($"{GroupPage.Link(Id)}#windows")" SoftwareHref="@($"{GroupPage.Link(Id)}?windows=software#windows")" UpdatesState="@(_ownWindows.Count > 0 ? DisplayNumber.Count(_ownWindows.Count, "window", "windows") : "inherited")" SoftwareState="@(_ownSoftware is null ? "inherited" : DisplayNumber.Count(_ownSoftware.Count, "window", "windows"))" /></Tabs>
         </SoftwareWindowsBox>
     }
@@ -86,7 +86,7 @@ else
         <header class="box-head"><h2>Windows<HelpLink To="group-detail#windows" Label="Maintenance windows" /></h2><span class="hint">Local server time; a value set on a server wins</span></header>
         <WindowTabs Software="false" UpdatesHref="@($"{GroupPage.Link(Id)}#windows")" SoftwareHref="@($"{GroupPage.Link(Id)}?windows=software#windows")" UpdatesState="@(_ownWindows.Count > 0 ? DisplayNumber.Count(_ownWindows.Count, "window", "windows") : "inherited")" SoftwareState="@(_ownSoftware is null ? "inherited" : DisplayNumber.Count(_ownSoftware.Count, "window", "windows"))" />
         <div class="box-body">
-            <WindowPicker Prefix="Windows" Draft="@_windowDraft" Windows="@_ownWindows" InheritedWindows="@_systemWindows" AllowInherit="true" Inherited="@(group.MaintenanceWindowsJson is null)" InheritLabel="Use the system default" />
+            <WindowPicker Prefix="Windows" Draft="@_windowDraft" Windows="@_ownWindows" InheritedWindows="@_systemWindows" AllowInherit="true" Inherited="@(group.MaintenanceWindowsJson is null)" InheritLabel="Use the system default" CompareWindows="@(_ownSoftware ?? _systemSoftware)" CompareSoftware="true" />
         </div>
         <footer class="box-foot"><span class="note">Delivered to the members with their next heartbeat.</span><button type="submit" class="primary">Save windows</button></footer>
     </form>

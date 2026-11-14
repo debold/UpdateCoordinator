@@ -6,7 +6,7 @@
     <header class="box-head"><h2>@Title<HelpLink To="@Help" Label="@Title" /></h2><span class="hint">Local server time; installations of software start only in these windows, restarts still wait for a maintenance window</span></header>
     @Tabs
     <div class="box-body">
-        <WindowPicker Prefix="SoftwareWindows" Draft="@_draft" Windows="@(Own ?? [])" InheritedWindows="@Inherited" AllowInherit="true" Inherited="@(Own is null)" InheritLabel="@InheritLabel" />
+        <WindowPicker Prefix="SoftwareWindows" Draft="@_draft" Windows="@(Own ?? [])" InheritedWindows="@Inherited" AllowInherit="true" Inherited="@(Own is null)" InheritLabel="@InheritLabel" CompareWindows="@Compare" OwnLabel="Software" CompareLabel="Windows updates" />
     </div>
     <footer class="box-foot"><span class="note">Delivered to the agents with their next heartbeat.</span><button type="submit" class="primary">Save software windows</button></footer>
 </form>
@@ -32,6 +32,10 @@
 
     [Parameter]
     public string InheritLabel { get; set; } = "Use the maintenance windows";
+
+    /// <summary>The maintenance windows that apply at this level, drawn as a thin line below each day for comparison.</summary>
+    [Parameter]
+    public IReadOnlyList<SUSyphos.Contracts.Agents.MaintenanceWindow>? Compare { get; set; }
 
     /// <summary>Saves the windows as text (null or empty: inherited).</summary>
     [Parameter, EditorRequired]

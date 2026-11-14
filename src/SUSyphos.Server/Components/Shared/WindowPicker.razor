@@ -83,8 +83,21 @@
             {
                 <span class="hour @(_cover[(int)day, hour] ? "on" : null)" data-day="@((int)day)" data-hour="@hour"></span>
             }
+            @if (_compare is { } compare)
+            {
+                @* The other kind of windows as a thin second line below each day (Marc, 2026-11-13, mockup variant A). *@
+                <span></span>
+                @for (var hour = 0; hour < 24; hour++)
+                {
+                    <span class="lane @(CompareSoftware ? "lane-sw" : "lane-mw") @(compare[(int)day, hour] ? "on" : null)"></span>
+                }
+            }
         }
     </div>
+    @if (_compare is not null)
+    {
+        <div class="week-legend note"><span class="swatch @(CompareSoftware ? "lane-mw" : "lane-sw") on"></span>@OwnLabel <span class="swatch @(CompareSoftware ? "lane-sw" : "lane-mw") on"></span>@CompareLabel (thin line, for comparison)</div>
+    }
     <div class="window-summary">@Summary</div>
     @if (_openings.Count > 0)
     {
@@ -97,6 +110,21 @@
     private bool[,] _cover = new bool[7, 24];
     private bool _inherited;
     private IReadOnlyList<DateTime> _openings = [];
+    private bool[,]? _compare;
+
+    /// <summary>The other kind of windows of this level, drawn as a thin second line per day; null shows none.</summary>
+    [Parameter]
+    public IReadOnlyList<MaintenanceWindow>? CompareWindows { get; set; }
+
+    /// <summary>True when <see cref="CompareWindows"/> are software windows (violet), false for maintenance windows.</summary>
+    [Parameter]
+    public bool CompareSoftware { get; set; }
+
+    [Parameter]
+    public string OwnLabel { get; set; } = "Windows updates";
+
+    [Parameter]
+    public string CompareLabel { get; set; } = "Software";
 
     /// <summary>Prefix of the form fields; read back with <see cref="WindowPickerForm.Read"/>.</summary>
     [Parameter, EditorRequired]
@@ -130,6 +158,7 @@
         var own = WindowPickerForm.ToWindows(_rows);
         var effective = _inherited ? InheritedWindows ?? [] : own;
         _cover = WindowPickerForm.Coverage(effective);
+        _compare = CompareWindows is { } other ? WindowPickerForm.Coverage(other) : null;
         _openings = effective.Any(w => w.HasWeekRule) ? WindowPickerForm.NextOpenings(effective, DateTime.Now, 6) : [];
         Summary = effective.Count == 0
             ? "No window: installations never start."

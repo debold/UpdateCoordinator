@@ -10,7 +10,7 @@
         <thead>
             <tr>
                 @Leading
-                @foreach (var column in Columns)
+                @foreach (var column in Columns.Where(c => !IsHidden(c.Key)))
                 {
                     <SortHeader Table="Table" Column="@column.Key" Label="@column.Label" Sortable="column.Sortable" Class="@column.Class" Options="@(Page.Total > 0 ? Page.Options.GetValueOrDefault(column.Key) : null)" />
                 }
@@ -20,17 +20,17 @@
         <tbody>
             @if (Page.Rows.Count == 0)
             {
-                <tr><td colspan="@(Columns.Count + ExtraColumns)" class="note">@(Page.Total == 0 ? Empty : "Nothing matches the search or filters.")</td></tr>
+                <tr><td colspan="@Span" class="note">@(Page.Total == 0 ? Empty : "Nothing matches the search or filters.")</td></tr>
             }
             @foreach (var (group, rows) in TablePaging.Groups(Page, Table, Columns))
             {
-                <GroupRow Name="@group" Count="@rows.Count" Columns="@(Columns.Count + ExtraColumns)" />
+                <GroupRow Name="@group" Count="@rows.Count" Columns="@Span" />
                 @foreach (var row in rows)
                 {
                     @Row(row)
                     @if (Details is not null && RowKey is not null && Table.Open == RowKey(row))
                     {
-                        <tr class="details-row"><td colspan="@(Columns.Count + ExtraColumns)">@Details(row)</td></tr>
+                        <tr class="details-row"><td colspan="@Span">@Details(row)</td></tr>
                     }
                 }
             }
@@ -84,6 +84,21 @@
 
     [Parameter]
     public int ExtraColumns { get; set; }
+
+    /// <summary>
+    /// Leaves out the column the list is grouped by, since every group row names its value (Marc, 2026-11-13); the page
+    /// leaves out the cell too (<see cref="IsHidden"/>).
+    /// </summary>
+    [Parameter]
+    public bool HideGroupedColumn { get; set; }
+
+    /// <summary>True when the column is left out because the list is grouped by it.</summary>
+    public static bool Hides(TableQuery table, string key, bool hideGroupedColumn) =>
+        hideGroupedColumn && table is not null && string.Equals(table.Group, key, StringComparison.Ordinal);
+
+    private bool IsHidden(string key) => Hides(Table, key, HideGroupedColumn);
+
+    private int Span => Columns.Count(c => !IsHidden(c.Key)) + ExtraColumns;
 
     /// <summary>Details shown in an expanded row right below the row whose key is open (TableQuery.Open).</summary>
     [Parameter]

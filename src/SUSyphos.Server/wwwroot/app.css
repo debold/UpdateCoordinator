@@ -438,6 +438,14 @@ details.multi .options label:hover { background: var(--surface-2); }
 .week { display: grid; grid-template-columns: 2.3rem repeat(24, minmax(0, 1fr)); gap: 2px; font-size: 0.7rem; color: var(--muted); align-items: center; }
 .week .hour { height: 0.7rem; border-radius: 2px; background: var(--line); }
 .week .hour.on { background: var(--ok); }
+.box-software .week .hour.on { background: #6B4FBB; }
+/* The other kind of windows as a thin line below each day, and the legend that names both. */
+.week .lane { height: 0.3rem; border-radius: 2px; background: transparent; margin-top: -1px; }
+.week .lane.on.lane-mw, .swatch.lane-mw { background: var(--ok); opacity: 0.55; }
+.week .lane.on.lane-sw, .swatch.lane-sw { background: #6B4FBB; opacity: 0.55; }
+.week-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.35rem; }
+.week-legend .swatch { display: inline-block; width: 0.9rem; height: 0.45rem; border-radius: 2px; opacity: 1; }
+.week-legend .swatch:not(:first-child) { margin-left: 0.6rem; }
 .window-summary { font-size: 0.88rem; background: var(--surface-2); border-radius: var(--r-sm); padding: 0.5rem 0.7rem; }
 
 /* Dialog overlay, rendered by the server when the address asks for it; closing is a plain link. */

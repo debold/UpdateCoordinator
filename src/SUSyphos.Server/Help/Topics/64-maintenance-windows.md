@@ -12,6 +12,8 @@ The default windows for every server that has no windows of its own and is in no
 
 The window box has two tabs: **Windows updates** (the maintenance windows above) and **Software** (in violet). Software windows say when software packages (WinGet) may install, for example every weekday evening while Windows updates keep the patch day. With **Use the maintenance windows** ticked, software installs in the maintenance windows, as before. Untick it and enter windows with the same editor; **Save software windows** stores them, and agents get them with their next heartbeat. Each tab shows how many windows the level has, or that it inherits.
 
+Where the two kinds differ, the week grid of each tab draws the other kind as a thin, paler line below each day: green for the maintenance windows on the **Software** tab, violet for the software windows on the **Windows updates** tab, with a legend below the grid. So you see at a glance whether software installs outside the patch windows. Without software windows of their own (software uses the maintenance windows) there is no second line.
+
 A package that needs a restart installs in its software window; the restart still waits for the next maintenance window. One-time windows and blackout periods count for both kinds. Groups and single servers can set software windows of their own: the server first, then its groups together, then the system default, then the maintenance windows. "Install now" ignores the windows as before.
 
 ## The window editor {#editor}

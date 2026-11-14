@@ -20,13 +20,16 @@
 </form>
 <section class="box">
     <header class="box-head"><h2>Accounts<HelpLink To="users#accounts" Label="Accounts" /></h2></header>
-    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search account" Noun="accounts" ExtraColumns="1" GroupOptions="GroupOptions">
+    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search account" Noun="accounts" ExtraColumns="1" GroupOptions="GroupOptions" HideGroupedColumn="true">
         <ExtraHeader><th class="n">Actions</th></ExtraHeader>
         <Row Context="user">
                     <tr>
                         <td>@user.UserName</td>
-                        <td>@if (user.Windows) { <CategoryTag Text="Active Directory" Index="8" /> } else { <CategoryTag Text="Local" Index="0" /> }</td>
-                        <td>@if (user.Role is { Length: > 0 } role) { <CategoryTag Text="@role" Index="@RoleIndex(role)" /> } else { <span class="note">–</span> } @if (user.Windows) { <div class="note"><a href="/administration/users#ad-sign-in">from the AD group mappings</a></div> }</td>
+                        @if (!ListTable<UserSummary>.Hides(_table, "source", true))
+                        {
+                            <td>@if (user.Windows) { <CategoryTag Text="Active Directory" Index="8" /> } else { <CategoryTag Text="Local" Index="0" /> }</td>
+                        }
+                        <td>@if (user.Role is { Length: > 0 } role) { <CategoryTag Text="@role" Index="@RoleIndex(role)" /> } else { <span class="note">–</span> } @if (user.Windows) { <div class="note">@if (user.RoleSource is { } source) { <text>from <a href="/administration/users#ad-sign-in">@source</a>@if (user.RoleSourceAt is { } at) { <text>, at sign-in @DisplayTime.Format(at)</text> }</text> } else { <a href="/administration/users#ad-sign-in">from the AD group mappings</a> }</div> }</td>
                         <td>
                             @if (user.LockedOut)
                             {

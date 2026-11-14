@@ -29,7 +29,7 @@
 <div class="grid-side">
     @if (WindowsKind == "software")
     {
-        <SoftwareWindowsBox Own="@_software" Inherited="@_current" OnSave="SaveSoftwareAsync">
+        <SoftwareWindowsBox Own="@_software" Inherited="@_current" Compare="@_current" OnSave="SaveSoftwareAsync">
             <Tabs><WindowTabs Software="true" UpdatesHref="/administration/maintenance" SoftwareHref="/administration/maintenance?windows=software" UpdatesState="@DisplayNumber.Count(_current.Count, "window", "windows")" SoftwareState="@(_software is null ? "maintenance windows" : DisplayNumber.Count(_software.Count, "window", "windows"))" /></Tabs>
         </SoftwareWindowsBox>
     }
@@ -40,7 +40,7 @@
         <header class="box-head"><h2>Windows<HelpLink To="maintenance-windows#windows" Label="Maintenance windows" /></h2><span class="hint">Local server time; a window that ends before it starts runs past midnight</span></header>
         <WindowTabs Software="false" UpdatesHref="/administration/maintenance" SoftwareHref="/administration/maintenance?windows=software" UpdatesState="@DisplayNumber.Count(_current.Count, "window", "windows")" SoftwareState="@(_software is null ? "maintenance windows" : DisplayNumber.Count(_software.Count, "window", "windows"))" />
         <div class="box-body">
-            <WindowPicker Prefix="Windows" Windows="@_current" Draft="@_windowDraft" />
+            <WindowPicker Prefix="Windows" Windows="@_current" Draft="@_windowDraft" CompareWindows="@_software" CompareSoftware="true" />
         </div>
         <footer class="box-foot">
             <span class="note">Delivered to the agents with their next heartbeat.</span>
