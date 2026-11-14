@@ -43,6 +43,7 @@ app.MapHealthChecks(ApiRoutes.Health);
 app.MapAgentEndpoints();
 app.MapTrustEndpoints();
 app.MapAgentLogEndpoints();
+app.MapServerLogEndpoints();
 app.MapBackupEndpoints();
 app.MapWindowsSignIn();
 app.MapAgentInstallerEndpoints();

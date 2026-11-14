@@ -1,10 +1,21 @@
 # SUSyphos {#top}
 
-The versions of SUSyphos itself: the agents on the servers and the central server, and the installer for new agents. New agent versions come from the GitHub releases of the project and reach the servers only after an administrator released them, ring by ring or for all rings at once. Operators see the page; administrators check for and release versions. The page was called Agents before; /agents still leads here.
+The versions of SUSyphos itself: the agents on the servers and the central server, and the installer for new agents. New agent versions come from the GitHub releases of the project and reach the servers only after an administrator released them, ring by ring or for all rings at once. Operators see the page; administrators check for and release versions. The page was called Agents before; /agents still leads here. **Download logs** (administrators) packs the logs of the central server for troubleshooting, see [Central server logs](#logs).
 
 ## Check for new versions {#check}
 
 **Check for new versions now** (administrators) asks GitHub for newer releases right away; otherwise the central server checks once a day. New agent packages are downloaded and verified against the checksums published with the release; a newer central server is only noted (see [Central server](#server)). The check also reads the release notes of each release, shown under "What's new". The text next to the button says when it ran and what it found.
+
+## Central server logs {#logs}
+
+**Download logs** in the action band (administrators, recorded in the audit log) downloads a ZIP file with what helps to find out why something failed on the central server:
+
+- the logs of the central server of the last 7 days (`server-*.log`, newest first);
+- `Events/Application.txt`: the entries of the Windows Application event log of the same days from Windows Installer (MsiInstaller), program crashes and hangs, the .NET runtime, Windows Error Reporting and the SUSyphos services;
+- `Software/installer-cache.txt`: every package version of the WinGet installer cache with its file, SHA-256, size, when it was cached and the result of the virus scan;
+- `collection.txt`: what the file contains, which folders were missing and what was left out because the ZIP file may hold at most 50 MB.
+
+The database, keys, certificates and passwords are never part of it. The logs of an agent are downloaded on the page of its server (**Request logs** under remote actions, then **Download logs**).
 
 ## Key figures {#figures}
 

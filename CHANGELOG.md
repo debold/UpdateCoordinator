@@ -4,6 +4,14 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Agent
+
+- Requested logs explain failed software installations better (Marc, 2026-11-14): besides the agent logs, the WinGet helper and installer logs and WinGet's own logs, the archive now holds an extract of the Application event log (Windows Installer, crashes and hangs, .NET runtime, Windows Error Reporting, SUSyphos), the logs installers write straight into the temp folders of SYSTEM (`%windir%\SystemTemp`, `%windir%\Temp`, for example `dd_*.log` of Burn bundles), the msiexec logs of agent updates and `collection.txt`, which lists what is in the archive, which folders were missing and what was left out to stay within 10 MB.
+
+### Central server
+
+- **Download logs** on the SUSyphos page (Admin, audited): a ZIP file with the central server's logs of the last 7 days, the same event log extract, an overview of the WinGet installer cache with SHA-256 and virus scan result, and `collection.txt`; never the database, keys or certificates. Agent and central server pack their logs with the same shared component.
+
 ## [0.9.0-rc.4] - 2026-11-14
 
 ### Agent

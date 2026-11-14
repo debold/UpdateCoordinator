@@ -1,142 +1,51 @@
-using System.IO.Compression;
-
+using SUSyphos.Common;
+using SUSyphos.Common.Diagnostics;
 using SUSyphos.Contracts.Agents;
 
 namespace SUSyphos.Agent.Actions;
 
-/// <summary>Packs the agent's own log files for an upload requested by an administrator.</summary>
+/// <summary>Packs the agent's logs for an upload requested by an administrator.</summary>
 internal interface ILogCollector
 {
-    /// <summary>A ZIP archive with the newest log files of the last days within the size limit, and the number of files in it.</summary>
+    /// <summary>A ZIP archive with the newest logs of the last days within the size limit, and the number of files in it.</summary>
     (byte[] Archive, int Files) Collect();
 }
 
-/// <summary>A further folder whose log files go into the archive, below <paramref name="Prefix"/>.</summary>
-internal sealed record LogSource(string Directory, string Pattern, string Prefix);
-
 /// <summary>
-/// Collects only files matching the agent log pattern from the agent log folder, newest first, then the files of the
-/// further sources (the WinGet helper and WinGet's own logs, lab 2026-11-10). Log files that are still being written are
-/// read with shared access. Older files are left out until the archive fits the upload limit; the agent's own logs come first.
+/// Collects the agent's own logs first, then the further parts (the event log extract, the WinGet helper, WinGet's own
+/// logs, the installers' logs in the temp folders of SYSTEM and the msiexec logs of agent updates; lab 2026-11-10 and
+/// Marc 2026-11-14) through the shared <see cref="DiagnosticArchive"/>, which notes in collection.txt what it left out.
 /// </summary>
-internal sealed class LogCollector(string directory, TimeProvider timeProvider, IReadOnlyList<LogSource>? sources = null) : ILogCollector
+internal sealed class LogCollector(string directory, TimeProvider timeProvider, IReadOnlyList<ArchivePart>? parts = null) : ILogCollector
 {
     public const string FilePattern = "agent-*.log";
 
-    /// <summary>The WinGet logs next to the agent log: the helper's steps, the installers' logs and WinGet's own logs of SYSTEM.</summary>
-    public static IReadOnlyList<LogSource> WinGetSources(string agentLogDirectory) =>
-    [
-        new(Path.Combine(agentLogDirectory, "WinGet"), "*.log", "WinGet/"),
-        new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SystemTemp", "WinGet", "defaultState"), "WinGetCOM-*.log", "WinGetCOM/"),
-        new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp", "WinGet", "defaultState"), "WinGetCOM-*.log", "WinGetCOM/"),
-    ];
+    /// <summary>
+    /// What goes with the agent logs on a server: the event log extract, the helper's steps and each WinGet installer log,
+    /// WinGet's own logs of SYSTEM, logs installers write straight into the temp folder of SYSTEM (for example dd_*.log of
+    /// Burn bundles or MSI*.log), and the msiexec logs of agent updates and uninstallation.
+    /// </summary>
+    public static IReadOnlyList<ArchivePart> ServerParts(string agentLogDirectory, TimeProvider timeProvider)
+    {
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var agentData = DataPaths.Agent;
+        return
+        [
+            new ArchiveText("Events/Application.txt", () => EventLogExtract.Read(timeProvider.GetUtcNow().UtcDateTime.AddDays(-AgentActionList.LogDays))),
+            new LogSource(Path.Combine(agentLogDirectory, "WinGet"), "*.log", "WinGet/"),
+            new LogSource(Path.Combine(windows, "SystemTemp", "WinGet", "defaultState"), "WinGetCOM-*.log", "WinGetCOM/"),
+            new LogSource(Path.Combine(windows, "Temp", "WinGet", "defaultState"), "WinGetCOM-*.log", "WinGetCOM/"),
+            new LogSource(Path.Combine(agentData, "Update"), "*.log", "AgentUpdate/"),
+            new LogSource(agentData, "uninstall.log", "AgentUpdate/"),
+            new LogSource(Path.Combine(windows, "SystemTemp"), "*.log", "SystemTemp/"),
+            new LogSource(Path.Combine(windows, "Temp"), "*.log", "WindowsTemp/"),
+        ];
+    }
 
     public (byte[] Archive, int Files) Collect()
     {
-        var since = timeProvider.GetUtcNow().UtcDateTime.AddDays(-AgentActionList.LogDays);
-        var files = new[] { new LogSource(directory, FilePattern, string.Empty) }.Concat(sources ?? [])
-            .Where(source => Directory.Exists(source.Directory))
-            .SelectMany(source => new DirectoryInfo(source.Directory)
-                .EnumerateFiles(source.Pattern, SearchOption.TopDirectoryOnly)
-                .Where(f => f.LastWriteTimeUtc >= since)
-                .OrderByDescending(f => f.LastWriteTimeUtc)
-                .Select(f => (File: f, Name: source.Prefix + f.Name)))
-            .DistinctBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        // Measure first, pack once: building candidate archives in memory would need several times the upload limit
-        // (measured: about 370 MB for 80 MB of poorly compressible logs), far beyond the agent's memory limit.
-        var selected = new List<(FileInfo File, string Name)>();
-        long size = EmptyArchiveBytes;
-        foreach (var file in files)
-        {
-            var entry = CompressedSize(file.File) + EntryOverheadBytes + (2L * file.Name.Length);
-            if (size + entry > AgentActionList.MaxLogBytes)
-            {
-                break;
-            }
-
-            selected.Add(file);
-            size += entry;
-        }
-
-        // A file still being written may have grown since it was measured; then the oldest files are left out.
-        for (var count = selected.Count; count > 0; count--)
-        {
-            var archive = Pack(selected[..count]);
-            if (archive.Length <= AgentActionList.MaxLogBytes)
-            {
-                return (archive, count);
-            }
-        }
-
-        return (Pack([]), 0);
-    }
-
-    private const long EmptyArchiveBytes = 64;
-    private const long EntryOverheadBytes = 128;
-
-    /// <summary>Size of the file after compression, without keeping the compressed bytes.</summary>
-    private static long CompressedSize(FileInfo file)
-    {
-        using var counter = new CountingStream();
-        using (var deflate = new DeflateStream(counter, CompressionLevel.Optimal, leaveOpen: true))
-        using (var source = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-        {
-            source.CopyTo(deflate);
-        }
-
-        return counter.Length;
-    }
-
-    /// <summary>Write-only stream that only counts the bytes written to it.</summary>
-    private sealed class CountingStream : Stream
-    {
-        private long _length;
-
-        public override bool CanRead => false;
-
-        public override bool CanSeek => false;
-
-        public override bool CanWrite => true;
-
-        public override long Length => _length;
-
-        public override long Position
-        {
-            get => _length;
-            set => throw new NotSupportedException();
-        }
-
-        public override void Write(byte[] buffer, int offset, int count) => _length += count;
-
-        public override void Write(ReadOnlySpan<byte> buffer) => _length += buffer.Length;
-
-        public override void Flush()
-        {
-        }
-
-        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-
-        public override void SetLength(long value) => throw new NotSupportedException();
-    }
-
-    private static byte[] Pack(IReadOnlyList<(FileInfo File, string Name)> files)
-    {
-        using var buffer = new MemoryStream();
-        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
-        {
-            foreach (var file in files)
-            {
-                var entry = zip.CreateEntry(file.Name, CompressionLevel.Optimal);
-                using var target = entry.Open();
-                using var source = new FileStream(file.File.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                source.CopyTo(target);
-            }
-        }
-
-        return buffer.ToArray();
+        var result = new DiagnosticArchive(timeProvider, AgentActionList.LogDays, AgentActionList.MaxLogBytes)
+            .Build($"SUSyphos agent logs, version {typeof(LogCollector).Assembly.GetName().Version}", [new LogSource(directory, FilePattern, string.Empty), .. parts ?? []]);
+        return (result.Archive, result.Files);
     }
 }

@@ -18,6 +18,7 @@ internal static partial class AuditText
         ["Action"] = ("Remote action", 2),
         ["Client"] = ("Server", 3),
         ["Server"] = ("Server", 3),
+        ["CentralServer"] = ("Central server", 0),
         ["Group"] = ("Group", 3),
         ["Package"] = ("Software", 2),
         ["Software"] = ("Software", 2),

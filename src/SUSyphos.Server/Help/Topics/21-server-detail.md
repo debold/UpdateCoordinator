@@ -27,7 +27,7 @@ The band below the title groups the actions by topic in drop-down buttons. Opera
 
 - **Restart server…** (administrators): opens the [restart dialog](#restart).
 - **Restart agent service**: the SUSyphos agent service restarts itself; the server keeps running.
-- **Request logs**: the agent uploads its log files compressed; when they arrived, a **Download** link appears in the remote action.
+- **Request logs**: the agent uploads its logs of the last 3 days compressed (at most 10 MB); when they arrived, a **Download** link appears in the remote action. The ZIP file holds the agent logs, `Events/Application.txt` (Windows Installer, crashes, .NET, Windows Error Reporting and SUSyphos from the Application event log), the WinGet helper steps and installer logs (`WinGet/`), WinGet's own logs (`WinGetCOM/`), logs installers wrote straight into the temp folders of SYSTEM (`SystemTemp/`, `WindowsTemp/`, for example `dd_*.log` or `MSI*.log`), the msiexec logs of agent updates (`AgentUpdate/`) and `collection.txt`, which lists what is in it, which folders were missing and what was left out to stay within 10 MB (the agent logs come first).
 
 **Refresh** loads the page again with the latest state. **Download logs** (blue, operators) appears once the agent uploaded its logs and downloads the newest upload while it is kept. While the agent works or an action waits to be picked up or for its result, the page also refreshes itself every 10 seconds (the hint of the Tasks box says so) and keeps its scroll position. After an action the page is loaded anew, so F5 never sends the action a second time.
 

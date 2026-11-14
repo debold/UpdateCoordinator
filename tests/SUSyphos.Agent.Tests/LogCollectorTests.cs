@@ -3,6 +3,7 @@ using System.IO.Compression;
 using Microsoft.Extensions.Time.Testing;
 
 using SUSyphos.Agent.Actions;
+using SUSyphos.Common.Diagnostics;
 using SUSyphos.Contracts.Agents;
 
 namespace SUSyphos.Agent.Tests;
@@ -30,11 +31,14 @@ public sealed class LogCollectorTests : IDisposable
         File.SetLastWriteTimeUtc(Path.Combine(com, "WinGetCOM-2026-10-19-11-00-00.000.log"), _time.GetUtcNow().UtcDateTime);
         File.WriteAllText(Path.Combine(com, "installer.exe"), "not a log");
 
-        var (archive, files) = new LogCollector(_directory, _time, [new(winget, "*.log", "WinGet/"), new(com, "WinGetCOM-*.log", "WinGetCOM/"), new(Path.Combine(_directory, "missing"), "*.log", "x/")]).Collect();
+        var (archive, files) = new LogCollector(_directory, _time, [new LogSource(winget, "*.log", "WinGet/"), new LogSource(com, "WinGetCOM-*.log", "WinGetCOM/"), new LogSource(Path.Combine(_directory, "missing"), "*.log", "x/")]).Collect();
 
         Assert.Equal(3, files);
         using var zip = new ZipArchive(new MemoryStream(archive));
-        Assert.Equal(["agent-20261019.log", "WinGet/helper-20261019.log", "WinGetCOM/WinGetCOM-2026-10-19-11-00-00.000.log"], zip.Entries.Select(e => e.FullName));
+        Assert.Equal([DiagnosticArchive.CollectionFile, "agent-20261019.log", "WinGet/helper-20261019.log", "WinGetCOM/WinGetCOM-2026-10-19-11-00-00.000.log"], zip.Entries.Select(e => e.FullName));
+        var collection = Text(zip, DiagnosticArchive.CollectionFile);
+        Assert.Contains("Included (3):", collection, StringComparison.Ordinal);
+        Assert.Contains("Missing folder: " + Path.Combine(_directory, "missing"), collection, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -49,7 +53,7 @@ public sealed class LogCollectorTests : IDisposable
         var (archive, files) = new LogCollector(_directory, _time).Collect();
 
         Assert.Equal(2, files);
-        Assert.Equal(["agent-20261019.log", "agent-20261018.log"], Entries(archive));
+        Assert.Equal([DiagnosticArchive.CollectionFile, "agent-20261019.log", "agent-20261018.log"], Entries(archive));
     }
 
     [Fact]
@@ -78,7 +82,9 @@ public sealed class LogCollectorTests : IDisposable
 
         Assert.Equal(1, files);
         Assert.True(archive.Length <= AgentActionList.MaxLogBytes);
-        Assert.Equal(["agent-a.log"], Entries(archive));
+        Assert.Equal([DiagnosticArchive.CollectionFile, "agent-a.log"], Entries(archive));
+        using var zip = new ZipArchive(new MemoryStream(archive));
+        Assert.Contains("Left out to stay below the size limit (1):", Text(zip, DiagnosticArchive.CollectionFile), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -111,7 +117,58 @@ public sealed class LogCollectorTests : IDisposable
         var (archive, files) = new LogCollector(Path.Combine(_directory, "missing"), _time).Collect();
 
         Assert.Equal(0, files);
-        Assert.Empty(Entries(archive));
+        Assert.Equal([DiagnosticArchive.CollectionFile], Entries(archive));
+    }
+
+    [Fact]
+    public void ProducedTexts_AreIncluded_AndAFailingOneIsNoted()
+    {
+        Write("agent-20261019.log", "agent", _time.GetUtcNow());
+
+        var (archive, files) = new LogCollector(_directory, _time, [new ArchiveText("Events/Application.txt", () => "MsiInstaller 1033"), new ArchiveText("Events/Broken.txt", () => throw new InvalidOperationException("no access"))]).Collect();
+
+        Assert.Equal(2, files);
+        using var zip = new ZipArchive(new MemoryStream(archive));
+        Assert.Equal("MsiInstaller 1033", Text(zip, "Events/Application.txt"));
+        Assert.Null(zip.GetEntry("Events/Broken.txt"));
+        Assert.Contains("Not produced: Events/Broken.txt (InvalidOperationException: no access)", Text(zip, DiagnosticArchive.CollectionFile), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ServerParts_CoverEventsWinGetTempFoldersAndAgentUpdates()
+    {
+        var parts = LogCollector.ServerParts(_directory, _time);
+
+        Assert.IsType<ArchiveText>(parts[0]);
+        var prefixes = parts.OfType<LogSource>().Select(s => s.Prefix).Distinct().ToList();
+        Assert.Equal(["WinGet/", "WinGetCOM/", "AgentUpdate/", "SystemTemp/", "WindowsTemp/"], prefixes);
+        Assert.All(parts.OfType<LogSource>(), s => Assert.EndsWith(".log", s.Pattern, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void TempFolders_GiveOnlyTopLevelLogs()
+    {
+        var temp = Path.Combine(_directory, "SystemTemp");
+        Directory.CreateDirectory(Path.Combine(temp, "sub"));
+        File.WriteAllText(Path.Combine(temp, "dd_vcredist_x86_20261019.log"), "burn");
+        File.WriteAllText(Path.Combine(temp, "MSI1a2b.LOG"), "msi");
+        File.WriteAllText(Path.Combine(temp, "setup.exe"), "binary");
+        File.WriteAllText(Path.Combine(temp, "sub", "nested.log"), "nested");
+        foreach (var file in Directory.EnumerateFiles(temp, "*", SearchOption.AllDirectories))
+        {
+            File.SetLastWriteTimeUtc(file, _time.GetUtcNow().UtcDateTime);
+        }
+
+        var (archive, _) = new LogCollector(Path.Combine(_directory, "missing"), _time, [new LogSource(temp, "*.log", "SystemTemp/")]).Collect();
+
+        using var zip = new ZipArchive(new MemoryStream(archive));
+        Assert.Equal(["SystemTemp/MSI1a2b.LOG", "SystemTemp/dd_vcredist_x86_20261019.log", DiagnosticArchive.CollectionFile], zip.Entries.Select(e => e.FullName).Order(StringComparer.Ordinal));
+    }
+
+    private static string Text(ZipArchive zip, string name)
+    {
+        using var reader = new StreamReader(zip.GetEntry(name)!.Open());
+        return reader.ReadToEnd();
     }
 
     private string Write(string name, string content, DateTimeOffset modified)

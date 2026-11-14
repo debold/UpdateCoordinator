@@ -23,6 +23,7 @@
             <AntiforgeryToken />
             <button type="submit" class="primary"><Icon Name="refresh-cw" Size="16" />Check for new versions now</button>
         </form>
+        <a class="btn" href="@ServerLogEndpoints.DownloadRoute" download title="Logs of the central server of the last @ServerLogEndpoints.Days days, the event log extract and the installer cache" data-help-term="Download logs"><Icon Name="download" Size="16" />Download logs</a>
         <div class="spacer"></div>
         <span class="note">@(_lastCheck is { } check ? $"Last check {Format(check.AtUtc)}: {check.Describe()}" : "Not checked yet")</span>
     </ActionBand>
