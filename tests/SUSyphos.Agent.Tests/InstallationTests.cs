@@ -942,6 +942,64 @@ public sealed class InstallationRunnerTests
     }
 
     [Fact]
+    public async Task SoftwareUninstall_InACoordinatedGroup_RunsWithoutTheLease()
+    {
+        // Software is not coordinated (Marc, 2026-11-14): no lease is asked for, even when every lease is taken.
+        _updates.LastMissingUpdates = new HashSet<(Guid, int)>();
+        _releases.Current = new ReleaseList(1, [], null, RebootPolicy.Never, RequiresLease: true);
+        _client.LeaseAnswer = new LeaseResponse(false, null, "2 of 2 servers of SQL cluster are busy");
+        var action = SoftwareUninstall(AgentActionKind.Uninstall);
+        var runner = Create();
+        runner.RequestUninstall(action);
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["7zip.7zip"], _softwareUninstaller.Calls);
+        Assert.Empty(_uninstaller.Calls);
+        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[action.Id].Status);
+        Assert.Null(_store.State.Lease);
+    }
+
+    [Fact]
+    public async Task SoftwareUninstallInWindow_UsesTheSoftwareWindows_AndAnUpdateTheMaintenanceWindows()
+    {
+        // Tuesday 10:00 UTC: outside the maintenance window (Mon–Fri 19:00–05:00) but inside a software window 08:00–12:00.
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 27, 10, 0, 0, TimeSpan.Zero));
+        _updates.LastMissingUpdates = new HashSet<(Guid, int)>();
+        var weekdays = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday };
+        _releases.Current = new ReleaseList(1, [], null, null) { SoftwareWindows = [new MaintenanceWindow { Days = weekdays, Start = TimeSpan.FromHours(8), End = TimeSpan.FromHours(12) }] };
+        var software = SoftwareUninstall(AgentActionKind.UninstallInWindow);
+        var update = Uninstall(AgentActionKind.UninstallInWindow);
+        var runner = Create();
+        runner.RequestUninstall(software);
+        runner.RequestUninstall(update);
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["7zip.7zip"], _softwareUninstaller.Calls);
+        Assert.Empty(_uninstaller.Calls);
+        Assert.True(_client.ActionResults.ContainsKey(software.Id));
+        Assert.False(_client.ActionResults.ContainsKey(update.Id));
+    }
+
+    [Fact]
+    public async Task SoftwareUninstallInWindow_WithoutSoftwareWindows_WaitsForTheMaintenanceWindow()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 27, 10, 0, 0, TimeSpan.Zero));
+        _updates.LastMissingUpdates = new HashSet<(Guid, int)>();
+        var action = SoftwareUninstall(AgentActionKind.UninstallInWindow);
+        var runner = Create();
+        runner.RequestUninstall(action);
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Empty(_softwareUninstaller.Calls);
+
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 27, 20, 0, 0, TimeSpan.Zero));
+        await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Single(_softwareUninstaller.Calls);
+    }
+
+    [Fact]
     public async Task OneTimeWindow_OpensAnInstallationOutsideTheWeeklyWindows()
     {
         // Tuesday 10:00 UTC: outside the default weekly windows.
@@ -1040,8 +1098,26 @@ public sealed class InstallationRunnerTests
             _restart,
             Microsoft.Extensions.Options.Options.Create(options ?? new InstallationOptions()),
             _time,
-            logger ?? NullLogger<InstallationRunner>.Instance);
+            logger ?? NullLogger<InstallationRunner>.Instance,
+            _softwareUninstaller);
     }
+
+    private readonly FakeSoftwareUninstaller _softwareUninstaller = new();
+
+    private sealed class FakeSoftwareUninstaller : SUSyphos.Agent.Installation.ISoftwareUninstaller
+    {
+        public SUSyphos.Agent.Installation.UninstallResult Result { get; set; } = new(SUSyphos.Agent.Installation.UninstallStatus.Succeeded, false, "Uninstalled with WinGet.");
+
+        public List<string> Calls { get; } = [];
+
+        public Task<SUSyphos.Agent.Installation.UninstallResult> UninstallAsync(string packageId, CancellationToken cancellationToken)
+        {
+            Calls.Add(packageId);
+            return Task.FromResult(Result);
+        }
+    }
+
+    private static AgentAction SoftwareUninstall(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow, Guid.NewGuid(), 1, null, "7zip.7zip");
 
     /// <summary>Keeps the formatted log lines.</summary>
     private sealed class ListLogger : ILogger<InstallationRunner>

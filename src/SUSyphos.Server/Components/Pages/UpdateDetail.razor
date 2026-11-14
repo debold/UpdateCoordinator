@@ -131,19 +131,7 @@ else
                     }
                     else
                     {
-                        <fieldset class="choices">
-                            <legend>Where</legend>
-                            <label class="choice"><input type="radio" name="UninstallTarget" value="all" checked data-help-term="All servers that have it" /> <span><b>All servers that have it</b><span class="note">@DisplayNumber.Format(_targets.Count) servers report it as installed.</span></span></label>
-                            @if (TargetRings.Count > 0)
-                            {
-                                <div class="choice"><input type="radio" id="uninstall-target-rings" name="UninstallTarget" value="rings" data-help-term="Rings" /> <span><label for="uninstall-target-rings"><b>Rings</b></label><span class="choice-list">@foreach (var (ring, count) in TargetRings) { <label><input type="checkbox" name="UninstallRings" value="@ring.Id" /> @ring.Order @ring.Name <span class="note">(@count)</span></label> }</span></span></div>
-                            }
-                            @if (TargetGroups.Count > 0)
-                            {
-                                <div class="choice"><input type="radio" id="uninstall-target-groups" name="UninstallTarget" value="groups" data-help-term="Server groups" /> <span><label for="uninstall-target-groups"><b>Server groups</b></label><span class="choice-list">@foreach (var (group, count) in TargetGroups) { <label><input type="checkbox" name="UninstallGroups" value="@group.Id" /> @group.Name <span class="note">(@count)</span></label> }</span></span></div>
-                            }
-                            <div class="choice"><input type="radio" id="uninstall-target-server" name="UninstallTarget" value="server" data-help-term="One server" /> <span><label for="uninstall-target-server"><b>One server</b></label><select name="UninstallServer" aria-label="Server">@foreach (var target in _targets) { <option value="@target.ClientId">@target.HostName</option> }</select></span></div>
-                        </fieldset>
+                        <UninstallWhere Servers="@([.. _targets.Select(t => (t.ClientId, t.HostName))])" RingChoices="@SUSyphos.Server.Agents.UninstallScope.RingChoices(_targets, _rings)" GroupChoices="@SUSyphos.Server.Agents.UninstallScope.GroupChoices(_targets, _allGroups)" />
                         <UninstallTiming />
                         <label class="check"><input type="checkbox" name="UninstallBlock" value="yes" checked="@(_update.BlockedAtUtc is null)" disabled="@(_update.BlockedAtUtc is not null)" data-help-term="Block the update" /> @(_update.BlockedAtUtc is null ? "Block the update, so its rollout stops and it does not come back (recommended when it goes everywhere)" : "The update is blocked already")</label>
                         <p class="note">The agent uninstalls through Windows Update, or with DISM by the KB number where Windows Update cannot; some packages cannot be removed, the remote action on each server then reports why.</p>
@@ -521,24 +509,13 @@ else
 
     private List<RingEntity> _rings = [];
 
-    private IReadOnlyList<(RingEntity Ring, int Count)> TargetRings =>
-        [.. _rings.Select(r => (r, _targets.Count(t => t.RingId == r.Id))).Where(r => r.Item2 > 0)];
-
-    private IReadOnlyList<(GroupEntity Group, int Count)> TargetGroups =>
-        [.. _allGroups.Select(g => (g, _targets.Count(t => t.GroupIds.Contains(g.Id)))).Where(g => g.Item2 > 0)];
 
     /// <summary>Queues the uninstallation on the chosen servers and blocks the update if asked (administrators only).</summary>
     private async Task UninstallAsync()
     {
         var kind = SUSyphos.Server.Agents.AgentActionService.UninstallKind(UninstallWhen);
-        SUSyphos.Server.Agents.UninstallScope? scope = UninstallTarget switch
-        {
-            "all" => SUSyphos.Server.Agents.UninstallScope.All,
-            "rings" when UninstallRings is { Length: > 0 } rings => new(Rings: rings),
-            "groups" when UninstallGroups is { Length: > 0 } groups => new(Groups: groups),
-            "server" when UninstallServer is { } server => new(Clients: [server]),
-            _ => null,
-        };
+        var scope = SUSyphos.Server.Agents.UninstallScope.Parse(UninstallTarget, UninstallRings, UninstallGroups, UninstallServer);
+
         var error = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? "Only administrators can uninstall updates."
             : scope is null ? "Choose where the update goes: all servers, at least one ring or group, or one server."
             : kind is null ? "Choose when the servers uninstall it."

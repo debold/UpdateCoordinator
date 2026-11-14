@@ -182,6 +182,7 @@ public sealed class SoftwareAssignmentTests
                     db.ClientGroups.Add(new ClientGroupEntity { ClientId = client == server.ClientId ? third.ClientId : client, GroupId = group, Manual = true });
                 }
 
+                await db.Clients.ExecuteUpdateAsync(s => s.SetProperty(c => c.SoftwareState, SoftwareSupportState.Supported), TestContext.Current.CancellationToken);
                 await db.SaveChangesAsync(TestContext.Current.CancellationToken);
                 return true;
             });

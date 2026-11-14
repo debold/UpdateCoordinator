@@ -222,6 +222,15 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     }
 
     /// <summary>
+    /// The windows for software: its own software windows plus the one-time windows when the central server sends some,
+    /// otherwise the maintenance windows (Marc, 2026-11-13; uninstallations since 2026-11-14).
+    /// </summary>
+    private IReadOnlyList<MaintenanceWindow> EffectiveSoftwareWindows =>
+        _releases.Current.SoftwareWindows is { Count: > 0 } software
+            ? [.. software, .. EffectiveWindows.Except(_releases.Current.MaintenanceWindows is { Count: > 0 } central ? central : _options.Value.LocalWindows)]
+            : EffectiveWindows;
+
+    /// <summary>
     /// True if the server may install or reboot now: no coordination needed, a lease is already held or one was granted.
     /// Null if the central server rejected the credentials.
     /// </summary>
@@ -521,22 +530,29 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     {
         foreach (var request in _state.Uninstalls ?? [])
         {
-            if (request.Kind == AgentActionKind.UninstallInWindow && !InstallationPlanner.IsInWindow(EffectiveWindows, _timeProvider.GetLocalNow().DateTime))
+            // Software uninstalls in its software window, a Windows update in the maintenance window (Marc, 2026-11-14).
+            var windows = request.PackageId is null ? EffectiveWindows : EffectiveSoftwareWindows;
+            if (request.Kind == AgentActionKind.UninstallInWindow && !InstallationPlanner.IsInWindow(windows, _timeProvider.GetLocalNow().DateTime))
             {
                 continue;
             }
 
-            // In a coordinated group the uninstallation and the restart after it need the lease, like an installation.
-            var lease = await EnsureLeaseAsync(identity, cancellationToken).ConfigureAwait(false);
-            if (lease is null)
+            // In a coordinated group the uninstallation of an update and the restart after it need the lease, like an
+            // installation; software is not coordinated (Marc, 2026-11-13 and 2026-11-14). A restart it needs waits for
+            // a maintenance window and goes through the usual reboot path, which takes the lease then.
+            if (request.PackageId is null)
             {
-                return false;
-            }
+                var lease = await EnsureLeaseAsync(identity, cancellationToken).ConfigureAwait(false);
+                if (lease is null)
+                {
+                    return false;
+                }
 
-            if (!lease.Value)
-            {
-                // Tried again with the next cycle; the wait is logged with the reason.
-                break;
+                if (!lease.Value)
+                {
+                    // Tried again with the next cycle; the wait is logged with the reason.
+                    break;
+                }
             }
 
             var result = await UninstallAsync(request, cancellationToken).ConfigureAwait(false);
@@ -563,7 +579,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         // The next inventory and search tell the central server what is installed now.
         _inventory.Reset();
         _updates.RequestRun();
-        if (_state.Lease is { } hold)
+        if (request.PackageId is null && _state.Lease is { } hold)
         {
             Save(_state with { Lease = hold with { InstallationSucceeded = hold.InstallationSucceeded && result.Status == UninstallStatus.Succeeded, AwaitingReboot = result.RebootRequired } });
         }
@@ -628,14 +644,14 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         var localNow = _timeProvider.GetLocalNow().DateTime;
         var inWindow = InstallationPlanner.IsInWindow(EffectiveWindows, localNow);
         var current = _releases.Current;
-        if (current.SoftwareWindows is not { Count: > 0 } softwareWindows || !current.Releases.Any(r => r.Software is not null))
+        if (current.SoftwareWindows is not { Count: > 0 } || !current.Releases.Any(r => r.Software is not null))
         {
             return InstallationPlanner.PlanBatch(current, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options, inWindow);
         }
 
         // Software has windows of its own (Marc, 2026-11-13): Windows updates follow the maintenance windows, software its
         // software windows; one-time windows count for both.
-        var inSoftwareWindow = InstallationPlanner.IsInWindow([.. softwareWindows, .. EffectiveWindows.Except(current.MaintenanceWindows ?? [])], localNow);
+        var inSoftwareWindow = InstallationPlanner.IsInWindow(EffectiveSoftwareWindows, localNow);
         var updates = InstallationPlanner.PlanBatch(current with { Releases = [.. current.Releases.Where(r => r.Software is null)] }, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options, inWindow);
         var software = InstallationPlanner.PlanBatch(current with { Releases = [.. current.Releases.Where(r => r.Software is not null)] }, _releases.InstallationsPaused, missing, attempts, _timeProvider.GetUtcNow(), options, inSoftwareWindow);
         return [.. updates, .. software];

@@ -79,8 +79,29 @@ internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner rel
         return Outcome.Ok;
     }
 
-    /// <summary>Removes an assignment; the package stays installed unless "uninstall when removed" was set.</summary>
-    public async Task<Outcome> RemoveAsync(int assignmentId, string actor, CancellationToken cancellationToken)
+    /// <summary>What removing an assignment would uninstall: servers it covers that have the package, and those that keep it through another assignment.</summary>
+    /// <param name="Uninstall">Servers that would uninstall the package (they have it and no other assignment covers them).</param>
+    /// <param name="KeptByOther">Servers with the package that another assignment of it still covers.</param>
+    public sealed record RemovalPreview(int Uninstall, int KeptByOther);
+
+    public async Task<RemovalPreview?> PreviewRemovalAsync(int assignmentId, CancellationToken cancellationToken)
+    {
+        var assignment = await db.PackageAssignments.AsNoTracking().SingleOrDefaultAsync(a => a.Id == assignmentId, cancellationToken).ConfigureAwait(false);
+        if (assignment is null)
+        {
+            return null;
+        }
+
+        var (uninstall, kept) = await SplitAsync(assignment, cancellationToken).ConfigureAwait(false);
+        return new RemovalPreview(uninstall.Count, kept);
+    }
+
+    /// <summary>
+    /// Removes an assignment. The servers it covered uninstall the package in their next software window when
+    /// <paramref name="uninstall"/> says so, or, when it is null, when the assignment was created with "uninstall when
+    /// removed" (Marc, 2026-11-14: the removal dialog shows the saved choice and lets it be changed).
+    /// </summary>
+    public async Task<Outcome> RemoveAsync(int assignmentId, string actor, CancellationToken cancellationToken, bool? uninstall = null)
     {
         var assignment = await db.PackageAssignments.SingleOrDefaultAsync(a => a.Id == assignmentId, cancellationToken).ConfigureAwait(false);
         if (assignment is null)
@@ -88,28 +109,58 @@ internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner rel
             return new Outcome("The assignment no longer exists.");
         }
 
-        var covered = assignment.UninstallOnRemoval ? await ServersAsync(assignment, cancellationToken).ConfigureAwait(false) : [];
+        var remove = uninstall ?? assignment.UninstallOnRemoval;
+        var (targets, _) = remove ? await SplitAsync(assignment, cancellationToken).ConfigureAwait(false) : ([], 0);
         db.PackageAssignments.Remove(assignment);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        if (covered.Count > 0 && await SoftwareFeature.IsEnabledAsync(db, cancellationToken).ConfigureAwait(false))
+        var queued = 0;
+        if (targets.Count > 0 && await SoftwareFeature.IsEnabledAsync(db, cancellationToken).ConfigureAwait(false))
         {
-            // Servers another assignment of the package still covers keep it.
-            var stillAssigned = new HashSet<Guid>();
-            foreach (var other in await db.PackageAssignments.AsNoTracking().Where(a => a.PackageId == assignment.PackageId && a.Mode == PackageAssignmentMode.Install).ToListAsync(cancellationToken).ConfigureAwait(false))
+            var batch = Guid.NewGuid();
+            foreach (var server in targets)
             {
-                stillAssigned.UnionWith(await ServersAsync(other, cancellationToken).ConfigureAwait(false));
-            }
-
-            foreach (var server in covered.Where(s => !stillAssigned.Contains(s)))
-            {
-                // A server without the package installed is skipped by the queue itself.
-                await actions.QueueSoftwareUninstallAsync(server, assignment.PackageId, actor, cancellationToken).ConfigureAwait(false);
+                if ((await actions.QueueSoftwareUninstallAsync(server, assignment.PackageId, SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow, actor, cancellationToken, batch).ConfigureAwait(false)).Succeeded)
+                {
+                    queued++;
+                }
             }
         }
-        await audit.WriteAsync(actor, "Package.AssignmentRemoved", assignment.PackageId, string.Create(CultureInfo.InvariantCulture, $"{(assignment.GroupId is { } group ? $"group {group}" : $"server {assignment.ClientId}")}"), cancellationToken).ConfigureAwait(false);
+
+        await audit.WriteAsync(actor, "Package.AssignmentRemoved", assignment.PackageId, string.Create(CultureInfo.InvariantCulture, $"{(assignment.GroupId is { } group ? $"group {group}" : $"server {assignment.ClientId}")}, {(remove ? $"uninstall from {queued} servers" : "kept installed")}"), cancellationToken).ConfigureAwait(false);
         await releases.SyncAsync(null, cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
+    }
+
+    /// <summary>The servers of an assignment that have the package: those no other assignment covers, and how many another one keeps.</summary>
+    private async Task<(List<Guid> Uninstall, int KeptByOther)> SplitAsync(PackageAssignmentEntity assignment, CancellationToken cancellationToken)
+    {
+        var covered = await ServersAsync(assignment, cancellationToken).ConfigureAwait(false);
+        var installed = (await db.ClientSoftware.AsNoTracking().Where(s => s.PackageId == assignment.PackageId && covered.Contains(s.ClientId)).Select(s => s.ClientId).ToListAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
+        var stillAssigned = new HashSet<Guid>();
+        foreach (var other in await db.PackageAssignments.AsNoTracking().Where(a => a.PackageId == assignment.PackageId && a.Id != assignment.Id && a.Mode == PackageAssignmentMode.Install).ToListAsync(cancellationToken).ConfigureAwait(false))
+        {
+            stillAssigned.UnionWith(await ServersAsync(other, cancellationToken).ConfigureAwait(false));
+        }
+
+        var withPackage = covered.Where(installed.Contains).Distinct().ToList();
+        return ([.. withPackage.Where(s => !stillAssigned.Contains(s))], withPackage.Count(stillAssigned.Contains));
+    }
+
+    /// <summary>Ends every assignment of a package without uninstalling (the uninstallation from servers queues its own).</summary>
+    public async Task<int> EndAllAsync(string packageId, string actor, CancellationToken cancellationToken)
+    {
+        var assignments = await db.PackageAssignments.Where(a => a.PackageId == packageId).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (assignments.Count == 0)
+        {
+            return 0;
+        }
+
+        db.PackageAssignments.RemoveRange(assignments);
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Package.AssignmentsEnded", packageId, string.Create(CultureInfo.InvariantCulture, $"{assignments.Count} assignments"), cancellationToken).ConfigureAwait(false);
+        await releases.SyncAsync(null, cancellationToken).ConfigureAwait(false);
+        return assignments.Count;
     }
 
     /// <summary>The servers an assignment covers: the server, or the members of the group.</summary>

@@ -183,6 +183,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         action.Property(a => a.RequestedBy).HasMaxLength(256).IsRequired();
         action.Property(a => a.Detail).HasMaxLength(512);
         action.HasIndex(a => new { a.ClientId, a.State });
+        action.HasIndex(a => a.BatchId);
         action.HasOne<ClientEntity>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Cascade);
 
         var compliance = modelBuilder.Entity<ComplianceSnapshotEntity>();

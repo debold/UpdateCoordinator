@@ -179,6 +179,7 @@ internal static class DashboardServiceCollectionExtensions
         services.AddScoped<Software.SoftwareFeature>();
         services.AddScoped<Software.SoftwareTrust>();
         services.AddScoped<Software.SoftwareAssignments>();
+        services.AddScoped<Software.SoftwareUninstall>();
         services.AddHostedService<Software.SoftwareCatalogWorker>();
         services.AddSingleton<Software.IInstallerScanner, Software.AmsiInstallerScanner>();
         services.AddSingleton<Software.SoftwareSourceCache>();

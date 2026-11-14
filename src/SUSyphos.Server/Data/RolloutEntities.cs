@@ -269,6 +269,9 @@ internal sealed class AgentActionEntity
 
     /// <summary>What "install now" installs: Windows updates, software or both; null for other actions.</summary>
     public SUSyphos.Contracts.Agents.InstallScope? Scope { get; set; }
+
+    /// <summary>Groups the uninstallations of one "Uninstall from servers…" of a package (Marc, 2026-11-14); null otherwise.</summary>
+    public Guid? BatchId { get; set; }
 }
 
 internal enum LeaseState

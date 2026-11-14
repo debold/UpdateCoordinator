@@ -244,7 +244,8 @@ else
     {
     <FeatureOff Off="@(!_softwareEnabled)" Title="Software management is switched off" Help="software#switch" Text="An administrator switched off software with WinGet on the Software page. The data stays, but nothing is updated or installed until it is switched on again.">
     <Box Title="Installed software" Anchor="software" Help="server-detail#software" Flush="true" Hint="@SoftwareHint">
-        <ListTable Table="_softwareTable" Page="_softwarePage" Columns="SoftwareColumns" Search="Search program or package" Noun="programs" Empty="The agent has reported no installed programs yet (from version 0.9).">
+        <ListTable Table="_softwareTable" Page="_softwarePage" Columns="SoftwareColumns" Search="Search program or package" Noun="programs" Empty="The agent has reported no installed programs yet (from version 0.9)." ExtraColumns="1">
+            <ExtraHeader><th class="n"><span class="visually-hidden">Actions</span></th></ExtraHeader>
             <Row Context="row">
                 <tr>
                     <td class="wrap">@row.Program.DisplayName@if (row.Program.Publisher is not null) { <div class="note">@row.Program.Publisher</div> }</td>
@@ -252,6 +253,12 @@ else
                     <td class="wrap">@if (row.Program.PackageId is { } packageId) { <a href="@PackagePage.Link(packageId)" class="mono">@packageId</a> } else { <span class="note">not known to WinGet</span> }</td>
                     <td class="nowrap">@(row.Newest ?? "–")</td>
                     <td><span class="pill @row.State.Class">@row.State.Label</span></td>
+                    <td class="n">
+                        @{ var blocked = SoftwareUninstallBlocker(row); }
+                        <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {row.Program.DisplayName}")">
+                            <MenuItem Href="@($"{DialogLink("uninstall-software")}&package={Uri.EscapeDataString(row.Program.PackageId ?? string.Empty)}")" Icon="trash-2" Danger="true" Disabled="@(blocked is not null)" Reason="@(blocked ?? "Uninstall this program from the server with WinGet")">Uninstall…</MenuItem>
+                        </ActionMenu>
+                    </td>
                 </tr>
             </Row>
         </ListTable>
@@ -297,12 +304,13 @@ else
             <Row Context="row">
                 <tr>
                     <td class="nowrap">@Format(row.Installation.FinishedAtUtc)</td>
-                    <td class="wrap"><a href="/updates/@row.Installation.UpdateId/@row.Installation.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /></td>
+                    <td class="wrap">@if (row.PackageId is { } historyPackage) { <a href="@PackagePage.Link(historyPackage)">@row.Title</a> } else { <a href="/updates/@row.Installation.UpdateId/@row.Installation.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /> }</td>
                     <td><ClassificationTag Text="@row.Category" /></td>
+                    <td><StatusTag Text="@row.Operation" /></td>
                     <td><StatusTag Text="SUSyphos" Kind="ok" /></td>
                     <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Kind="@UpdateHistoryText.ResultClass((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Detail="@UpdateHistoryText.ResultDetail((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult, row.Installation.InstallerExitCode)" /></td>
                     <td>@{ var reboot = RebootTag(row.Installation); }<StatusTag Text="@reboot.Text" Kind="@reboot.Kind" Detail="@reboot.Detail" /></td>
-                    <td class="n"><UninstallRowMenu Show="@IsUninstallable(row.Installation.UpdateId)" Allowed="@_canAdminister" Href="@UninstallLink(row.Installation.UpdateId)" Title="@row.Title" /></td>
+                    <td class="n"><UninstallRowMenu Show="@(row.PackageId is null && IsUninstallable(row.Installation.UpdateId))" Allowed="@_canAdminister" Href="@UninstallLink(row.Installation.UpdateId)" Title="@row.Title" /></td>
                 </tr>
             </Row>
         </ListTable>
@@ -467,7 +475,34 @@ else
     }
     </TabBar>
 
-    @if (Dialog == "uninstall")
+    @if (Dialog == "uninstall-software" && _software.FirstOrDefault(s => s.Program.PackageId is not null && string.Equals(s.Program.PackageId, UninstallPackageQuery, StringComparison.OrdinalIgnoreCase)) is { } program)
+    {
+        <Dialog Title="@($"Uninstall {program.Program.DisplayName} from {_client.HostName}?")" CloseHref="@($"/servers/{Id}?tab=software")" Help="server-detail#uninstall-software">
+            <form method="post" @formname="uninstall-software" @onsubmit="UninstallSoftwareAsync">
+                <AntiforgeryToken />
+                <input type="hidden" name="UninstallPackage" value="@program.Program.PackageId" />
+                <div class="dialog-body">
+                    @if (SoftwareUninstallBlocker(program) is { } reason)
+                    {
+                        <p class="error" role="alert">@reason</p>
+                    }
+                    <FactGrid ShowLabel="true">
+                        <Fact Label="Package" Mono="true">@program.Program.PackageId</Fact>
+                        <Fact Label="Installed">@(program.Program.InstalledVersion ?? program.Program.DisplayVersion ?? "–")</Fact>
+                        <Fact Label="Method">WinGet, silent, as SYSTEM</Fact>
+                    </FactGrid>
+                    @if (SUSyphos.Server.Software.SoftwareUninstall.IsRuntime(program.Program.PackageId!))
+                    {
+                        <p class="warning">This is a runtime that other programs may need. Make sure nothing on the server depends on it.</p>
+                    }
+                    <UninstallTiming Name="UninstallSoftwareWhen" Software="true" />
+                    <p class="note">The agent uninstalls with WinGet and sends its inventory right after; the uninstallation counts as done once the inventory no longer lists the program. Assignments of the package that cover this server install it again: remove them on the package page.</p>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="@($"/servers/{Id}?tab=software")">Cancel</a><button type="submit" class="danger" disabled="@(SoftwareUninstallBlocker(program) is not null)">Uninstall program</button></div>
+            </form>
+        </Dialog>
+    }
+    else if (Dialog == "uninstall")
     {
         <Dialog Title="@($"Uninstall an update on {_client.HostName}?")" CloseHref="@Here" Help="server-detail#uninstall" Wide="true">
             <form method="post" @formname="uninstall" @onsubmit="UninstallAsync">
@@ -886,6 +921,7 @@ else
         _softwareEnabled = await SUSyphos.Server.Software.SoftwareFeature.IsEnabledAsync(Db, CancellationToken.None);
         _trust = await Trust.GetAsync(Id, CancellationToken.None);
         var programs = await Db.ClientSoftware.AsNoTracking().Where(s => s.ClientId == Id).ToListAsync();
+        _uninstallingPackages = new((await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id && a.PackageId != null && (a.State == AgentActionState.Queued || a.State == AgentActionState.Delivered)).Select(a => a.PackageId!).ToListAsync()), StringComparer.OrdinalIgnoreCase);
         var packageIds = programs.Where(p => p.PackageId != null).Select(p => p.PackageId!).Distinct().ToList();
         var newest = (await Db.PackageVersions.AsNoTracking().Where(v => packageIds.Contains(v.PackageId)).Select(v => new { v.PackageId, v.Version }).ToListAsync())
             .GroupBy(v => v.PackageId, StringComparer.OrdinalIgnoreCase)
@@ -895,6 +931,7 @@ else
             var latest = p.PackageId is { } id ? newest.GetValueOrDefault(id) : null;
             var installed = p.InstalledVersion ?? p.DisplayVersion;
             (string, string) state = p.PackageId is null ? ("Not managed", "neutral")
+                : _uninstallingPackages.Contains(p.PackageId) ? ("Uninstalling", "pend")
                 : latest is null || installed is null ? ("Known to WinGet", "neutral")
                 : SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, latest) < 0 ? ("Newer version available", "queue")
                 : ("Up to date", "ok");
@@ -976,6 +1013,42 @@ else
     private List<UninstallCandidate> _installed = [];
 
     private SUSyphos.Server.Assignment.SchedulePreviewResult? _schedulePreview;
+
+    [SupplyParameterFromQuery(Name = "package")]
+    private string? UninstallPackageQuery { get; set; }
+
+    [SupplyParameterFromForm(FormName = "uninstall-software")]
+    private string? UninstallSoftwareWhen { get; set; }
+
+    [SupplyParameterFromForm(FormName = "uninstall-software")]
+    private string? UninstallPackage { get; set; }
+
+    /// <summary>Why a program cannot be uninstalled from here; null when it can (Marc, 2026-11-14: WinGet only, administrators only).</summary>
+    private string? SoftwareUninstallBlocker(SoftwareItem row) =>
+        row.Program.PackageId is null ? "Not known to WinGet. Remove it on the server."
+            : row.Program.DisplayName.StartsWith("SUSyphos", StringComparison.OrdinalIgnoreCase) ? "SUSyphos itself is removed with Remove server."
+            : !_softwareEnabled ? "Software management is switched off."
+            : _client?.SoftwareState != SUSyphos.Contracts.Agents.SoftwareSupportState.Supported ? "WinGet does not work on this server. Remove it on the server."
+            : !_canAdminister ? AdministratorsOnly
+            : _uninstallingPackages.Contains(row.Program.PackageId) ? "Its uninstallation already waits on the server."
+            : null;
+
+    /// <summary>Packages whose uninstallation waits on this server.</summary>
+    private HashSet<string> _uninstallingPackages = new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task UninstallSoftwareAsync()
+    {
+        var kind = SUSyphos.Server.Agents.AgentActionService.UninstallKind(UninstallSoftwareWhen);
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer)
+            ? new Outcome("Only administrators can uninstall software.")
+            : kind is null || string.IsNullOrWhiteSpace(UninstallPackage)
+                ? new Outcome("Choose the program and when the server uninstalls it.")
+                : await Actions.QueueSoftwareUninstallAsync(Id, UninstallPackage, kind.Value, await GetActorAsync(), CancellationToken.None);
+        ShowResultAndReload(outcome.Error, kind == SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow
+            ? "The uninstallation was queued; the agent removes the program in its next software window."
+            : "The uninstallation was queued; the agent removes the program after its next heartbeat.");
+        await LoadAsync();
+    }
 
     private async Task UninstallAsync()
     {
@@ -1407,7 +1480,38 @@ else
             .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
             .Select(e => (e, Title(e.UpdateId, e.Revision)))];
         _softwareIds = [.. updates.Where(u => u.Kind == UpdateKind.Software).Select(u => u.UpdateId)];
-        _history = [.. installations.Select(i => (Installation: i, Title: Title(i.UpdateId, i.Revision), Category: ClassificationOf(i.UpdateId, i.Revision)))];
+        _history = [.. installations.Select(i => (Installation: i, Title: Title(i.UpdateId, i.Revision), Category: ClassificationOf(i.UpdateId, i.Revision), Operation: "Installation", PackageId: (string?)null))];
+
+        // Uninstallations of software (Marc, 2026-11-14) come from their remote actions: operation Uninstallation,
+        // category Software, the result as the agent reported it.
+        var uninstalls = await Db.AgentActions.AsNoTracking()
+            .Where(a => a.ClientId == Id && a.PackageId != null && a.CompletedAtUtc != null
+                && (a.Kind == SUSyphos.Contracts.Agents.AgentActionKind.Uninstall || a.Kind == SUSyphos.Contracts.Agents.AgentActionKind.UninstallRestartInWindow || a.Kind == SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow)
+                && (a.State == AgentActionState.Succeeded || a.State == AgentActionState.Failed || a.State == AgentActionState.Rejected))
+            .OrderByDescending(a => a.CompletedAtUtc)
+            .Take(MaxHistory)
+            .ToListAsync();
+        var packageNames = await Db.Packages.AsNoTracking().Where(p => uninstalls.Select(u => u.PackageId).Contains(p.PackageId)).ToDictionaryAsync(p => p.PackageId, p => p.Name, StringComparer.OrdinalIgnoreCase);
+        _history = [.. _history.Concat(uninstalls.Select(a => (
+            Installation: new InstallationEntity
+            {
+                ClientId = a.ClientId,
+                RunId = a.Id,
+                UpdateId = a.UpdateId ?? Guid.Empty,
+                Revision = a.Revision ?? 0,
+                ResultCode = (int)(a.State == AgentActionState.Succeeded ? SUSyphos.Contracts.Agents.InstallResultCode.Succeeded : SUSyphos.Contracts.Agents.InstallResultCode.Failed),
+                HResult = a.State == AgentActionState.Succeeded ? 0 : unchecked((int)0x80004005),
+                RebootRequired = a.State == AgentActionState.Succeeded && a.Detail?.Contains("restart", StringComparison.OrdinalIgnoreCase) == true,
+                StartedAtUtc = a.CompletedAtUtc!.Value,
+                FinishedAtUtc = a.CompletedAtUtc!.Value,
+                Source = "SUSyphos",
+            },
+            Title: packageNames.GetValueOrDefault(a.PackageId!) ?? a.PackageId!,
+            Category: SUSyphos.Server.Software.SoftwarePackages.Classification,
+            Operation: "Uninstallation",
+            PackageId: a.PackageId)))
+            .OrderByDescending(h => h.Installation.FinishedAtUtc)
+            .Take(MaxHistory)];
         _openTable = TableQuery.From(Navigation, "status", defaultDescending: true, prefix: "mu.", defaultPageSize: 10);
         _openPage = TablePaging.Apply(_open, _openTable, OpenColumns, o => o.Title);
         _historyTable = TableQuery.From(Navigation, "finished", defaultDescending: true, prefix: "hist.", defaultPageSize: 10, views: HistoryViews);
@@ -1456,7 +1560,7 @@ else
     private TableQuery _openTable = default!;
     private TablePage<(DeploymentEntry Entry, string Title)> _openPage = default!;
     private TableQuery _historyTable = default!;
-    private TablePage<(InstallationEntity Installation, string Title, string Category)> _historyPage = default!;
+    private TablePage<(InstallationEntity Installation, string Title, string Category, string Operation, string? PackageId)> _historyPage = default!;
     private TableQuery _windowsTable = default!;
     private TablePage<ClientUpdateHistoryEntity> _windowsPage = default!;
     private TableQuery _activityTable = default!;
@@ -1476,13 +1580,14 @@ else
         new("result", "Result", o => o.Entry.HResult, o => [HResultCode(o.Entry.HResult)]),
     ];
 
-    private IReadOnlyList<TableColumn<(InstallationEntity Installation, string Title, string Category)>>? _historyColumns;
+    private IReadOnlyList<TableColumn<(InstallationEntity Installation, string Title, string Category, string Operation, string? PackageId)>>? _historyColumns;
 
-    private IReadOnlyList<TableColumn<(InstallationEntity Installation, string Title, string Category)>> HistoryColumns => _historyColumns ??=
+    private IReadOnlyList<TableColumn<(InstallationEntity Installation, string Title, string Category, string Operation, string? PackageId)>> HistoryColumns => _historyColumns ??=
     [
         new("finished", "Finished", h => h.Installation.FinishedAtUtc),
         new("update", "Update", h => h.Title),
         new("category", "Category", h => h.Category, h => [h.Category]),
+        new("operation", "Operation", h => h.Operation, h => [h.Operation]),
         new("source", "Started by", h => "SUSyphos", h => ["SUSyphos"]),
         new("result", "Result", h => ResultText(h.Installation), h => [UpdateHistoryText.ResultLabel((SUSyphos.Contracts.Agents.InstallResultCode)h.Installation.ResultCode, h.Installation.HResult)]),
         new("reboot", "Restart", h => RebootKind(h.Installation), h => [RebootKind(h.Installation)]),
@@ -1664,7 +1769,7 @@ else
 
     private ServerHealthState _health;
     private List<(DeploymentEntry Entry, string Title)> _open = [];
-    private List<(InstallationEntity Installation, string Title, string Category)> _history = [];
+    private List<(InstallationEntity Installation, string Title, string Category, string Operation, string? PackageId)> _history = [];
     private List<(DeploymentEntry Entry, string Title)> _planned = [];
     private (DateTime Start, DateTime End)? _window;
     private bool _paused;

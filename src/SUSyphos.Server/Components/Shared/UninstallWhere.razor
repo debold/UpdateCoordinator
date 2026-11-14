@@ -1,0 +1,33 @@
+@* Where an uninstallation goes: all servers that have it, rings, server groups or one server. Shared by the update page
+   (Windows updates) and the package page (software, Marc 2026-11-14); the fields are read with UninstallScope.Parse. *@
+<fieldset class="choices">
+    <legend>Where</legend>
+    <label class="choice"><input type="radio" name="UninstallTarget" value="all" checked data-help-term="All servers that have it" /> <span><b>All servers that have it</b><span class="note">@DisplayNumber.Format(Servers.Count) servers report it as installed.@AllNote</span></span></label>
+    @if (RingChoices.Count > 0)
+    {
+        <div class="choice"><input type="radio" id="uninstall-target-rings" name="UninstallTarget" value="rings" data-help-term="Rings" /> <span><label for="uninstall-target-rings"><b>Rings</b></label><span class="choice-list">@foreach (var (id, label, count) in RingChoices) { <label><input type="checkbox" name="UninstallRings" value="@id" data-help-term="Rings" /> @label <span class="note">(@count)</span></label> }</span></span></div>
+    }
+    @if (GroupChoices.Count > 0)
+    {
+        <div class="choice"><input type="radio" id="uninstall-target-groups" name="UninstallTarget" value="groups" data-help-term="Server groups" /> <span><label for="uninstall-target-groups"><b>Server groups</b></label><span class="choice-list">@foreach (var (id, label, count) in GroupChoices) { <label><input type="checkbox" name="UninstallGroups" value="@id" data-help-term="Server groups" /> @label <span class="note">(@count)</span></label> }</span></span></div>
+    }
+    <div class="choice"><input type="radio" id="uninstall-target-server" name="UninstallTarget" value="server" data-help-term="One server" /> <span><label for="uninstall-target-server"><b>One server</b></label><select name="UninstallServer" aria-label="Server">@foreach (var (id, name) in Servers) { <option value="@id">@name</option> }</select></span></div>
+</fieldset>
+
+@code {
+    /// <summary>The approved servers that have it installed.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<(Guid Id, string Name)> Servers { get; set; } = [];
+
+    /// <summary>Rings with servers that have it: ID, label ("1 Pilot") and count.</summary>
+    [Parameter]
+    public IReadOnlyList<(int Id, string Label, int Count)> RingChoices { get; set; } = [];
+
+    /// <summary>Server groups with servers that have it: ID, name and count.</summary>
+    [Parameter]
+    public IReadOnlyList<(int Id, string Label, int Count)> GroupChoices { get; set; } = [];
+
+    /// <summary>A sentence after the count of "All servers that have it", starting with a space.</summary>
+    [Parameter]
+    public string? AllNote { get; set; }
+}

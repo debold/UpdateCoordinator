@@ -9,6 +9,7 @@
 @inject SoftwareFeature Feature
 @inject SoftwareTrust Trust
 @inject SoftwareAssignments Assignments
+@inject SoftwareUninstall Uninstall
 @inject NavigationManager Navigation
 
 @if (_package is null)
@@ -29,6 +30,14 @@ else
         <ActionBand>
             <a class="btn primary" href="@($"/administration/release-rules?dialog=rule-new&kind=software&package={Uri.EscapeDataString(_package.PackageId)}")"><Icon Name="list-plus" Size="16" />Create release rule…</a>
             <div class="spacer"></div>
+            @if (UninstallBlocker is { } notNow)
+            {
+                <button type="button" class="danger" disabled title="@notNow"><Icon Name="undo-2" Size="16" />Uninstall from servers…</button>
+            }
+            else
+            {
+                <a class="btn danger" href="@($"{PackagePage.Link(PackageId)}?dialog=uninstall")"><Icon Name="undo-2" Size="16" />Uninstall from servers…</a>
+            }
             @if (RemoveBlocker is { } blocker)
             {
                 <button type="button" class="danger" disabled title="@blocker"><Icon Name="trash-2" Size="16" />Remove from catalog…</button>
@@ -125,7 +134,7 @@ else
         </div>
     </Box>
 
-    <Box Title="Installed on" Help="package-detail#installed" Flush="true" Hint="Approved servers that report the package installed">
+    <Box Title="Installed on" Anchor="installed" Help="package-detail#installed" Flush="true" Hint="Approved servers that report the package installed">
         <div class="scroll">
             <table>
                 <thead><tr><th>Server</th><th>Installed version</th><th>State</th><th>Matched by</th></tr></thead>
@@ -139,7 +148,7 @@ else
                         <tr>
                             <td><a href="@ServerPage.Link(item.ClientId, "software")">@item.HostName</a></td>
                             <td class="nowrap">@(item.Version ?? "–")</td>
-                            <td>@{ var installedState = InstalledState(item.Version); }<span class="pill @installedState.Class">@installedState.Label</span></td>
+                            <td>@{ var installedState = _uninstalling.Contains(item.ClientId) ? ("Uninstalling", "pend") : InstalledState(item.Version); }<span class="pill @installedState.Item2">@installedState.Item1</span></td>
                             <td>@if (item.Match == SoftwareMatch.WinGet) { <CategoryTag Text="WinGet" Index="8" /> } else { <CategoryTag Text="Product code" Index="0" /> }</td>
                         </tr>
                     }
@@ -150,7 +159,33 @@ else
     </FeatureOff>
 }
 
-@if (_package is not null && _enabled && Dialog == "assign")
+@if (_package is not null && _enabled && Dialog == "uninstall" && UninstallBlocker is null)
+{
+    <Dialog Title="@($"Uninstall {_package.Name} from servers?")" CloseHref="@PackagePage.Link(PackageId)" Help="package-detail#uninstall" Wide="true">
+        <form method="post" @formname="package-uninstall" @onsubmit="UninstallFromServersAsync">
+            <AntiforgeryToken />
+            <div class="dialog-body">
+                <UninstallWhere Servers="@([.. _targets.Select(t => (t.ClientId, t.HostName))])" RingChoices="@SUSyphos.Server.Agents.UninstallScope.RingChoices(_targets, _rings)" GroupChoices="@SUSyphos.Server.Agents.UninstallScope.GroupChoices(_targets, _groups)" AllNote=" Only servers where WinGet works are listed." />
+                <UninstallTiming Software="true" />
+                @if (SoftwareUninstall.IsRuntime(_package.PackageId))
+                {
+                    <p class="warning">This is a runtime that other programs may need. Make sure nothing on the servers depends on it.</p>
+                }
+                @if (_assignments.Count > 0)
+                {
+                    <label class="check"><input type="checkbox" name="UninstallEndAssignments" value="true" checked data-help-term="End the assignments" /> End the @DisplayNumber.Count(_assignments.Count, "assignment", "assignments") of this package <span class="note">(otherwise they install it again with the next release)</span></label>
+                }
+                @if (_targets.Count > 1)
+                {
+                    <label class="check"><input type="checkbox" name="UninstallConfirmed" value="true" data-help-term="I understand" /> I understand that the chosen servers will lose this program <span class="note">(needed when more than one server is chosen)</span></label>
+                }
+                <p class="note">The agents uninstall with WinGet as SYSTEM and send their inventory right after; a server counts as done once its inventory no longer lists the package. Software takes no lease of a coordinated group.</p>
+            </div>
+            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="danger">Uninstall from servers</button></div>
+        </form>
+    </Dialog>
+}
+else if (_package is not null && _enabled && Dialog == "assign")
 {
     <Dialog Title="@($"Assign {_package.Name}")" CloseHref="@PackagePage.Link(PackageId)" Help="package-detail#assign">
         <form method="post" @formname="package-assign" @onsubmit="AssignAsync">
@@ -182,7 +217,13 @@ else if (_package is not null && Dialog == "remove" && RemoveBlocker is null)
         <form method="post" @formname="package-remove" @onsubmit="RemoveAsync">
             <AntiforgeryToken />
             <input type="hidden" name="RemoveConfirmed" value="true" />
-            <div class="dialog-body"><p>@_package.Name and its versions leave the catalog; no server has it installed and it is not assigned. The removal is recorded in the audit log. You can add it again any time.</p></div>
+            <div class="dialog-body">
+                <p>SUSyphos stops managing @_package.Name: the package and its versions leave the catalog, with their rollouts and installation history. Servers that have it keep it as an installed program unless you also uninstall it. The removal is recorded in the audit log; you can add the package again any time.</p>
+                @if (_targets.Count > 0)
+                {
+                    <label class="check"><input type="checkbox" name="RemoveUninstall" value="true" data-help-term="Also uninstall it" /> Also uninstall it from @DisplayNumber.Count(_targets.Count, "server", "servers") <span class="note">(with WinGet, in their next software window)</span></label>
+                }
+            </div>
             <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="danger">Remove from catalog</button></div>
         </form>
     </Dialog>
@@ -193,7 +234,15 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
         <form method="post" @formname="package-unassign" @onsubmit="UnassignAsync">
             <AntiforgeryToken />
             <input type="hidden" name="AssignmentId" value="@doomed.Id" />
-            <div class="dialog-body"><p>@TargetName(doomed) no longer gets @_package.Name as a new installation. @(doomed.UninstallOnRemoval ? "The servers it covered uninstall the package in their next maintenance window, unless another assignment still covers them." : "Where it is installed it stays installed and keeps getting new versions.")</p></div>
+            <div class="dialog-body">
+                <p>@TargetName(doomed) no longer gets @_package.Name as a new installation.</p>
+                <fieldset class="choices">
+                    <legend>On the servers</legend>
+                    <label class="choice"><input type="radio" name="UnassignUninstall" value="keep" checked="@(!doomed.UninstallOnRemoval)" data-help-term="Keep installed" /> <span><b>Keep installed</b><span class="note">Where it is installed it stays and keeps getting new versions.</span></span></label>
+                    <label class="choice"><input type="radio" name="UnassignUninstall" value="uninstall" checked="@doomed.UninstallOnRemoval" data-help-term="Uninstall in the next software window" /> <span><b>Uninstall in the next software window</b><span class="note">@(_removalPreview is { } preview ? $"{DisplayNumber.Count(preview.Uninstall, "server", "servers")} uninstall it{(preview.KeptByOther > 0 ? $"; {DisplayNumber.Count(preview.KeptByOther, "more keeps", "more keep")} it through another assignment" : string.Empty)}." : null)</span></span></label>
+                    <p class="note">Preselected as chosen when the assignment was created (uninstall when removed: @(doomed.UninstallOnRemoval ? "yes" : "no")).</p>
+                </fieldset>
+            </div>
             <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="danger">Remove assignment</button></div>
         </form>
     </Dialog>
@@ -207,11 +256,56 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
     [SupplyParameterFromForm(FormName = "package-assign")] private string? UninstallOnRemoval { get; set; }
     [SupplyParameterFromForm(FormName = "package-unassign")] private int? AssignmentId { get; set; }
     [SupplyParameterFromForm(FormName = "package-remove")] private string? RemoveConfirmed { get; set; }
+    [SupplyParameterFromForm(FormName = "package-remove")] private string? RemoveUninstall { get; set; }
+    [SupplyParameterFromForm(FormName = "package-unassign")] private string? UnassignUninstall { get; set; }
+    [SupplyParameterFromForm(FormName = "package-uninstall")] private string? UninstallWhen { get; set; }
+    [SupplyParameterFromForm(FormName = "package-uninstall")] private string? UninstallTarget { get; set; }
+    [SupplyParameterFromForm(FormName = "package-uninstall")] private int[]? UninstallRings { get; set; }
+    [SupplyParameterFromForm(FormName = "package-uninstall")] private int[]? UninstallGroups { get; set; }
+    [SupplyParameterFromForm(FormName = "package-uninstall")] private Guid? UninstallServer { get; set; }
+    [SupplyParameterFromForm(FormName = "package-uninstall")] private string? UninstallEndAssignments { get; set; }
+    [SupplyParameterFromForm(FormName = "package-uninstall")] private string? UninstallConfirmed { get; set; }
+
+    /// <summary>Servers where WinGet works that have the package: the targets of an uninstallation.</summary>
+    private List<SUSyphos.Server.Agents.UninstallTarget> _targets = [];
+    private List<RingEntity> _rings = [];
+    private SoftwareUninstallStatus? _uninstallStatus;
+
+    /// <summary>Servers whose uninstallation of the package waits.</summary>
+    private HashSet<Guid> _uninstalling = [];
+    private SoftwareAssignments.RemovalPreview? _removalPreview;
+
+    /// <summary>Why "Uninstall from servers…" is not offered now; null when it is.</summary>
+    private string? UninstallBlocker => !_enabled ? "Software management is switched off"
+        : _targets.Count == 0 ? "No server with WinGet working reports it installed"
+        : null;
+
+    /// <summary>Uninstalls the package from the chosen servers (administrators only, Marc 2026-11-14).</summary>
+    private async Task UninstallFromServersAsync()
+    {
+        var kind = SUSyphos.Server.Agents.AgentActionService.UninstallKind(UninstallWhen);
+        var scope = SUSyphos.Server.Agents.UninstallScope.Parse(UninstallTarget, UninstallRings, UninstallGroups, UninstallServer);
+        var chosen = scope is null ? 0 : _targets.Count(scope.Contains);
+        var error = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? "Only administrators uninstall software."
+            : scope is null ? "Choose where: all servers that have it, at least one ring or group, or one server."
+            : kind is null ? "Choose when the servers uninstall it."
+            : chosen > 1 && UninstallConfirmed != "true" ? $"Confirm that {chosen} servers will lose this program."
+            : null;
+        if (error is not null)
+        {
+            ShowResult(error, string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var (queued, ended, outcome) = await Uninstall.QueueAsync(PackageId, kind!.Value, scope!, UninstallEndAssignments == "true", await GetActorAsync(), CancellationToken.None);
+        ShowResultAndReload(outcome.Error, $"{DisplayNumber.Count(queued, "server uninstalls", "servers uninstall")} the package {(kind == SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow ? "in the next software window" : "with the next heartbeat")}{(ended > 0 ? $"; {DisplayNumber.Count(ended, "assignment", "assignments")} ended" : string.Empty)}.");
+        await LoadAsync();
+    }
 
     /// <summary>Why the package cannot be removed now; null when it can (added by hand, not installed, not assigned, no rollout running).</summary>
     private string? RemoveBlocker => _package is null ? null
         : _package.AddedBy == SoftwareCatalog.InventoryActor ? "It comes from the software inventory and would come back with the next inventory"
-        : _installed.Count > 0 ? "Servers have it installed"
         : _assignments.Count > 0 ? "Remove its assignments first"
         : _rollouts.Values.Any(r => r == RolloutState.Active) ? "A version is rolling out; stop the rollout first"
         : null;
@@ -220,7 +314,18 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
     {
         var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? new Outcome("Only administrators remove packages.")
             : RemoveConfirmed != "true" ? new Outcome("Invalid request.")
-            : await Catalog.RemovePackageAsync(PackageId, await GetActorAsync(), CancellationToken.None);
+            : RemoveBlocker is { } blocker ? new Outcome(blocker + ".")
+            : Outcome.Ok;
+        if (outcome.Succeeded && RemoveUninstall == "true")
+        {
+            // Queued before the package leaves the catalog; the agents uninstall it by its WinGet ID.
+            outcome = (await Uninstall.QueueAsync(PackageId, SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow, SUSyphos.Server.Agents.UninstallScope.All, false, await GetActorAsync(), CancellationToken.None)).Outcome;
+        }
+
+        if (outcome.Succeeded)
+        {
+            outcome = await Catalog.RemovePackageAsync(PackageId, await GetActorAsync(), CancellationToken.None);
+        }
         if (outcome.Succeeded)
         {
             Navigation.NavigateTo("/software");
@@ -262,7 +367,7 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
     private async Task UnassignAsync()
     {
         var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? new Outcome("Only administrators remove assignments.")
-            : AssignmentId is { } id ? await Assignments.RemoveAsync(id, await GetActorAsync(), CancellationToken.None)
+            : AssignmentId is { } id ? await Assignments.RemoveAsync(id, await GetActorAsync(), CancellationToken.None, UnassignUninstall switch { "uninstall" => true, "keep" => false, _ => null })
             : new Outcome("Invalid request.");
         ShowResult(outcome.Error, "The assignment was removed.");
         await LoadAsync();
@@ -301,6 +406,17 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
                     ? new StatusRow("neutral", "none", "Assignments", "not assigned", "only servers that have the package installed get its new versions")
                     : new StatusRow("ok", DisplayNumber.Format(_assignments.Count), "Assignments", $"assigned to {DisplayNumber.Count(_assignments.Count, "group or server", "groups or servers")}", "servers without the package install it when its version is released for their ring", @<a href="@($"{PackagePage.Link(_package.PackageId)}#assignments")">Assignments →</a>),
             };
+            if (_uninstallStatus is { } uninstall)
+            {
+                // The last "Uninstall from servers…" while it runs and for a week after (Marc, 2026-11-14).
+                var kind = uninstall.Waiting > 0 ? "pend" : uninstall.Failed + uninstall.StillPresent > 0 ? "fail" : "ok";
+                var label = uninstall.Waiting > 0 ? "uninstalling" : uninstall.Failed + uninstall.StillPresent > 0 ? "with errors" : "uninstalled";
+                var parts = new List<string> { $"{DisplayNumber.Format(uninstall.Done)} of {DisplayNumber.Count(uninstall.Total, "server", "servers")} done" };
+                if (uninstall.Waiting > 0) { parts.Add($"{DisplayNumber.Format(uninstall.Waiting)} waiting for their software window or the next inventory"); }
+                if (uninstall.Failed > 0) { parts.Add($"{DisplayNumber.Format(uninstall.Failed)} failed"); }
+                if (uninstall.StillPresent > 0) { parts.Add($"{DisplayNumber.Format(uninstall.StillPresent)} still list it after uninstalling"); }
+                rows.Add(new StatusRow(kind, label, "Uninstall", string.Join(", ", parts), $"started by {uninstall.StartedBy} on {DisplayTime.Format(uninstall.StartedAtUtc)}", @<a href="@($"{PackagePage.Link(_package.PackageId)}#installed")">Servers →</a>));
+            }
             return rows;
         }
     }
@@ -348,6 +464,11 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
         _startRule = newest is null ? null : SUSyphos.Server.Rollouts.RolloutService.FindStartRule(await Db.StartRules.AsNoTracking().ToListAsync(), newest, _package.Publisher);
         _groups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         _servers = await Db.Clients.AsNoTracking().Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved && c.SoftwareState != SUSyphos.Contracts.Agents.SoftwareSupportState.NotSupported).OrderBy(c => c.HostName).ToListAsync();
+        _targets = await Uninstall.TargetsAsync(PackageId, CancellationToken.None);
+        _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
+        _uninstallStatus = await Uninstall.StatusAsync(PackageId, CancellationToken.None);
+        _uninstalling = [.. await Db.AgentActions.AsNoTracking().Where(a => a.PackageId == PackageId && (a.State == AgentActionState.Queued || a.State == AgentActionState.Delivered)).Select(a => a.ClientId).ToListAsync()];
+        _removalPreview = Dialog == "unassign" && DialogNumber is { } unassign ? await Assignments.PreviewRemovalAsync(unassign, CancellationToken.None) : null;
         _installed = [.. (await (from s in Db.ClientSoftware.AsNoTracking()
                                  join c in Db.Clients.AsNoTracking() on s.ClientId equals c.Id
                                  where s.PackageId == PackageId && c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved

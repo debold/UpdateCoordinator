@@ -6,10 +6,12 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- Uninstalling software takes no lease of a coordinated group, and "in the next window" means the software window (the maintenance window without one); a restart after it still waits for a maintenance window (Marc, 2026-11-14).
 - Requested logs explain failed software installations better (Marc, 2026-11-14): besides the agent logs, the WinGet helper and installer logs and WinGet's own logs, the archive now holds an extract of the Application event log (Windows Installer, crashes and hangs, .NET runtime, Windows Error Reporting, SUSyphos), the logs installers write straight into the temp folders of SYSTEM (`%windir%\SystemTemp`, `%windir%\Temp`, for example `dd_*.log` of Burn bundles), the msiexec logs of agent updates and `collection.txt`, which lists what is in the archive, which folders were missing and what was left out to stay within 10 MB.
 
 ### Central server
 
+- Uninstall software with WinGet (Marc, 2026-11-14): **Uninstall…** in the ⋯ of a program on the server's Software tab, **Uninstall from servers…** on the package page for all servers that have it, rings, groups or one server (with **End the assignments** and a confirmation for more than one server) and a progress line "N of M servers done" in its Rollout box; done once the next inventory no longer lists the package. **Remove assignment** lets you keep or uninstall, preselected from the assignment; **Remove from catalog** also works while the package is installed and can uninstall it. The server history shows uninstallations with the operation *Uninstallation*. Administrators only, audited. Migration SoftwareUninstallBatch (`AgentActions.BatchId`).
 - **Download logs** on the SUSyphos page (Admin, audited): a ZIP file with the central server's logs of the last 7 days, the same event log extract, an overview of the WinGet installer cache with SHA-256 and virus scan result, and `collection.txt`; never the database, keys or certificates. Agent and central server pack their logs with the same shared component.
 
 ## [0.9.0-rc.4] - 2026-11-14

@@ -1,15 +1,30 @@
-@* When an uninstallation runs and the server restarts: one choice for the server page and the update page. In a
-   coordinated group each server first waits for the lease of its group. *@
+@* When an uninstallation runs and the server restarts: one choice for the server page, the update page and the package
+   page. For updates each server of a coordinated group first waits for the lease of its group; software is not
+   coordinated and uninstalls in its software window, a restart still waits for a maintenance window (Marc, 2026-11-14). *@
 <fieldset class="choices">
     <legend>When</legend>
-    <label class="choice"><input type="radio" name="@Name" value="in-window" checked data-help-term="In the next maintenance window" /> <span><b>In the next maintenance window</b><span class="note">The server uninstalls and restarts in its next window that stays open long enough.</span></span></label>
-    <label class="choice"><input type="radio" name="@Name" value="window" data-help-term="Now, restart in the next window" /> <span><b>Now, restart in the next window</b><span class="note">Uninstalls with the next heartbeat, also outside the window; a needed restart waits for the window.</span></span></label>
-    <label class="choice"><input type="radio" name="@Name" value="now" data-help-term="Now, restart right after" /> <span><b>Now, restart right after</b><span class="note">Uninstalls with the next heartbeat; a needed restart follows after a five minute warning.</span></span></label>
-    <p class="note">The local veto (AllowReboot) always prevents the restart. In a coordinated group the server first waits for the lease of its group, so the servers of a group take their turns.</p>
+    @if (Software)
+    {
+        <label class="choice"><input type="radio" name="@Name" value="in-window" checked data-help-term="In the next software window" /> <span><b>In the next software window</b><span class="note">The server uninstalls in its next software window (its maintenance window when it has none); a needed restart waits for a maintenance window.</span></span></label>
+        <label class="choice"><input type="radio" name="@Name" value="window" data-help-term="Now, restart in the next window" /> <span><b>Now, restart in the next window</b><span class="note">Uninstalls with the next heartbeat, also outside the windows; a needed restart waits for a maintenance window.</span></span></label>
+        <label class="choice"><input type="radio" name="@Name" value="now" data-help-term="Now, restart right after" /> <span><b>Now, restart right after</b><span class="note">Uninstalls with the next heartbeat; a needed restart follows after a five minute warning.</span></span></label>
+        <p class="note">The local veto (AllowReboot) always prevents the restart. Software takes no lease of a coordinated group; only a restart in the maintenance window waits for it.</p>
+    }
+    else
+    {
+        <label class="choice"><input type="radio" name="@Name" value="in-window" checked data-help-term="In the next maintenance window" /> <span><b>In the next maintenance window</b><span class="note">The server uninstalls and restarts in its next window that stays open long enough.</span></span></label>
+        <label class="choice"><input type="radio" name="@Name" value="window" data-help-term="Now, restart in the next window" /> <span><b>Now, restart in the next window</b><span class="note">Uninstalls with the next heartbeat, also outside the window; a needed restart waits for the window.</span></span></label>
+        <label class="choice"><input type="radio" name="@Name" value="now" data-help-term="Now, restart right after" /> <span><b>Now, restart right after</b><span class="note">Uninstalls with the next heartbeat; a needed restart follows after a five minute warning.</span></span></label>
+        <p class="note">The local veto (AllowReboot) always prevents the restart. In a coordinated group the server first waits for the lease of its group, so the servers of a group take their turns.</p>
+    }
 </fieldset>
 
 @code {
     /// <summary>Name of the form field.</summary>
     [Parameter]
     public string Name { get; set; } = "UninstallWhen";
+
+    /// <summary>Texts for software (software windows, no lease) instead of Windows updates.</summary>
+    [Parameter]
+    public bool Software { get; set; }
 }

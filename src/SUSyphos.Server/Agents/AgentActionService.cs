@@ -25,6 +25,24 @@ internal sealed record UninstallScope(IReadOnlyCollection<int>? Rings = null, IR
 {
     public static readonly UninstallScope All = new();
 
+    /// <summary>The scope the fields of the "Where" choice name (all, rings, groups, server); null when incomplete.</summary>
+    public static UninstallScope? Parse(string? target, int[]? rings, int[]? groups, Guid? server) => target switch
+    {
+        "all" => All,
+        "rings" when rings is { Length: > 0 } => new(Rings: rings),
+        "groups" when groups is { Length: > 0 } => new(Groups: groups),
+        "server" when server is { } one => new(Clients: [one]),
+        _ => null,
+    };
+
+    /// <summary>Rings that have targets, for the "Where" choice: ID, "order name" and count.</summary>
+    public static IReadOnlyList<(int Id, string Label, int Count)> RingChoices(IEnumerable<UninstallTarget> targets, IEnumerable<RingEntity> rings) =>
+        [.. rings.Select(r => (r.Id, $"{r.Order} {r.Name}", targets.Count(t => t.RingId == r.Id))).Where(r => r.Item3 > 0)];
+
+    /// <summary>Server groups that have targets, for the "Where" choice.</summary>
+    public static IReadOnlyList<(int Id, string Label, int Count)> GroupChoices(IEnumerable<UninstallTarget> targets, IEnumerable<GroupEntity> groups) =>
+        [.. groups.Select(g => (g.Id, g.Name, targets.Count(t => t.GroupIds.Contains(g.Id)))).Where(g => g.Item3 > 0)];
+
     public bool Contains(UninstallTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -121,11 +139,18 @@ internal sealed partial class AgentActionService(
     }
 
     /// <summary>
-    /// Queues the uninstallation of a software package the server reports installed, in its next maintenance window
-    /// (removed assignment with "uninstall when removed"). The update ID names the installed version.
+    /// Queues the uninstallation of a software package with WinGet on a server that reports it installed and where WinGet
+    /// works (Marc, 2026-11-14): in the next software window, or now with the restart in the next maintenance window or
+    /// right after. The update ID names the installed version; <paramref name="batchId"/> groups the actions of one
+    /// "Uninstall from servers…". Software takes no lease of a coordinated group.
     /// </summary>
-    public async Task<Outcome> QueueSoftwareUninstallAsync(Guid clientId, string packageId, string actor, CancellationToken cancellationToken)
+    public async Task<Outcome> QueueSoftwareUninstallAsync(Guid clientId, string packageId, AgentActionKind kind, string actor, CancellationToken cancellationToken, Guid? batchId = null)
     {
+        if (!IsHeld(kind))
+        {
+            return new Outcome("Choose when the server uninstalls the program and restarts.");
+        }
+
         var program = await db.ClientSoftware.AsNoTracking()
             .Where(s => s.ClientId == clientId && s.PackageId == packageId)
             .Select(s => new { s.PackageId, Version = s.InstalledVersion ?? s.DisplayVersion })
@@ -136,8 +161,18 @@ internal sealed partial class AgentActionService(
             return new Outcome("The server does not report this package as installed.");
         }
 
+        if (await db.Clients.AsNoTracking().Where(c => c.Id == clientId).Select(c => c.SoftwareState).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false) != SoftwareSupportState.Supported)
+        {
+            return new Outcome("WinGet does not work on this server; remove the program on the server.");
+        }
+
+        if (await db.AgentActions.AnyAsync(a => a.ClientId == clientId && a.PackageId == program.PackageId && (a.State == AgentActionState.Queued || a.State == AgentActionState.Delivered), cancellationToken).ConfigureAwait(false))
+        {
+            return new Outcome("The uninstallation of this program already waits on the server.");
+        }
+
         var updateId = SUSyphos.Server.Software.SoftwarePackages.SoftwareUpdateId(program.PackageId!, program.Version ?? "0");
-        return await QueueCoreAsync(clientId, AgentActionKind.UninstallInWindow, actor, (updateId, SUSyphos.Server.Software.SoftwarePackages.SoftwareRevision, null), cancellationToken, packageId: program.PackageId).ConfigureAwait(false);
+        return await QueueCoreAsync(clientId, kind, actor, (updateId, SUSyphos.Server.Software.SoftwarePackages.SoftwareRevision, null), cancellationToken, packageId: program.PackageId, batchId: batchId).ConfigureAwait(false);
     }
 
     /// <summary>The approved servers that report the update as installed, with ring and groups (the targets of an uninstallation).</summary>
@@ -174,7 +209,7 @@ internal sealed partial class AgentActionService(
         return queued;
     }
 
-    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken, Guid? actionId = null, string? packageId = null, InstallScope? scope = null)
+    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken, Guid? actionId = null, string? packageId = null, InstallScope? scope = null, Guid? batchId = null)
     {
         if (!Enum.IsDefined(kind))
         {
@@ -211,6 +246,7 @@ internal sealed partial class AgentActionService(
             KbArticle = update?.KbArticle,
             PackageId = packageId,
             Scope = scope,
+            BatchId = batchId,
         });
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var details = packageId is not null ? $"{kind} software {packageId}"

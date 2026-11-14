@@ -49,6 +49,7 @@
 | **Software package** (0.9) | WinGet package ID, name, publisher, links, logo, agreements accepted by whom; its versions are entries of the update catalog (section 7c) |
 | **Installed software** (0.9) | Per server: uninstall key or MSIX package, name, version, publisher, matched WinGet package and version |
 | **Package assignment** (0.9) | Package to a group or a server, install or uninstall, newest or fixed version, uninstall when removed |
+| **Software uninstallation** (0.9, Marc 2026-11-14) | A remote action with `PackageId` per server; `AgentActions.BatchId` groups the actions of one "Uninstall from servers…" for the progress on the package page. Done when the action succeeded and the next inventory no longer lists the package; the server history shows it as operation "Uninstallation" from the action (no row in `Installations`). |
 
 ## 3. Ring logic
 

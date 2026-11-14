@@ -312,6 +312,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid?>("BatchId")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("ClientId")
                         .HasColumnType("TEXT");
 
@@ -360,6 +363,8 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BatchId");
 
                     b.HasIndex("ClientId", "State");
 

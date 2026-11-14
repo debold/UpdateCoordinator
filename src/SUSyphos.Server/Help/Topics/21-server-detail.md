@@ -157,7 +157,17 @@ The programs the agent reports with its inventory ("Programs and Features" and p
 - **Installed**: the installed version, in WinGet's notation where WinGet knows the program.
 - **Package**: the WinGet package of the program; it opens the [package page](help/package-detail). "not known to WinGet" for programs WinGet cannot update.
 - **Newest**: the newest version the catalog knows.
-- **State**: *Up to date*, *Newer version available*, *Known to WinGet* (no newer version known yet) or *Not managed*.
+- **State**: *Up to date*, *Newer version available*, *Known to WinGet* (no newer version known yet), *Uninstalling* (an uninstallation waits on the server) or *Not managed*.
+
+**More** (⋯) at the end of a row offers **Uninstall…** (administrators): it opens [Uninstall a program](#uninstall-software). It is greyed with the reason for programs WinGet does not know ("Not known to WinGet. Remove it on the server."), on servers where WinGet does not work, while an uninstallation of the program already waits, and for SUSyphos itself, which goes with **Remove server**.
+
+## Uninstall a program {#uninstall-software}
+
+Removes a program with WinGet, silently and as SYSTEM (Marc, 2026-11-14; only programs matched to a WinGet package on servers where WinGet works). The dialog names the **Package**, the **Installed** version and the **Method**, and warns for runtimes other programs may need (Visual C++ Redistributable, .NET, Java, WebView2 and the like).
+
+**When**: **In the next software window** (default; the server's software windows, its maintenance windows when it has none; a needed restart waits for a maintenance window), **Now, restart in the next window** or **Now, restart right after** (five minute warning). Software takes no lease of a coordinated group. The local veto (AllowReboot) always prevents the restart.
+
+**Uninstall program** queues it as a remote action (recorded in the audit log); **Cancel** closes the dialog. The agent sends its inventory right after; the uninstallation counts as done once the inventory no longer lists the program. An assignment of the package that covers the server installs it again: end it on the [package page](help/package-detail#assignments), or uninstall from there with **Uninstall from servers…**.
 
 ## Missing updates {#missing}
 
@@ -169,7 +179,7 @@ Before each update run the agent checks: **Disk space**, **Windows Update servic
 
 ## Installed by SUSyphos {#history}
 
-Installations done by SUSyphos: when they finished, which update, its **Category** (classification, with a filter; programs installed or updated with WinGet show *Software*), **Started by** (always SUSyphos here), the **Result** and the **Restart**. Results and restarts are coloured tags, the same on every page: green for Succeeded, Already installed (0x80070103, nothing to do), No restart and Restarted (with the time); yellow for Succeeded with errors and Restart pending; red for Failed (with the error code and a plain explanation next to it, for software also the exit code of the installer); grey for Aborted.
+Installations and uninstallations of software done by SUSyphos: when they finished, which update or program, its **Category** (classification, with a filter; programs installed, updated or removed with WinGet show *Software*), the **Operation** (*Installation* or *Uninstallation*; an uninstallation links to the package page), **Started by** (always SUSyphos here), the **Result** and the **Restart**. Results and restarts are coloured tags, the same on every page: green for Succeeded, Already installed (0x80070103, nothing to do), No restart and Restarted (with the time); yellow for Succeeded with errors and Restart pending; red for Failed (with the error code and a plain explanation next to it, for software also the exit code of the installer); grey for Aborted.
 
 Both histories hide antivirus definition updates by default, which arrive several times a day and would bury the other installations. **View** (see [Working with lists](help/tables#views)) offers here **Without definition updates** (default), **Failed or with errors**, **Software only** and **All installations**; each list has its own view. The ⋯ at the end of a row offers **Uninstall…** for updates the server can uninstall: it opens [Uninstall an update](#uninstall) with that update chosen (administrators only).
 
