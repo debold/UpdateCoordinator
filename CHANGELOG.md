@@ -4,6 +4,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.9.0-rc.4] - 2026-11-14
+
 ### Agent
 
 - Software installs in its software windows when the central server sends some (release list field `softwareWindows`); Windows updates keep the maintenance windows, restarts too.
