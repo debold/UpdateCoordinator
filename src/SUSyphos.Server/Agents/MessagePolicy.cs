@@ -19,6 +19,8 @@ internal enum MessageType
     Lease,
     AgentPackage,
     Activity,
+    Script,
+    ScriptRun,
 }
 
 /// <summary>
@@ -30,7 +32,7 @@ internal static class MessagePolicy
     {
         MessageType.Register => state is null,
         MessageType.Heartbeat or MessageType.Inventory or MessageType.Activity => state is RegistrationState.Pending or RegistrationState.Approved,
-        MessageType.UpdateReport or MessageType.ReleaseRequest or MessageType.InstallReport or MessageType.ActionRequest or MessageType.ActionResult or MessageType.Lease or MessageType.AgentPackage
+        MessageType.UpdateReport or MessageType.ReleaseRequest or MessageType.InstallReport or MessageType.ActionRequest or MessageType.ActionResult or MessageType.Lease or MessageType.AgentPackage or MessageType.Script or MessageType.ScriptRun
             => state is RegistrationState.Approved,
         _ => false,
     };

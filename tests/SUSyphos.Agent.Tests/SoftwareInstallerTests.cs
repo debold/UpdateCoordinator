@@ -128,7 +128,7 @@ public sealed class SoftwareInstallerTests
     {
         var runner = new SoftwareInventoryTests.FakeRunner { Result = (0, Outcome(true)) };
 
-        var removed = await Installer(runner).UninstallAsync("7zip.7zip", TestContext.Current.CancellationToken);
+        var removed = await Installer(runner).UninstallAsync("7zip.7zip", null, TestContext.Current.CancellationToken);
 
         Assert.Equal(["uninstall", "7zip.7zip"], Assert.Single(runner.Calls));
         Assert.Equal(UninstallStatus.Succeeded, removed.Status);
@@ -140,6 +140,97 @@ public sealed class SoftwareInstallerTests
         var notInstalled = new SoftwareInventoryTests.FakeRunner { Result = (0, JsonSerializer.Serialize(new SoftwareInstallOutcome { Succeeded = false, Status = "NotInstalled", Detail = "7zip.7zip is not installed." }, SoftwareInventoryReport.JsonOptions)) };
         var broken = new SoftwareInventoryTests.FakeRunner { Result = (2, string.Empty) };
 
-        Assert.Equal(UninstallStatus.NotInstalled, (await Installer(notInstalled).UninstallAsync("7zip.7zip", TestContext.Current.CancellationToken)).Status);
-        Assert.Equal(UninstallStatus.Failed, (await Installer(broken).UninstallAsync("7zip.7zip", TestContext.Current.CancellationToken)).Status);
-    }}
+        Assert.Equal(UninstallStatus.NotInstalled, (await Installer(notInstalled).UninstallAsync("7zip.7zip", null, TestContext.Current.CancellationToken)).Status);
+        Assert.Equal(UninstallStatus.Failed, (await Installer(broken).UninstallAsync("7zip.7zip", null, TestContext.Current.CancellationToken)).Status);
+    }
+
+    private static readonly SUSyphos.Contracts.Scripts.ScriptReference Before = new(SUSyphos.Contracts.Scripts.ScriptPhase.BeforeInstall, 1, 1, "AA", "BB");
+    private static readonly SUSyphos.Contracts.Scripts.ScriptReference After = new(SUSyphos.Contracts.Scripts.ScriptPhase.AfterInstall, 2, 1, "AA", "BB");
+
+    private static Release WithScripts(string installed = "") => new(Guid.NewGuid(), 1, DateTimeOffset.UtcNow, Software: new SoftwareRelease("7zip.7zip", "26.06", false, [Before, After], installed.Length == 0 ? null : installed));
+
+    [Fact]
+    public async Task FailedScriptBefore_StopsTheInstallation()
+    {
+        var runner = new SoftwareInventoryTests.FakeRunner { Result = (0, Outcome(true)) };
+        var scripts = new FakeScripts { Results = { [SUSyphos.Contracts.Scripts.ScriptPhase.BeforeInstall] = SUSyphos.Contracts.Scripts.ScriptRunResult.Failed } };
+
+        var result = Assert.Single(await Installer(runner, scripts).InstallAsync([WithScripts()], TestContext.Current.CancellationToken));
+
+        Assert.Equal(InstallResultCode.Failed, result.ResultCode);
+        Assert.Equal(SUSyphos.Contracts.Scripts.ScriptLimits.BeforeScriptFailedCode, result.HResult);
+        Assert.Empty(runner.Calls);
+        Assert.Equal([SUSyphos.Contracts.Scripts.ScriptPhase.BeforeInstall], scripts.Ran);
+    }
+
+    [Theory]
+    [InlineData((int)SUSyphos.Contracts.Scripts.ScriptRunResult.Blocked, unchecked((int)0xA0050003))]
+    [InlineData((int)SUSyphos.Contracts.Scripts.ScriptRunResult.NotVerified, unchecked((int)0xA0050004))]
+    public async Task BlockedOrUnverifiedScript_StopsEvenWhenTheInstallationMayContinue(int result, int code)
+    {
+        var runner = new SoftwareInventoryTests.FakeRunner { Result = (0, Outcome(true)) };
+        var scripts = new FakeScripts { OnFailure = SUSyphos.Contracts.Scripts.ScriptOnFailure.Continue, Results = { [SUSyphos.Contracts.Scripts.ScriptPhase.BeforeInstall] = (SUSyphos.Contracts.Scripts.ScriptRunResult)result } };
+
+        Assert.Equal(code, Assert.Single(await Installer(runner, scripts).InstallAsync([WithScripts()], TestContext.Current.CancellationToken)).HResult);
+        Assert.Empty(runner.Calls);
+    }
+
+    [Fact]
+    public async Task FailedScriptAfter_CountsAsFailed_AndUpgradeIsPassedOn()
+    {
+        var runner = new SoftwareInventoryTests.FakeRunner { Result = (0, Outcome(true)) };
+        var scripts = new FakeScripts { Results = { [SUSyphos.Contracts.Scripts.ScriptPhase.AfterInstall] = SUSyphos.Contracts.Scripts.ScriptRunResult.Failed } };
+
+        var result = Assert.Single(await Installer(runner, scripts).InstallAsync([WithScripts("26.05")], TestContext.Current.CancellationToken));
+
+        Assert.Equal(SUSyphos.Contracts.Scripts.ScriptLimits.AfterScriptFailedCode, result.HResult);
+        Assert.Single(runner.Calls);
+        Assert.All(scripts.Requests, r => Assert.Equal((SUSyphos.Contracts.Scripts.ScriptAction.Upgrade, "26.05"), (r.Action, r.PreviousVersion)));
+    }
+
+    [Fact]
+    public async Task ScriptAfter_ThatNeedsARestart_MarksTheInstallation()
+    {
+        var runner = new SoftwareInventoryTests.FakeRunner { Result = (0, Outcome(true)) };
+        var scripts = new FakeScripts { Results = { [SUSyphos.Contracts.Scripts.ScriptPhase.AfterInstall] = SUSyphos.Contracts.Scripts.ScriptRunResult.SucceededRestart } };
+
+        var result = Assert.Single(await Installer(runner, scripts).InstallAsync([WithScripts()], TestContext.Current.CancellationToken));
+
+        Assert.Equal(InstallResultCode.Succeeded, result.ResultCode);
+        Assert.True(result.RebootRequired);
+    }
+
+    [Fact]
+    public async Task UninstallScripts_RunAround_AndAFailedOneBeforeKeepsTheProgram()
+    {
+        var runner = new SoftwareInventoryTests.FakeRunner { Result = (0, Outcome(true)) };
+        var scripts = new FakeScripts { Results = { [SUSyphos.Contracts.Scripts.ScriptPhase.BeforeUninstall] = SUSyphos.Contracts.Scripts.ScriptRunResult.Failed } };
+        SUSyphos.Contracts.Scripts.ScriptReference[] references = [new(SUSyphos.Contracts.Scripts.ScriptPhase.BeforeUninstall, 3, 1, "AA", "BB")];
+
+        var result = await Installer(runner, scripts).UninstallAsync("7zip.7zip", references, TestContext.Current.CancellationToken);
+
+        Assert.Equal(UninstallStatus.Failed, result.Status);
+        Assert.Empty(runner.Calls);
+    }
+
+    private static SoftwareInstaller Installer(SoftwareInventoryTests.FakeRunner runner, FakeScripts scripts) =>
+        new(runner, Options.Create(new CentralServerOptions { BaseAddress = Central }), NullLogger<SoftwareInstaller>.Instance, scripts);
+
+    private sealed class FakeScripts : SUSyphos.Agent.Scripts.IScriptRunner
+    {
+        public Dictionary<SUSyphos.Contracts.Scripts.ScriptPhase, SUSyphos.Contracts.Scripts.ScriptRunResult> Results { get; } = [];
+
+        public SUSyphos.Contracts.Scripts.ScriptOnFailure OnFailure { get; init; } = SUSyphos.Contracts.Scripts.ScriptOnFailure.Stop;
+
+        public List<SUSyphos.Contracts.Scripts.ScriptPhase> Ran { get; } = [];
+
+        public List<SUSyphos.Agent.Scripts.ScriptRunRequest> Requests { get; } = [];
+
+        public Task<SUSyphos.Agent.Scripts.ScriptRunOutcome> RunAsync(SUSyphos.Agent.Scripts.ScriptRunRequest request, CancellationToken cancellationToken)
+        {
+            Ran.Add(request.Script.Phase);
+            Requests.Add(request);
+            return Task.FromResult(new SUSyphos.Agent.Scripts.ScriptRunOutcome(true, Results.GetValueOrDefault(request.Script.Phase, SUSyphos.Contracts.Scripts.ScriptRunResult.Succeeded), OnFailure, "test"));
+        }
+    }
+}

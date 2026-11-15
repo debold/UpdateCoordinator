@@ -316,6 +316,30 @@ else
         </ListTable>
     </Box>
 
+    @if (_scriptRuns.Count > 0)
+    {
+    <Box Title="Script runs" Anchor="script-runs" Help="server-detail#script-runs" Hint="scripts of WinGet packages around installations and uninstallations, with their complete output" Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Finished</th><th>Package</th><th>Phase</th><th>Result</th><th class="n">Output</th></tr></thead>
+                <tbody>
+                    @foreach (var run in _scriptRuns)
+                    {
+                        var (runLabel, runKind) = ScriptText.Result(run.Result);
+                        <tr>
+                            <td class="nowrap">@Format(run.FinishedAtUtc)</td>
+                            <td><a href="@PackagePage.Link(run.PackageId)" class="mono">@run.PackageId</a></td>
+                            <td>@ScriptText.Phase(run.Phase) <span class="note">(@run.Action)</span></td>
+                            <td><StatusTag Text="@runLabel" Kind="@runKind" Detail="@(run.Detail ?? (run.ExitCode is { } code ? $"exit code {code}" : null))" /></td>
+                            <td class="n"><a href="@ScriptText.RunLink(Id, run.Id)" data-help-term="Show output">Show output</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
+    }
+
     <Box Title="All installations on the server" Anchor="windows-history" Help="server-detail#windows-history" Hint="@($"Windows Update history of the last {SUSyphos.Contracts.Agents.UpdateHistoryEntry.HistoryDays} days, from any source: SUSyphos, Windows, Defender, administrators; updated with the inventory")" Flush="true">
         <ListTable Table="_windowsTable" Page="_windowsPage" Columns="WindowsColumns" Search="Search update" Noun="entries" Empty="Nothing reported yet; agents from version 0.7 send the history with their inventory.">
             <ExtraHeader><th class="n"><span class="visually-hidden">Actions</span></th></ExtraHeader>
@@ -1034,6 +1058,9 @@ else
             : null;
 
     /// <summary>Packages whose uninstallation waits on this server.</summary>
+    /// <summary>The last script runs of the server, without their output (that is on the script output page).</summary>
+    private List<ScriptRunEntity> _scriptRuns = [];
+
     private HashSet<string> _uninstallingPackages = new(StringComparer.OrdinalIgnoreCase);
 
     private async Task UninstallSoftwareAsync()
@@ -1457,6 +1484,9 @@ else
         var entries = await Deployment.GetAsync(null, Id, null, CancellationToken.None);
         _health = ServerHealth.Evaluate(_client, entries.Any(e => e.State == DeploymentState.Failed), Time.GetUtcNow().UtcDateTime);
 
+        _scriptRuns = await Db.ScriptRuns.AsNoTracking().Where(r => r.ClientId == Id).OrderByDescending(r => r.FinishedAtUtc).Take(50)
+            .Select(r => new ScriptRunEntity { Id = r.Id, ClientId = r.ClientId, PackageId = r.PackageId, Phase = r.Phase, Action = r.Action, Result = r.Result, ExitCode = r.ExitCode, Detail = r.Detail, FinishedAtUtc = r.FinishedAtUtc, StartedAtUtc = r.StartedAtUtc })
+            .ToListAsync();
         var installations = await Db.Installations.AsNoTracking()
             .Where(i => i.ClientId == Id)
             .OrderByDescending(i => i.FinishedAtUtc).ThenByDescending(i => i.Id)

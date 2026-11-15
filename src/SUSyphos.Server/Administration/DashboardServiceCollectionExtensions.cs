@@ -180,6 +180,9 @@ internal static class DashboardServiceCollectionExtensions
         services.AddScoped<Software.SoftwareTrust>();
         services.AddScoped<Software.SoftwareAssignments>();
         services.AddScoped<Software.SoftwareUninstall>();
+        services.AddSingleton<Scripts.ScriptKey>();
+        services.AddScoped<Scripts.ScriptSigning>();
+        services.AddScoped<Scripts.ScriptAdministration>();
         services.AddHostedService<Software.SoftwareCatalogWorker>();
         services.AddSingleton<Software.IInstallerScanner, Software.AmsiInstallerScanner>();
         services.AddSingleton<Software.SoftwareSourceCache>();

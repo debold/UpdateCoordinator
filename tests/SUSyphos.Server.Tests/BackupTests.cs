@@ -43,6 +43,25 @@ public sealed class BackupTests : IDisposable
         Assert.True(await factory.WithDbAsync(db => db.AuditEntries.AnyAsync(e => e.Action == "Backup.Created" && e.Actor == "admin", TestContext.Current.CancellationToken)));
     }
 
+    [Fact]
+    public async Task ScriptKey_GoesIntoTheBackup_AndComesBackWithTheRestore()
+    {
+        await using var factory = new ServerFactory();
+        factory.StartServer();
+        var publicKey = factory.Services.GetRequiredService<SUSyphos.Server.Scripts.ScriptKey>().CreateNew().ExportSubjectPublicKeyInfo();
+        var archive = await CreateBackupAsync(factory);
+        using (var zip = ZipFile.OpenRead(archive))
+        {
+            Assert.NotNull(zip.GetEntry(BackupService.ScriptKeyEntry));
+        }
+
+        var (databasePath, anchorPath) = Targets();
+        Assert.True((await RestoreAsync(archive, BackupPassword, databasePath, anchorPath)).Succeeded);
+
+        using var restored = new SUSyphos.Server.Scripts.ScriptKey(Options.Create(new TrustOptions { AnchorPath = anchorPath }), NullLogger<SUSyphos.Server.Scripts.ScriptKey>.Instance);
+        Assert.Equal(publicKey, restored.Current!.ExportSubjectPublicKeyInfo());
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

@@ -25,6 +25,21 @@ internal enum ScanMode
 internal interface IInstallerScanner
 {
     ScanResult Scan(string path, long maxBytes);
+
+    /// <summary>Scans content in memory, such as a script before it is approved (Marc, 2026-11-13).</summary>
+    ScanResult ScanBuffer(byte[] data, string contentName)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"susyphos-scan-{Guid.NewGuid():N}.ps1");
+        File.WriteAllBytes(path, data);
+        try
+        {
+            return Scan(path, data.LongLength + 1);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }
 
 /// <summary>The AMSI scanner of the machine, started once; without a registered provider every scan says "unavailable".</summary>
@@ -38,6 +53,9 @@ internal sealed class AmsiInstallerScanner : IInstallerScanner, IDisposable
         var result = _scanner.Value.ScanFile(path, maxBytes);
         return result.Outcome == ScanOutcome.TooLarge ? AttachmentScanner.ScanFile(path) : result;
     }
+
+    /// <summary>AMSI scans the script as content, the way PowerShell itself hands scripts to it.</summary>
+    public ScanResult ScanBuffer(byte[] data, string contentName) => _scanner.Value.ScanBuffer(data, contentName);
 
     public void Dispose()
     {

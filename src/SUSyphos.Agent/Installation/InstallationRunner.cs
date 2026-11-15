@@ -519,7 +519,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             return;
         }
 
-        Save(_state with { Uninstalls = [.. _state.Uninstalls ?? [], new UninstallRequest(action.Id, action.Kind, updateId, action.KbArticle, _timeProvider.GetUtcNow(), action.PackageId)] });
+        Save(_state with { Uninstalls = [.. _state.Uninstalls ?? [], new UninstallRequest(action.Id, action.Kind, updateId, action.KbArticle, _timeProvider.GetUtcNow(), action.PackageId, action.Scripts)] });
     }
 
     /// <summary>
@@ -573,7 +573,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         var result = request.PackageId is { } packageId
             ? _softwareUninstaller is null
                 ? new UninstallResult(UninstallStatus.Failed, false, "This agent cannot uninstall software.")
-                : await _softwareUninstaller.UninstallAsync(packageId, cancellationToken).ConfigureAwait(false)
+                : await _softwareUninstaller.UninstallAsync(packageId, request.Scripts, cancellationToken).ConfigureAwait(false)
             : await _uninstaller.UninstallAsync(request.UpdateId, request.KbArticle, cancellationToken).ConfigureAwait(false);
 
         // The next inventory and search tell the central server what is installed now.

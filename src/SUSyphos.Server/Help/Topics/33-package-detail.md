@@ -60,6 +60,14 @@ New installations (administrators): the servers of an assigned group, or an assi
 
 **Assign** stores the assignment (recorded in the audit log); **Cancel** closes the dialog. The installation waits for the rollout of the version: start it on the version's update page, or release it to all rings at once. Holds of the version win over assignments.
 
+## Scripts {#scripts}
+
+One row per phase (**Before installation**, **After installation**, **Before uninstallation**, **After uninstallation**): **Runs on** of the approved revision, the **State** (*revision N* runs, *not approved*, *draft* waits) and when it was **Changed**. The phase opens the [script page](help/script), where administrators write, approve and sign scripts. While scripts are switched off under Agent settings, agents run none. The **Scripts** line under Rollout counts the approved scripts.
+
+## Script values {#script-values}
+
+**Script values…** in the ⋯ (More) of an assignment (administrators, only when an approved script has parameters) sets the values of the parameters for the servers of that assignment, by phase. A **Value** left empty uses the default. A **Secret** is stored encrypted, never shown again and masked in every output; leave it empty to keep the stored value. **Save values** stores them (audited by name, never with the value) and the servers get them with their next release list; **Cancel** closes the dialog. Servers without an assignment use the defaults.
+
 ## Installed on {#installed}
 
 Approved servers that report the package installed, with the installed version, its **State** against the newest version (*up to date*, *older*, *newer than the source*, or *Uninstalling* while an uninstallation waits) and how it was matched (tag): by **WinGet** on the server, or by the **Product code** in the community index. The server name opens its Software tab.

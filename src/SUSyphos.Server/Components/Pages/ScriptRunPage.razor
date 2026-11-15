@@ -1,0 +1,80 @@
+@page "/servers/{ClientId:guid}/script-runs/{RunId:guid}"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using SUSyphos.Contracts.Scripts
+@using SUSyphos.Server.Scripts
+@inject ServerDbContext Db
+
+@* The complete output of one script run on a server (Marc, 2026-11-13: every stream traceable): result, counts,
+   the lines with time and stream, filtered by stream through links, and the output as a .log download. *@
+@if (_run is null || _host is null)
+{
+    <PageTitle>Script output</PageTitle>
+    <PageHeader Icon="@PageIcons.Servers" Title="Script run not found" Help="script-output" Crumbs="@([("Servers", "/servers"), ("Script output", null)])" />
+}
+else
+{
+    var (label, kind) = ScriptText.Result(_run.Result);
+    <PageTitle>Script output: @_host</PageTitle>
+    <PageHeader Icon="@PageIcons.Servers" Title="@($"Script output: {ScriptText.Phase(_run.Phase)}")" Subtitle="@($"{_run.PackageId} · {_run.Action} · {_host}")" Help="script-output" Crumbs="@([("Servers", "/servers"), (_host, $"/servers/{ClientId:D}?tab=history"), ("Script output", null)])" />
+    <ActionBand>
+        <a class="btn" href="@ScriptRunEndpoints.DownloadPath(ClientId, RunId)" download data-help-term="Download .log"><Icon Name="download" Size="16" />Download .log</a>
+        @if (_run.ScriptId is { } scriptId)
+        {
+            <a class="btn" href="@ScriptText.Link(_run.PackageId, _run.Phase)">Open the script</a>
+        }
+    </ActionBand>
+    <Box Title="Result" Help="script-output#result" Flush="true">
+        <StatusList Rows="@([
+            new StatusRow(kind, label, "Result", _run.Detail ?? (_run.ExitCode is { } code ? $"exit code {code}" : "no exit code"), $"revision {_run.Revision?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "–"}, from {DisplayTime.Format(_run.StartedAtUtc)} to {DisplayTime.Format(_run.FinishedAtUtc)} ({(_run.FinishedAtUtc - _run.StartedAtUtc).TotalSeconds:0.0} s)"),
+            new StatusRow(_run.Errors > 0 ? "fail" : _run.Warnings > 0 ? "queue" : "ok", DisplayNumber.Format(_run.Lines), "Output", $"{DisplayNumber.Count(_run.Lines, "line", "lines")}, {DisplayNumber.Count(_run.Errors, "error", "errors")}, {DisplayNumber.Count(_run.Warnings, "warning", "warnings")}", (_run.Output?.Contains(ScriptLimits.Mask, StringComparison.Ordinal) == true ? "secret values are masked" : "no secret value in it") + (_run.Truncated ? "; cut in the middle to stay within 1 MB" : string.Empty)),
+        ])" ShowLabel="false" />
+    </Box>
+    <Box Title="Lines" Help="script-output#lines" Flush="true" Hint="time in server time; filter by stream">
+        <div class="box-body"><span class="note">Stream:</span>
+            <a href="@Here" class="@(Stream is null ? "current" : null)" data-help-term="Stream">all</a>
+            @foreach (var stream in ScriptOutput.Streams.Where(s => _lines.Any(l => l.Stream == s)))
+            {
+                <span class="note"> · </span><a href="@($"{Here}?stream={stream}")" class="@(Stream == stream ? "current" : null)">@stream (@_lines.Count(l => l.Stream == stream))</a>
+            }
+        </div>
+        <div class="scroll">
+            <table class="compact">
+                <thead><tr><th>Time</th><th>Stream</th><th>Text</th></tr></thead>
+                <tbody>
+                    @foreach (var line in _lines.Where(l => Stream is null || l.Stream == Stream))
+                    {
+                        <tr>
+                            <td class="nowrap mono">@(line.At is { } at ? DisplayTime.Format(at.UtcDateTime) : string.Empty)</td>
+                            <td><CategoryTag Text="@line.Stream" Index="@ScriptText.StreamIndex(line.Stream)" /></td>
+                            <td class="mono wrap">@line.Text</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
+}
+
+@code {
+    [Parameter] public Guid ClientId { get; set; }
+
+    [Parameter] public Guid RunId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "stream")] private string? StreamQuery { get; set; }
+
+    private string? Stream => StreamQuery is { } s && ScriptOutput.Streams.Contains(s) ? s : null;
+
+    private ScriptRunEntity? _run;
+    private string? _host;
+    private List<ScriptOutputLine> _lines = [];
+
+    private string Here => ScriptText.RunLink(ClientId, RunId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _run = await Db.ScriptRuns.AsNoTracking().SingleOrDefaultAsync(r => r.Id == RunId && r.ClientId == ClientId);
+        _host = await Db.Clients.AsNoTracking().Where(c => c.Id == ClientId).Select(c => c.HostName).SingleOrDefaultAsync();
+        _lines = [.. ScriptOutput.Parse(_run?.Output)];
+    }
+}

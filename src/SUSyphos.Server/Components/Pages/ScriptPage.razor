@@ -1,0 +1,323 @@
+@page "/software/{PackageId}/scripts/{PhaseSlug}"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@using SUSyphos.Contracts.Scripts
+@using SUSyphos.Server.Scripts
+@inject ServerDbContext Db
+@inject ScriptAdministration Scripts
+@inject NavigationManager Navigation
+
+@* The script of one phase of a WinGet package (Marc, 2026-11-13, detail view C of the concept): status, details,
+   content and parameters; administrators save drafts and approve them, which signs a new revision. Everybody who may
+   read the dashboard reads the script; values of parameters are set per assignment on the package page. *@
+@if (_package is null || _phase is null)
+{
+    <PageTitle>Script</PageTitle>
+    <PageHeader Icon="@PageIcons.Software" Title="Script not found" Help="script" Crumbs="@([("Software", "/software"), ("Script", null)])" />
+    <p class="note">The catalog has no package @PackageId, or the phase is unknown.</p>
+}
+else
+{
+    var phase = _phase.Value;
+    <PageTitle>@ScriptText.Phase(phase): @_package.Name</PageTitle>
+    <PageHeader Icon="@PageIcons.Software" Title="@($"{ScriptText.Phase(phase)}: {_package.Name}")" Subtitle="@($"PowerShell 5.1 as SYSTEM · {_package.PackageId}")" Help="script" Crumbs="@([("Software", "/software"), (_package.Name, PackagePage.Link(_package.PackageId)), (ScriptText.Phase(phase), null)])" />
+    <StatusMessage Text="@Message" IsError="@MessageIsError" />
+    @if (!_enabled)
+    {
+        <p class="warning">Scripts are switched off: agents run none until an administrator switches them on under <a href="/administration/agent-settings#scripts">Agent settings</a>. You can still write and approve scripts.</p>
+    }
+
+    <AuthorizeView Policy="@AdminRoles.Policies.Administer">
+        <ActionBand>
+            @if (_view?.HasDraft == true)
+            {
+                <a class="btn primary" href="@($"{Here}?dialog=approve")" data-help-term="Approve and sign"><Icon Name="shield-check" Size="16" />Approve and sign…</a>
+            }
+            else
+            {
+                <button type="button" class="primary" disabled title="Save a draft first"><Icon Name="shield-check" Size="16" />Approve and sign…</button>
+            }
+            <button type="submit" form="script-edit" data-help-term="Save draft"><Icon Name="check" Size="16" />Save draft</button>
+            @if (_view?.HasDraft == true)
+            {
+                <form method="post" @formname="script-discard" @onsubmit="DiscardAsync"><AntiforgeryToken /><button type="submit" data-help-term="Discard draft"><Icon Name="undo-2" Size="16" />Discard draft</button></form>
+            }
+            <div class="spacer"></div>
+            @if (_view is not null)
+            {
+                <a class="btn danger" href="@($"{Here}?dialog=delete")" data-help-term="Delete script"><Icon Name="trash-2" Size="16" />Delete script…</a>
+            }
+        </ActionBand>
+    </AuthorizeView>
+
+    <Box Title="Status" Help="script#status" Flush="true">
+        <StatusList Rows="@StatusRows" ShowLabel="false" />
+    </Box>
+
+    @if (_view?.Approved is { } approved)
+    {
+        <Box Title="Details" Help="script#details" Flush="true" Hint="of the approved revision, as signed">
+            <FactGrid>
+                <Fact Label="Runs on">@ScriptText.RunOn(approved.RunOn)</Fact>
+                <Fact Label="On failure">@ScriptText.OnFailure(phase, approved.OnFailure)</Fact>
+                <Fact Label="Timeout">@(approved.TimeoutSeconds / 60) minutes</Fact>
+                <Fact Label="Runs as">SYSTEM, Windows PowerShell 5.1</Fact>
+                <Fact Label="SHA-256" Mono="true" Wide="true">@approved.ContentSha256</Fact>
+                <Fact Label="Signing key" Mono="true">@approved.KeyId</Fact>
+                <Fact Label="Approved" Note="@($"by {approved.ApprovedBy}")">@DisplayTime.Format(approved.SignedAtUtc)</Fact>
+            </FactGrid>
+        </Box>
+    }
+
+    <form method="post" id="script-edit" @formname="script-edit" @onsubmit="SaveAsync">
+        <AntiforgeryToken />
+        <Box Title="Content" Help="script#content" Hint="@(_view?.HasDraft == true ? "draft, not yet approved: agents run the approved revision" : "the approved revision; changes become a draft")">
+            <div class="box-body form">
+                <label class="field"><span>Script</span>
+                    <textarea name="Content" class="mono script-editor" rows="22" spellcheck="false" readonly="@(!_canAdminister)" maxlength="200000">@(_view?.Text ?? Template(phase))</textarea>
+                    <span class="help">Exit code 0 is success, 3010 asks for a restart in the maintenance window, anything else is a failure. Read values with Get-SUSyphosParameter Name; never put secrets into the script itself. Do not restart the server from the script.</span>
+                </label>
+                <div class="field-row">
+                    @if (phase is ScriptPhase.BeforeInstall or ScriptPhase.AfterInstall)
+                    {
+                        <label class="field"><span>Runs on</span>
+                            <select name="RunOn" disabled="@(!_canAdminister)">
+                                @foreach (var option in Enum.GetValues<ScriptRunOn>())
+                                {
+                                    <option value="@option" selected="@(option == (_view?.Script.DraftRunOn ?? ScriptRunOn.Both))">@ScriptText.RunOn(option)</option>
+                                }
+                            </select>
+                        </label>
+                    }
+                    <label class="field"><span>On failure</span>
+                        <select name="OnFailure" disabled="@(!_canAdminister || phase != ScriptPhase.BeforeInstall)">
+                            <option value="@ScriptOnFailure.Stop" selected="@((_view?.Script.DraftOnFailure ?? ScriptOnFailure.Stop) == ScriptOnFailure.Stop)">@ScriptText.OnFailure(phase, ScriptOnFailure.Stop)</option>
+                            @if (phase == ScriptPhase.BeforeInstall)
+                            {
+                                <option value="@ScriptOnFailure.Continue" selected="@(_view?.Script.DraftOnFailure == ScriptOnFailure.Continue)">@ScriptText.OnFailure(phase, ScriptOnFailure.Continue)</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="field"><span>Timeout</span><input name="TimeoutMinutes" type="number" min="1" max="30" value="@((_view?.Script.DraftTimeoutSeconds ?? ScriptLimits.DefaultTimeoutSeconds) / 60)" readonly="@(!_canAdminister)" /><span class="help">minutes, 1 to 30</span></label>
+                </div>
+            </div>
+        </Box>
+
+        <Box Title="Parameters" Help="script#parameters" Flush="true" Hint="values are set per assignment on the package page; secrets are stored encrypted and never shown again">
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Default</th><th>Description</th></tr></thead>
+                    <tbody>
+                        @{ var rows = (_view?.Parameters ?? []).Append(new ScriptParameter(string.Empty, false, false, null, null)).ToList(); }
+                        @for (var i = 0; i < rows.Count && i < ScriptLimits.MaxParameters; i++)
+                        {
+                            var row = rows[i];
+                            <tr>
+                                <td><input name="@($"Param{i}Name")" value="@row.Name" maxlength="64" placeholder="@(row.Name.Length == 0 ? "new parameter" : null)" aria-label="Name" readonly="@(!_canAdminister)" data-help-term="Name" /></td>
+                                <td><select name="@($"Param{i}Type")" aria-label="Type" disabled="@(!_canAdminister)" data-help-term="Type"><option value="text" selected="@(!row.Secret)">Text</option><option value="secret" selected="@row.Secret">Secret</option></select></td>
+                                <td><input type="checkbox" name="@($"Param{i}Required")" value="true" checked="@row.Required" aria-label="Required" disabled="@(!_canAdminister)" data-help-term="Required" /></td>
+                                <td><input name="@($"Param{i}Default")" value="@row.Default" maxlength="@ScriptLimits.MaxValueLength" aria-label="Default" readonly="@(!_canAdminister)" data-help-term="Default" /></td>
+                                <td><input name="@($"Param{i}Description")" value="@row.Description" maxlength="256" aria-label="Description" readonly="@(!_canAdminister)" data-help-term="Description" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </Box>
+    </form>
+
+    @if (_view is { Revisions.Count: > 0 } withRevisions)
+    {
+        <Box Title="Revisions" Help="script#revisions" Flush="true" Hint="every approved revision stays; agents run the newest">
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>Revision</th><th>Approved</th><th>Virus scan</th><th>SHA-256</th><th class="n">Download</th></tr></thead>
+                    <tbody>
+                        @foreach (var revision in withRevisions.Revisions)
+                        {
+                            <tr>
+                                <td>@revision.Revision @if (revision.Revision == withRevisions.Script.ApprovedRevision) { <StatusTag Text="runs" Kind="ok" /> }</td>
+                                <td class="nowrap">@DisplayTime.Format(revision.SignedAtUtc) <span class="note">by @revision.ApprovedBy</span></td>
+                                <td><StatusTag Text="@revision.ScanState.ToString()" Kind="@(revision.ScanState == InstallerScanState.Clean ? "ok" : revision.ScanState == InstallerScanState.NotScanned ? "neutral" : "fail")" Detail="@revision.ScanDetail" /></td>
+                                <td class="mono note">@revision.ContentSha256[..16]…</td>
+                                <td class="n"><a href="@ScriptEndpoints.DownloadPath(_package.PackageId, phase, revision.Revision)" download data-help-term="Download">.ps1</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </Box>
+    }
+
+    @if (Dialog == "approve" && _view?.HasDraft == true && _canAdminister)
+    {
+        <Dialog Title="@($"Approve and sign the script {ScriptText.Phase(phase).ToLowerInvariant()}?")" CloseHref="@Here" Help="script#approve">
+            <form method="post" @formname="script-approve" @onsubmit="ApproveAsync">
+                <AntiforgeryToken />
+                <div class="dialog-body">
+                    <p>@(_view.Approved is { } current ? $"Replaces revision {current.Revision}." : "The first revision of this script.") It runs as SYSTEM on @DisplayNumber.Count(_servers, "server", "servers") that have or get @_package.Name, from their next release list.</p>
+                    <p class="note">Change: @ScriptAdministration.DiffSummary(_view.Approved is { } before ? SUSyphos.Contracts.Scripts.ScriptSigningFormat.ContentText(before.Content) : string.Empty, _view.Text). The script is scanned for malware before it is signed.</p>
+                    <label class="check"><input type="checkbox" name="ReadWholeScript" value="true" required data-help-term="I have read the whole script" /> I have read the whole script</label>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="primary">Approve and sign</button></div>
+            </form>
+        </Dialog>
+    }
+    else if (Dialog == "delete" && _view is not null && _canAdminister)
+    {
+        <Dialog Title="Delete the script?" CloseHref="@Here" Help="script#delete">
+            <form method="post" @formname="script-delete" @onsubmit="DeleteAsync">
+                <AntiforgeryToken />
+                <div class="dialog-body"><p>The script, all its revisions and the values of its parameters go. From their next release list no server runs it any more. The deletion is recorded in the audit log.</p></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="danger">Delete script</button></div>
+            </form>
+        </Dialog>
+    }
+}
+
+@code {
+    [Parameter] public string PackageId { get; set; } = string.Empty;
+
+    [Parameter] public string PhaseSlug { get; set; } = string.Empty;
+
+    [SupplyParameterFromQuery(Name = "dialog")] private string? Dialog { get; set; }
+
+    [SupplyParameterFromForm(FormName = "script-edit")] private string? Content { get; set; }
+
+    [SupplyParameterFromForm(FormName = "script-edit")] private string? RunOn { get; set; }
+
+    [SupplyParameterFromForm(FormName = "script-edit")] private string? OnFailure { get; set; }
+
+    [SupplyParameterFromForm(FormName = "script-edit")] private int? TimeoutMinutes { get; set; }
+
+    [SupplyParameterFromForm(FormName = "script-approve")] private string? ReadWholeScript { get; set; }
+
+    [CascadingParameter] private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    private PackageEntity? _package;
+    private ScriptPhase? _phase;
+    private PackageScriptView? _view;
+    private bool _enabled;
+    private bool _canAdminister;
+    private int _servers;
+
+    private string Here => _package is null || _phase is null ? "/software" : ScriptText.Link(_package.PackageId, _phase.Value);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _phase = ScriptText.FromSlug(PhaseSlug);
+        _package = await Db.Packages.AsNoTracking().SingleOrDefaultAsync(p => p.PackageId == PackageId);
+        if (_package is null || _phase is null)
+        {
+            return;
+        }
+
+        _view = await Scripts.GetAsync(_package.PackageId, _phase.Value, CancellationToken.None);
+        _enabled = await Scripts.IsEnabledAsync(CancellationToken.None);
+        _canAdminister = await IsAuthorizedAsync(AdminRoles.Policies.Administer);
+        _servers = await Db.ClientSoftware.AsNoTracking().Where(s => s.PackageId == _package.PackageId).Select(s => s.ClientId).Distinct().CountAsync();
+    }
+
+    private IReadOnlyList<StatusRow> StatusRows
+    {
+        get
+        {
+            if (_view is null)
+            {
+                return [new StatusRow("neutral", "none", "Script", "no script yet", "write it below and save a draft; it runs only after an administrator approved and signed it")];
+            }
+
+            var rows = new List<StatusRow>
+            {
+                _view.Approved is { } approved
+                    ? new StatusRow("ok", $"revision {approved.Revision}", "Approved", $"approved by {approved.ApprovedBy} on {DisplayTime.Format(approved.SignedAtUtc)}", "agents run this revision")
+                    : new StatusRow("queue", "not approved", "Approved", "no revision approved yet", "agents run nothing until the draft is approved"),
+                _view.HasDraft
+                    ? new StatusRow("pend", "draft", "Draft", $"changed by {_view.Script.DraftChangedBy} on {DisplayTime.Format(_view.Script.DraftChangedAtUtc)}", "approve it to make it the next revision")
+                    : new StatusRow("neutral", "none", "Draft", "the content is the approved revision"),
+            };
+            if (_view.Approved is { } scanned)
+            {
+                rows.Add(new StatusRow(scanned.ScanState == InstallerScanState.Clean ? "ok" : scanned.ScanState == InstallerScanState.NotScanned ? "queue" : "fail", scanned.ScanState.ToString(), "Virus scan", scanned.ScanState == InstallerScanState.NotScanned ? "not scanned: no antivirus product answered (AMSI)" : "scanned with AMSI before signing", scanned.ScanDetail));
+            }
+
+            rows.Add(new StatusRow("neutral", "per server", "Local veto", "a server with AllowScripts = 0 in HKLM\\SOFTWARE\\Policies\\SUSyphos\\Agent runs no script", "such servers report \"Blocked locally\" and do not install the package"));
+            return rows;
+        }
+    }
+
+    private static string Template(ScriptPhase phase) => phase switch
+    {
+        ScriptPhase.BeforeInstall => "# Runs before WinGet installs or upgrades the package, as SYSTEM.\r\n# $env:SUSYPHOS_ACTION, $env:SUSYPHOS_VERSION and $env:SUSYPHOS_PREVIOUS_VERSION tell what happens.\r\n# Exit 0 to go on; any other exit code stops the installation.\r\n\r\nexit 0\r\n",
+        ScriptPhase.AfterInstall => "# Runs after WinGet installed or upgraded the package, as SYSTEM.\r\n# Exit 0 for success, 3010 when a restart is needed.\r\n\r\nexit 0\r\n",
+        ScriptPhase.BeforeUninstall => "# Runs before WinGet uninstalls the package, as SYSTEM.\r\n# Exit 0 to go on; any other exit code keeps the package installed.\r\n\r\nexit 0\r\n",
+        _ => "# Runs after WinGet uninstalled the package, as SYSTEM, for example to remove what the uninstaller left.\r\n\r\nexit 0\r\n",
+    };
+
+    /// <summary>The parameter rows of the form; rows without a name are left out.</summary>
+    private List<ScriptParameter> FormParameters()
+    {
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        var list = new List<ScriptParameter>();
+        for (var i = 0; form is not null && i <= ScriptLimits.MaxParameters; i++)
+        {
+            var name = form[$"Param{i}Name"].ToString().Trim();
+            if (name.Length == 0)
+            {
+                continue;
+            }
+
+            var secret = form[$"Param{i}Type"] == "secret";
+            var defaultValue = form[$"Param{i}Default"].ToString();
+            var description = form[$"Param{i}Description"].ToString().Trim();
+            list.Add(new ScriptParameter(name, secret, form[$"Param{i}Required"] == "true", secret || defaultValue.Length == 0 ? null : defaultValue, description.Length == 0 ? null : description));
+        }
+
+        return list;
+    }
+
+    private async Task SaveAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? new Outcome("Only administrators change scripts.")
+            : _phase is not { } phase ? new Outcome("The phase is unknown.")
+            : await Scripts.SaveDraftAsync(PackageId, phase, Content, FormParameters(),
+                Enum.TryParse<ScriptRunOn>(RunOn, out var runOn) ? runOn : ScriptRunOn.Both,
+                Enum.TryParse<ScriptOnFailure>(OnFailure, out var onFailure) ? onFailure : ScriptOnFailure.Stop,
+                (TimeoutMinutes ?? 0) * 60, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The draft was saved; approve it to make agents run it.");
+        await LoadAsync();
+    }
+
+    private async Task ApproveAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) || _view is null ? new Outcome("Only administrators approve scripts.")
+            : await Scripts.ApproveAsync(_view.Script.Id, ReadWholeScript == "true", await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The script was approved and signed; agents run the new revision from their next release list.");
+        Dialog = outcome.Succeeded ? null : Dialog;
+        await LoadAsync();
+    }
+
+    private async Task DiscardAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) || _view is null ? new Outcome("Only administrators change scripts.")
+            : await Scripts.DiscardDraftAsync(_view.Script.Id, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The draft was discarded.");
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) || _view is null ? new Outcome("Only administrators delete scripts.")
+            : await Scripts.DeleteAsync(_view.Script.Id, await GetActorAsync(), CancellationToken.None);
+        if (outcome.Succeeded)
+        {
+            Navigation.NavigateTo(PackagePage.Link(PackageId) + "#scripts");
+            return;
+        }
+
+        ShowResult(outcome.Error, string.Empty);
+        await LoadAsync();
+    }
+}

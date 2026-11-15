@@ -1110,7 +1110,7 @@ public sealed class InstallationRunnerTests
 
         public List<string> Calls { get; } = [];
 
-        public Task<SUSyphos.Agent.Installation.UninstallResult> UninstallAsync(string packageId, CancellationToken cancellationToken)
+        public Task<SUSyphos.Agent.Installation.UninstallResult> UninstallAsync(string packageId, IReadOnlyList<SUSyphos.Contracts.Scripts.ScriptReference>? scripts, CancellationToken cancellationToken)
         {
             Calls.Add(packageId);
             return Task.FromResult(Result);

@@ -183,6 +183,10 @@ Installations and uninstallations of software done by SUSyphos: when they finish
 
 Both histories hide antivirus definition updates by default, which arrive several times a day and would bury the other installations. **View** (see [Working with lists](help/tables#views)) offers here **Without definition updates** (default), **Failed or with errors**, **Software only** and **All installations**; each list has its own view. The ⋯ at the end of a row offers **Uninstall…** for updates the server can uninstall: it opens [Uninstall an update](#uninstall) with that update chosen (administrators only).
 
+## Script runs {#script-runs}
+
+Shown once a script of a WinGet package ran on the server: when it finished, the **Package**, the **Phase** (with Install, Upgrade or Uninstall), the **Result** as a tag (the exit code or the reason in its tooltip) and **Show output**, which opens the [script output](help/script-output). The 50 newest runs.
+
 ## All installations on the server {#windows-history}
 
 The Windows Update history Windows itself keeps for the last 90 days, sent with the inventory: every installation on the server, whoever started it. **Category** is the classification of the update (Security Updates, Definition Updates and so on; "Unknown" when the catalog does not know it). **Operation** (Installation or Uninstallation) and **Result** are tags as in "Installed by SUSyphos"; **Started by** tells installations by SUSyphos (green) from those started outside SUSyphos (yellow) (Windows Automatic Updates, Settings, Defender, wusa or another tool, named where Windows records it). Antivirus definition updates are grey **expected**: Defender or Windows often installs them before SUSyphos does, which is normal; they do not count as outside installations. Installations outside SUSyphos bypass rings and maintenance windows; they are a reason to check the Automatic Updates setting. Its views: **Without definition updates** (default), **Failed or with errors**, **Started outside SUSyphos**, **Definition updates only** and **All entries**.

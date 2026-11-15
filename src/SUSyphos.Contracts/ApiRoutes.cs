@@ -44,6 +44,15 @@ public static class ApiRoutes
     /// <summary>Result route for a concrete action.</summary>
     public static string AgentActionResultFor(Guid id) => $"/api/v1/agents/actions/{id:D}/result";
 
+    /// <summary>An approved script revision with its signatures, for approved agents; {id} and {revision} name it.</summary>
+    public const string Script = "/api/v1/scripts/{id:int}/{revision:int}";
+
+    /// <summary>Script route for a concrete revision.</summary>
+    public static string ScriptFor(int id, int revision) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"/api/v1/scripts/{id}/{revision}");
+
+    /// <summary>Result and output of one script run of an approved agent.</summary>
+    public const string AgentScriptRuns = "/api/v1/agents/script-runs";
+
     /// <summary>Lease request of a server in a coordinated group.</summary>
     public const string AgentLease = "/api/v1/agents/lease";
 

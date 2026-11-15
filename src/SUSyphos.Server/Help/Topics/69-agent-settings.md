@@ -60,3 +60,7 @@ Groups can override the default; "leave unchanged" in one group wins.
 - **Microsoft Update**: the agent also registers the Microsoft Update service (like "Receive updates for other Microsoft products" in Windows) and searches and installs through it, so SQL Server, Office and other Microsoft products are covered, also on servers that otherwise use WSUS. When switched off, the agent removes only a registration it made itself.
 
 Groups can override the default; "Windows Update only" in one group wins.
+
+## Scripts for software {#scripts}
+
+Switches the [scripts of WinGet packages](help/script) on or off for all servers (administrators; off by default; audited). Off, agents run no script and packages install without them. **Switch on** and **Switch off** sit in the head of the box. **Signing key** names the key that signs approved scripts, created with the first approval, certified by the trust anchor and part of the backup like the anchor; **Key fingerprint** is the SHA-256 of its public key. A server where `AllowScripts = 0` is set under `HKLM\SOFTWARE\Policies\SUSyphos\Agent` (local veto, for example by group policy) runs no script and does not install a package that has one.

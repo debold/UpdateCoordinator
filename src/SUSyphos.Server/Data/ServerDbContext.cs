@@ -76,6 +76,16 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<PackageAssignmentEntity> PackageAssignments => Set<PackageAssignmentEntity>();
 
+    public DbSet<ScriptKeyEntity> ScriptKeys => Set<ScriptKeyEntity>();
+
+    public DbSet<PackageScriptEntity> PackageScripts => Set<PackageScriptEntity>();
+
+    public DbSet<PackageScriptRevisionEntity> PackageScriptRevisions => Set<PackageScriptRevisionEntity>();
+
+    public DbSet<PackageAssignmentScriptValueEntity> PackageAssignmentScriptValues => Set<PackageAssignmentScriptValueEntity>();
+
+    public DbSet<ScriptRunEntity> ScriptRuns => Set<ScriptRunEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -431,6 +441,59 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         software.Property(s => s.MatchKind).HasConversion<int>();
         software.HasIndex(s => s.PackageId);
         software.HasOne<ClientEntity>().WithMany().HasForeignKey(s => s.ClientId).OnDelete(DeleteBehavior.Cascade);
+
+        // Signed scripts for WinGet packages (Marc, 2026-11-13/14, schema approved 2026-11-14).
+        var scriptKey = modelBuilder.Entity<ScriptKeyEntity>();
+        scriptKey.ToTable("ScriptKeys");
+        scriptKey.HasKey(k => k.KeyId);
+        scriptKey.Property(k => k.KeyId).HasMaxLength(64);
+
+        var script = modelBuilder.Entity<PackageScriptEntity>();
+        script.ToTable("PackageScripts");
+        script.HasKey(s => s.Id);
+        script.Property(s => s.PackageId).HasMaxLength(PackageEntity.MaxIdLength).UseCollation("NOCASE");
+        script.Property(s => s.Phase).HasConversion<int>();
+        script.Property(s => s.DraftRunOn).HasConversion<int>();
+        script.Property(s => s.DraftOnFailure).HasConversion<int>();
+        script.Property(s => s.DraftChangedBy).HasMaxLength(256);
+        script.HasIndex(s => new { s.PackageId, s.Phase }).IsUnique();
+        script.HasOne<PackageEntity>().WithMany().HasForeignKey(s => s.PackageId).OnDelete(DeleteBehavior.Cascade);
+
+        var scriptRevision = modelBuilder.Entity<PackageScriptRevisionEntity>();
+        scriptRevision.ToTable("PackageScriptRevisions");
+        scriptRevision.HasKey(r => new { r.ScriptId, r.Revision });
+        scriptRevision.Property(r => r.ContentSha256).HasMaxLength(64);
+        scriptRevision.Property(r => r.ParametersSha256).HasMaxLength(64);
+        scriptRevision.Property(r => r.RunOn).HasConversion<int>();
+        scriptRevision.Property(r => r.OnFailure).HasConversion<int>();
+        scriptRevision.Property(r => r.KeyId).HasMaxLength(64);
+        scriptRevision.Property(r => r.ApprovedBy).HasMaxLength(256);
+        scriptRevision.Property(r => r.ScanState).HasConversion<int>();
+        scriptRevision.Property(r => r.ScanDetail).HasMaxLength(512);
+        scriptRevision.HasOne<PackageScriptEntity>().WithMany().HasForeignKey(r => r.ScriptId).OnDelete(DeleteBehavior.Cascade);
+        scriptRevision.HasOne<ScriptKeyEntity>().WithMany().HasForeignKey(r => r.KeyId).OnDelete(DeleteBehavior.Restrict);
+
+        var scriptValue = modelBuilder.Entity<PackageAssignmentScriptValueEntity>();
+        scriptValue.ToTable("PackageAssignmentScriptValues");
+        scriptValue.HasKey(v => new { v.AssignmentId, v.ScriptId, v.Name });
+        scriptValue.Property(v => v.Name).HasMaxLength(64);
+        scriptValue.Property(v => v.Value).HasMaxLength(SUSyphos.Contracts.Scripts.ScriptLimits.MaxValueLength);
+        scriptValue.Property(v => v.ChangedBy).HasMaxLength(256);
+        scriptValue.HasOne<PackageAssignmentEntity>().WithMany().HasForeignKey(v => v.AssignmentId).OnDelete(DeleteBehavior.Cascade);
+        scriptValue.HasOne<PackageScriptEntity>().WithMany().HasForeignKey(v => v.ScriptId).OnDelete(DeleteBehavior.Cascade);
+
+        var scriptRun = modelBuilder.Entity<ScriptRunEntity>();
+        scriptRun.ToTable("ScriptRuns");
+        scriptRun.HasKey(r => r.Id);
+        scriptRun.Property(r => r.Id).ValueGeneratedNever();
+        scriptRun.Property(r => r.PackageId).HasMaxLength(PackageEntity.MaxIdLength).UseCollation("NOCASE");
+        scriptRun.Property(r => r.Phase).HasConversion<int>();
+        scriptRun.Property(r => r.Action).HasConversion<int>();
+        scriptRun.Property(r => r.Result).HasConversion<int>();
+        scriptRun.Property(r => r.Detail).HasMaxLength(512);
+        scriptRun.HasIndex(r => new { r.ClientId, r.FinishedAtUtc });
+        scriptRun.HasIndex(r => new { r.PackageId, r.Phase });
+        scriptRun.HasOne<ClientEntity>().WithMany().HasForeignKey(r => r.ClientId).OnDelete(DeleteBehavior.Cascade);
 
         var packageAssignment = modelBuilder.Entity<PackageAssignmentEntity>();
         packageAssignment.ToTable("PackageAssignments", t => t.HasCheckConstraint(

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 
 using SUSyphos.Agent.Inventory;
 using SUSyphos.Contracts.Agents;
+using SUSyphos.Contracts.Scripts;
 
 namespace SUSyphos.Agent.Installation;
 
@@ -38,7 +39,7 @@ internal sealed class RoutingUpdateInstaller(WuaUpdateInstaller windows, Softwar
 /// WinGet source of the central server, silently for the machine. Of several released versions of one package only the
 /// newest is installed; the older ones are answered as superseded, since the newest replaces them. Never restarts.
 /// </summary>
-internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOptions<CentralServerOptions> central, ILogger<SoftwareInstaller> logger) : ISoftwareUninstaller
+internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOptions<CentralServerOptions> central, ILogger<SoftwareInstaller> logger, SUSyphos.Agent.Scripts.IScriptRunner? scripts = null) : ISoftwareUninstaller
 {
     /// <summary>An installer may take its time; WinGet downloads it from the central server first.</summary>
     internal static readonly TimeSpan Timeout = TimeSpan.FromMinutes(30);
@@ -66,6 +67,60 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
         {
             return Result(release, false, false);
         }
+
+        // Scripts of the package (Marc, 2026-11-13): before WinGet, and after it only when WinGet succeeded.
+        var action = software.InstalledVersion is null ? ScriptAction.Install : ScriptAction.Upgrade;
+        var before = await RunScriptAsync(software.PackageId, ScriptPhase.BeforeInstall, action, software.Version, software.InstalledVersion, null, software.Scripts, cancellationToken).ConfigureAwait(false);
+        if (before is { Succeeded: false } refused && (refused.OnFailure == ScriptOnFailure.Stop || refused.Result is ScriptRunResult.Blocked or ScriptRunResult.NotVerified))
+        {
+            LogFailed(software.PackageId, software.Version, $"the script before the installation did not succeed ({refused.Result}): {refused.Detail}");
+            return Result(release, false, false, ScriptCode(refused, ScriptLimits.BeforeScriptFailedCode));
+        }
+
+        var installed = await InstallWithWinGetAsync(release, address, cancellationToken).ConfigureAwait(false);
+        if (installed.ResultCode != InstallResultCode.Succeeded)
+        {
+            return installed;
+        }
+
+        var after = await RunScriptAsync(software.PackageId, ScriptPhase.AfterInstall, action, software.Version, software.InstalledVersion, 0, software.Scripts, cancellationToken).ConfigureAwait(false);
+        if (after is { Succeeded: false } failed)
+        {
+            // The software stays installed; the result counts as failed so the rollout sees it.
+            LogFailed(software.PackageId, software.Version, $"installed, but the script after the installation did not succeed ({failed.Result}): {failed.Detail}");
+            return Result(release, false, installed.RebootRequired, ScriptCode(failed, ScriptLimits.AfterScriptFailedCode));
+        }
+
+        return after?.RestartRequired == true || before?.RestartRequired == true ? Result(release, true, true) : installed;
+    }
+
+    /// <summary>The result code of a script that did not succeed: blocked and not verified have codes of their own.</summary>
+    private static int ScriptCode(SUSyphos.Agent.Scripts.ScriptRunOutcome outcome, int failed) => outcome.Result switch
+    {
+        ScriptRunResult.Blocked => ScriptLimits.ScriptsBlockedCode,
+        ScriptRunResult.NotVerified => ScriptLimits.ScriptNotVerifiedCode,
+        _ => failed,
+    };
+
+    /// <summary>Runs the script of a phase when the package has one; null without.</summary>
+    private async Task<SUSyphos.Agent.Scripts.ScriptRunOutcome?> RunScriptAsync(string packageId, ScriptPhase phase, ScriptAction action, string? version, string? previous, int? installerExitCode, IReadOnlyList<ScriptReference>? references, CancellationToken cancellationToken)
+    {
+        if (references?.FirstOrDefault(r => r.Phase == phase) is not { } reference)
+        {
+            return null;
+        }
+
+        if (scripts is null)
+        {
+            return new SUSyphos.Agent.Scripts.ScriptRunOutcome(true, ScriptRunResult.NotVerified, ScriptOnFailure.Stop, "This agent cannot run scripts.");
+        }
+
+        return await scripts.RunAsync(new SUSyphos.Agent.Scripts.ScriptRunRequest(packageId, action, version, previous, installerExitCode, reference), cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<InstallResult> InstallWithWinGetAsync(Release release, Uri address, CancellationToken cancellationToken)
+    {
+        var software = release.Software!;
 
         List<string> arguments = ["install", software.PackageId, software.Version, new Uri(address, "winget/api/").AbsoluteUri];
         if (software.AcceptAgreements)
@@ -107,8 +162,28 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
         }
     }
 
-    /// <summary>Uninstalls a package with WinGet (removed assignment with "uninstall when removed").</summary>
-    public async Task<UninstallResult> UninstallAsync(string packageId, CancellationToken cancellationToken)
+    /// <summary>Uninstalls a package with WinGet, with the scripts of the package before and after it.</summary>
+    public async Task<UninstallResult> UninstallAsync(string packageId, IReadOnlyList<ScriptReference>? references, CancellationToken cancellationToken)
+    {
+        var before = await RunScriptAsync(packageId, ScriptPhase.BeforeUninstall, ScriptAction.Uninstall, null, null, null, references, cancellationToken).ConfigureAwait(false);
+        if (before is { Succeeded: false } refused)
+        {
+            return new UninstallResult(UninstallStatus.Failed, false, $"{packageId} was not uninstalled: the script before the uninstallation did not succeed ({refused.Result}). {refused.Detail}");
+        }
+
+        var result = await UninstallWithWinGetAsync(packageId, cancellationToken).ConfigureAwait(false);
+        if (result.Status != UninstallStatus.Succeeded)
+        {
+            return result;
+        }
+
+        var after = await RunScriptAsync(packageId, ScriptPhase.AfterUninstall, ScriptAction.Uninstall, null, null, 0, references, cancellationToken).ConfigureAwait(false);
+        return after is { Succeeded: false } failed
+            ? new UninstallResult(UninstallStatus.Failed, result.RebootRequired, $"{packageId} was uninstalled, but the script after it did not succeed ({failed.Result}). {failed.Detail}")
+            : result with { RebootRequired = result.RebootRequired || after?.RestartRequired == true };
+    }
+
+    private async Task<UninstallResult> UninstallWithWinGetAsync(string packageId, CancellationToken cancellationToken)
     {
         try
         {
@@ -162,7 +237,7 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
 /// <summary>Uninstalls software with WinGet. Separate so the installation runner can be tested without it.</summary>
 internal interface ISoftwareUninstaller
 {
-    Task<UninstallResult> UninstallAsync(string packageId, CancellationToken cancellationToken);
+    Task<UninstallResult> UninstallAsync(string packageId, IReadOnlyList<ScriptReference>? scripts, CancellationToken cancellationToken);
 }
 
 /// <summary>Orders versions the way people read them: numeric parts as numbers ("26.10" after "26.9"), the rest as text.</summary>

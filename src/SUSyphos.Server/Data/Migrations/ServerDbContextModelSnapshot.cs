@@ -1147,6 +1147,40 @@ namespace SUSyphos.Server.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageAssignmentScriptValueEntity", b =>
+                {
+                    b.Property<int>("AssignmentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ScriptId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ChangedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("ProtectedValue")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("Value")
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("AssignmentId", "ScriptId", "Name");
+
+                    b.HasIndex("ScriptId");
+
+                    b.ToTable("PackageAssignmentScriptValues", (string)null);
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.PackageEntity", b =>
                 {
                     b.Property<string>("PackageId")
@@ -1227,6 +1261,121 @@ namespace SUSyphos.Server.Data.Migrations
                     b.HasKey("PackageId");
 
                     b.ToTable("Packages", (string)null);
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageScriptEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ApprovedRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("DraftChangedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DraftChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DraftContent")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DraftOnFailure")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DraftParametersJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DraftRunOn")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DraftTimeoutSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PackageId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<int>("Phase")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PackageId", "Phase")
+                        .IsUnique();
+
+                    b.ToTable("PackageScripts", (string)null);
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageScriptRevisionEntity", b =>
+                {
+                    b.Property<int>("ScriptId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ApprovedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("ContentSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("KeyId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("OnFailure")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ParametersJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ParametersSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RunOn")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ScanDetail")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ScanState")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("Signature")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<DateTime>("SignedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TimeoutSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ScriptId", "Revision");
+
+                    b.HasIndex("KeyId");
+
+                    b.ToTable("PackageScriptRevisions", (string)null);
                 });
 
             modelBuilder.Entity("SUSyphos.Server.Data.PackageVersionEntity", b =>
@@ -1475,6 +1624,97 @@ namespace SUSyphos.Server.Data.Migrations
                     b.HasIndex("State");
 
                     b.ToTable("RolloutRings", (string)null);
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.ScriptKeyEntity", b =>
+                {
+                    b.Property<string>("KeyId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Certificate")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("PublicKey")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<DateTime?>("RetiredAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("KeyId");
+
+                    b.ToTable("ScriptKeys", (string)null);
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.ScriptRunEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Errors")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ExitCode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("FinishedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Lines")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Output")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PackageId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<int>("Phase")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Result")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ScriptId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Truncated")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Warnings")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId", "FinishedAtUtc");
+
+                    b.HasIndex("PackageId", "Phase");
+
+                    b.ToTable("ScriptRuns", (string)null);
                 });
 
             modelBuilder.Entity("SUSyphos.Server.Data.SecurityBaselineEntity", b =>
@@ -2065,6 +2305,45 @@ namespace SUSyphos.Server.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageAssignmentScriptValueEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.PackageAssignmentEntity", null)
+                        .WithMany()
+                        .HasForeignKey("AssignmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SUSyphos.Server.Data.PackageScriptEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ScriptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageScriptEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.PackageEntity", null)
+                        .WithMany()
+                        .HasForeignKey("PackageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.PackageScriptRevisionEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.ScriptKeyEntity", null)
+                        .WithMany()
+                        .HasForeignKey("KeyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SUSyphos.Server.Data.PackageScriptEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ScriptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.PackageVersionEntity", b =>
                 {
                     b.HasOne("SUSyphos.Server.Data.PackageEntity", null)
@@ -2118,6 +2397,15 @@ namespace SUSyphos.Server.Data.Migrations
                     b.HasOne("SUSyphos.Server.Data.RolloutEntity", null)
                         .WithMany()
                         .HasForeignKey("UpdateId", "Revision")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.ScriptRunEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

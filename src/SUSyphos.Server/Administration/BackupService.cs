@@ -19,13 +19,16 @@ internal sealed record BackupManifest(int Format, DateTime CreatedAtUtc, string 
 /// SHA-256). Without the password the anchor cannot be used; without the anchor every agent would have to be reset, so
 /// the archive restores a central server on new hardware with all agents still trusting it.
 /// </summary>
-internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions> database, AuditLog audit, TimeProvider timeProvider)
+internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions> database, AuditLog audit, TimeProvider timeProvider, Scripts.ScriptKey? scriptKey = null)
 {
     public const int FormatVersion = 1;
     public const int MinimumPasswordLength = PasswordRules.MinimumLength;
     public const string ManifestEntry = "manifest.json";
     public const string DatabaseEntry = "server.db";
     public const string AnchorEntry = "trust-anchor.p8";
+
+    /// <summary>The script-signing key, encrypted with the backup password like the anchor; only when one exists.</summary>
+    public const string ScriptKeyEntry = "script-key.p8";
 
     /// <summary>Upper bound of an archive accepted for restore.</summary>
     public const long MaxArchiveBytes = 2L * 1024 * 1024 * 1024;
@@ -60,6 +63,12 @@ internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions
                 await using (var entry = await zip.CreateEntry(AnchorEntry, CompressionLevel.NoCompression).OpenAsync(cancellationToken).ConfigureAwait(false))
                 {
                     await entry.WriteAsync(anchor.ExportEncrypted(password!), cancellationToken).ConfigureAwait(false);
+                }
+
+                if (scriptKey?.ExportEncrypted(password!) is { } encryptedScriptKey)
+                {
+                    await using var entry = await zip.CreateEntry(ScriptKeyEntry, CompressionLevel.NoCompression).OpenAsync(cancellationToken).ConfigureAwait(false);
+                    await entry.WriteAsync(encryptedScriptKey, cancellationToken).ConfigureAwait(false);
                 }
 
                 await zip.CreateEntryFromFileAsync(copy, DatabaseEntry, CompressionLevel.Optimal, cancellationToken).ConfigureAwait(false);
@@ -146,8 +155,29 @@ internal sealed class BackupService(TrustAnchor anchor, IOptions<DatabaseOptions
                     return new Outcome("The trust anchor does not match the manifest of the archive.");
                 }
 
+                // A script key in the archive (from 0.9) must decrypt with the same password.
+                byte[]? scriptPkcs8 = null;
+                if (zip.GetEntry(ScriptKeyEntry) is { } scriptEntry)
+                {
+                    await using var stream = await scriptEntry.OpenAsync(cancellationToken).ConfigureAwait(false);
+                    using var buffer = new MemoryStream();
+                    await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        (scriptPkcs8, _) = TrustAnchor.DecryptBackup(buffer.ToArray(), password!);
+                    }
+                    catch (CryptographicException)
+                    {
+                        return new Outcome("The script-signing key in the archive is damaged.");
+                    }
+                }
+
                 // Everything checked: only now the current anchor and database are replaced.
                 TrustAnchor.StoreRestored(anchorPath, pkcs8);
+                if (scriptPkcs8 is not null)
+                {
+                    Scripts.ScriptKey.StoreRestored(anchorPath, scriptPkcs8);
+                }
                 File.Move(staged, databasePath, overwrite: true);
             }
             finally

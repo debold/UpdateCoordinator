@@ -102,6 +102,17 @@ internal static class AgentHostBuilder
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddSingleton<WuaUpdateInstaller>();
+        // Signed scripts of WinGet packages (Marc, 2026-11-13): verified and run in a job object, the highest revision per
+        // package and phase kept DPAPI-protected so an older one never runs again.
+        services.AddSingleton<Scripts.IScriptProcess, Scripts.PowerShellScriptProcess>();
+        services.AddSingleton<Scripts.IScriptRunner>(provider => new Scripts.ScriptRunner(
+            provider.GetRequiredService<Scripts.IScriptClient>(),
+            provider.GetRequiredService<Scripts.IScriptProcess>(),
+            provider.GetRequiredService<IAgentIdentityStore>(),
+            provider.GetRequiredService<ITrustStateStore>(),
+            new ProtectedJsonFile<Scripts.ScriptState>(new ProtectedFile(Path.Combine(DataPaths.Agent, "scripts.dat"), "SUSyphos.Agent.Scripts.v1", provider.GetRequiredService<ILogger<Scripts.ScriptRunner>>()), provider.GetRequiredService<ILogger<Scripts.ScriptRunner>>()),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<Scripts.ScriptRunner>>()));
         services.AddSingleton<SoftwareInstaller>();
         services.AddSingleton<ISoftwareUninstaller>(provider => provider.GetRequiredService<SoftwareInstaller>());
         services.AddSingleton<IUpdateInstaller, RoutingUpdateInstaller>();
@@ -147,6 +158,10 @@ internal static class AgentHostBuilder
                 // with its own back-off; this handler contributes timeouts and the circuit breaker.
                 resilience.Retry.DisableForUnsafeHttpMethods();
             });
+
+        services.AddHttpClient<Scripts.IScriptClient, Scripts.ScriptClient>((provider, http) =>
+                http.BaseAddress = provider.GetRequiredService<IOptions<CentralServerOptions>>().Value.BaseAddress)
+            .ConfigurePrimaryHttpMessageHandler(provider => provider.GetRequiredService<ServerTrust>().CreateValidatingHandler());
 
         services.AddOptions<SelfUpdate.AgentUpdateOptions>()
             .Bind(configuration.GetSection(SelfUpdate.AgentUpdateOptions.SectionName))

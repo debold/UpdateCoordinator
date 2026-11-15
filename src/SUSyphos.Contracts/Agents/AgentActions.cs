@@ -59,7 +59,8 @@ public enum AgentActionKind
 /// <param name="Revision">Its revision.</param>
 /// <param name="KbArticle">Its KB number (digits), to find the package without Windows Update.</param>
 /// <param name="Scope">For "install now": what to install; null (central servers before 0.9) means everything released.</param>
-public sealed record AgentAction(Guid Id, AgentActionKind Kind, DateTimeOffset RequestedAt, Guid? UpdateId = null, int? Revision = null, string? KbArticle = null, string? PackageId = null, InstallScope? Scope = null);
+/// <param name="Scripts">For the uninstallation of software: the approved scripts of the package for the uninstall phases.</param>
+public sealed record AgentAction(Guid Id, AgentActionKind Kind, DateTimeOffset RequestedAt, Guid? UpdateId = null, int? Revision = null, string? KbArticle = null, string? PackageId = null, InstallScope? Scope = null, IReadOnlyList<SUSyphos.Contracts.Scripts.ScriptReference>? Scripts = null);
 
 /// <summary>What an "install now" action installs of the released items.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<InstallScope>))]

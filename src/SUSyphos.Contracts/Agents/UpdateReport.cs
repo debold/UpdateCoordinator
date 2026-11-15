@@ -144,4 +144,6 @@ public sealed record Release(Guid UpdateId, int Revision, DateTimeOffset Earlies
 /// <param name="PackageId">WinGet package identifier.</param>
 /// <param name="Version">Version to install.</param>
 /// <param name="AcceptAgreements">An administrator accepted the package's agreements, so the installation may accept them.</param>
-public sealed record SoftwareRelease(string PackageId, string Version, bool AcceptAgreements);
+/// <param name="Scripts">Approved scripts of the package for the installation phases (0.9, Marc 2026-11-13); null or empty without.</param>
+/// <param name="InstalledVersion">The version the server reports installed (an upgrade), null for a new installation; scripts see it.</param>
+public sealed record SoftwareRelease(string PackageId, string Version, bool AcceptAgreements, IReadOnlyList<SUSyphos.Contracts.Scripts.ScriptReference>? Scripts = null, string? InstalledVersion = null);

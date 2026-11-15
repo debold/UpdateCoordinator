@@ -11,7 +11,7 @@ namespace SUSyphos.Server.Agents;
 /// Stores update reports (pre-flight checks and available updates) and serves releases.
 /// </summary>
 internal sealed partial class UpdateReportService(
-    ServerDbContext db, UpdateCatalog catalog, RolloutService rollouts, ReleasePlanner releases, ClientActivityLog activity, TimeProvider timeProvider, ILogger<UpdateReportService> logger)
+    ServerDbContext db, UpdateCatalog catalog, RolloutService rollouts, ReleasePlanner releases, ClientActivityLog activity, Scripts.ScriptAdministration scripts, TimeProvider timeProvider, ILogger<UpdateReportService> logger)
 {
     /// <summary>Returns false if the client no longer exists.</summary>
     public async Task<bool> StoreAsync(Guid clientId, UpdateReport report, CancellationToken cancellationToken)
@@ -110,6 +110,31 @@ internal sealed partial class UpdateReportService(
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false))
             .ToDictionary(s => s.UpdateId, s => new SoftwareRelease(s.PackageId, s.PackageVersion!, s.Accepted));
+
+        // The installed version tells the agent (and its scripts) whether it is an installation or an upgrade.
+        var packageIds = software.Values.Select(s => s.PackageId).ToList();
+        var installed = (await db.ClientSoftware.AsNoTracking().Where(s => s.ClientId == clientId && s.PackageId != null && packageIds.Contains(s.PackageId)).Select(s => new { s.PackageId, Version = s.InstalledVersion ?? s.DisplayVersion }).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .GroupBy(s => s.PackageId!, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().Version, StringComparer.OrdinalIgnoreCase);
+        foreach (var (updateId, release) in software.ToList())
+        {
+            if (installed.GetValueOrDefault(release.PackageId) is { } version)
+            {
+                software[updateId] = release with { InstalledVersion = version };
+            }
+        }
+
+        // Approved scripts of the packages for the installation phases, with this server's values (Marc, 2026-11-13).
+        foreach (var packageId in software.Values.Select(s => s.PackageId).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
+        {
+            var references = await scripts.ReferencesAsync(packageId, clientId, [SUSyphos.Contracts.Scripts.ScriptPhase.BeforeInstall, SUSyphos.Contracts.Scripts.ScriptPhase.AfterInstall], cancellationToken).ConfigureAwait(false);
+            if (references.Count > 0)
+            {
+                foreach (var (updateId, release) in software.Where(s => string.Equals(s.Value.PackageId, packageId, StringComparison.OrdinalIgnoreCase)).ToList())
+                {
+                    software[updateId] = release with { Scripts = references };
+                }
+            }
+        }
 
         return new ReleaseList(
             client.ReleasesVersion,

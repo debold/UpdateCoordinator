@@ -44,6 +44,8 @@ app.MapAgentEndpoints();
 app.MapTrustEndpoints();
 app.MapAgentLogEndpoints();
 app.MapServerLogEndpoints();
+SUSyphos.Server.Scripts.ScriptEndpoints.MapScriptEndpoints(app);
+SUSyphos.Server.Scripts.ScriptRunEndpoints.MapScriptRunEndpoints(app);
 app.MapBackupEndpoints();
 app.MapWindowsSignIn();
 app.MapAgentInstallerEndpoints();

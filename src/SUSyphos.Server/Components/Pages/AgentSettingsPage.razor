@@ -5,6 +5,8 @@
 @using SUSyphos.Server.Assignment
 @inject AssignmentAdministration Administration
 @inject SUSyphos.Server.Assignment.AssignmentService Assignment
+@inject SUSyphos.Server.Scripts.ScriptAdministration Scripts
+@inject SUSyphos.Server.Scripts.ScriptSigning Signing
 
 <PageTitle>Agent settings</PageTitle>
 
@@ -71,14 +73,67 @@
     <footer class="box-foot"><span></span><button type="submit" class="primary">Save</button></footer>
 </form>
 
+<form method="post" @formname="scripts-switch" @onsubmit="SwitchScriptsAsync" class="box" id="scripts">
+    <AntiforgeryToken />
+    <header class="box-head">
+        <h2>Scripts for software<HelpLink To="agent-settings#scripts" Label="Scripts for software" /></h2>
+        <span class="pill @(_scriptsEnabled ? "ok" : "neutral")">@(_scriptsEnabled ? "on" : "off")</span>
+        <span class="spacer"></span>
+        @if (_scriptsEnabled)
+        {
+            <button type="submit" name="ScriptsAction" value="off">Switch off</button>
+        }
+        else
+        {
+            <button type="submit" name="ScriptsAction" value="on" class="primary">Switch on</button>
+        }
+    </header>
+    <div class="box-body">
+        <p class="note">
+            Approved, signed PowerShell scripts of WinGet packages run as SYSTEM before or after the installation, upgrade or uninstallation. Off,
+            agents run none and packages install without them. A server where AllowScripts = 0 is set in HKLM\SOFTWARE\Policies\SUSyphos\Agent
+            (for example by group policy) runs no script and does not install packages that have one.
+        </p>
+        <FactGrid ShowLabel="true">
+            <Fact Label="Signing key" Mono="true" Note="@(_key is null ? "created when the first script is approved; certified by the trust anchor and part of the backup" : $"created {DisplayTime.Format(_key.CreatedAtUtc)}, certified by the trust anchor, part of the backup")">@(_key?.KeyId ?? "none yet")</Fact>
+            @if (_key is not null)
+            {
+                <Fact Label="Key fingerprint" Mono="true" Wide="true">@SUSyphos.Contracts.Scripts.ScriptSigningFormat.Sha256(_key.PublicKey)</Fact>
+            }
+        </FactGrid>
+    </div>
+</form>
+
 @code {
     private Dictionary<string, string> _values = [];
+
+    private bool _scriptsEnabled;
+    private ScriptKeyEntity? _key;
+
+    [SupplyParameterFromForm(FormName = "scripts-switch")]
+    private string? ScriptsAction { get; set; }
+
+    private async Task SwitchScriptsAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? new Outcome("Only administrators switch scripts.")
+            : ScriptsAction is "on" or "off" ? await Scripts.SetEnabledAsync(ScriptsAction == "on", await GetActorAsync(), CancellationToken.None)
+            : new Outcome("Invalid request.");
+        ShowResultAndReload(outcome.Error, ScriptsAction == "on" ? "Scripts are on; agents run approved scripts from their next release list." : "Scripts are off; agents run none.");
+        await LoadScriptsAsync();
+    }
+
+    private async Task LoadScriptsAsync()
+    {
+        _scriptsEnabled = await Scripts.IsEnabledAsync(CancellationToken.None);
+        _key = await Signing.ActiveEntryAsync(CancellationToken.None);
+    }
     private Dictionary<string, string?>? _posted;
 
     protected override async Task OnInitializedAsync()
     {
         _values = await Administration.GetSystemAgentSettingsAsync(CancellationToken.None);
         await LoadWindowsUpdateAsync();
+        await LoadScriptsAsync();
     }
 
     /// <summary>After a refused save the posted values stay in the fields.</summary>
@@ -144,6 +199,7 @@
 
         ShowResult(outcome.Error, "The update source settings were saved and are delivered to the agents.");
         await LoadWindowsUpdateAsync();
+        await LoadScriptsAsync();
     }
 
 }

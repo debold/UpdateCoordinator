@@ -77,7 +77,7 @@ public sealed partial class HelpCatalog
     [
         ("Getting started", "What SUSyphos does, how the pages are built and how lists work.", ["overview", "concepts", "tables"]),
         ("Servers", "The server list, a server's tabs, approvals, groups and how servers get their ring.", ["servers", "server-detail", "approvals", "coverage", "groups", "group-detail", "assignment-rules"]),
-        ("Updates & software", "Updates, software packages and the security state of the Windows versions.", ["updates", "update-detail", "software", "package-detail", "operating-systems"]),
+        ("Updates & software", "Updates, software packages and the security state of the Windows versions.", ["updates", "update-detail", "software", "package-detail", "script", "script-output", "operating-systems"]),
         ("Rollout & rules", "How updates enter the rings and move on from ring to ring.", ["rings", "release-rules"]),
         ("Windows & security", "Maintenance windows, reboots, software windows and the certificate.", ["maintenance-windows", "certificate"]),
         ("Administration", "Accounts, notifications, backup, the audit log, agent settings and the central server.", []),

@@ -10,6 +10,7 @@
 @inject SoftwareTrust Trust
 @inject SoftwareAssignments Assignments
 @inject SoftwareUninstall Uninstall
+@inject SUSyphos.Server.Scripts.ScriptAdministration ScriptAdmin
 @inject NavigationManager Navigation
 
 @if (_package is null)
@@ -123,6 +124,11 @@ else
                             <td class="n"><span class="row-actions">
                                 <AuthorizeView Policy="@AdminRoles.Policies.Administer">
                                     <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {TargetName(assignment)}")">
+                                        @if (_scriptParameters.Count > 0)
+                                        {
+                                            <MenuItem Href="@($"{PackagePage.Link(PackageId)}?dialog=script-values&id={assignment.Id}")" Icon="sliders-horizontal">Script values…</MenuItem>
+                                            <MenuSeparator />
+                                        }
                                         <MenuItem Href="@($"{PackagePage.Link(PackageId)}?dialog=unassign&id={assignment.Id}")" Icon="trash-2" Danger="true">Remove assignment…</MenuItem>
                                     </ActionMenu>
                                 </AuthorizeView>
@@ -132,6 +138,37 @@ else
                 </tbody>
             </table>
         </div>
+    </Box>
+
+    <Box Title="Scripts" Anchor="scripts" Help="package-detail#scripts" Flush="true" Hint="PowerShell as SYSTEM before or after WinGet installs, upgrades or uninstalls the package; only approved, signed revisions run">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Phase</th><th>Runs on</th><th>State</th><th>Changed</th></tr></thead>
+                <tbody>
+                    @foreach (var phase in Enum.GetValues<SUSyphos.Contracts.Scripts.ScriptPhase>())
+                    {
+                        var script = _scripts.FirstOrDefault(s => s.Script.Phase == phase);
+                        <tr>
+                            <td><a href="@ScriptText.Link(PackageId, phase)">@ScriptText.Phase(phase)</a></td>
+                            <td>@(script?.Approved is { } runs ? ScriptText.RunOn(runs.RunOn) : "–")</td>
+                            <td>
+                                @if (script is null) { <span class="note">no script</span> }
+                                else
+                                {
+                                    @if (script.Approved is { } approved) { <StatusTag Text="@($"revision {approved.Revision}")" Kind="ok" /> } else { <StatusTag Text="not approved" Kind="queue" /> }
+                                    @if (script.HasDraft) { <StatusTag Text="draft" Kind="pend" /> }
+                                }
+                            </td>
+                            <td class="nowrap">@(script is null ? "–" : $"{DisplayTime.Format(script.Script.DraftChangedAtUtc)}, {script.Script.DraftChangedBy}")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (!_scriptsEnabled)
+        {
+            <p class="note box-body">Scripts are switched off under <a href="/administration/agent-settings#scripts">Agent settings</a>: agents run none.</p>
+        }
     </Box>
 
     <Box Title="Installed on" Anchor="installed" Help="package-detail#installed" Flush="true" Hint="Approved servers that report the package installed">
@@ -159,7 +196,39 @@ else
     </FeatureOff>
 }
 
-@if (_package is not null && _enabled && Dialog == "uninstall" && UninstallBlocker is null)
+@if (_package is not null && Dialog == "script-values" && _assignments.FirstOrDefault(a => a.Id == DialogNumber) is { } valued && _scriptParameters.Count > 0)
+{
+    <Dialog Title="@($"Script values for {TargetName(valued)}")" CloseHref="@PackagePage.Link(PackageId)" Help="package-detail#script-values">
+        <form method="post" @formname="package-script-values" @onsubmit="SaveScriptValuesAsync">
+            <AntiforgeryToken />
+            <input type="hidden" name="ValuesAssignment" value="@valued.Id" />
+            <div class="dialog-body">
+                @foreach (var group in _scriptParameters.GroupBy(p => p.Phase))
+                {
+                    <h3>@ScriptText.Phase(group.Key)</h3>
+                    @foreach (var (scriptId, _, parameter) in group)
+                    {
+                        var stored = _scriptValues.FirstOrDefault(v => v.ScriptId == scriptId && v.Name == parameter.Name);
+                        <label class="field"><span>@parameter.Name@if (!parameter.Required) { <span class="optional">optional</span> }</span>
+                            @if (parameter.Secret)
+                            {
+                                <input type="password" name="@($"Value_{scriptId}_{parameter.Name}")" autocomplete="new-password" maxlength="@SUSyphos.Contracts.Scripts.ScriptLimits.MaxValueLength" data-help-term="Secret" />
+                                <span class="help">@(stored?.ProtectedValue is null ? "Not set." : "Set; leave empty to keep the stored value.") Stored encrypted, never shown again, masked in the output. @parameter.Description</span>
+                            }
+                            else
+                            {
+                                <input name="@($"Value_{scriptId}_{parameter.Name}")" value="@stored?.Value" placeholder="@parameter.Default" maxlength="@SUSyphos.Contracts.Scripts.ScriptLimits.MaxValueLength" data-help-term="Value" />
+                                <span class="help">@(parameter.Default is null ? null : $"Empty: the default {parameter.Default}. ")@parameter.Description</span>
+                            }
+                        </label>
+                    }
+                }
+            </div>
+            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="primary">Save values</button></div>
+        </form>
+    </Dialog>
+}
+else if (_package is not null && _enabled && Dialog == "uninstall" && UninstallBlocker is null)
 {
     <Dialog Title="@($"Uninstall {_package.Name} from servers?")" CloseHref="@PackagePage.Link(PackageId)" Help="package-detail#uninstall" Wide="true">
         <form method="post" @formname="package-uninstall" @onsubmit="UninstallFromServersAsync">
@@ -270,6 +339,23 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
     private List<SUSyphos.Server.Agents.UninstallTarget> _targets = [];
     private List<RingEntity> _rings = [];
     private SoftwareUninstallStatus? _uninstallStatus;
+    private IReadOnlyList<SUSyphos.Server.Scripts.PackageScriptView> _scripts = [];
+    private bool _scriptsEnabled;
+    private List<(int ScriptId, SUSyphos.Contracts.Scripts.ScriptPhase Phase, SUSyphos.Contracts.Scripts.ScriptParameter Parameter)> _scriptParameters = [];
+    private List<PackageAssignmentScriptValueEntity> _scriptValues = [];
+
+    [CascadingParameter] private Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+
+    /// <summary>Stores the values of the script parameters for one assignment (administrators); an empty secret keeps the stored one.</summary>
+    private async Task SaveScriptValuesAsync()
+    {
+        var form = HttpContext?.Request.HasFormContentType == true ? HttpContext.Request.Form : null;
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) || form is null || !int.TryParse(form["ValuesAssignment"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var assignmentId)
+            ? new Outcome("Only administrators set script values.")
+            : await ScriptAdmin.SetValuesAsync(assignmentId, _scriptParameters.ToDictionary(p => (p.ScriptId, p.Parameter.Name), p => (string?)form[$"Value_{p.ScriptId}_{p.Parameter.Name}"].ToString()), await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The script values were saved; the servers get them with their next release list.");
+        await LoadAsync();
+    }
 
     /// <summary>Servers whose uninstallation of the package waits.</summary>
     private HashSet<Guid> _uninstalling = [];
@@ -406,6 +492,12 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
                     ? new StatusRow("neutral", "none", "Assignments", "not assigned", "only servers that have the package installed get its new versions")
                     : new StatusRow("ok", DisplayNumber.Format(_assignments.Count), "Assignments", $"assigned to {DisplayNumber.Count(_assignments.Count, "group or server", "groups or servers")}", "servers without the package install it when its version is released for their ring", @<a href="@($"{PackagePage.Link(_package.PackageId)}#assignments")">Assignments →</a>),
             };
+            if (_scripts.Count > 0)
+            {
+                var approvedScripts = _scripts.Count(s => s.Approved is not null);
+                rows.Add(new StatusRow(!_scriptsEnabled ? "neutral" : approvedScripts > 0 ? "ok" : "queue", !_scriptsEnabled ? "off" : DisplayNumber.Format(approvedScripts), "Scripts", !_scriptsEnabled ? "scripts are switched off: agents run none" : $"{DisplayNumber.Count(approvedScripts, "approved script runs", "approved scripts run")} around the installation or uninstallation", _scripts.Any(s => s.HasDraft) ? "a draft waits for approval" : null, @<a href="@($"{PackagePage.Link(_package.PackageId)}#scripts")">Scripts →</a>));
+            }
+
             if (_uninstallStatus is { } uninstall)
             {
                 // The last "Uninstall from servers…" while it runs and for a week after (Marc, 2026-11-14).
@@ -467,6 +559,10 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
         _targets = await Uninstall.TargetsAsync(PackageId, CancellationToken.None);
         _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
         _uninstallStatus = await Uninstall.StatusAsync(PackageId, CancellationToken.None);
+        _scripts = await ScriptAdmin.ListAsync(PackageId, CancellationToken.None);
+        _scriptsEnabled = await ScriptAdmin.IsEnabledAsync(CancellationToken.None);
+        _scriptParameters = [.. _scripts.Where(s => s.Approved is not null).SelectMany(s => SUSyphos.Contracts.Scripts.ScriptSigningFormat.ReadParameters(s.Approved!.ParametersJson).Select(p => (s.Script.Id, s.Script.Phase, p)))];
+        _scriptValues = Dialog == "script-values" && DialogNumber is { } valuesFor ? await Db.PackageAssignmentScriptValues.AsNoTracking().Where(v => v.AssignmentId == valuesFor).ToListAsync() : [];
         _uninstalling = [.. await Db.AgentActions.AsNoTracking().Where(a => a.PackageId == PackageId && (a.State == AgentActionState.Queued || a.State == AgentActionState.Delivered)).Select(a => a.ClientId).ToListAsync()];
         _removalPreview = Dialog == "unassign" && DialogNumber is { } unassign ? await Assignments.PreviewRemovalAsync(unassign, CancellationToken.None) : null;
         _installed = [.. (await (from s in Db.ClientSoftware.AsNoTracking()

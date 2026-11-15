@@ -4,6 +4,8 @@
     <!-- Supported from Windows Server 2016 (target framework set in Directory.Build.props). -->
     <!-- Version from git tags agent/vX.Y.Z (see docs/01-architecture.md). -->
     <MinVerTagPrefix>agent/v</MinVerTagPrefix>
+    <!-- LibraryImport (job object for script runs) generates marshalling code that needs unsafe blocks. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

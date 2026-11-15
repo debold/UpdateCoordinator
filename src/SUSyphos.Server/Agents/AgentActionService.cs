@@ -54,7 +54,7 @@ internal sealed record UninstallScope(IReadOnlyCollection<int>? Rings = null, IR
 }
 
 internal sealed partial class AgentActionService(
-    ServerDbContext db, AuditLog audit, Microsoft.Extensions.Options.IOptions<AdministrationOptions> administration, TimeProvider timeProvider, ILogger<AgentActionService> logger)
+    ServerDbContext db, AuditLog audit, Microsoft.Extensions.Options.IOptions<AdministrationOptions> administration, TimeProvider timeProvider, ILogger<AgentActionService> logger, Scripts.ScriptAdministration? scripts = null)
 {
     /// <summary>Upper bound of open actions per server, so a stuck agent cannot pile up work.</summary>
     public const int MaxOpenPerClient = 10;
@@ -292,7 +292,17 @@ internal sealed partial class AgentActionService(
         }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return new AgentActionList([.. actions.Select(a => new AgentAction(a.Id, a.Kind, new DateTimeOffset(DateTime.SpecifyKind(a.RequestedAtUtc, DateTimeKind.Utc)), a.UpdateId, a.Revision, a.KbArticle, a.PackageId, a.Scope))]);
+        // A software uninstallation carries the approved scripts of the package for the uninstall phases.
+        var list = new List<AgentAction>();
+        foreach (var a in actions)
+        {
+            var references = a.PackageId is { } package && IsHeld(a.Kind) && scripts is not null
+                ? await scripts.ReferencesAsync(package, clientId, [SUSyphos.Contracts.Scripts.ScriptPhase.BeforeUninstall, SUSyphos.Contracts.Scripts.ScriptPhase.AfterUninstall], cancellationToken).ConfigureAwait(false)
+                : [];
+            list.Add(new AgentAction(a.Id, a.Kind, new DateTimeOffset(DateTime.SpecifyKind(a.RequestedAtUtc, DateTimeKind.Utc)), a.UpdateId, a.Revision, a.KbArticle, a.PackageId, a.Scope, references.Count == 0 ? null : references));
+        }
+
+        return new AgentActionList(list);
     }
 
     /// <summary>Records the result; false if the action is unknown, belongs to another client or was not delivered.</summary>
