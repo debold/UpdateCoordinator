@@ -297,25 +297,24 @@ public sealed class ScriptTests
     [Fact]
     public async Task ReleaseList_CarriesScripts_AndTheInstalledVersion()
     {
-        await using var scenario = await RolloutScenario.CreateAsync();
-        var client = await scenario.AddClientAsync("APP01", RingEntity.PilotId);
+        await using var factory = await CreateAsync();
+        var client = await RegisterAsync(factory);
         var updateId = SoftwarePackages.SoftwareUpdateId(Package, "8.9.9");
-        await scenario.Factory.WithDbAsync(async db =>
+        await factory.WithDbAsync(db =>
         {
-            DemoSoftware.Add(db, [], [], DateTime.UtcNow);
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client.ClientId, View = SoftwareView.Machine64, KeyName = "Notepad++", DisplayName = "Notepad++", PackageId = Package, InstalledVersion = "8.9.8", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
-            db.Releases.Add(new ReleaseEntity { ClientId = client.ClientId, UpdateId = updateId, Revision = SoftwarePackages.SoftwareRevision, EarliestInstallAtUtc = DateTime.UtcNow });
-            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client, View = SoftwareView.Machine64, KeyName = "Notepad++", DisplayName = "Notepad++", PackageId = Package, InstalledVersion = "8.9.8", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+            db.Releases.Add(new ReleaseEntity { ClientId = client, UpdateId = updateId, Revision = SoftwarePackages.SoftwareRevision, EarliestInstallAtUtc = DateTime.UtcNow });
+            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
         });
-        Assert.True((await scenario.WithServiceAsync<ScriptAdministration, Outcome>(s => s.SaveDraftAsync(Package, ScriptPhase.BeforeInstall, "exit 0", [], ScriptRunOn.Both, ScriptOnFailure.Stop, 300, "admin", CancellationToken.None))).Succeeded);
-        var id = await scenario.Factory.WithDbAsync(db => db.PackageScripts.Select(s => s.Id).SingleAsync(TestContext.Current.CancellationToken));
-        Assert.True((await scenario.WithServiceAsync<ScriptAdministration, Outcome>(s => s.SetEnabledAsync(true, "admin", CancellationToken.None))).Succeeded);
+        Assert.True((await SaveAsync(factory, "exit 0")).Succeeded);
+        var id = await ScriptIdAsync(factory);
+        Assert.True((await WithAsync(factory, s => s.SetEnabledAsync(true, "admin", CancellationToken.None))).Succeeded);
+        Assert.True((await WithAsync(factory, s => s.ApproveAsync(id, true, "admin", CancellationToken.None))).Succeeded);
 
-        // Approval goes through the real scanner of the machine; without an antivirus product it is "not scanned".
-        Assert.True((await scenario.WithServiceAsync<ScriptAdministration, Outcome>(s => s.ApproveAsync(id, true, "admin", CancellationToken.None))).Succeeded);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var releases = await scope.ServiceProvider.GetRequiredService<SUSyphos.Server.Agents.UpdateReportService>().GetReleasesAsync(client, CancellationToken.None);
 
-        var software = Assert.Single((await scenario.ReleasesAsync(client)).Releases).Software!;
+        var software = Assert.Single(releases.Releases).Software!;
         Assert.Equal("8.9.8", software.InstalledVersion);
         Assert.Equal((ScriptPhase.BeforeInstall, id, 1), (Assert.Single(software.Scripts!).Phase, software.Scripts![0].ScriptId, software.Scripts[0].Revision));
     }
