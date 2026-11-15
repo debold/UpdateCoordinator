@@ -64,6 +64,18 @@ public sealed class WinGetClient(WinGetEngine engine)
     /// <summary>Receives one line per step and progress state, so a hang shows where it happened.</summary>
     public Action<string>? Trace { get; init; }
 
+    /// <summary>What <see cref="UseSourceAsync"/> does with the private source: keep it, add it, or replace an outdated one.</summary>
+    public static PrivateSourceChange SourceChange(string? existingAddress, Uri address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return existingAddress is null ? PrivateSourceChange.Add
+            : string.Equals(existingAddress, address.ToString(), StringComparison.OrdinalIgnoreCase) ? PrivateSourceChange.Keep
+            : PrivateSourceChange.Replace;
+    }
+
+    /// <summary>True for the sources the installed list is matched against: every source but the private one.</summary>
+    public static bool IsInventoryCatalog(string? name) => !string.Equals(name, PrivateSourceName, StringComparison.OrdinalIgnoreCase);
+
     public IReadOnlyList<WinGetSource> Sources() =>
         _manager.GetPackageCatalogs()
             .Select(reference => reference.Info)
@@ -72,7 +84,8 @@ public sealed class WinGetClient(WinGetEngine engine)
 
     /// <summary>
     /// Adds a private REST source under <see cref="PrivateSourceName"/> (machine-wide for the account, as winget
-    /// source add does) unless it is already there with the same address, and returns the reference to it.
+    /// source add does) unless it is already there with the same address, and returns the reference to it. A source of
+    /// that name with another address is replaced.
     /// </summary>
     public async Task<PackageCatalogReference> UseSourceAsync(Uri address)
     {
@@ -83,15 +96,25 @@ public sealed class WinGetClient(WinGetEngine engine)
         }
 
         var existing = _manager.GetPackageCatalogByName(PrivateSourceName);
-        if (existing is not null && string.Equals(existing.Info.Argument, address.ToString(), StringComparison.OrdinalIgnoreCase))
+        var change = SourceChange(existing?.Info.Argument, address);
+        if (existing is not null && change == PrivateSourceChange.Keep)
         {
             Trace?.Invoke($"Source {PrivateSourceName} is configured with {address}.");
             return existing;
         }
 
-        if (existing is not null)
+        if (existing is not null && change == PrivateSourceChange.Replace)
         {
-            throw new WinGetException($"A source named {PrivateSourceName} already points at {existing.Info.Argument}; remove it first (winget source remove {PrivateSourceName}).");
+            // The agent owns this source (lab 2026-11-15: a source from an earlier port and path blocked every
+            // installation): it is replaced when the central server is reached at another address now.
+            Trace?.Invoke($"Source {PrivateSourceName} points at {existing.Info.Argument}; replacing it with {address}.");
+            var remove = engine.CreateRemoveCatalogOptions();
+            remove.Name = PrivateSourceName;
+            var removed = await _manager.RemovePackageCatalogAsync(remove);
+            if (removed.Status != RemovePackageCatalogStatus.Ok)
+            {
+                throw new WinGetException($"Removing the outdated source {PrivateSourceName} ({existing.Info.Argument}) failed: {removed.Status} {Describe(removed.ExtendedErrorCode)}", removed.ExtendedErrorCode?.HResult ?? 0);
+            }
         }
 
         var options = engine.CreateAddCatalogOptions();
@@ -335,7 +358,9 @@ public sealed class WinGetClient(WinGetEngine engine)
         }
         else
         {
-            foreach (var catalog in _manager.GetPackageCatalogs())
+            // The private source of the central server is left out: it mirrors the community source, and when it is
+            // out of date or unreachable it made the whole inventory fail (lab 2026-11-15, CatalogError 0x80072EE2).
+            foreach (var catalog in _manager.GetPackageCatalogs().Where(c => IsInventoryCatalog(c.Info.Name)))
             {
                 options.Catalogs.Add(catalog);
             }
@@ -390,4 +415,12 @@ public sealed class WinGetClient(WinGetEngine engine)
     }
 
     private static string Sanitize(string id) => string.Concat(id.Select(c => char.IsLetterOrDigit(c) || c is '.' or '-' ? c : '_'));
+}
+
+/// <summary>What happens with the private source of the central server.</summary>
+public enum PrivateSourceChange
+{
+    Keep,
+    Add,
+    Replace,
 }

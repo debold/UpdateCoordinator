@@ -6,6 +6,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- Fix (rc.4, lab 2026-11-15): a WinGet source "susyphos" left from an earlier address of the central server (other port or path) blocked every software installation ("already points at …; remove it first"); the agent now replaces it with the current address and logs that. The software inventory no longer includes this source, so an outdated or unreachable one cannot make it fail (CatalogError 0x80072EE2).
 - Uninstalling software takes no lease of a coordinated group, and "in the next window" means the software window (the maintenance window without one); a restart after it still waits for a maintenance window (Marc, 2026-11-14).
 - Requested logs explain failed software installations better (Marc, 2026-11-14): besides the agent logs, the WinGet helper and installer logs and WinGet's own logs, the archive now holds an extract of the Application event log (Windows Installer, crashes and hangs, .NET runtime, Windows Error Reporting, SUSyphos), the logs installers write straight into the temp folders of SYSTEM (`%windir%\SystemTemp`, `%windir%\Temp`, for example `dd_*.log` of Burn bundles), the msiexec logs of agent updates and `collection.txt`, which lists what is in the archive, which folders were missing and what was left out to stay within 10 MB.
 

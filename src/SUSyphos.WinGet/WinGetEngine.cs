@@ -130,6 +130,8 @@ public sealed partial class WinGetEngine : IDisposable
 
     public AddPackageCatalogOptions CreateAddCatalogOptions() => Create("AddPackageCatalogOptions", AddPackageCatalogOptions.FromAbi);
 
+    public RemovePackageCatalogOptions CreateRemoveCatalogOptions() => Create("RemovePackageCatalogOptions", RemovePackageCatalogOptions.FromAbi);
+
     public UninstallOptions CreateUninstallOptions() => Create("UninstallOptions", UninstallOptions.FromAbi);
 
     public void Dispose()

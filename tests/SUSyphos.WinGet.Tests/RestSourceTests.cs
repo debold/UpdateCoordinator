@@ -529,4 +529,20 @@ public sealed class RestSourceTests : IDisposable
 
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
+
+    [Theory]
+    [InlineData(null, "https://central.lab:8443/winget/api/", "Add")]
+    [InlineData("https://central.lab:8443/winget/api/", "https://central.lab:8443/winget/api/", "Keep")]
+    [InlineData("https://CENTRAL.lab:8443/winget/api/", "https://central.lab:8443/winget/api/", "Keep")]
+    [InlineData("https://central.lab:7443/api/", "https://central.lab:8443/winget/api/", "Replace")]
+    public void PrivateSource_FromAnEarlierAddress_IsReplaced(string? existing, string address, string expected) =>
+        Assert.Equal(expected, WinGetClient.SourceChange(existing, new Uri(address)).ToString());
+
+    [Theory]
+    [InlineData("winget", true)]
+    [InlineData("msstore", true)]
+    [InlineData("susyphos", false)]
+    [InlineData("SUSyphos", false)]
+    public void Inventory_LeavesThePrivateSourceOut(string name, bool used) =>
+        Assert.Equal(used, WinGetClient.IsInventoryCatalog(name));
 }
