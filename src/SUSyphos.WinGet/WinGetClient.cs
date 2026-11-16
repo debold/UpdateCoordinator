@@ -286,9 +286,10 @@ public sealed class WinGetClient(WinGetEngine engine)
             result = await ExecuteAsync(operation, package, install);
         }
 
-        // An upgrade also keeps the language of the installation: an old localized build (Visual C++ 2013 12.0.21005 in
-        // German, lab 2026-11-16) finds no installer while the source has only en-US. Installed over directly instead,
-        // as an administrator would do; the installer replaces the old build itself.
+        // An upgrade also keeps the installer type and language of the installation: an old Visual C++ 2013 build
+        // (12.0.21005, lab 2026-11-16) found no installer, probably because WinGet matched it with one of its MSI parts
+        // and accepts no Burn installer for an MSI. Installed over directly instead, as an administrator would do; the
+        // installer replaces the old build itself.
         if (operation == "upgrade" && result.Status == InstallResultStatus.NoApplicableInstallers)
         {
             operation = "install";
