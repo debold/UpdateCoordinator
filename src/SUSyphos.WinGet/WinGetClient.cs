@@ -286,6 +286,16 @@ public sealed class WinGetClient(WinGetEngine engine)
             result = await ExecuteAsync(operation, package, install);
         }
 
+        // An upgrade also keeps the language of the installation: an old localized build (Visual C++ 2013 12.0.21005 in
+        // German, lab 2026-11-16) finds no installer while the source has only en-US. Installed over directly instead,
+        // as an administrator would do; the installer replaces the old build itself.
+        if (operation == "upgrade" && result.Status == InstallResultStatus.NoApplicableInstallers)
+        {
+            operation = "install";
+            Trace?.Invoke("No installer fits the upgrade of this installation (architecture or language); installing the version over it instead.");
+            result = await ExecuteAsync(operation, package, install);
+        }
+
         watch.Stop();
         Trace?.Invoke($"WinGet answered {result.Status} after {watch.Elapsed.TotalSeconds:0.0} s (installer exit code {result.InstallerErrorCode}).");
         return new WinGetOperationResult(
