@@ -52,6 +52,8 @@ internal sealed class AgentPackageOptions
 /// </summary>
 internal sealed partial class AgentPackageStore(ServerDbContext db, IOptions<AgentPackageOptions> options, TimeProvider timeProvider, ILogger<AgentPackageStore> logger)
 {
+    private static readonly SemaphoreSlim MoveGate = new(1, 1);
+
     /// <summary>Name of a package file: "SUSyphos.Agent-0.4.0.msi".</summary>
     public static string FileNameFor(AgentVersion version) => $"SUSyphos.Agent-{version}.msi";
 
@@ -156,7 +158,17 @@ internal sealed partial class AgentPackageStore(ServerDbContext db, IOptions<Age
                 return false;
             }
 
-            File.Move(temporary, target, overwrite: true);
+            // Two registrations of the same package (e.g. the start-up one and a manual one) may finish together; Windows denies
+            // a move onto a file another move is replacing at that moment, so the moves take turns.
+            await MoveGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                File.Move(temporary, target, overwrite: true);
+            }
+            finally
+            {
+                MoveGate.Release();
+            }
         }
         finally
         {
