@@ -4,6 +4,10 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Documentation
+
+- New README (Marc, 2026-11-16, variant A "Showcase"): what SUSyphos is in one sentence, four feature blocks with screenshots (rings, software, windows, security), how it works and a quick start. Keeping it current is a release step: a test checks that its NOTE box names the newest release, and the release steps in docs/development.md renew its screenshots.
+
 ### Agent
 
 - Fix (lab 2026-11-16): an upgrade of the x64 .NET Desktop Runtime installed the x86 runtime beside it, so the x64 one stayed outdated and the update stayed required. Burn bundles register their x64 build in the 32-bit view of the registry; the architecture now comes from the program's name first ("(x64)", "(x86)", "arm64"). The central server names the architecture of the oldest installation of a package in the release list, and when WinGet correlates the package with the other installation, the agent installs the version over the named one.

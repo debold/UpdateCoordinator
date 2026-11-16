@@ -268,6 +268,20 @@ public static class ShowcaseData
             await db.SaveChangesAsync();
         }
 
+        // Software installs on weekday evenings, Windows updates keep their maintenance windows (README, Marc 2026-11-16).
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var administration = scope.ServiceProvider.GetRequiredService<SUSyphos.Server.Assignment.AssignmentAdministration>();
+            await administration.SetSoftwareWindowsAsync(null, null, "Mon-Fri 19:00-22:00", "admin", CancellationToken.None);
+
+            // A lab where WinGet trusts the central server, so the software pages show no certificate banner.
+            var trusted = await administration.SetSystemAgentSettingsAsync(new Dictionary<string, string?> { [SUSyphos.Server.Software.SoftwareTrust.SettingKey] = "true" }, "admin", CancellationToken.None);
+            if (!trusted.Succeeded)
+            {
+                throw new InvalidOperationException(trusted.Error);
+            }
+        }
+
         return ids[MainServer];
     }
 

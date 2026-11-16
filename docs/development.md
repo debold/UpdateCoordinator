@@ -45,6 +45,16 @@ The agent pins the trust anchor of the central server, registers, stores its ide
 
 `./build/Build-Installers.ps1` builds the MSI packages of agent and central server (WiX Toolset, self-contained) into `artifacts/installers`. The GitHub Actions workflow `.github/workflows/ci.yml` builds and tests every push and installs, upgrades and uninstalls both MSIs on the runner. Installation options: see the admin documentation, section 17.
 
+## Releasing
+
+A release is tagged `release/vX.Y.Z` (or `release/vX.Y.Z-rc.N`) only on Marc's word; the release workflow builds, tests and publishes both MSIs with `SHA256SUMS.txt`. Before the tag:
+
+1. Move the entries under `[Unreleased]` in `CHANGELOG.md` into a section `## [X.Y.Z] - <date>`.
+2. Update the NOTE box of `README.md` ("Public beta: [SUSyphos X.Y.Z](…/releases/tag/release/vX.Y.Z)"); `ReadmeNote_NamesTheNewestRelease` fails while it names another version than the newest release in the changelog (Marc, 2026-11-16).
+3. New top feature in this release? Then add or update a block in "What makes it different" in `README.md` (text and screenshot; the screenshot gets an entry in `ReadmeScreenshotTests.Shots`, and `ReadmeImages_AreExactlyTheScreenshots` checks that README and images match).
+4. Run `build/Update-HelpScreenshots.ps1 -Readme` and commit the new images of the help and the README.
+5. Run the full test suite, push, wait for a green CI, then tag.
+
 ## Versioning
 
 Agent and central server are versioned separately from git tags (`agent/v1.2.3`, `server/v1.2.3`) via MinVer; untagged builds get a pre-release version with the commit hash.

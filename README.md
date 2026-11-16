@@ -5,67 +5,71 @@
 <h1 align="center">SUSyphos</h1>
 
 <p align="center">
-  <b>Ring-based Windows Server patching with one central dashboard.</b><br>
-  A lightweight, self-hosted alternative to WSUS.
+  <b>Patch your Windows Servers in rings, from one dashboard.</b><br>
+  A self-hosted, lightweight successor to WSUS. Free and open source.
 </p>
 
 <p align="center">
   <a href="https://github.com/debold/UpdateCoordinator/releases"><img src="https://img.shields.io/github/v/release/debold/UpdateCoordinator?include_prereleases&label=beta&color=1F5BC4" alt="Latest beta"></a>
   <a href="https://github.com/debold/UpdateCoordinator/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/debold/UpdateCoordinator/ci.yml?branch=main&label=CI" alt="CI"></a>
   <img src="https://img.shields.io/badge/Windows%20Server-2016%E2%80%932025-151B24" alt="Windows Server 2016 to 2025">
-  <img src="https://img.shields.io/badge/.NET-10-512BD4" alt=".NET 10">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
 </p>
 
+![The SUSyphos overview](docs/images/overview.png)
+
+Microsoft has deprecated WSUS. SUSyphos takes its place: a small agent on every server, one central server with a web dashboard, and updates that move through **Pilot**, **Test** and **Production** on their own. No WSUS database, no SQL Server, no content sync.
+
 > [!NOTE]
-> **Public beta: [SUSyphos 0.8.2](https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.8.2) is out.** Try it in a lab and tell us what you think in [Issues](https://github.com/debold/UpdateCoordinator/issues). The packages are not code-signed yet; check them against `SHA256SUMS.txt`.
+> **Public beta: [SUSyphos 0.9.0-rc.4](https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.9.0-rc.4) is out**, a release candidate with third-party software through WinGet. Try it in a lab and tell us what you think in [Issues](https://github.com/debold/UpdateCoordinator/issues). The packages are not code-signed yet; check them against `SHA256SUMS.txt`.
 
-![Overview of the SUSyphos dashboard](docs/images/overview.png)
-
-## Why SUSyphos
-
-- **Rings instead of approvals.** Updates move from Pilot to Test to Production on their own, with waiting days and an optional manual gate before Production.
-- **Maintenance windows that fit real calendars.** Weekdays plus "only the 2nd week" or "every week except the last". Reboots only where a rule allows them.
-- **Updates straight from Microsoft.** No WSUS database, no content sync, no SQL Server. Agents use the Windows Update Agent API; Microsoft Update per group.
-- **Security at a glance.** Missing builds, CVEs and exploited vulnerabilities from Microsoft's security data, plus end-of-support warnings per Windows version.
-- **Safe by design.** Agents trust the central server through a pinned anchor, admins sign in with Windows (AD groups map to roles), every action lands in the audit log.
-- **Small footprint.** One MSI for the central server, one for the agent, both self-contained. Distribute the agent by GPO, Intune or Configuration Manager.
-
-## Screenshots
+## What makes it different
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/update-list.png" alt="Update list"><br><sub><b>Updates</b>: classification, severity and where each update stands in the rings, including gates and alarms</sub></td>
-    <td width="50%"><img src="docs/images/update-progress.png" alt="Progress by ring"><br><sub><b>Update page</b>: progress by ring with release dates, success rate and the manual gate before Production</sub></td>
+    <td width="45%">
+      <h3>Rings instead of approvals</h3>
+      Updates start by rule, wait a set number of days in each ring and move on when the success rate is right. A manual gate before Production stops anything that went wrong in Pilot.
+    </td>
+    <td><img src="docs/images/update-progress.png" alt="Progress of an update by ring"></td>
   </tr>
   <tr>
-    <td><img src="docs/images/server-list.png" alt="Server list"><br><sub><b>Servers</b>: OS build, ring and groups, security state, agent version and status</sub></td>
-    <td><img src="docs/images/start-rule.png" alt="Start rule dialog"><br><sub><b>Release rules</b>: decide which updates start automatically, with a preview of the matches</sub></td>
+    <td width="45%"><img src="docs/images/software.png" alt="Software catalog"></td>
+    <td>
+      <h3>Software too, through the same rings</h3>
+      See every installed program on every server, update it with WinGet through the same rings, and roll out new software to groups. Every installer is checked against its SHA-256 and virus-scanned on the central server first.
+    </td>
+  </tr>
+  <tr>
+    <td width="45%">
+      <h3>Windows that fit real calendars</h3>
+      Maintenance windows per group or server: weekdays plus "only the 2nd week" or "every week except the last". Software can get its own evening windows. Servers restart only where a rule allows it.
+    </td>
+    <td><img src="docs/images/maintenance-windows.png" alt="Maintenance windows with a software tab"></td>
+  </tr>
+  <tr>
+    <td width="45%"><img src="docs/images/server-security.png" alt="Security baseline of a server"></td>
+    <td>
+      <h3>Security at a glance</h3>
+      Every server against Microsoft's newest security build, with CVEs, exploited vulnerabilities and end-of-support dates for each Windows version.
+    </td>
   </tr>
 </table>
 
-## Status and roadmap
+## How it works
 
-| | Version | What it covers |
-|---|---|---|
-| ✅ **Beta** | 0.8.x | Windows updates and drivers, rings and groups, maintenance windows, reboot rules, security baseline and CVEs, end-of-support tracking, notifications by mail and webhook, AD sign-in, backup, built-in help |
-| 🚧 **In progress** | 0.9 | Third-party software through WinGet: software inventory on all servers, updates through the same rings, and new installations picked from the WinGet catalog (Windows Server 2019 and later with Desktop Experience) |
-| 🗓️ **Later** | | Code signing, self-update of the central server |
-
-See the [changelog](CHANGELOG.md) for every release.
+| Microsoft Update | Agent | Central server | You |
+|---|---|---|---|
+| Agents download updates straight from Microsoft, as today. | A Windows service on every server. It asks, it never listens. | Decides what each ring may install and when. SQLite, one MSI. | Watch, approve and step in from the browser. Sign in with Windows. |
 
 ## Quick start
 
 1. Download `SUSyphos.Server` and `SUSyphos.Agent` from the [latest release](https://github.com/debold/UpdateCoordinator/releases) and check them against `SHA256SUMS.txt`.
-2. Install the central server MSI on a Windows Server 2016 or later. Setup shows the port (default 8443) and a one-time token for the first admin account.
-3. Install the agent on your servers and point it to the central server (MSI property `SERVERURL` or group policy).
-4. Approve the new servers in the dashboard, put them into rings, and set your maintenance windows.
+2. Install the central server on Windows Server 2016 or later; setup shows the address and a one-time token for the first admin.
+3. Roll out the agent by GPO, Intune or Configuration Manager.
+4. Approve the servers, put them into rings and set your windows.
 
-Full guide: [admin documentation](docs/admin/README.md).
-
-## Documentation
-
-[Admin guide](docs/admin/README.md) · [Architecture](docs/01-architecture.md) · [Build from source](docs/development.md) · [Changelog](CHANGELOG.md)
+[Admin guide](docs/admin/README.md) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/debold/UpdateCoordinator/releases) · [Build from source](docs/development.md)
 
 ## License
 

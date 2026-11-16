@@ -72,6 +72,8 @@ Guidelines (always apply):
 - Software uninstall for 0.9.0-rc.5 (Marc, 2026-11-14, concept https://claude.ai/artifact/KCPadv76SuRStXCbqW1UFB, WinGet only): from the server inventory, the package page (server, group, ring or all; end the assignments; confirmation for more than one server), the removal of an assignment (keep or uninstall, preselected) and the removal from the catalog (now also while installed, uninstall optional, off); no lease for software uninstalls, "in the next window" = software window, the restart waits for a maintenance window; done when the next inventory no longer lists the package. Schema: `AgentActions.BatchId` only (the history rows come from the actions).
 - Signed scripts for WinGet packages for 0.9.0-rc.5 (Marc, 2026-11-13/14, concept https://claude.ai/artifact/D4zqEgR9uWNiUsG4D8TynE, schema in docs/plans/rc5-plan.md approved 2026-11-14): own ECDSA P-256 script key certified by the trust anchor, one Admin approves (no four-eyes, no signing password), full output log of every run, PowerShell 5.1, four phases, local veto AllowScripts = 0, Scripts.Enabled off by default.
 
+- README variant A "Showcase" (Marc, 2026-11-16, mockup https://claude.ai/artifact/T4DZYoFdvGsf5cbUCfWGLv): the README is a release step: its NOTE box names the newest release of the changelog (a test checks it), a new top feature gets a block in "What makes it different" with a screenshot, and `build/Update-HelpScreenshots.ps1 -Readme` renews the images before every release tag (`docs/development.md`, Releasing).
+
 ## Open decisions (do not decide unilaterally)
 
 - Concrete database schema of the central server
