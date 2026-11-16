@@ -240,10 +240,15 @@ public sealed class SoftwarePageTests : IAsyncDisposable
             var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains("Contoso Backup Agent", html, StringComparison.Ordinal);
-            Assert.Contains("not known to WinGet", html, StringComparison.Ordinal);
             Assert.Contains("Newer version available", html, StringComparison.Ordinal);
             Assert.Contains("WinGet works on this server", html, StringComparison.Ordinal);
+            // The default view hides programs WinGet does not know (Marc, 2026-11-16).
+            Assert.DoesNotContain("Contoso Backup Agent", html, StringComparison.Ordinal);
+
+            using var allResponse = await browser.GetAsync($"/servers/{server}?tab=software&sw.view=all");
+            var all = await allResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains("Contoso Backup Agent", all, StringComparison.Ordinal);
+            Assert.Contains("not known to WinGet", all, StringComparison.Ordinal);
         }
     }
 

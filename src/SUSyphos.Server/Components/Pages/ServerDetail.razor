@@ -918,6 +918,17 @@ else
 
     /// <summary>Software versions among the updates of this page, so lists and the install dialog can tell them apart.</summary>
     private HashSet<Guid> _softwareIds = [];
+    /// <summary>
+    /// Views of the installed software, default first (Marc, 2026-11-16): programs WinGet does not know cannot be managed and
+    /// are hidden unless asked for.
+    /// </summary>
+    private static readonly IReadOnlyList<TableView> SoftwareViews =
+    [
+        new("managed", "Known to WinGet", "Programs SUSyphos can update and uninstall; programs WinGet does not know are hidden", ("package", TableFilter.In("known to WinGet"))),
+        new("updates", "Newer version available", "Programs with a newer released version in the catalog", ("state", TableFilter.In("Newer version available"))),
+        new("all", "All programs", "No filter, programs WinGet does not know included"),
+    ];
+
     private TableQuery _softwareTable = default!;
     private TablePage<SoftwareItem> _softwarePage = default!;
     private IReadOnlyList<TableColumn<SoftwareItem>>? _softwareColumns;
@@ -961,7 +972,7 @@ else
                 : ("Up to date", "ok");
             return new SoftwareItem(p, latest, state);
         })];
-        _softwareTable = TableQuery.From(Navigation, "program", prefix: "sw.", defaultPageSize: 25);
+        _softwareTable = TableQuery.From(Navigation, "program", prefix: "sw.", defaultPageSize: 25, views: SoftwareViews);
         _softwarePage = TablePaging.Apply(_software, _softwareTable, SoftwareColumns, r => $"{r.Program.DisplayName} {r.Program.PackageId} {r.Program.Publisher}");
     }
 

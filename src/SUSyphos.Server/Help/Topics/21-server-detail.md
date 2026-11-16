@@ -159,6 +159,8 @@ The programs the agent reports with its inventory ("Programs and Features" and p
 - **Newest**: the newest version the catalog knows.
 - **State**: *Up to date*, *Newer version available*, *Known to WinGet* (no newer version known yet), *Uninstalling* (an uninstallation waits on the server) or *Not managed*.
 
+**View** (see [Working with lists](help/tables#views)) offers **Known to WinGet** (default: programs SUSyphos can update and uninstall; the others are hidden), **Newer version available** and **All programs**.
+
 **More** (⋯) at the end of a row offers **Uninstall…** (administrators): it opens [Uninstall a program](#uninstall-software). It is greyed with the reason for programs WinGet does not know ("Not known to WinGet. Remove it on the server."), on servers where WinGet does not work, while an uninstallation of the program already waits, and for SUSyphos itself, which goes with **Remove server**.
 
 ## Uninstall a program {#uninstall-software}
