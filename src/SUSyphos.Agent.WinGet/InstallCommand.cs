@@ -17,12 +17,23 @@ internal static partial class InstallCommand
     public const string AcceptAgreements = "accept-agreements";
 
     /// <summary>The checked arguments, or null with the reason.</summary>
-    internal static (string PackageId, string Version, Uri Source, bool AcceptAgreements)? Parse(IReadOnlyList<string> arguments, out string? error)
+    /// <summary>Prefix of the optional argument naming the architecture of the installation to update ("arch=x64").</summary>
+    public const string ArchitecturePrefix = "arch=";
+
+    internal static (string PackageId, string Version, Uri Source, bool AcceptAgreements)? Parse(IReadOnlyList<string> arguments, out string? error) =>
+        ParseWithArchitecture(arguments, out error) is { } parsed ? (parsed.PackageId, parsed.Version, parsed.Source, parsed.AcceptAgreements) : null;
+
+    /// <summary>The checked arguments with the optional architecture (x64, x86 or arm64), or null with the reason.</summary>
+    internal static (string PackageId, string Version, Uri Source, bool AcceptAgreements, string? Architecture)? ParseWithArchitecture(IReadOnlyList<string> arguments, out string? error)
     {
         error = null;
-        if (arguments is not [Name, var id, var version, var source, ..] || arguments.Count > 5 || (arguments.Count == 5 && arguments[4] != AcceptAgreements))
+        var options = arguments.Skip(4).ToList();
+        var architecture = options.FirstOrDefault(o => o.StartsWith(ArchitecturePrefix, StringComparison.Ordinal))?[ArchitecturePrefix.Length..];
+        if (arguments is not [Name, var id, var version, var source, ..] || options.Count > 2 || options.Distinct().Count() != options.Count
+            || options.Any(o => o != AcceptAgreements && !o.StartsWith(ArchitecturePrefix, StringComparison.Ordinal))
+            || (architecture is not null && !SoftwareArchitecture.IsKnown(architecture)))
         {
-            error = $"Usage: {Name} <package id> <version> <source address> [{AcceptAgreements}]";
+            error = $"Usage: {Name} <package id> <version> <source address> [{AcceptAgreements}] [{ArchitecturePrefix}x64|x86|arm64]";
             return null;
         }
 
@@ -44,13 +55,13 @@ internal static partial class InstallCommand
             return null;
         }
 
-        return (id, version, address, arguments.Count == 5);
+        return (id, version, address, options.Contains(AcceptAgreements), architecture);
     }
 
     /// <summary>Status of an outcome whose source check failed (the certificate, or the source not answering).</summary>
     public const string SourceUnavailable = "SourceUnavailable";
 
-    public static async Task<SoftwareInstallOutcome> RunAsync(string packageId, string version, Uri source, bool acceptAgreements, string engineFolder, string logFolder, HelperTrace trace, Func<Uri, Task<(int HResult, string Detail)?>>? checkSource = null)
+    public static async Task<SoftwareInstallOutcome> RunAsync(string packageId, string version, Uri source, bool acceptAgreements, string engineFolder, string logFolder, HelperTrace trace, Func<Uri, Task<(int HResult, string Detail)?>>? checkSource = null, string? architecture = null)
     {
         ArgumentNullException.ThrowIfNull(trace);
         if (SoftwareInventory.LocalAvailability() != WinGetAvailability.Available)
@@ -74,8 +85,8 @@ internal static partial class InstallCommand
             trace.Write("Reading the installed programs.");
             var installed = (await client.InstalledAsync().ConfigureAwait(false)).Any(p => string.Equals(p.Id, packageId, StringComparison.OrdinalIgnoreCase));
             var result = installed
-                ? await client.UpgradeAsync(packageId, version, catalog, acceptAgreements, logFolder).ConfigureAwait(false)
-                : await client.InstallAsync(packageId, version, catalog, acceptAgreements, logFolder).ConfigureAwait(false);
+                ? await client.UpgradeAsync(packageId, version, catalog, acceptAgreements, logFolder, WinGetClient.Parse(architecture)).ConfigureAwait(false)
+                : await client.InstallAsync(packageId, version, catalog, acceptAgreements, logFolder, WinGetClient.Parse(architecture)).ConfigureAwait(false);
             return new SoftwareInstallOutcome
             {
                 Succeeded = result.Succeeded,

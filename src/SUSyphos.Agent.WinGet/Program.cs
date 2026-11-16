@@ -13,14 +13,14 @@ if (args is [InventoryCommand.Name])
 }
 else if (args is [InstallCommand.Name, ..])
 {
-    if (InstallCommand.Parse(args, out var error) is not { } install)
+    if (InstallCommand.ParseWithArchitecture(args, out var error) is not { } install)
     {
         await Console.Error.WriteLineAsync(error);
         return 2;
     }
 
     HelperTrace.Clean(LogFolder(), DateTime.Now);
-    report = await InstallCommand.RunAsync(install.PackageId, install.Version, install.Source, install.AcceptAgreements, engineFolder, LogFolder(), new HelperTrace(Console.Error, LogFolder()));
+    report = await InstallCommand.RunAsync(install.PackageId, install.Version, install.Source, install.AcceptAgreements, engineFolder, LogFolder(), new HelperTrace(Console.Error, LogFolder()), architecture: install.Architecture);
 }
 else if (args is [UninstallCommand.Name, ..])
 {

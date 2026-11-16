@@ -19,4 +19,9 @@
     <PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Shared definitions such as the architecture from a program's name, so agent and central server agree. -->
+    <ProjectReference Include="..\SUSyphos.Contracts\SUSyphos.Contracts.csproj" />
+  </ItemGroup>
+
 </Project>

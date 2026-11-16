@@ -59,6 +59,7 @@ internal static class HResultCatalog
         // Software with WinGet (0.9): the certificate check of the agent and the codes of WinGet that matter here.
         [CertificateNotTrusted] = "The server does not trust the certificate of the central server, so WinGet cannot use its source. Use a certificate of a CA the servers trust, or switch on the agent setting \"Trust the central server's own certificate for WinGet\".",
         [unchecked((int)0x8A15003B)] = "WinGet could not use the source of the central server (REST error). Most often the server does not trust the certificate of the central server: use a CA certificate or switch on the agent setting \"Trust the central server's own certificate for WinGet\".",
+        [unchecked((int)0x80131500)] = "WinGet failed in the helper before an installer ran (for example a source it could not use); the agent log names the reason (\"WinGet helper: …\").",
         [unchecked((int)0x8A150006)] = "The installer of the package ended with an error exit code (WinGet calls it \"ShellExecute failed\"); the agent log names the exit code, the installer's own log may name the reason.",
         [unchecked((int)0x8A150008)] = "WinGet could not download the installer from the central server.",
         [unchecked((int)0x8A150010)] = "None of the installers of this version fits the server (architecture or installer type).",

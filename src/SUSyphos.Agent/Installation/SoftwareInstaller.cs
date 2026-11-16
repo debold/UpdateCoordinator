@@ -128,6 +128,12 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
             arguments.Add("accept-agreements");
         }
 
+        // The installation to update (x64 or x86), as the central server knows it from the program's name.
+        if (SoftwareArchitecture.IsKnown(software.Architecture))
+        {
+            arguments.Add("arch=" + software.Architecture);
+        }
+
         try
         {
             var finished = await runner.RunAsync(arguments, Timeout, cancellationToken).ConfigureAwait(false);

@@ -242,4 +242,28 @@ public sealed class SoftwareReleaseTests
         Assert.Equal([NewZip], needed.Select(n => n.UpdateId));
         Assert.Empty(installed);
     }
+
+    [Fact]
+    public async Task OlderOfTwoPlatforms_IsUpdated_InItsOwnArchitecture()
+    {
+        // Lab, 2026-11-16: x64 10.0.12 and x86 10.0.15 of the .NET runtime; the release must update the x64 one.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("APP01", RingEntity.PilotId);
+        const string Runtime = "Microsoft.DotNet.DesktopRuntime.10";
+        var updateId = SoftwarePackages.SoftwareUpdateId(Runtime, "10.0.15");
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            db.Packages.Add(new PackageEntity { PackageId = Runtime, Name = ".NET Desktop Runtime 10", AddedBy = "inventory" });
+            db.Updates.Add(new UpdateEntity { UpdateId = updateId, Revision = SoftwarePackages.SoftwareRevision, Title = ".NET Desktop Runtime 10 10.0.15", Kind = UpdateKind.Software, PackageId = Runtime, PackageVersion = "10.0.15" });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client.ClientId, View = SoftwareView.Machine32, KeyName = "{x64}", DisplayName = "Microsoft Windows Desktop Runtime 10.0.12 (x64)", PackageId = Runtime, InstalledVersion = "10.0.12.50000", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client.ClientId, View = SoftwareView.Machine32, KeyName = "{x86}", DisplayName = "Microsoft Windows Desktop Runtime 10.0.15 (x86)", PackageId = Runtime, InstalledVersion = "10.0.15", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+            db.Releases.Add(new ReleaseEntity { ClientId = client.ClientId, UpdateId = updateId, Revision = SoftwarePackages.SoftwareRevision, EarliestInstallAtUtc = DateTime.UtcNow });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        var software = Assert.Single((await scenario.ReleasesAsync(client)).Releases).Software!;
+
+        Assert.Equal(("10.0.12.50000", "x64"), (software.InstalledVersion, software.Architecture));
+    }
 }

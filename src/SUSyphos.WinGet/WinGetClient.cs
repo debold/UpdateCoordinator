@@ -180,11 +180,15 @@ public sealed class WinGetClient(WinGetEngine engine)
             .ToList();
     }
 
-    public Task<WinGetOperationResult> InstallAsync(string id, string? version, PackageCatalogReference? source, bool acceptAgreements, string logFolder) =>
-        RunAsync("install", id, version, source, acceptAgreements, logFolder);
+    public Task<WinGetOperationResult> InstallAsync(string id, string? version, PackageCatalogReference? source, bool acceptAgreements, string logFolder, Windows.System.ProcessorArchitecture? architecture = null) =>
+        RunAsync("install", id, version, source, acceptAgreements, logFolder, architecture);
 
-    public Task<WinGetOperationResult> UpgradeAsync(string id, string? version, PackageCatalogReference? source, bool acceptAgreements, string logFolder) =>
-        RunAsync("upgrade", id, version, source, acceptAgreements, logFolder);
+    /// <summary>
+    /// Upgrades a package; <paramref name="architecture"/> names the installed program to update when the central server
+    /// knows it from its name, otherwise it is guessed from the installation.
+    /// </summary>
+    public Task<WinGetOperationResult> UpgradeAsync(string id, string? version, PackageCatalogReference? source, bool acceptAgreements, string logFolder, Windows.System.ProcessorArchitecture? architecture = null) =>
+        RunAsync("upgrade", id, version, source, acceptAgreements, logFolder, architecture);
 
     /// <summary>Uninstalls an installed package for the machine, silently.</summary>
     public async Task<WinGetOperationResult> UninstallAsync(string id, PackageCatalogReference? source, string logFolder)
@@ -225,7 +229,7 @@ public sealed class WinGetClient(WinGetEngine engine)
     internal static string Describe(Exception? error) =>
         error is null ? string.Empty : $"0x{error.HResult:X8} {error.Message}".Trim();
 
-    private async Task<WinGetOperationResult> RunAsync(string operation, string id, string? version, PackageCatalogReference? source, bool acceptAgreements, string logFolder)
+    private async Task<WinGetOperationResult> RunAsync(string operation, string id, string? version, PackageCatalogReference? source, bool acceptAgreements, string logFolder, Windows.System.ProcessorArchitecture? requested = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(logFolder);
@@ -249,8 +253,18 @@ public sealed class WinGetClient(WinGetEngine engine)
 
         // An upgrade keeps the architecture of the installed program: installers refuse to put x64 over x86 or the
         // other way round (lab, 2026-11-10: TeamViewer Host x86 ended with exit code 2).
+        // The central server names the architecture of the installation to update when its name tells it. With an x64
+        // and an x86 installation WinGet correlates only one of them; when that is the other one, the named one is
+        // installed over directly (lab, 2026-11-16: an upgrade of the x64 .NET runtime installed the x86 one beside it).
         var keptArchitecture = false;
-        if (operation == "upgrade" && InstalledArchitecture(package) is { } architecture)
+        var guessed = operation == "upgrade" ? InstalledArchitecture(package) : null;
+        if (requested is { } named && operation == "upgrade" && guessed is { } other && other != named)
+        {
+            operation = "install";
+            Trace?.Invoke($"WinGet sees the {other} installation; installing the {named} version over the {named} installation instead.");
+        }
+
+        if ((requested ?? guessed) is { } architecture)
         {
             install.AllowedArchitectures.Clear();
             install.AllowedArchitectures.Add(architecture);
@@ -309,6 +323,12 @@ public sealed class WinGetClient(WinGetEngine engine)
             return null;
         }
 
+        // The name first: Burn bundles of x64 programs (.NET runtimes, Visual C++) register in the 32-bit view.
+        if (SUSyphos.Contracts.Agents.SoftwareArchitecture.FromName(installed.DisplayName) is { } named)
+        {
+            return Parse(named);
+        }
+
         if (installed.ProductCodes.Any(code => UninstallInventory.IsIn32BitViewOnly(code)))
         {
             return Windows.System.ProcessorArchitecture.X86;
@@ -318,6 +338,15 @@ public sealed class WinGetClient(WinGetEngine engine)
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
             Environment.GetEnvironmentVariable("ProgramW6432") ?? Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
     }
+
+    /// <summary>"x64", "x86" or "arm64" (as the release list names them) as WinGet's architecture; null for anything else.</summary>
+    public static Windows.System.ProcessorArchitecture? Parse(string? architecture) => architecture switch
+    {
+        SUSyphos.Contracts.Agents.SoftwareArchitecture.X64 => Windows.System.ProcessorArchitecture.X64,
+        SUSyphos.Contracts.Agents.SoftwareArchitecture.X86 => Windows.System.ProcessorArchitecture.X86,
+        SUSyphos.Contracts.Agents.SoftwareArchitecture.Arm64 when OperatingSystem.IsWindowsVersionAtLeast(10, 0, 18362) => Windows.System.ProcessorArchitecture.Arm64,
+        _ => null,
+    };
 
     /// <summary>The architecture from the install location, given the 32-bit and 64-bit program folders.</summary>
     internal static Windows.System.ProcessorArchitecture? Architecture(string? location, string programFilesX86, string programFiles)

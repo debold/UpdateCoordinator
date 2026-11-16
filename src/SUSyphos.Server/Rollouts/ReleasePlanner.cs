@@ -14,8 +14,28 @@ namespace SUSyphos.Server.Rollouts;
 /// </summary>
 internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvider)
 {
+    /// <summary>
+    /// One synchronization at a time in the process: the rollout worker and a request (heartbeat, update report, an
+    /// administrator's change) synchronizing at the same moment both inserted the same release (lab, 2026-11-13:
+    /// UNIQUE constraint failed on Releases; the evaluation failed and waited for its next interval).
+    /// </summary>
+    private static readonly SemaphoreSlim Gate = new(1, 1);
+
     /// <summary>Synchronizes one client, or all clients if <paramref name="clientId"/> is null. Saves the changes.</summary>
     public async Task SyncAsync(Guid? clientId, CancellationToken cancellationToken)
+    {
+        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await SyncCoreAsync(clientId, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
+    private async Task SyncCoreAsync(Guid? clientId, CancellationToken cancellationToken)
     {
         var clients = await db.Clients
             .Where(c => clientId == null || c.Id == clientId)

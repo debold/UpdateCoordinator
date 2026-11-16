@@ -146,4 +146,5 @@ public sealed record Release(Guid UpdateId, int Revision, DateTimeOffset Earlies
 /// <param name="AcceptAgreements">An administrator accepted the package's agreements, so the installation may accept them.</param>
 /// <param name="Scripts">Approved scripts of the package for the installation phases (0.9, Marc 2026-11-13); null or empty without.</param>
 /// <param name="InstalledVersion">The version the server reports installed (an upgrade), null for a new installation; scripts see it.</param>
-public sealed record SoftwareRelease(string PackageId, string Version, bool AcceptAgreements, IReadOnlyList<SUSyphos.Contracts.Scripts.ScriptReference>? Scripts = null, string? InstalledVersion = null);
+/// <param name="Architecture">The architecture of the installed program this release updates ("x64", "x86", "arm64"), from its name; null when unknown.</param>
+public sealed record SoftwareRelease(string PackageId, string Version, bool AcceptAgreements, IReadOnlyList<SUSyphos.Contracts.Scripts.ScriptReference>? Scripts = null, string? InstalledVersion = null, string? Architecture = null);
