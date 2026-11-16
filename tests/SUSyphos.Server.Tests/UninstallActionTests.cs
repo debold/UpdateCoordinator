@@ -127,18 +127,19 @@ public sealed class UninstallActionTests
         Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
 
         using var admin = await LoginAsync(scenario, AdminRoles.Admin, "admin");
-        var dialog = await (await admin.GetAsync(path + "?dialog=uninstall")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.Contains($"value=\"{update.UpdateId}\"", dialog, StringComparison.Ordinal);
-        Assert.DoesNotContain($"value=\"{notInstalled.UpdateId}\"", dialog, StringComparison.Ordinal);
-        Assert.DoesNotContain("@candidate", dialog, StringComparison.Ordinal);
+        // The selection names both; the dialog offers only the installed one and names the other as skipped.
+        var dialog = await (await admin.GetAsync($"{path}?tab=updates&dialog=uninstall&isel=u:{update.UpdateId}&isel=u:{notInstalled.UpdateId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains($"name=\"Selected\" value=\"u:{update.UpdateId}\"", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain($"name=\"Selected\" value=\"u:{notInstalled.UpdateId}\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("No longer listed for this server.", dialog, StringComparison.Ordinal);
 
         // An update the server does not have is refused; the installed one is queued.
-        using (await admin.PostFormAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallWhen"] = "now", ["UninstallUpdate"] = notInstalled.UpdateId.ToString() }))
+        using (await admin.PostFormAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallWhen"] = "now", ["Selected"] = $"u:{notInstalled.UpdateId}" }))
         {
         }
 
         Assert.False(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(TestContext.Current.CancellationToken)));
-        using (await admin.PostFormAndFollowAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallWhen"] = "now", ["UninstallUpdate"] = update.UpdateId.ToString() }))
+        using (await admin.PostFormAndFollowAsync(path + "?dialog=uninstall", new Dictionary<string, string> { ["_handler"] = "uninstall", ["UninstallWhen"] = "now", ["Selected"] = $"u:{update.UpdateId}" }))
         {
         }
 
@@ -176,13 +177,15 @@ public sealed class UninstallActionTests
         });
         using var admin = await LoginAsync(scenario, AdminRoles.Admin, "admin");
 
-        var dialog = await (await admin.GetAsync($"/servers/{client.ClientId}?dialog=uninstall")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        // The box "Installed updates" of the Updates tab (Marc, 2026-11-16) lists what can be uninstalled.
+        var tab = await (await admin.GetAsync($"/servers/{client.ClientId}?tab=updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(dialog.IndexOf($"value=\"{newer}\"", StringComparison.Ordinal) < dialog.IndexOf($"value=\"{older}\"", StringComparison.Ordinal), "The newest installation comes first.");
-        Assert.DoesNotContain($"value=\"{signature}\"", dialog, StringComparison.Ordinal);
-        Assert.DoesNotContain($"value=\"{tool}\"", dialog, StringComparison.Ordinal);
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(dialog, "only through DISM, may fail"));
-        Assert.Contains("type=\"radio\"", dialog, StringComparison.Ordinal);
+        Assert.True(tab.IndexOf($"value=\"u:{newer}\"", StringComparison.Ordinal) < tab.IndexOf($"value=\"u:{older}\"", StringComparison.Ordinal), "The newest installation comes first.");
+        Assert.True(tab.IndexOf($"value=\"u:{older}\"", StringComparison.Ordinal) > 0);
+        Assert.DoesNotContain($"value=\"u:{signature}\"", tab, StringComparison.Ordinal);
+        Assert.DoesNotContain($"value=\"u:{tool}\"", tab, StringComparison.Ordinal);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(tab, "only through DISM, may fail"));
+        Assert.Contains("name=\"isel\"", tab, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -217,19 +220,22 @@ public sealed class UninstallActionTests
         Assert.DoesNotContain("Security Intelligence Update", history, StringComparison.Ordinal);
         Assert.Contains("View: Without definition updates (default)", history, StringComparison.Ordinal);
         Assert.Contains("Definition updates only", history, StringComparison.Ordinal);
-        Assert.Contains($"dialog=uninstall&update={update:D}", history, StringComparison.Ordinal);
-        Assert.DoesNotContain($"update={signature:D}", history, StringComparison.Ordinal);
+        Assert.Contains($"dialog=uninstall&isel=u:{update:D}", history, StringComparison.Ordinal);
+        Assert.DoesNotContain($"isel=u:{signature:D}", history, StringComparison.Ordinal);
 
         var all = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync(path + "?tab=history&hist.view=all&wu.view=all")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Contains("Security Intelligence Update", all, StringComparison.Ordinal);
 
+        // The update page links with "update=" (older links too): the dialog offers that update.
         var dialog = await (await admin.GetAsync($"{path}?tab=history&dialog=uninstall&update={update:D}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.Matches($"value=\"{update}\"[^>]*checked", dialog);
+        Assert.Contains($"value=\"u:{update}\"", dialog, StringComparison.Ordinal);
 
-        // A malformed choice only leaves the dialog without preselection.
-        using var malformed = await admin.GetAsync($"{path}?dialog=uninstall&update=%27%3Bdrop");
+        // A malformed choice only leaves the dialog without a selection.
+        using var malformed = await admin.GetAsync($"{path}?dialog=uninstall&update=%27%3Bdrop&isel=%27%3Bdrop");
         Assert.Equal(System.Net.HttpStatusCode.OK, malformed.StatusCode);
-        Assert.DoesNotMatch($"value=\"{update}\"[^>]*checked", await malformed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var text = await malformed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.DoesNotContain($"value=\"u:{update}\"", text, StringComparison.Ordinal);
+        Assert.Contains("No longer listed for this server.", text, StringComparison.Ordinal);
     }
 
     [Theory]

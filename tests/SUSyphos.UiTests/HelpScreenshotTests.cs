@@ -30,6 +30,7 @@ public sealed class HelpScreenshotTests(ShowcaseFixture ui)
         { "overview-tiles", "/", null, "main .tiles" },
         { "server-list", "/servers", null, "main section.box:has(.ring-strip)" },
         { "server-page", "/servers/{main}", null, "main .tiles" },
+        { "server-update-selection", "/servers/{main}?tab=updates", "tbody input[name='sel'] >> nth=0", "main section.box#missing" },
         { "update-list", "/updates", null, "main section.box:has(table)" },
         { "update-progress", "/updates/{update}", null, "main .grid-side" },
         { "operating-systems", "/operating-systems", null, "main .tiles" },

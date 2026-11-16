@@ -251,14 +251,14 @@ public sealed class SoftwareUninstallTests
             {
             }
 
-            var tab = await (await admin.GetAsync($"/servers/{first.ClientId}?tab=software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            var tab = await (await admin.GetAsync($"/servers/{first.ClientId}?tab=software&sw.view=all")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.Contains("Not known to WinGet. Remove it on the server.", tab, StringComparison.Ordinal);
             Assert.Contains($"dialog=uninstall-software&amp;package={Uri.EscapeDataString(Package)}", tab, StringComparison.Ordinal);
 
             var dialog = await (await admin.GetAsync($"/servers/{first.ClientId}?tab=software&dialog=uninstall-software&package={Uri.EscapeDataString(Package)}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-            Assert.Contains("Uninstall program", dialog, StringComparison.Ordinal);
+            Assert.Contains($"name=\"Selected\" value=\"p:{Package}\"", System.Net.WebUtility.HtmlDecode(dialog), StringComparison.Ordinal);
 
-            using (await admin.PostFormAsync($"/servers/{first.ClientId}?tab=software&dialog=uninstall-software&package={Uri.EscapeDataString(Package)}", new Dictionary<string, string> { ["_handler"] = "uninstall-software", ["UninstallPackage"] = Package, ["UninstallSoftwareWhen"] = "now" }))
+            using (await admin.PostFormAsync($"/servers/{first.ClientId}?tab=software&dialog=uninstall-software&package={Uri.EscapeDataString(Package)}", new Dictionary<string, string> { ["_handler"] = "uninstall", ["Selected"] = $"p:{Package}", ["UninstallWhen"] = "now" }))
             {
             }
 
@@ -270,7 +270,7 @@ public sealed class SoftwareUninstallTests
             {
             }
 
-            using (await op.PostFormAsync($"/servers/{first.ClientId}?tab=software&dialog=uninstall-software&package={Uri.EscapeDataString(Package)}", new Dictionary<string, string> { ["_handler"] = "uninstall-software", ["UninstallPackage"] = Package, ["UninstallSoftwareWhen"] = "now" }))
+            using (await op.PostFormAsync($"/servers/{first.ClientId}?tab=software&dialog=uninstall-software&package={Uri.EscapeDataString(Package)}", new Dictionary<string, string> { ["_handler"] = "uninstall", ["Selected"] = $"p:{Package}", ["UninstallWhen"] = "now" }))
             {
             }
 

@@ -1,0 +1,55 @@
+@* What an action on a selection of a list applies to and what it skips, with the reason (Marc, 2026-11-16): the
+   confirmation dialogs of the server page show it, so nothing is acted on that the administrator did not see. *@
+@if (Applies.Count + Skipped.Count + Missing == 0)
+{
+    <p class="error" role="alert">Nothing is selected. Close this dialog, select updates in the list with their checkboxes and choose the action again.</p>
+}
+else
+{
+    @if (Applies.Count == 0)
+    {
+        <p class="error" role="alert">None of the selected entries can be chosen for this; see why below.</p>
+    }
+    else
+    {
+        <ul class="plain selection-list">
+            @foreach (var (title, note) in Applies)
+            {
+                <li>@title @if (note is not null) { <span class="note">(@note)</span> }</li>
+            }
+        </ul>
+    }
+
+    @if (Skipped.Count > 0 || Missing > 0)
+    {
+        <p><b>Not to @Verb</b> (@DisplayNumber.Format(Skipped.Count + Missing)):</p>
+        <ul class="plain selection-list skipped">
+            @foreach (var (title, reason) in Skipped)
+            {
+                <li>@title <span class="note">@reason</span></li>
+            }
+            @if (Missing > 0)
+            {
+                <li>@(Missing == 1 ? "1 selected entry" : $"{DisplayNumber.Format(Missing)} selected entries") <span class="note">No longer listed for this server.</span></li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    /// <summary>The rows the action applies to, each with an optional note.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<(string Title, string? Note)> Applies { get; set; } = [];
+
+    /// <summary>The selected rows the action does not apply to, each with the reason.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<(string Title, string Reason)> Skipped { get; set; } = [];
+
+    /// <summary>Selected entries the list no longer has.</summary>
+    [Parameter]
+    public int Missing { get; set; }
+
+    /// <summary>The verb of the action for the heading of the skipped rows, e.g. "install".</summary>
+    [Parameter, EditorRequired]
+    public string Verb { get; set; } = string.Empty;
+}

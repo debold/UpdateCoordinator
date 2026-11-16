@@ -9,6 +9,7 @@
 @inject AssignmentAdministration Administration
 @inject DeploymentStatus Deployment
 @inject SUSyphos.Server.Agents.AgentActionService Actions
+@inject SUSyphos.Server.Rollouts.ServerUpdateSelection Selection
 @inject SUSyphos.Server.Approval.ServerRemoval Removal
 @inject TimeProvider Time
 @inject SUSyphos.Server.Agents.GlobalPause Pause
@@ -71,8 +72,7 @@ else
                 <MenuItem Form="actions" Name="RemoteAction" Value="queue:SearchNow" Icon="search">Search for updates</MenuItem>
                 <MenuItem Form="actions" Name="RemoteAction" Value="queue:FullResync" Icon="refresh-cw" Reason="Collect the inventory and the Windows Update history again and search">Sync inventory and history</MenuItem>
                 <MenuSeparator />
-                <MenuItem Href="@DialogLink("install")" Icon="download" Disabled="@(!_canAdminister || ReleasedPending.Count == 0)" Reason="@(!_canAdminister ? AdministratorsOnly : ReleasedPending.Count == 0 ? "No released update is missing on this server" : null)">Install updates now…</MenuItem>
-                <MenuItem Href="@DialogLink("uninstall")" Icon="undo-2" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? null : AdministratorsOnly)">Uninstall update…</MenuItem>
+                <MenuItem Href="@DialogLink("install")" Icon="download" Disabled="@(!_canAdminister || ReleasedPending.Count == 0)" Reason="@(!_canAdminister ? AdministratorsOnly : ReleasedPending.Count == 0 ? "No released update is missing on this server" : "Install every released update now; to choose updates, select them on the Updates tab")">Install all released now…</MenuItem>
             </ActionMenu>
             <ActionMenu Label="Server" Icon="server">
                 <MenuItem Href="@DialogLink("restart")" Icon="power" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? null : AdministratorsOnly)">Restart server…</MenuItem>
@@ -227,14 +227,58 @@ else
     }
     else if (_tab == ServerPage.Updates)
     {
+    @* The selection of the lists (Marc, 2026-11-16): checkboxes and buttons belong to these forms by form="…", which open
+       the confirmation of the action with the selection in the address (sel, isel); without script they work the same. *@
+    <form id="missing-select" method="get" action="/servers/@Id" class="detached"><input type="hidden" name="tab" value="updates" /></form>
+    <form id="installed-select" method="get" action="/servers/@Id" class="detached"><input type="hidden" name="tab" value="updates" /></form>
     <Box Title="Missing updates" Anchor="missing" Help="server-detail#missing" Flush="true">
-        <ListTable Table="_openTable" Page="_openPage" Columns="OpenColumns" Search="Search update" Noun="updates" Empty="The last search reported no missing update.">
+        @if (_canOperate && _open.Count > 0)
+        {
+            <div class="selection-bar" data-selection="sel">
+                <span class="note" data-selection-count>Select updates, then</span>
+                <button type="submit" form="missing-select" name="dialog" value="install-selection" class="primary" disabled="@(!_canAdminister)" title="@(_canAdminister ? "Install the selected updates now, also outside the maintenance window" : AdministratorsOnly)" data-help-term="Install now"><Icon Name="download" Size="16" />Install now…</button>
+                <button type="submit" form="missing-select" name="dialog" value="hold-selection" title="Hold the selected updates for this server" data-help-term="Hold"><Icon Name="pause" Size="16" />Hold…</button>
+                <button type="submit" form="missing-select" name="dialog" value="end-hold-selection" title="End the holds of this server for the selected updates" data-help-term="End hold"><Icon Name="play" Size="16" />End hold…</button>
+            </div>
+        }
+        <ListTable Table="_openTable" Page="_openPage" Columns="OpenColumns" Search="Search update" Noun="updates" Empty="The last search reported no missing update." ExtraColumns="@(_canOperate ? 1 : 0)">
+            <Leading>@if (_canOperate) { <th class="select"><input type="checkbox" data-select-all="sel" data-help="tables#select" data-help-term="Select all" aria-label="Select all updates shown" hidden /></th> }</Leading>
             <Row Context="row">
                 <tr>
-                    <td class="wrap"><a href="/updates/@row.Entry.UpdateId/@row.Entry.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /></td>
-                    <td><span class="pill @DeploymentText.PillClass(row.Entry)">@OpenStatus(row.Entry)</span></td>
+                    @if (_canOperate)
+                    {
+                        <td><input type="checkbox" form="missing-select" name="sel" value="@row.Entry.UpdateId" aria-label="@($"Select {row.Title}")" data-help-term="Select" /></td>
+                    }
+                    <td class="wrap"><a href="/updates/@row.Entry.UpdateId/@row.Entry.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" />@if (_softwareIds.Contains(row.Entry.UpdateId)) { <text> </text><ClassificationTag Text="@SUSyphos.Server.Software.SoftwarePackages.Classification" /> }</td>
+                    <td><span class="pill @DeploymentText.PillClass(row.Entry)">@OpenStatus(row.Entry)</span>@if (_missingRows.GetValueOrDefault(row.Entry.UpdateId)?.Hold is { } hold) { <div class="note">on hold for @hold.Target</div> }</td>
                     <td class="nowrap">@Format(row.Entry.EarliestInstallAtUtc)</td>
                     <td>@(row.Entry.HResult is { } hresult ? UpdateHistoryText.Failure(hresult, row.Entry.InstallerExitCode) : null)</td>
+                </tr>
+            </Row>
+        </ListTable>
+    </Box>
+
+    <Box Title="Installed updates" Anchor="installed" Help="server-detail#installed" Flush="true" Hint="Updates the server can uninstall and programs WinGet knows">
+        @if (_canAdminister && _installedRows.Count > 0)
+        {
+            <div class="selection-bar" data-selection="isel">
+                <span class="note" data-selection-count>Select updates or programs, then</span>
+                <button type="submit" form="installed-select" name="dialog" value="hold-selection" title="Hold the selected updates for this server, so they are not installed again" data-help-term="Hold"><Icon Name="pause" Size="16" />Hold…</button>
+                <div class="spacer"></div>
+                <button type="submit" form="installed-select" name="dialog" value="uninstall" class="danger" title="Uninstall the selected updates and programs from this server" data-help-term="Uninstall"><Icon Name="undo-2" Size="16" />Uninstall…</button>
+            </div>
+        }
+        <ListTable Table="_installedTable" Page="_installedPage" Columns="InstalledColumns" Search="Search update or program" Noun="updates" Empty="The inventory lists no update this server can uninstall and no program WinGet knows." ExtraColumns="@(_canAdminister ? 1 : 0)">
+            <Leading>@if (_canAdminister) { <th class="select"><input type="checkbox" data-select-all="isel" data-help="tables#select" data-help-term="Select all" aria-label="Select all updates shown" hidden /></th> }</Leading>
+            <Row Context="row">
+                <tr>
+                    @if (_canAdminister)
+                    {
+                        <td><input type="checkbox" form="installed-select" name="isel" value="@row.Key" aria-label="@($"Select {row.Title}")" data-help-term="Select" /></td>
+                    }
+                    <td class="wrap">@if (row.UpdateId is { } updateId) { <a href="/updates/@updateId/@row.Revision">@row.Title</a> <KbLinks Kb="@UpdateText.KbIn(row.Title)" /> } else { <a href="@PackagePage.Link(row.PackageId!)">@row.Title</a> <text> </text><ClassificationTag Text="@SUSyphos.Server.Software.SoftwarePackages.Classification" /> }</td>
+                    <td class="nowrap">@(row.InstalledAtUtc is { } at ? DisplayTime.FormatDate(at) : "–")</td>
+                    <td>@if (row.UninstallBlocker is { } blocker) { <span class="note">@blocker</span> } else if (row.Uninstallable == false) { <span title="Windows Update cannot remove it; the agent tries DISM by the KB number, which some packages refuse"><StatusTag Text="only through DISM, may fail" Kind="queue" /></span> } else { <StatusTag Text="yes" Kind="ok" /> }@if (row.Hold is { } hold) { <div class="note">on hold for @hold.Target</div> }</td>
                 </tr>
             </Row>
         </ListTable>
@@ -499,65 +543,108 @@ else
     }
     </TabBar>
 
-    @if (Dialog == "uninstall-software" && _software.FirstOrDefault(s => s.Program.PackageId is not null && string.Equals(s.Program.PackageId, UninstallPackageQuery, StringComparison.OrdinalIgnoreCase)) is { } program)
+    @if (Dialog is "uninstall" or "uninstall-software")
     {
-        <Dialog Title="@($"Uninstall {program.Program.DisplayName} from {_client.HostName}?")" CloseHref="@($"/servers/{Id}?tab=software")" Help="server-detail#uninstall-software">
-            <form method="post" @formname="uninstall-software" @onsubmit="UninstallSoftwareAsync">
+        var chosen = _installedRows.Where(r => SelectedInstalled.Contains(r.Key)).ToList();
+        var applies = chosen.Where(r => r.UninstallBlocker is null).ToList();
+        var anyUpdate = applies.Any(r => !r.Software);
+        var anySoftware = applies.Any(r => r.Software);
+        <Dialog Title="@(applies.Count == 1 ? $"Uninstall {applies[0].Title} from {_client.HostName}?" : $"Uninstall {applies.Count} updates and programs from {_client.HostName}?")" CloseHref="@SelectionCloseHref" Help="server-detail#uninstall" Wide="true">
+            <form method="post" @formname="uninstall" @onsubmit="UninstallSelectionAsync">
                 <AntiforgeryToken />
-                <input type="hidden" name="UninstallPackage" value="@program.Program.PackageId" />
                 <div class="dialog-body">
-                    @if (SoftwareUninstallBlocker(program) is { } reason)
+                    <SelectionSummary Applies="@applies.Select(r => (r.Title, r.Software ? "Software" : r.Uninstallable == false ? "only through DISM, may fail" : null)).ToList()" Skipped="@chosen.Where(r => r.UninstallBlocker is not null).Select(r => (r.Title, r.UninstallBlocker!)).ToList()" Missing="@(SelectedInstalled.Count - chosen.Count)" Verb="uninstall" />
+                    @foreach (var row in applies)
                     {
-                        <p class="error" role="alert">@reason</p>
+                        <input type="hidden" name="Selected" value="@row.Key" />
                     }
-                    <FactGrid ShowLabel="true">
-                        <Fact Label="Package" Mono="true">@program.Program.PackageId</Fact>
-                        <Fact Label="Installed">@(program.Program.InstalledVersion ?? program.Program.DisplayVersion ?? "–")</Fact>
-                        <Fact Label="Method">WinGet, silent, as SYSTEM</Fact>
-                    </FactGrid>
-                    @if (SUSyphos.Server.Software.SoftwareUninstall.IsRuntime(program.Program.PackageId!))
+                    @if (applies.Any(r => r.PackageId is { } package && SUSyphos.Server.Software.SoftwareUninstall.IsRuntime(package)))
                     {
-                        <p class="warning">This is a runtime that other programs may need. Make sure nothing on the server depends on it.</p>
+                        <p class="warning">The selection holds a runtime that other programs may need (Visual C++ Redistributable, .NET, Java, WebView2 and the like). Make sure nothing on the server depends on it.</p>
                     }
-                    <UninstallTiming Name="UninstallSoftwareWhen" Software="true" />
-                    <p class="note">The agent uninstalls with WinGet and sends its inventory right after; the uninstallation counts as done once the inventory no longer lists the program. Assignments of the package that cover this server install it again: remove them on the package page.</p>
+                    <UninstallTiming Name="UninstallWhen" Software="@(anySoftware && !anyUpdate)" />
+                    @if (anyUpdate)
+                    {
+                        <label class="check"><input type="checkbox" name="UninstallHold" value="yes" checked data-help-term="Hold the updates for this server" /> Hold the updates for this server, so they are not installed again</label>
+                    }
+                    <p class="note">Next maintenance window: @NextWindowText. Windows updates are removed through Windows Update, or with DISM by the KB number where Windows Update cannot; programs with WinGet, silently as SYSTEM, "in the next window" meaning their software window. Each becomes a remote action of its own.@if (anySoftware) { <text> Assignments of a package that cover this server install it again: end them on the package page.</text> }</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@($"/servers/{Id}?tab=software")">Cancel</a><button type="submit" class="danger" disabled="@(SoftwareUninstallBlocker(program) is not null)">Uninstall program</button></div>
+                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">Cancel</a><button type="submit" class="danger" disabled="@(applies.Count == 0)">Uninstall</button></div>
             </form>
         </Dialog>
     }
-    else if (Dialog == "uninstall")
+    else if (Dialog == "install-selection")
     {
-        <Dialog Title="@($"Uninstall an update on {_client.HostName}?")" CloseHref="@Here" Help="server-detail#uninstall" Wide="true">
-            <form method="post" @formname="uninstall" @onsubmit="UninstallAsync">
+        var chosen = _missingRows.Values.Where(r => SelectedMissing.Contains(r.UpdateId)).ToList();
+        var applies = chosen.Where(r => r.InstallBlocker is null).ToList();
+        var supported = SUSyphos.Server.Agents.AgentActionService.SupportsSelection(_client.AgentVersion);
+        <Dialog Title="@(applies.Count == 1 ? $"Install {applies[0].Title} on {_client.HostName} now?" : $"Install {applies.Count} updates on {_client.HostName} now?")" CloseHref="@SelectionCloseHref" Help="server-detail#install-selection" Wide="true">
+            <form method="post" @formname="install-selection" @onsubmit="InstallSelectionAsync">
                 <AntiforgeryToken />
                 <div class="dialog-body">
-                    @if (_installed.Count == 0)
+                    @if (!supported)
                     {
-                        <p>The inventory of this server lists no installed update that can be uninstalled (Defender signatures and its platform, the Malicious Software Removal Tool and cumulative updates for .NET Framework are not offered).</p>
+                        <p class="error" role="alert">The agent of this server (@DisplayNumber.Version(AgentVersion.ShortForm(_client.AgentVersion))) installs a selection from version @SUSyphos.Contracts.Agents.AgentAction.SelectionSinceVersion on. Update the agent, or use "Install all released now" in the Updates menu.</p>
                     }
-                    else
+                    <SelectionSummary Applies="@applies.Select(r => (r.Title, r.Released ? (r.Software ? "Software" : null) : "not released for its ring yet: released for this server only")).ToList()" Skipped="@chosen.Where(r => r.InstallBlocker is not null).Select(r => (r.Title, r.InstallBlocker!)).ToList()" Missing="@(SelectedMissing.Count - chosen.Count)" Verb="install" />
+                    @foreach (var row in applies)
                     {
-                        <div class="scroll radio-list">
-                            <table class="compact">
-                                <thead><tr><th><span class="visually-hidden">Choose</span></th><th>Update</th><th>Installed</th></tr></thead>
-                                <tbody>
-                                    @foreach (var candidate in _installed)
-                                    {
-                                        <tr>
-                                            <td><input type="radio" id="@($"uninstall-{candidate.UpdateId:N}")" name="UninstallUpdate" value="@candidate.UpdateId" checked="@(candidate.UpdateId == PreselectedUpdate)" required data-help-term="Update" /></td>
-                                            <td class="wrap"><label for="@($"uninstall-{candidate.UpdateId:N}")">@candidate.Title</label>@if (candidate.Kb is not null) { <div class="note">KB@(candidate.Kb)</div> }@if (candidate.Uninstallable == false) { <div><span title="Windows Update cannot remove it; the agent tries DISM by the KB number, which some packages refuse"><StatusTag Text="only through DISM, may fail" Kind="queue" /></span></div> }</td>
-                                            <td class="nowrap">@(candidate.InstalledAtUtc is { } at ? DisplayTime.FormatDate(at) : "–")</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
+                        <input type="hidden" name="Selected" value="@row.UpdateId" />
                     }
-                    <UninstallTiming />
-                    <p class="note">Next maintenance window: @NextWindowText. The agent uninstalls through Windows Update, or with DISM by the KB number where Windows Update cannot; some packages cannot be removed, the remote action then reports why. To keep the update away from all servers, block it on its update page.</p>
+                    @if (applies.Any(r => !r.Released))
+                    {
+                        <p>Updates not released for the ring yet are released for this server alone (recorded in the audit log); the ring keeps its own date.</p>
+                    }
+                    <p>The agent installs them with its next heartbeat, also outside the maintenance window. If Windows then needs a restart, the server restarts <b>right after</b> (five minute warning) or in the <b>next maintenance window</b> (next window: @NextWindowText).</p>
+                    <p class="note">A global pause holds the installation until it ends; in a coordinated group the agent waits for a free slot for Windows updates (software takes no lease). A local veto (registry value AllowReboot) prevents the restart.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="danger" disabled="@(_installed.Count == 0)">Uninstall update</button></div>
+                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">Cancel</a><button type="submit" name="SelectionRestart" value="window" disabled="@(applies.Count == 0 || !supported)">Install, restart in the next window</button><button type="submit" name="SelectionRestart" value="now" class="danger" disabled="@(applies.Count == 0 || !supported)">Install and restart right after</button></div>
+            </form>
+        </Dialog>
+    }
+    else if (Dialog == "hold-selection")
+    {
+        var chosenMissing = _missingRows.Values.Where(r => SelectedMissing.Contains(r.UpdateId)).ToList();
+        var chosenInstalled = _installedRows.Where(r => SelectedInstalled.Contains(r.Key)).ToList();
+        var applies = chosenMissing.Where(r => r.HoldBlocker is null).Select(r => r.Title).Concat(chosenInstalled.Where(r => r.HoldBlocker is null).Select(r => r.Title)).ToList();
+        <Dialog Title="@(applies.Count == 1 ? $"Hold {applies[0]} for {_client.HostName}?" : $"Hold {applies.Count} updates for {_client.HostName}?")" CloseHref="@SelectionCloseHref" Help="server-detail#hold-selection" Wide="true">
+            <form method="post" @formname="hold-selection" @onsubmit="HoldSelectionAsync">
+                <AntiforgeryToken />
+                <div class="dialog-body">
+                    <SelectionSummary Applies="@applies.Select(t => (t, (string?)null)).ToList()" Skipped="@chosenMissing.Where(r => r.HoldBlocker is not null).Select(r => (r.Title, r.HoldBlocker!)).Concat(chosenInstalled.Where(r => r.HoldBlocker is not null).Select(r => (r.Title, r.HoldBlocker!))).ToList()" Missing="@(SelectedMissing.Count + SelectedInstalled.Count - chosenMissing.Count - chosenInstalled.Count)" Verb="hold" />
+                    @foreach (var row in chosenMissing.Where(r => r.HoldBlocker is null))
+                    {
+                        <input type="hidden" name="Selected" value="@row.UpdateId" />
+                    }
+                    @foreach (var row in chosenInstalled.Where(r => r.HoldBlocker is null))
+                    {
+                        <input type="hidden" name="SelectedInstalled" value="@row.Key" />
+                    }
+                    <label class="field"><span>Reason <span class="note">optional</span></span><input name="HoldReason" maxlength="@UpdateHoldEntity.MaxReasonLength" autocomplete="off" placeholder="e.g. ticket number" data-help-term="Reason" /></label>
+                    <DateTimeField Label="Hold until" DateName="HoldUntilDate" TimeName="HoldUntilTime" Optional="true" />
+                    <p class="help">Time of the central server. Without a date the hold lasts until someone ends it.</p>
+                    <p class="note">A held update is not released to this server, also not by "Install now"; it stays missing. Holds of the ring or a group stay as they are and are ended on the update page.</p>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">Cancel</a><button type="submit" class="primary" disabled="@(applies.Count == 0)">Hold</button></div>
+            </form>
+        </Dialog>
+    }
+    else if (Dialog == "end-hold-selection")
+    {
+        var chosen = _missingRows.Values.Where(r => SelectedMissing.Contains(r.UpdateId)).ToList();
+        var applies = chosen.Where(r => r.EndHoldBlocker is null).ToList();
+        <Dialog Title="@(applies.Count == 1 ? $"End the hold of {applies[0].Title}?" : $"End the holds of {applies.Count} updates?")" CloseHref="@SelectionCloseHref" Help="server-detail#hold-selection" Wide="true">
+            <form method="post" @formname="end-hold-selection" @onsubmit="EndHoldSelectionAsync">
+                <AntiforgeryToken />
+                <div class="dialog-body">
+                    <SelectionSummary Applies="@applies.Select(r => (r.Title, (string?)null)).ToList()" Skipped="@chosen.Where(r => r.EndHoldBlocker is not null).Select(r => (r.Title, r.EndHoldBlocker!)).ToList()" Missing="@(SelectedMissing.Count - chosen.Count)" Verb="release from the hold" />
+                    @foreach (var row in applies)
+                    {
+                        <input type="hidden" name="Selected" value="@row.UpdateId" />
+                    }
+                    <p class="note">The updates are released to this server again as their ring allows; they install in the next maintenance window.</p>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">Cancel</a><button type="submit" class="primary" disabled="@(applies.Count == 0)">End hold</button></div>
             </form>
         </Dialog>
     }
@@ -730,9 +817,9 @@ else
         new("failed", "Failed", "Failed, refused by the agent or expired", ("state", TableFilter.In(nameof(AgentActionState.Failed), nameof(AgentActionState.Rejected), nameof(AgentActionState.Expired)))),
     ];
 
-    private string UninstallLink(Guid updateId) => $"{DialogLink("uninstall")}&update={updateId:D}";
+    private string UninstallLink(Guid updateId) => $"{DialogLink("uninstall")}&isel=u:{updateId:D}";
 
-    private bool IsUninstallable(Guid updateId) => _installed.Any(c => c.UpdateId == updateId);
+    private bool IsUninstallable(Guid updateId) => _installedRows.Any(r => r.UpdateId == updateId);
 
 
     private Dictionary<Guid, string> _categories = [];
@@ -1038,69 +1125,156 @@ else
     [SupplyParameterFromForm(FormName = "install")]
     private string? InstallWhat { get; set; }
 
+    private SUSyphos.Server.Assignment.SchedulePreviewResult? _schedulePreview;
+
+    /// <summary>The missing updates selected in the list (query "sel", update IDs), for the confirmation dialogs.</summary>
+    [SupplyParameterFromQuery(Name = "sel")]
+    private string[]? SelParam { get; set; }
+
+    /// <summary>The installed updates and programs selected in the list (query "isel", "u:{update id}" or "p:{package id}").</summary>
+    [SupplyParameterFromQuery(Name = "isel")]
+    private string[]? ISelParam { get; set; }
+
+    /// <summary>The program a row of the Software tab opens the uninstall dialog for.</summary>
+    [SupplyParameterFromQuery(Name = "package")]
+    private string? UninstallPackageQuery { get; set; }
+
+    private HashSet<Guid> SelectedMissing => [.. (SelParam ?? []).Take(SUSyphos.Server.Rollouts.ServerUpdateSelection.MaxSelection + 1).Select(s => Guid.TryParse(s, out var id) ? id : Guid.Empty).Where(id => id != Guid.Empty)];
+
+    /// <summary>The installed selection, with the update of a history row ("update") and the program of a software row ("package").</summary>
+    private HashSet<string> SelectedInstalled
+    {
+        get
+        {
+            var keys = new HashSet<string>((ISelParam ?? []).Take(SUSyphos.Server.Rollouts.ServerUpdateSelection.MaxSelection + 1), StringComparer.OrdinalIgnoreCase);
+            if (PreselectedUpdate is { } update)
+            {
+                keys.Add($"u:{update:D}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(UninstallPackageQuery))
+            {
+                keys.Add($"p:{UninstallPackageQuery}");
+            }
+
+            return keys;
+        }
+    }
+
+    /// <summary>Where Cancel of a selection dialog leads: the tab it was opened from.</summary>
+    private string SelectionCloseHref => Dialog == "uninstall-software" ? ServerPage.Link(Id, "software") : _tab == ServerPage.Overview ? $"/servers/{Id}?tab=updates" : Here;
+
+    /// <summary>The missing updates with the actions that apply to them, by update ID.</summary>
+    private Dictionary<Guid, SUSyphos.Server.Rollouts.MissingSelectionRow> _missingRows = [];
+
+    /// <summary>The installed updates the server can uninstall and its programs WinGet knows.</summary>
+    private List<SUSyphos.Server.Rollouts.InstalledSelectionRow> _installedRows = [];
+
+    private TableQuery _installedTable = default!;
+    private TablePage<SUSyphos.Server.Rollouts.InstalledSelectionRow> _installedPage = default!;
+
+    private static readonly IReadOnlyList<TableColumn<SUSyphos.Server.Rollouts.InstalledSelectionRow>> InstalledColumns =
+    [
+        new("update", "Update or program", r => r.Title),
+        new("installed", "Installed", r => r.InstalledAtUtc),
+        new("uninstall", "Can be uninstalled", r => r.UninstallBlocker is null ? r.Uninstallable == false ? 1 : 0 : 2, r => [r.UninstallBlocker is not null ? "no" : r.Uninstallable == false ? "only through DISM" : "yes"]),
+    ];
+
+    /// <summary>The values a confirmation dialog posts back: the rows the action applies to.</summary>
+    private List<string> PostedSelection(string field) =>
+        HttpContext?.Request.HasFormContentType == true ? [.. HttpContext.Request.Form[field].Select(v => v ?? string.Empty).Take(SUSyphos.Server.Rollouts.ServerUpdateSelection.MaxSelection + 1)] : [];
+
+    private List<Guid> PostedUpdateIds() => [.. PostedSelection("Selected").Select(v => Guid.TryParse(v, out var id) ? id : Guid.Empty).Where(id => id != Guid.Empty).Distinct()];
+
+    /// <summary>Shows the result of an action on a selection: how many, and which were skipped and why.</summary>
+    private void ShowSelectionResult(SUSyphos.Server.Rollouts.SelectionResult result, string success)
+    {
+        var skipped = result.Skipped.Count == 0 ? string.Empty
+            : $" Skipped: {string.Join("; ", result.Skipped.Take(5).Select(s => $"{s.Title} ({s.Reason})"))}{(result.Skipped.Count > 5 ? $" and {result.Skipped.Count - 5} more" : string.Empty)}.";
+        ShowResultAndReload(result.Error is null ? null : result.Error + skipped, success + skipped);
+    }
+
+    [SupplyParameterFromForm(FormName = "install-selection")]
+    private string? SelectionRestart { get; set; }
+
+    private async Task InstallSelectionAsync()
+    {
+        var kind = SelectionRestart switch
+        {
+            "now" => SUSyphos.Contracts.Agents.AgentActionKind.InstallNow,
+            "window" => SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow,
+            _ => (SUSyphos.Contracts.Agents.AgentActionKind?)null,
+        };
+        var result = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? SUSyphos.Server.Rollouts.SelectionResult.Failed("Only administrators can install updates outside the maintenance window.")
+            : kind is null ? SUSyphos.Server.Rollouts.SelectionResult.Failed("Choose when the server restarts.")
+            : await Selection.InstallAsync(Id, PostedUpdateIds(), kind.Value, await GetActorAsync(), CancellationToken.None);
+        ShowSelectionResult(result, kind == SUSyphos.Contracts.Agents.AgentActionKind.InstallNow
+            ? $"The installation of {Count(result.Done, "update")} was queued; the agent installs after its next heartbeat and restarts right after if needed."
+            : $"The installation of {Count(result.Done, "update")} was queued; the agent installs after its next heartbeat, and a needed restart waits for the next maintenance window.");
+        Dialog = null;
+        await LoadAsync();
+    }
+
+    [SupplyParameterFromForm(FormName = "hold-selection")]
+    private string? HoldReason { get; set; }
+
+    [SupplyParameterFromForm(FormName = "hold-selection")]
+    private string? HoldUntilDate { get; set; }
+
+    [SupplyParameterFromForm(FormName = "hold-selection")]
+    private string? HoldUntilTime { get; set; }
+
+    private async Task HoldSelectionAsync()
+    {
+        var until = DateTimeField.ParseUtc(HoldUntilDate, HoldUntilTime);
+        var result = !await IsAuthorizedAsync(AdminRoles.Policies.Operate) ? SUSyphos.Server.Rollouts.SelectionResult.Failed("Only operators and administrators can hold updates.")
+            : !string.IsNullOrWhiteSpace(HoldUntilDate) && until is null ? SUSyphos.Server.Rollouts.SelectionResult.Failed("Enter the end of the hold as a date YYYY-MM-DD, or leave it empty.")
+            : await Selection.HoldAsync(Id, PostedUpdateIds(), PostedSelection("SelectedInstalled"), HoldReason, until, await GetActorAsync(), CancellationToken.None);
+        ShowSelectionResult(result, $"{Count(result.Done, "update")} on hold for this server; it does not get them until the hold ends.");
+        Dialog = null;
+        await LoadAsync();
+    }
+
+    private async Task EndHoldSelectionAsync()
+    {
+        var result = !await IsAuthorizedAsync(AdminRoles.Policies.Operate) ? SUSyphos.Server.Rollouts.SelectionResult.Failed("Only operators and administrators can end holds.")
+            : await Selection.EndHoldAsync(Id, PostedUpdateIds(), await GetActorAsync(), CancellationToken.None);
+        ShowSelectionResult(result, $"The hold of {Count(result.Done, "update")} ended; the server gets them again as its ring allows.");
+        Dialog = null;
+        await LoadAsync();
+    }
+
     [SupplyParameterFromForm(FormName = "uninstall")]
     private string? UninstallWhen { get; set; }
 
     [SupplyParameterFromForm(FormName = "uninstall")]
-    private Guid? UninstallUpdate { get; set; }
+    private string? UninstallHold { get; set; }
 
-    /// <summary>Updates the inventory lists as installed, for the uninstall dialog.</summary>
-    private List<UninstallCandidate> _installed = [];
+    private async Task UninstallSelectionAsync()
+    {
+        var kind = SUSyphos.Server.Agents.AgentActionService.UninstallKind(UninstallWhen);
+        var result = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? SUSyphos.Server.Rollouts.SelectionResult.Failed("Only administrators can uninstall updates and programs.")
+            : kind is null ? SUSyphos.Server.Rollouts.SelectionResult.Failed("Choose when the server uninstalls and restarts.")
+            : await Selection.UninstallAsync(Id, PostedSelection("Selected"), kind.Value, UninstallHold == "yes", await GetActorAsync(), CancellationToken.None);
+        ShowSelectionResult(result, kind == SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow
+            ? $"The uninstallation of {Count(result.Done, "update or program", "updates and programs")} was queued; the agent removes them in the next window (updates in a coordinated group once it has the lease)."
+            : $"The uninstallation of {Count(result.Done, "update or program", "updates and programs")} was queued; the agent removes them after its next heartbeat (updates in a coordinated group once it has the lease).");
+        Dialog = null;
+        await LoadAsync();
+    }
 
-    private SUSyphos.Server.Assignment.SchedulePreviewResult? _schedulePreview;
+    private static string Count(int count, string one, string? many = null) => count == 1 ? $"1 {one}" : $"{DisplayNumber.Format(count)} {many ?? one + "s"}";
 
-    [SupplyParameterFromQuery(Name = "package")]
-    private string? UninstallPackageQuery { get; set; }
-
-    [SupplyParameterFromForm(FormName = "uninstall-software")]
-    private string? UninstallSoftwareWhen { get; set; }
-
-    [SupplyParameterFromForm(FormName = "uninstall-software")]
-    private string? UninstallPackage { get; set; }
-
-    /// <summary>Why a program cannot be uninstalled from here; null when it can (Marc, 2026-11-14: WinGet only, administrators only).</summary>
-    private string? SoftwareUninstallBlocker(SoftwareItem row) =>
-        row.Program.PackageId is null ? "Not known to WinGet. Remove it on the server."
-            : row.Program.DisplayName.StartsWith("SUSyphos", StringComparison.OrdinalIgnoreCase) ? "SUSyphos itself is removed with Remove server."
-            : !_softwareEnabled ? "Software management is switched off."
-            : _client?.SoftwareState != SUSyphos.Contracts.Agents.SoftwareSupportState.Supported ? "WinGet does not work on this server. Remove it on the server."
-            : !_canAdminister ? AdministratorsOnly
-            : _uninstallingPackages.Contains(row.Program.PackageId) ? "Its uninstallation already waits on the server."
-            : null;
-
-    /// <summary>Packages whose uninstallation waits on this server.</summary>
     /// <summary>The last script runs of the server, without their output (that is on the script output page).</summary>
     private List<ScriptRunEntity> _scriptRuns = [];
 
+    /// <summary>Packages whose uninstallation waits on this server.</summary>
     private HashSet<string> _uninstallingPackages = new(StringComparer.OrdinalIgnoreCase);
 
-    private async Task UninstallSoftwareAsync()
-    {
-        var kind = SUSyphos.Server.Agents.AgentActionService.UninstallKind(UninstallSoftwareWhen);
-        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer)
-            ? new Outcome("Only administrators can uninstall software.")
-            : kind is null || string.IsNullOrWhiteSpace(UninstallPackage)
-                ? new Outcome("Choose the program and when the server uninstalls it.")
-                : await Actions.QueueSoftwareUninstallAsync(Id, UninstallPackage, kind.Value, await GetActorAsync(), CancellationToken.None);
-        ShowResultAndReload(outcome.Error, kind == SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow
-            ? "The uninstallation was queued; the agent removes the program in its next software window."
-            : "The uninstallation was queued; the agent removes the program after its next heartbeat.");
-        await LoadAsync();
-    }
-
-    private async Task UninstallAsync()
-    {
-        var kind = SUSyphos.Server.Agents.AgentActionService.UninstallKind(UninstallWhen);
-        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer)
-            ? new Outcome("Only administrators can uninstall updates.")
-            : kind is null || UninstallUpdate is not { } updateId
-                ? new Outcome("Choose the update and when the server uninstalls it.")
-                : await Actions.QueueUninstallAsync(Id, updateId, kind.Value, await GetActorAsync(), CancellationToken.None);
-        ShowResultAndReload(outcome.Error, kind == SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow
-            ? "The uninstallation was queued; the agent removes the update in the next maintenance window."
-            : "The uninstallation was queued; the agent removes the update after its next heartbeat (in a coordinated group once it has the lease).");
-        await LoadAsync();
-    }
+    /// <summary>Why a program of the Software tab cannot be uninstalled from here; null when it can.</summary>
+    private string? SoftwareUninstallBlocker(SoftwareItem row) =>
+        !_canAdminister && row.Program.PackageId is not null ? AdministratorsOnly
+            : SUSyphos.Server.Rollouts.ServerUpdateSelection.SoftwareUninstallBlocker(row.Program.DisplayName, row.Program.PackageId, _softwareEnabled, _client?.SoftwareState, _uninstallingPackages);
 
     /// <summary>Released for this server and not installed yet: what "Install updates now" installs.</summary>
     private List<(DeploymentEntry Entry, string Title)> ReleasedPending =>
@@ -1485,10 +1659,15 @@ else
         _agentSettings = SUSyphos.Server.Assignment.AgentSettingValues.Explain(_systemAgentSettings, _memberGroupSettings, _ownAgentSettings, "this server");
         _appliedSettings = SUSyphos.Server.Assignment.AppliedAgentSettings.Parse(_client.AppliedAgentSettingsJson);
         _schedulePreview = Dialog == "preview" ? await Preview.ForClientAsync(Id, CancellationToken.None) : null;
-        if (Dialog == "uninstall" || _tab == ServerPage.History)
+        // The selection lists of the Updates tab, also for the confirmation dialogs and the ⋯ of the history rows.
+        if (_tab is ServerPage.Updates or ServerPage.History || Dialog is "uninstall" or "uninstall-software" or "install-selection" or "hold-selection" or "end-hold-selection")
         {
-            _installed = await UninstallCandidates.LoadAsync(Db, Id, CancellationToken.None);
+            _missingRows = (await Selection.MissingAsync(Id, CancellationToken.None)).ToDictionary(r => r.UpdateId);
+            _installedRows = await Selection.InstalledAsync(Id, CancellationToken.None);
         }
+
+        _installedTable = TableQuery.From(Navigation, "installed", defaultDescending: true, prefix: "iu.", defaultPageSize: 10);
+        _installedPage = TablePaging.Apply(_installedRows, _installedTable, InstalledColumns, r => r.Title);
         _effectiveWindows = MaintenanceWindowFormat.FromJson(_client.EffectiveWindowsJson) ?? [];
         _fallbackRing = _rings.Count > 0 ? _rings[^1].Name : "the final ring";
 

@@ -20,8 +20,7 @@ The band below the title groups the actions by topic in drop-down buttons. Opera
 
 - **Search for updates**: search Windows Update now and report the result.
 - **Sync inventory and history**: send the complete inventory again (operating system, roles, installed updates, Windows Update history) and search.
-- **Install updates now…** (administrators): opens the [install dialog](#install-now); greyed out while no released update is missing.
-- **Uninstall update…** (administrators): opens the [uninstall dialog](#uninstall).
+- **Install all released now…** (administrators): opens the [install dialog](#install-now) for every released update; greyed out while no released update is missing. To install, hold or uninstall chosen updates, select them in the lists of the Updates tab ([Missing updates](#missing), [Installed updates](#installed)).
 
 **Server**:
 
@@ -161,19 +160,40 @@ The programs the agent reports with its inventory ("Programs and Features" and p
 
 **View** (see [Working with lists](help/tables#views)) offers **Known to WinGet** (default: programs SUSyphos can update and uninstall; the others are hidden), **Newer version available** and **All programs**.
 
-**More** (⋯) at the end of a row offers **Uninstall…** (administrators): it opens [Uninstall a program](#uninstall-software). It is greyed with the reason for programs WinGet does not know ("Not known to WinGet. Remove it on the server."), on servers where WinGet does not work, while an uninstallation of the program already waits, and for SUSyphos itself, which goes with **Remove server**.
-
-## Uninstall a program {#uninstall-software}
-
-Removes a program with WinGet, silently and as SYSTEM (Marc, 2026-11-14; only programs matched to a WinGet package on servers where WinGet works). The dialog names the **Package**, the **Installed** version and the **Method**, and warns for runtimes other programs may need (Visual C++ Redistributable, .NET, Java, WebView2 and the like).
-
-**When**: **In the next software window** (default; the server's software windows, its maintenance windows when it has none; a needed restart waits for a maintenance window), **Now, restart in the next window** or **Now, restart right after** (five minute warning). Software takes no lease of a coordinated group. The local veto (AllowReboot) always prevents the restart.
-
-**Uninstall program** queues it as a remote action (recorded in the audit log); **Cancel** closes the dialog. The agent sends its inventory right after; the uninstallation counts as done once the inventory no longer lists the program. An assignment of the package that covers the server installs it again: end it on the [package page](help/package-detail#assignments), or uninstall from there with **Uninstall from servers…**.
+**More** (⋯) at the end of a row offers **Uninstall…** (administrators): it opens [Uninstall](#uninstall) with that program; the box [Installed updates](#installed) of the Updates tab uninstalls several at once. It is greyed with the reason for programs WinGet does not know ("Not known to WinGet. Remove it on the server."), on servers where WinGet does not work, while an uninstallation of the program already waits, and for SUSyphos itself, which goes with **Remove server**.
 
 ## Missing updates {#missing}
 
-Where the title carries a KB number, the KB links to Microsoft's release notes and **Catalog** to the Microsoft Update Catalog (also in both histories). Updates the last search of the agent found missing. **Status**: *Not released* (not released to the server's ring yet), *Pending* (released, waits for the maintenance window), *Failed* (last installation failed), *Restart pending* (installed, Windows reports it missing until the restart that completes it; the agent does not install it again meanwhile). An update installed before and reported missing again (uninstalled) is *Pending* again with the note "Missing again after the installation of …". **Earliest installation** is the time the release allows the installation from (in the past: in the next maintenance window); **Result** shows the error code of a failed installation with a plain explanation.
+Updates the last search of the agent found missing, Windows updates and software (marked *Software*: newer versions of programs WinGet manages). Where the title carries a KB number, the KB links to Microsoft's release notes and **Catalog** to the Microsoft Update Catalog (also in both histories). **Status**: *Not released* (not released to the server's ring yet), *Pending* (released, waits for the maintenance window), *Failed* (last installation failed), *Restart pending* (installed, Windows reports it missing until the restart that completes it; the agent does not install it again meanwhile); "on hold for …" below it names a hold of this server, its ring or a group. An update installed before and reported missing again (uninstalled) is *Pending* again with the note "Missing again after the installation of …". **Earliest installation** is the time the release allows the installation from (in the past: in the next maintenance window); **Result** shows the error code of a failed installation with a plain explanation.
+
+![Missing updates with one update selected and the bar of actions above the list](help-images/server-update-selection.png)
+
+**Select** the updates with the checkbox in front of each row (**Select all** in the header ticks every row shown, see [Selecting rows](help/tables#select)), then choose an action in the bar above the list (Marc, 2026-11-16). With the dashboard script the bar counts the selection and its buttons wait for one. Each action opens a short confirmation that lists what it applies to and, below **Not to …**, what it skips and why:
+
+- **Install now…** (administrators): opens [Install selected updates now](#install-selection).
+- **Hold…** (operators and administrators): opens [Hold for this server](#hold-selection).
+- **End hold…** (operators and administrators): ends the holds of this server for the selected updates; holds of the ring or a group are ended on the update page.
+
+## Installed updates {#installed}
+
+What can be uninstalled on this server: the installed Windows updates (Defender signatures and its platform, the Malicious Software Removal Tool and cumulative updates for .NET Framework are left out, Windows Update cannot remove them) and the programs WinGet knows (marked *Software*), newest installation first. **Can be uninstalled**: *yes*, *only through DISM, may fail* (Windows Update reports it as not uninstallable; the agent tries DISM by the KB number) or why not (for example "Its uninstallation already waits on the server."). Administrators see the checkboxes:
+
+- **Hold…**: holds the selected Windows updates for this server, so they are not installed again ([Hold for this server](#hold-selection)); software is kept away by ending its assignment on the package page.
+- **Uninstall…** (red): opens [Uninstall](#uninstall).
+
+## Install selected updates now {#install-selection}
+
+Installs the selected missing updates with the next heartbeat, also outside the maintenance window and before their planned time, for example a single fix after a security incident. An update that is **not released for the ring yet** is released for this server alone (recorded in the audit log as Update.ReleasedForServer); the ring keeps its own date and the release ends once the server has the update. Skipped are updates on hold ("end the hold first"), updates that wait for the restart that completes them, and software the WinGet source of the central server does not offer yet or on servers where WinGet does not work.
+
+- **Install, restart in the next window**: a needed restart waits for the next maintenance window that stays open for at least 30 minutes.
+- **Install and restart right after**: a needed restart follows after a five minute warning.
+- **Cancel** closes the dialog without queuing anything.
+
+The agent installs exactly the selected updates; agents before version 0.9.0-rc.5 would install every released update, so the dialog refuses them (update the agent, or use **Install all released now…**). A global pause holds the installation, in a coordinated group Windows updates wait for a free slot (software takes no lease), and the local veto (AllowReboot) prevents the restart. The remote action lists how many updates it installs.
+
+## Hold for this server {#hold-selection}
+
+Holds the selected updates for this server only (like a hold of the server on the update page): the release planner does not release them to it, "Install now" skips them, they stay missing. **Reason** (optional, at most 200 characters on one line, e.g. a ticket number) and **Hold until** (optional date and time of the central server; empty: until someone ends the hold) apply to every selected update. **Hold** sets them; updates already on hold for this server are named as skipped. **End hold…** in the bar of Missing updates ends them again; the updates are then released as their ring allows. Every hold and its end are recorded in the audit log.
 
 ## Pre-flight checks {#checks}
 
@@ -201,9 +221,9 @@ What the agent did and reported, newest first, kept for 90 days: registration, a
 
 All actions requested for this server: when, which, by whom, the state (Queued: waits for the next heartbeat; Delivered: the agent has it; Succeeded; Failed; Rejected: the agent refused it, for example a restart vetoed locally; Cancelled; Expired: not picked up or not confirmed in time) and details. Log uploads offer a **Download** link. A queued action can be withdrawn with **Cancel** until the agent picks it up. **View** offers **All actions** (default), **Open** (Queued or Delivered) and **Failed** (Failed, Rejected or Expired).
 
-## Install updates now {#install-now}
+## Install all released now {#install-now}
 
-For a server that should not wait for its next maintenance window, for example after a security incident. The dialog lists the updates that are **released for the ring of the server** and still missing; updates that are not released yet are not installed. The agent installs them after its next heartbeat, also outside the maintenance window and before their planned time. A global pause holds the installation until it ends, and in a coordinated group the agent waits for a free slot.
+For a server that should not wait for its next maintenance window, for example after a security incident. The dialog lists the updates that are **released for the ring of the server** and still missing; updates that are not released yet are not installed (to choose single updates, also ones not released yet, select them under [Missing updates](#missing)). The agent installs them after its next heartbeat, also outside the maintenance window and before their planned time. A global pause holds the installation until it ends, and in a coordinated group the agent waits for a free slot.
 
 **What to install** appears when the list holds both Windows updates and software (marked *Software*):
 
@@ -219,14 +239,15 @@ The list of remote actions names the choice, for example "Install now, restart r
 
 The local veto (registry value AllowReboot) still prevents the restart; the updates are installed anyway and the server shows "reboot pending". The action and its result appear under [Remote actions](#remote-actions).
 
-## Uninstall an update {#uninstall}
+## Uninstall {#uninstall}
 
-Removes one update from this server, for example a faulty one. Opened from a row of the histories, the update of that row is already chosen. **Update**: choose one of the updates the inventory of the server reports as installed, the newest installation first (date from the Windows Update history; updates without one at the end). Defender signatures and its platform and the Malicious Software Removal Tool are not offered: they cannot be removed this way and come back with the next update. Neither are cumulative updates for .NET Framework: they bundle one package per framework version under other KB numbers, Windows Update refuses to remove them and DISM finds no package of their KB. An update Windows Update reports as not uninstallable is marked **only through DISM, may fail** (agents from version 0.7.10 report it). The agent uninstalls through Windows Update, or with DISM by the KB number where Windows Update cannot. Some packages cannot be removed at all; the remote action then reports why. After a restart the update shows as missing again with the next search, which the agent runs right after it starts; it then counts as pending again and, while it stays released, is installed again in the next maintenance window. To keep it away, hold it for the server or block it on its update page. To keep the update away from all servers, block it on its update page ("Uninstall…" there removes it from all servers, rings, groups or one server).
+Removes the selected installed updates and programs from this server, for example a faulty update (Marc, 2026-10-27; several at once since 2026-11-16). It opens from **Uninstall…** of [Installed updates](#installed), from the ⋯ of a row of the histories or of the Software tab (with that update or program), and from the update page for one server. The dialog lists what it uninstalls (Windows updates Windows Update cannot remove are marked *only through DISM, may fail*, programs *Software*) and, below **Not to uninstall**, what it skips and why. It warns for runtimes other programs may need (Visual C++ Redistributable, .NET, Java, WebView2 and the like).
 
-- **When**: **In the next maintenance window** (uninstall and restart in the next window that stays open long enough), **Now, restart in the next window** (uninstall with the next heartbeat, also outside the window; a needed restart waits for the window) or **Now, restart right after** (a needed restart follows after a five minute warning). In a coordinated group the server first waits for the lease of its group; the remote action shows "Waiting (window or lease)" meanwhile.
-- **Uninstall update** queues the remote action; **Cancel** closes the dialog without queuing anything.
+- **When**: **In the next maintenance window** (programs alone: **In the next software window**; uninstall and restart in the next window that stays open long enough), **Now, restart in the next window** (uninstall with the next heartbeat, also outside the window; a needed restart waits for the window) or **Now, restart right after** (a needed restart follows after a five minute warning). In a coordinated group the server first waits for the lease of its group for Windows updates; software takes no lease. The remote action shows "Waiting (window or lease)" meanwhile.
+- **Hold the updates for this server** (on by default when Windows updates are selected): holds them for this server, so they are not installed again after the restart; end the hold under [Missing updates](#missing). Without it the update shows as missing again with the next search and, while it stays released, is installed again in the next maintenance window. To keep an update away from all servers, block it on its update page.
+- **Uninstall** queues one remote action per update or program (recorded in the audit log); **Cancel** closes the dialog without queuing anything. At most 10 actions can wait per server.
 
-The local veto (registry value AllowReboot) prevents the restart.
+The agent uninstalls Windows updates through Windows Update, or with DISM by the KB number where Windows Update cannot; some packages cannot be removed at all, and the remote action then reports why. Programs are removed with WinGet, silently and as SYSTEM; the agent sends its inventory right after, and the uninstallation counts as done once the inventory no longer lists the program. An assignment of the package that covers the server installs it again: end it on the [package page](help/package-detail#assignments). The local veto (registry value AllowReboot) prevents the restart.
 
 ## Restart dialog {#restart}
 

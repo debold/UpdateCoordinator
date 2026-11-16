@@ -60,7 +60,19 @@ public enum AgentActionKind
 /// <param name="KbArticle">Its KB number (digits), to find the package without Windows Update.</param>
 /// <param name="Scope">For "install now": what to install; null (central servers before 0.9) means everything released.</param>
 /// <param name="Scripts">For the uninstallation of software: the approved scripts of the package for the uninstall phases.</param>
-public sealed record AgentAction(Guid Id, AgentActionKind Kind, DateTimeOffset RequestedAt, Guid? UpdateId = null, int? Revision = null, string? KbArticle = null, string? PackageId = null, InstallScope? Scope = null, IReadOnlyList<SUSyphos.Contracts.Scripts.ScriptReference>? Scripts = null);
+/// <param name="UpdateIds">
+/// For "install now" of a selection (0.9.0-rc.5, Marc 2026-11-16): the released updates and software versions to install,
+/// at most <see cref="MaxUpdateIds"/>; null installs everything released (within <paramref name="Scope"/>). Agents before
+/// 0.9.0-rc.5 ignore it, so the central server sends it only to newer agents.
+/// </param>
+public sealed record AgentAction(Guid Id, AgentActionKind Kind, DateTimeOffset RequestedAt, Guid? UpdateId = null, int? Revision = null, string? KbArticle = null, string? PackageId = null, InstallScope? Scope = null, IReadOnlyList<SUSyphos.Contracts.Scripts.ScriptReference>? Scripts = null, IReadOnlyList<Guid>? UpdateIds = null)
+{
+    /// <summary>Most updates one "install now" of a selection may name.</summary>
+    public const int MaxUpdateIds = 200;
+
+    /// <summary>The first agent version that installs only the selection of <see cref="UpdateIds"/>.</summary>
+    public const string SelectionSinceVersion = "0.9.0-rc.5";
+}
 
 /// <summary>What an "install now" action installs of the released items.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<InstallScope>))]

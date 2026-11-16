@@ -60,6 +60,10 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<AgentActionEntity> AgentActions => Set<AgentActionEntity>();
 
+    public DbSet<AgentActionItemEntity> AgentActionItems => Set<AgentActionItemEntity>();
+
+    public DbSet<ServerReleaseEntity> ServerReleases => Set<ServerReleaseEntity>();
+
     public DbSet<LeaseEntity> Leases => Set<LeaseEntity>();
 
     public DbSet<SUSyphos.Server.Approval.DirectoryComputerEntity> DirectoryComputers => Set<SUSyphos.Server.Approval.DirectoryComputerEntity>();
@@ -195,6 +199,18 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         action.HasIndex(a => new { a.ClientId, a.State });
         action.HasIndex(a => a.BatchId);
         action.HasOne<ClientEntity>().WithMany().HasForeignKey(a => a.ClientId).OnDelete(DeleteBehavior.Cascade);
+
+        var actionItem = modelBuilder.Entity<AgentActionItemEntity>();
+        actionItem.ToTable("AgentActionItems");
+        actionItem.HasKey(i => new { i.ActionId, i.UpdateId, i.Revision });
+        actionItem.HasOne<AgentActionEntity>().WithMany().HasForeignKey(i => i.ActionId).OnDelete(DeleteBehavior.Cascade);
+
+        var serverRelease = modelBuilder.Entity<ServerReleaseEntity>();
+        serverRelease.ToTable("ServerReleases");
+        serverRelease.HasKey(r => new { r.ClientId, r.UpdateId, r.Revision });
+        serverRelease.Property(r => r.CreatedBy).HasMaxLength(256).IsRequired();
+        serverRelease.HasOne<ClientEntity>().WithMany().HasForeignKey(r => r.ClientId).OnDelete(DeleteBehavior.Cascade);
+        serverRelease.HasOne<UpdateEntity>().WithMany().HasForeignKey(r => new { r.UpdateId, r.Revision }).OnDelete(DeleteBehavior.Cascade);
 
         var compliance = modelBuilder.Entity<ComplianceSnapshotEntity>();
         compliance.ToTable("ComplianceSnapshots");

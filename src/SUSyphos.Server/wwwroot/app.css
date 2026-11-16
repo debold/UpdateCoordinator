@@ -308,6 +308,15 @@ details.group-menu.active > summary { color: var(--accent); background: var(--ac
 .default-tag { margin-left: 0.4rem; font-size: 0.68rem; font-weight: 600; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 0.4rem; vertical-align: 1px; }
 .table-tools .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; flex-basis: 100%; }
 .table-tools .chips .reset { font-size: 0.8rem; }
+/* The actions for the selected rows of a list (Marc, 2026-11-16): above the table, inside the box; the count follows the
+   checkboxes with the script, without it the buttons stay active and the dialog names what was selected. */
+.selection-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.6rem 1.15rem; border-bottom: 1px solid var(--line); background: var(--surface); }
+.selection-bar .spacer { flex: 1 1 auto; }
+.selection-bar .note { font-size: 0.85rem; margin-right: 0.25rem; }
+.selection-bar.has-selection { background: var(--accent-soft); }
+.selection-bar.has-selection [data-selection-count] { color: var(--text); font-weight: 600; }
+.selection-list { max-height: 16rem; overflow-y: auto; display: grid; gap: 0.25rem; }
+.selection-list.skipped li { color: var(--muted); }
 .chip { display: inline-flex; align-items: center; gap: 0.3rem; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 0.2rem 0.3rem 0.2rem 0.7rem; font-size: 0.8rem; max-width: 100%; }
 .chip.from-view { background: transparent; border: 1px dashed var(--accent); }
 .chip a { color: var(--accent); padding: 0 0.35rem; border-radius: 999px; font-weight: 700; }

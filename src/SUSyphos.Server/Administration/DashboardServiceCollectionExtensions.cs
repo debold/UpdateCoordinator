@@ -99,6 +99,7 @@ internal static class DashboardServiceCollectionExtensions
         services.AddScoped<RolloutService>();
         services.AddScoped<RolloutAdministration>();
         services.AddScoped<UpdateHolds>();
+        services.AddScoped<ServerUpdateSelection>();
         services.AddScoped<SUSyphos.Server.Assignment.OneTimeWindows>();
         services.AddScoped<SUSyphos.Server.Assignment.SchedulePreview>();
         services.AddScoped<RingAdministration>();

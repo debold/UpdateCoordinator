@@ -1072,6 +1072,29 @@ public sealed class InstallationRunnerTests
         Assert.Equal(batches, _installer.Batches.Count);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task InstallNow_OfASelection_InstallsOnlyTheSelectedReleases(bool chooseSoftware)
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero)); // Wednesday noon, no window
+        var software = new Release(Guid.NewGuid(), 1, _time.GetUtcNow().AddDays(2), Software: new SoftwareRelease("7zip.7zip", "26.06", false));
+        var update = _release with { EarliestInstallAt = _time.GetUtcNow().AddDays(2) };
+        _releases.Current = new ReleaseList(1, [update, software]);
+        var runner = Create();
+        var chosen = chooseSoftware ? software : update;
+
+        // The selection may name an update that is not released (any more): it is not installed.
+        runner.RequestInstallNow(restartNow: false, InstallScope.All, [chosen.UpdateId, Guid.NewGuid()]);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal(chosen.UpdateId, Assert.Single(_installer.Batches.SelectMany(b => b)).UpdateId);
+        Assert.Null(_store.State.InstallNow);
+
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.Single(_installer.Batches.SelectMany(b => b));
+    }
+
     private static AgentAction Uninstall(AgentActionKind kind) => new(Guid.NewGuid(), kind, DateTimeOffset.UtcNow, Guid.NewGuid(), 1, "5040434");
 
     private static InstallReport Report() => new()

@@ -125,6 +125,34 @@ public sealed class ActionRunnerTests
     }
 
     [Fact]
+    public async Task InstallNow_PassesTheSelection()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var request = Action(AgentActionKind.InstallNow) with { UpdateIds = [first, second, first] };
+        _client.ActionList = new AgentActionList([request]);
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Equal([first, second], _runner.InstallNowUpdateIds);
+        Assert.Contains("The 2 selected updates install", _client.ActionResults[request.Id].Detail, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(AgentAction.MaxUpdateIds + 1)]
+    public async Task InstallNow_WithAnEmptyOrOversizedSelection_IsRejected(int count)
+    {
+        var request = Action(AgentActionKind.InstallNow) with { UpdateIds = [.. Enumerable.Range(0, count).Select(_ => Guid.NewGuid())] };
+        _client.ActionList = new AgentActionList([request]);
+
+        await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
+
+        Assert.Equal(AgentActionStatus.Rejected, _client.ActionResults[request.Id].Status);
+        Assert.Null(_runner.InstallNowRestartNow);
+    }
+
+    [Fact]
     public async Task InstallNow_WithAnUnknownScope_IsRejected()
     {
         var request = Action(AgentActionKind.InstallNow) with { Scope = (InstallScope)99 };

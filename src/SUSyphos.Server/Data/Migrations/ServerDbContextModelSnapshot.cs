@@ -371,6 +371,22 @@ namespace SUSyphos.Server.Data.Migrations
                     b.ToTable("AgentActions", (string)null);
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.AgentActionItemEntity", b =>
+                {
+                    b.Property<Guid>("ActionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ActionId", "UpdateId", "Revision");
+
+                    b.ToTable("AgentActionItems", (string)null);
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.AssignmentRuleEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -1807,6 +1823,32 @@ namespace SUSyphos.Server.Data.Migrations
                     b.ToTable("SecurityVulnerabilities", (string)null);
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.ServerReleaseEntity", b =>
+                {
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("UpdateId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ClientId", "UpdateId", "Revision");
+
+                    b.HasIndex("UpdateId", "Revision");
+
+                    b.ToTable("ServerReleases", (string)null);
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.SettingEntity", b =>
                 {
                     b.Property<string>("Key")
@@ -2134,6 +2176,15 @@ namespace SUSyphos.Server.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.AgentActionItemEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.AgentActionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ActionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.ClientAvailableUpdateEntity", b =>
                 {
                     b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
@@ -2406,6 +2457,21 @@ namespace SUSyphos.Server.Data.Migrations
                     b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
                         .WithMany()
                         .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.ServerReleaseEntity", b =>
+                {
+                    b.HasOne("SUSyphos.Server.Data.ClientEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ClientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SUSyphos.Server.Data.UpdateEntity", null)
+                        .WithMany()
+                        .HasForeignKey("UpdateId", "Revision")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

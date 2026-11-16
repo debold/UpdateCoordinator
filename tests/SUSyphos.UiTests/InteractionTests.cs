@@ -359,6 +359,38 @@ public sealed class InteractionTests(UiFixture ui)
     }
 
     [Fact]
+    public async Task UpdateSelection_CountsTheRows_AndOpensTheConfirmationWithThem()
+    {
+        // Marc, 2026-11-16: the actions of the Updates tab apply to the rows selected in the list.
+        await using var context = await ui.NewContextAsync(1440, 900);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync(await new PageLayoutTests(ui).ResolveAsync("/servers/{main}?tab=updates"));
+
+        var bar = page.Locator(".selection-bar[data-selection='sel']");
+        var hold = bar.Locator("button[value='hold-selection']");
+        await Assertions.Expect(bar).ToBeVisibleAsync();
+        await Assertions.Expect(hold).ToBeDisabledAsync();
+
+        var first = page.Locator("tbody input[name='sel']").First;
+        var title = await first.GetAttributeAsync("aria-label");
+        await first.CheckAsync();
+        await Assertions.Expect(bar.Locator("[data-selection-count]")).ToHaveTextAsync("1 selected");
+        await Assertions.Expect(hold).ToBeEnabledAsync();
+
+        await hold.ClickAsync();
+        await page.WaitForURLAsync(new System.Text.RegularExpressions.Regex("dialog=hold-selection&sel="));
+        var dialog = page.Locator("[role='dialog']");
+        await Assertions.Expect(dialog).ToBeVisibleAsync();
+        await Assertions.Expect(dialog.Locator("input[name='Selected']")).ToHaveCountAsync(1);
+        await Assertions.Expect(dialog).ToContainTextAsync(title!["Select ".Length..]);
+
+        // Clearing the selection again: the buttons wait for one.
+        await page.GoBackAsync();
+        await page.Locator("tbody input[name='sel']").First.UncheckAsync();
+        await Assertions.Expect(hold).ToBeDisabledAsync();
+    }
+
+    [Fact]
     public async Task ResultOfAnActionFurtherDown_IsShownInView()
     {
         await using var context = await ui.NewContextAsync(1280, 600);

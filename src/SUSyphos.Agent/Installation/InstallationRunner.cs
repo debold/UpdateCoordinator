@@ -41,7 +41,7 @@ internal interface IInstallationRunner
     int? RestartRefusedCode { get; }
 
     /// <summary>Installs every released update the server misses with the next cycle (remote action); a needed restart follows at once or in the next window.</summary>
-    void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All);
+    void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All, IReadOnlyList<Guid>? updateIds = null);
 
     /// <summary>
     /// Holds an uninstallation (remote action) until it may run: in a coordinated group with the lease, for
@@ -125,7 +125,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             installNow = null;
         }
 
-        var batch = installNow is null ? PlanBatch() : PlanInstallNow(installNow.Scope ?? InstallScope.All);
+        var batch = installNow is null ? PlanBatch() : PlanInstallNow(installNow);
         var waitingForLease = false;
         if (batch.Count > 0)
         {
@@ -460,15 +460,17 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         _ => null,
     };
 
-    public void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All)
+    public void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All, IReadOnlyList<Guid>? updateIds = null)
     {
-        Save(_state with { InstallNow = new InstallNowRequest(_timeProvider.GetUtcNow(), restartNow, scope) });
+        Save(_state with { InstallNow = new InstallNowRequest(_timeProvider.GetUtcNow(), restartNow, scope, updateIds) });
         _updates.RequestRun();
     }
 
-    private IReadOnlyList<Release> PlanInstallNow(InstallScope scope)
+    private IReadOnlyList<Release> PlanInstallNow(InstallNowRequest request)
     {
         var missing = WithSoftware(WithoutAwaitingRestart(_updates.LastMissingUpdates));
+        var scope = request.Scope ?? InstallScope.All;
+        var selected = request.UpdateIds is { } ids ? ids.ToHashSet() : null;
         return !_options.Value.Enabled || missing is null
             ? []
             : [.. InstallationPlanner.PlanBatch(_releases.Current, _releases.InstallationsPaused, missing, new Dictionary<(Guid, int), DateTimeOffset>(), _timeProvider.GetUtcNow(), _options.Value, everything: true)
@@ -477,7 +479,8 @@ internal sealed partial class InstallationRunner : IInstallationRunner
                     InstallScope.WindowsUpdates => r.Software is null,
                     InstallScope.Software => r.Software is not null,
                     _ => true,
-                })];
+                })
+                .Where(r => selected is null || selected.Contains(r.UpdateId))];
     }
 
     /// <summary>Clears the request and, if Windows wants a restart, restarts now (5-minute warning) or holds it for the next window; never against the local veto.</summary>

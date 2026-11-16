@@ -54,7 +54,14 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
                 .ConfigureAwait(false))
             .ToDictionary(r => (r.UpdateId, r.Revision, r.RingId), r => r.ReleasedAtUtc ?? DateTime.MinValue);
 
-        var releasedIds = released.Keys.Select(k => k.UpdateId).Distinct().ToList();
+        // Updates released for one server ahead of its ring (Marc, 2026-11-16: "Install now" of a selection).
+        var clientIds = clients.Select(c => c.Id).ToList();
+        var serverReleases = await db.ServerReleases
+            .Where(r => clientIds.Contains(r.ClientId))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var releasedIds = released.Keys.Select(k => k.UpdateId).Concat(serverReleases.Select(r => r.UpdateId)).Distinct().ToList();
 
         // A software version reaches the servers only once the WinGet source of the central server offers it (cached and
         // scanned); before that WinGet would not find it (lab, 2026-11-10). The cache worker syncs again when it offers one.
@@ -68,6 +75,9 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
         {
             released.Remove(key);
         }
+
+        var ownReleases = serverReleases.Where(r => !notOffered.Contains(r.UpdateId))
+            .ToLookup(r => r.ClientId, r => (Key: (r.UpdateId, r.Revision), r.CreatedAtUtc));
 
         var supersededBy = (await db.UpdateSupersedence.AsNoTracking()
                 .Where(s => releasedIds.Contains(s.SupersededUpdateId))
@@ -103,11 +113,18 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
             {
                 var candidates = available[client.Id]
                     .Concat(current.Select(r => (r.UpdateId, r.Revision)).Where(u => !installed[client.Id].Contains(u)));
+                var own = ownReleases[client.Id].ToDictionary(r => r.Key, r => r.CreatedAtUtc);
                 foreach (var (updateId, revision) in candidates)
                 {
                     if (released.TryGetValue((updateId, revision, ring), out var releasedAt))
                     {
                         desired[(updateId, revision)] = releasedAt + SpreadOffset(client.Id, updateId, spreads.GetValueOrDefault(ring));
+                    }
+
+                    // Released for this server alone: from that moment, without the spread of the ring.
+                    if (own.TryGetValue((updateId, revision), out var ownAt) && (!desired.TryGetValue((updateId, revision), out var ringAt) || ownAt < ringAt))
+                    {
+                        desired[(updateId, revision)] = ownAt;
                     }
                 }
 
@@ -123,6 +140,10 @@ internal sealed class ReleasePlanner(ServerDbContext db, TimeProvider timeProvid
                     desired.Remove((held.UpdateId, held.Revision));
                 }
             }
+
+            // A release for this server alone ends once the server has the update or no longer misses it.
+            db.ServerReleases.RemoveRange(serverReleases.Where(r => r.ClientId == client.Id
+                && (installed[client.Id].Contains((r.UpdateId, r.Revision)) || !available[client.Id].Contains((r.UpdateId, r.Revision)))));
 
             var removed = current.Where(r => !desired.ContainsKey((r.UpdateId, r.Revision))).ToList();
             var added = desired.Where(d => !current.Any(r => (r.UpdateId, r.Revision) == d.Key)).ToList();

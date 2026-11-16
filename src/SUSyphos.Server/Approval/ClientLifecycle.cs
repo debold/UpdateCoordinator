@@ -32,6 +32,7 @@ internal sealed partial class ClientLifecycle(ServerDbContext db, AuditLog audit
         // Unknown random secret: the agent's credentials stop working, it registers again as a new pending server.
         client.SecretHash = RandomNumberGenerator.GetBytes(32);
         await db.Releases.Where(r => r.ClientId == clientId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+        await db.ServerReleases.Where(r => r.ClientId == clientId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         await db.AgentActions.Where(a => a.ClientId == clientId && (a.State == AgentActionState.Queued || a.State == AgentActionState.Delivered))
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.State, AgentActionState.Cancelled), cancellationToken).ConfigureAwait(false);
         await db.Leases.Where(l => l.ClientId == clientId && l.State == LeaseState.Active)

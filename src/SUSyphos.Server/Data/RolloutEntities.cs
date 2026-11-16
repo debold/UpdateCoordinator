@@ -274,6 +274,19 @@ internal sealed class AgentActionEntity
     public Guid? BatchId { get; set; }
 }
 
+/// <summary>
+/// One update chosen for an "install now" of a selection (Marc, 2026-11-16): the agent installs only the updates and
+/// software versions an action names here; an action without items installs everything released.
+/// </summary>
+internal sealed class AgentActionItemEntity
+{
+    public Guid ActionId { get; set; }
+
+    public Guid UpdateId { get; set; }
+
+    public int Revision { get; set; }
+}
+
 internal enum LeaseState
 {
     Active = 0,

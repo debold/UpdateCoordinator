@@ -44,7 +44,7 @@ A server's own policy wins; otherwise its groups decide, and one group with "Nev
 
 ## One-time windows {#one-time}
 
-A one-time window lets installations start at a date and time in addition to the weekly windows, for example a patch weekend or a night for one server. It is valid for every released update; a single update outside the windows is planned by hand (**Install updates now…** on the server page).
+A one-time window lets installations start at a date and time in addition to the weekly windows, for example a patch weekend or a night for one server. It is valid for every released update; a single update outside the windows is planned by hand (select it under Missing updates on the server page and choose **Install now…**).
 
 - The table lists the windows with **Start**, **End**, **For** (all servers, or a ring, group or server), **Reason** and **State** (planned, open, ended); **Remove window** in the ⋯ menu of a row deletes one.
 - To add one: choose **For** (all servers, a ring, a group or a server), **Start** and **End** in the time zone of the central server (date as YYYY-MM-DD, typed or chosen in the calendar below the field, and time from the 24-hour list), an optional **Reason**, then **Add one-time window**. A window lasts at most 7 days and must not start in the past.

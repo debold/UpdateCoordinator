@@ -66,3 +66,21 @@ internal sealed class OneTimeWindowEntity
 
     public DateTime CreatedAtUtc { get; set; }
 }
+
+/// <summary>
+/// An update released for one server ahead of its ring (Marc, 2026-11-16: "Install now" on a selection that holds an
+/// update still waiting for the ring). The release planner treats it as released for that server from
+/// <see cref="CreatedAtUtc"/> on, holds still win; it is deleted once the server reports the update installed.
+/// </summary>
+internal sealed class ServerReleaseEntity
+{
+    public Guid ClientId { get; set; }
+
+    public Guid UpdateId { get; set; }
+
+    public int Revision { get; set; }
+
+    public required string CreatedBy { get; set; }
+
+    public DateTime CreatedAtUtc { get; set; }
+}

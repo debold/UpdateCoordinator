@@ -385,6 +385,31 @@
         });
     }
 
+    // The actions above a list with row checkboxes (server page, Marc 2026-11-16): the bar counts the selection, and its
+    // buttons wait for one; without script they are always active and the dialog says when nothing is selected.
+    for (const bar of document.querySelectorAll('.selection-bar[data-selection]')) {
+        const name = bar.dataset.selection;
+        const count = bar.querySelector('[data-selection-count]');
+        const idle = count?.textContent ?? '';
+        const buttons = [...bar.querySelectorAll('button')].filter((button) => !button.disabled);
+        const update = () => {
+            const selected = document.querySelectorAll(`input[type="checkbox"][name="${name}"]:checked`).length;
+            bar.classList.toggle('has-selection', selected > 0);
+            if (count) {
+                count.textContent = selected > 0 ? `${selected} selected` : idle;
+            }
+            for (const button of buttons) {
+                button.disabled = selected === 0;
+            }
+        };
+        document.addEventListener('change', (event) => {
+            if (event.target instanceof HTMLInputElement && (event.target.name === name || event.target.dataset.selectAll === name)) {
+                update();
+            }
+        });
+        update();
+    }
+
     // Drop-down buttons open without script (a disclosure); with it, only one is open at a time and a click elsewhere or
     // Esc closes them.
     const closeMenus = (except) => {

@@ -34,9 +34,10 @@ internal sealed record ActionOutcome(Guid ActionId, AgentActionResult Result);
 
 /// <summary>
 /// An administrator asked to install the released updates now (remote action), with the restart right after or in the
-/// next window; <paramref name="Scope"/> limits it to Windows updates or software (null in states from before 0.9: all).
+/// next window; <paramref name="Scope"/> limits it to Windows updates or software (null in states from before 0.9: all),
+/// <paramref name="UpdateIds"/> to the updates an administrator selected (null: everything released).
 /// </summary>
-internal sealed record InstallNowRequest(DateTimeOffset RequestedAt, bool RestartNow, InstallScope? Scope = null);
+internal sealed record InstallNowRequest(DateTimeOffset RequestedAt, bool RestartNow, InstallScope? Scope = null, IReadOnlyList<Guid>? UpdateIds = null);
 
 /// <summary>The last attempt to install an update; <paramref name="Succeeded"/>: Windows reported it installed (null in states from before 0.9.0-rc.3).</summary>
 internal sealed record InstallAttempt(Guid UpdateId, int Revision, DateTimeOffset AttemptedAt, bool? Succeeded = null);

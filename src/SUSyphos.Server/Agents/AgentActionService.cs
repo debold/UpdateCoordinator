@@ -209,7 +209,37 @@ internal sealed partial class AgentActionService(
         return queued;
     }
 
-    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken, Guid? actionId = null, string? packageId = null, InstallScope? scope = null, Guid? batchId = null)
+    /// <summary>
+    /// Queues "install now" for the selected updates of a server (Marc, 2026-11-16); the caller has checked that they are
+    /// released for it. Only agents from <see cref="AgentAction.SelectionSinceVersion"/> on install a selection.
+    /// </summary>
+    public async Task<Outcome> QueueInstallSelectionAsync(Guid clientId, AgentActionKind kind, IReadOnlyList<(Guid UpdateId, int Revision)> items, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        if (kind is not (AgentActionKind.InstallNow or AgentActionKind.InstallNowRestartInWindow))
+        {
+            return new Outcome("Choose when the server restarts.");
+        }
+
+        if (items.Count == 0 || items.Count > AgentAction.MaxUpdateIds)
+        {
+            return new Outcome($"Select between 1 and {AgentAction.MaxUpdateIds} updates.");
+        }
+
+        var version = await db.Clients.AsNoTracking().Where(c => c.Id == clientId).Select(c => c.AgentVersion).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        if (!SupportsSelection(version))
+        {
+            return new Outcome($"The agent of this server installs a selection from version {AgentAction.SelectionSinceVersion} on; update the agent or use \"Install all released now\".");
+        }
+
+        return await QueueCoreAsync(clientId, kind, actor, null, cancellationToken, scope: InstallScope.All, items: items).ConfigureAwait(false);
+    }
+
+    /// <summary>Whether an agent of this version installs only the updates an "install now" names.</summary>
+    public static bool SupportsSelection(string? agentVersion) =>
+        AgentVersion.TryParse(agentVersion, out var running) && AgentVersion.TryParse(AgentAction.SelectionSinceVersion, out var since) && running >= since;
+
+    private async Task<Outcome> QueueCoreAsync(Guid clientId, AgentActionKind kind, string actor, (Guid UpdateId, int Revision, string? KbArticle)? update, CancellationToken cancellationToken, Guid? actionId = null, string? packageId = null, InstallScope? scope = null, Guid? batchId = null, IReadOnlyList<(Guid UpdateId, int Revision)>? items = null)
     {
         if (!Enum.IsDefined(kind))
         {
@@ -233,9 +263,11 @@ internal sealed partial class AgentActionService(
             return new Outcome($"At most {MaxOpenPerClient} actions can wait per server.");
         }
 
+        var id = actionId ?? Guid.NewGuid();
+        db.AgentActionItems.AddRange((items ?? []).Distinct().Select(i => new AgentActionItemEntity { ActionId = id, UpdateId = i.UpdateId, Revision = i.Revision }));
         db.AgentActions.Add(new AgentActionEntity
         {
-            Id = actionId ?? Guid.NewGuid(),
+            Id = id,
             ClientId = clientId,
             Kind = kind,
             State = AgentActionState.Queued,
@@ -250,6 +282,7 @@ internal sealed partial class AgentActionService(
         });
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var details = packageId is not null ? $"{kind} software {packageId}"
+            : items is { Count: > 0 } ? $"{kind} of {items.Count} selected: {string.Join(", ", items.Select(i => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{i.UpdateId:D}/{i.Revision}")))}"
             : scope is { } chosen ? $"{kind} ({chosen})"
             : update is { } named ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{kind} {named.UpdateId:D} revision {named.Revision}{(named.KbArticle is null ? null : $" (KB{named.KbArticle})")}") : kind.ToString();
         await audit.WriteAsync(actor, "Action.Queued", $"{client.HostName} ({clientId:D})", details, cancellationToken).ConfigureAwait(false);
@@ -293,13 +326,16 @@ internal sealed partial class AgentActionService(
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         // A software uninstallation carries the approved scripts of the package for the uninstall phases.
+        var actionIds = actions.Select(a => a.Id).ToList();
+        var items = (await db.AgentActionItems.AsNoTracking().Where(i => actionIds.Contains(i.ActionId)).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .ToLookup(i => i.ActionId, i => i.UpdateId);
         var list = new List<AgentAction>();
         foreach (var a in actions)
         {
             var references = a.PackageId is { } package && IsHeld(a.Kind) && scripts is not null
                 ? await scripts.ReferencesAsync(package, clientId, [SUSyphos.Contracts.Scripts.ScriptPhase.BeforeUninstall, SUSyphos.Contracts.Scripts.ScriptPhase.AfterUninstall], cancellationToken).ConfigureAwait(false)
                 : [];
-            list.Add(new AgentAction(a.Id, a.Kind, new DateTimeOffset(DateTime.SpecifyKind(a.RequestedAtUtc, DateTimeKind.Utc)), a.UpdateId, a.Revision, a.KbArticle, a.PackageId, a.Scope, references.Count == 0 ? null : references));
+            list.Add(new AgentAction(a.Id, a.Kind, new DateTimeOffset(DateTime.SpecifyKind(a.RequestedAtUtc, DateTimeKind.Utc)), a.UpdateId, a.Revision, a.KbArticle, a.PackageId, a.Scope, references.Count == 0 ? null : references, items[a.Id] is var selected && selected.Any() ? [.. selected.Distinct()] : null));
         }
 
         return new AgentActionList(list);
