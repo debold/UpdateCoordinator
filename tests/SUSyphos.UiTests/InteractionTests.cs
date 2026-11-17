@@ -359,6 +359,25 @@ public sealed class InteractionTests(UiFixture ui)
     }
 
     [Fact]
+    public async Task RingBar_PartOpensTheUpdatesOfTheRingInThatState()
+    {
+        // Marc, 2026-11-17: the coloured parts of the ring bar on the overview link to the update list.
+        await using var context = await ui.NewContextAsync(1440, 900);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync("/");
+
+        var part = page.Locator("svg.bar.linked a").First;
+        await Assertions.Expect(part).ToBeVisibleAsync();
+        var href = await part.GetAttributeAsync("href");
+        Assert.StartsWith("/updates?ring=", href, StringComparison.Ordinal);
+
+        await part.ClickAsync();
+        await page.WaitForURLAsync(new System.Text.RegularExpressions.Regex("/updates\\?ring="));
+        await Assertions.Expect(page.Locator(".chips .chip").Filter(new() { HasText = "Ring:" })).ToBeVisibleAsync();
+        await Assertions.Expect(page.Locator(".chips .chip").Filter(new() { HasText = "servers)" })).ToBeVisibleAsync();
+    }
+
+    [Fact]
     public async Task UpdateSelection_CountsTheRows_AndOpensTheConfirmationWithThem()
     {
         // Marc, 2026-11-16: the actions of the Updates tab apply to the rows selected in the list.

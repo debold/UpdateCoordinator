@@ -37,6 +37,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/operating-systems",
         "/servers/{main}?tab=security",
         "/updates",
+        "/updates?ring=Pilot&ring-state=failed",
         "/software",
         "/software?dialog=add&q=7zip",
         "/software?dialog=off",
@@ -129,7 +130,7 @@ public sealed class PageLayoutTests(UiFixture ui)
         var page = await context.NewPageAsync();
         await page.GotoAsync(await ResolveAsync(path));
 
-        var links = await page.EvalOnSelectorAllAsync<string[]>("main a[href]", "links => links.map(a => a.href)");
+        var links = await page.EvalOnSelectorAllAsync<string[]>("main a[href]", "links => links.map(a => new URL(a.getAttribute('href'), document.baseURI).href)");
         var broken = new List<string>();
         // The dashboard sets <base href="/">, so a bare "#anchor" opens the overview instead of a part of this page.
         var anchors = await page.EvalOnSelectorAllAsync<string[]>("main a[href^='#']", "links => links.map(a => a.getAttribute('href'))");

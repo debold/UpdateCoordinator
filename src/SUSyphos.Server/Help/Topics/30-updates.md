@@ -33,6 +33,10 @@ All actions are recorded in the update's timeline and the [audit log](help/audit
 
 The view is part of the address, like search and filters.
 
+## Filtered to a ring {#ring-filter}
+
+A part of the ring bar on the [overview](help/overview#rings) opens this list filtered to that ring (Marc, 2026-11-17). Two chips above the list say so: **Ring** (for example "Ring: 1 Pilot (2 servers)") and, for a coloured part, the state in that ring ("In Pilot: Failed"). The list then holds the updates that are still open somewhere and have servers in that ring, only those with at least one server of the ring in the chosen state. The **Status** column counts only the servers of the ring, so its red parts add up to the red part of the ring bar: the bar counts each server once per update, the list each update once. The **×** of a chip removes that filter; the view, the search and the other filters stay.
+
 ## Columns {#columns}
 
 | Column | Meaning |
@@ -44,5 +48,5 @@ The view is part of the address, like search and filters.
 | **First reported** | When a server reported it as missing for the first time. |
 | **Rollout** | *Queued* (no rollout yet), *Started* (waiting for the first ring), *Rolling out* (released up to the ring named below), *Released to all rings*, *Completed* (released to every ring, nothing pending or failed; hidden by default), *Waiting at gate* (a manual gate waits for approval), *Alarm* (stopped before a ring, with the reason), *Stopped*, *Blocked* (locked by an operator, see the update page), *Withdrawn by Microsoft* (Windows Update no longer offers it) or *Superseded* (a newer update replaces it; hidden by default; the details of the row name and link the newer update). A superseded update with a running rollout keeps its state. |
 | **Rings** | The stage of the update in each ring, as a box with the ring number in the colour of the ring: dashed and faded = *Waiting* or *Not started* (the rollout has not reached the ring), filled = released (*Rolling out* while servers still install it), filled with a green check = *Released* and done in the ring, filled with a red "!" = *Failures* or *Alarm*, outlined with an amber dot = *Awaiting approval* (a manual gate), hatched = the ring holds the update ([Hold](help/update-detail#hold)). The tooltip names ring and stage; the filter offers "ring: stage", for example "Production: Awaiting approval". |
-| **Status** | The ring of successful installations among all servers concerned, with "installed / total"; the tooltip names every part (installed green, pending blue, waiting for release amber, failed red) and how many servers still miss it. The colours are explained below the list. |
+| **Status** | A bar over all servers concerned (installed green, pending blue, waiting for release amber, failed red), with "installed / total" and the failures below it; the tooltip names every part and how many servers still miss it. The colours are explained below the list. Filtered to a ring, the bar counts only the servers of that ring and the header names the ring ("In Pilot"). |
 | **Details** (▾ at the end of the row) | Opens a row below with the links, the newer update that supersedes it, the vulnerabilities it fixes, the servers that still miss it and the update ID with its revision; select it again to close the row. |

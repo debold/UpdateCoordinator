@@ -363,6 +363,13 @@ details.col-filter[open] > summary { color: var(--accent); background: var(--acc
 .seg-queue { fill: var(--queue); }
 .seg-fail { fill: var(--fail); }
 .seg-none { fill: var(--idle); opacity: 0.45; }
+/* A bar whose parts are links (ring bar of the overview, Marc 2026-11-17): taller to hit, and the part under the pointer or in focus stands out. */
+.bar.linked { height: 0.8rem; }
+.bar.linked a { cursor: pointer; }
+.bar.linked a:hover rect, .bar.linked a:focus-visible rect { opacity: 0.75; }
+.bar.linked a:focus-visible rect { stroke: var(--text); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+td.status-bar .bar { min-width: 4.5rem; }
+td.status-bar .note { margin-top: 0.2rem; }
 .donut { width: 7.5rem; height: 7.5rem; flex: 0 0 auto; }
 .donut.tile-size { width: 4rem; height: 4rem; }
 .donut.small { width: 2.5rem; height: 2.5rem; }

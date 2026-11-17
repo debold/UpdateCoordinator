@@ -1,14 +1,30 @@
 @using SUSyphos.Server.Rollouts
-@* Horizontal bar of deployment states; drawn as SVG attributes because the content security policy forbids inline styles. *@
-<svg class="bar" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="@Charts.Describe(Counts)">
+@* Horizontal bar of deployment states; drawn as SVG attributes because the content security policy forbids inline styles.
+   With Href each part links somewhere (the ring bar of the overview links to the update list, Marc 2026-11-17). *@
+<svg class="bar@(Href is null ? null : " linked")" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="@Charts.Describe(Counts)">
     <rect class="track" x="0" y="0" width="100" height="10"></rect>
     @foreach (var (cls, x, width) in Charts.Segments(Counts, 100))
     {
-        <rect class="seg-@cls" x="@Charts.Number(x)" y="0" width="@Charts.Number(width)" height="10"></rect>
+        if (Href?.Invoke(cls) is { } href)
+        {
+            <a href="@href"><title>@(Title?.Invoke(cls) ?? href)</title><rect class="seg-@cls" x="@Charts.Number(x)" y="0" width="@Charts.Number(width)" height="10"></rect></a>
+        }
+        else
+        {
+            <rect class="seg-@cls" x="@Charts.Number(x)" y="0" width="@Charts.Number(width)" height="10"></rect>
+        }
     }
 </svg>
 
 @code {
     [Parameter, EditorRequired]
     public DeploymentCounts Counts { get; set; } = DeploymentCounts.Empty;
+
+    /// <summary>Link of a part by its class ("ok", "pend", "queue", "fail"); null leaves that part without a link.</summary>
+    [Parameter]
+    public Func<string, string?>? Href { get; set; }
+
+    /// <summary>Tooltip of a linked part by its class.</summary>
+    [Parameter]
+    public Func<string, string?>? Title { get; set; }
 }

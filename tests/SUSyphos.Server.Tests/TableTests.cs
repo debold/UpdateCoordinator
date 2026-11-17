@@ -235,7 +235,7 @@ public sealed class TableTests
 
         Assert.Contains("Classification", all, StringComparison.Ordinal);
         Assert.Contains("Severity", all, StringComparison.Ordinal);
-        Assert.Contains("class=\"donut small\"", all, StringComparison.Ordinal);
+        Assert.Contains("<svg class=\"bar\"", all, StringComparison.Ordinal);
         Assert.Contains("KB2267602", filtered, StringComparison.Ordinal);
         Assert.DoesNotContain("KB5040000", filtered, StringComparison.Ordinal);
     }

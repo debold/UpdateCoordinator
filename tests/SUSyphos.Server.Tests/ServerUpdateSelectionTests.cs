@@ -140,7 +140,7 @@ public sealed class ServerUpdateSelectionTests
         Assert.Equal(2, result.Done);
         Assert.Single(result.Skipped);
         var actions = await scenario.Factory.WithDbAsync(db => db.AgentActions.ToListAsync(TestContext.Current.CancellationToken));
-        Assert.Equal([first, second], actions.Select(a => a.UpdateId!.Value).Order());
+        Assert.Equal(new[] { first, second }.Order(), actions.Select(a => a.UpdateId!.Value).Order());
         Assert.All(actions, a => Assert.Equal(AgentActionKind.UninstallInWindow, a.Kind));
         Assert.Equal(2, await scenario.Factory.WithDbAsync(db => db.UpdateHolds.CountAsync(h => h.ClientId == client.ClientId, TestContext.Current.CancellationToken)));
 

@@ -32,7 +32,16 @@
 </AuthorizeView>
 
 <Box Flush="true">
-    <TableTools Table="_table" Placeholder="Search KB, title or CVE" Labels="Labels" GroupOptions="GroupOptions" View="_page.View" />
+    <TableTools Table="_table" Placeholder="Search KB, title or CVE" Labels="Labels" GroupOptions="GroupOptions" View="_page.View">
+        @if (_ring is { } ring)
+        {
+            <span class="chip" title="Updates with servers in this ring that are still open somewhere; the Status column counts only its servers">Ring: @ring.Order @ring.Name (@DisplayNumber.Format(_ringServers) servers)<a href="@Without(RingLink.RingParameter, RingLink.StateParameter)" aria-label="Remove the ring filter">×</a></span>
+            @if (_ringState is { } state)
+            {
+                <span class="chip" title="Updates with at least one server of the ring in this state">In @ring.Name: @RingLink.Label(state)<a href="@Without(RingLink.StateParameter)" aria-label="Remove the state filter">×</a></span>
+            }
+        }
+    </TableTools>
     <div class="scroll">
         <table>
             <thead>
@@ -46,7 +55,7 @@
                     <SortHeader Table="_table" Column="seen" Label="First reported" />
                     <SortHeader Table="_table" Column="rollout" Label="Rollout" Options="@Options("rollout")" />
                     <SortHeader Table="_table" Column="rings" Label="Rings" Sortable="false" Options="@Options("rings")" />
-                    <SortHeader Table="_table" Column="installed" Label="Status" />
+                    <SortHeader Table="_table" Column="installed" Label="@(_ring is { } shown ? $"In {shown.Name}" : "Status")" />
                     <th class="n"><span class="visually-hidden">Details</span></th>
                 </tr>
             </thead>
@@ -70,7 +79,7 @@
                             <td class="nowrap">@DisplayTime.FormatDate(row.FirstSeen)</td>
                             <td><span class="pill @row.RolloutClass">@row.Rollout</span>@if (row.RolloutDetail is not null) { <div class="note">@row.RolloutDetail</div> }</td>
                             <td class="nowrap">@foreach (var stage in row.Stages ?? []) { <span class="ring-stage r@(RingTag.Palette(stage.Order)) @stage.Class" title="@($"{stage.Order} {stage.Name}: {stage.Label}")">@stage.Order</span> }</td>
-                            <td class="nowrap"><span class="donut-cell" title="@($"{Charts.Describe(row.Counts)}; {row.Missing} servers still miss it")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Counts.Successful/@row.Counts.Total</span></span></td>
+                            <td class="status-bar" title="@($"{Charts.Describe(row.Counts)}{(_ring is null ? $"; {row.Missing} servers still miss it" : $" in {_ring.Name}")}")"><StackedBar Counts="@row.Counts" /><div class="note num">@StatusText(row.Counts)</div></td>
                             <td class="n"><ExpandToggle Table="_table" Key="@row.Key" Label="@row.Title" /></td>
                         </tr>
                         @if (_table.Open == row.Key)
@@ -167,6 +176,32 @@
 
     [SupplyParameterFromForm(FormName = "updates-bulk")]
     private string[]? Selected { get; set; }
+
+    /// <summary>The ring the list is filtered to, from a part of the ring bar of the overview (Marc, 2026-11-17).</summary>
+    [SupplyParameterFromQuery(Name = RingLink.RingParameter)]
+    private string? RingParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = RingLink.StateParameter)]
+    private string? RingStateParam { get; set; }
+
+    private RingEntity? _ring;
+    private DeploymentState? _ringState;
+    private int _ringServers;
+
+    /// <summary>"3/9, 1 failed": installed of all, and the failures, under the status bar.</summary>
+    private static string StatusText(DeploymentCounts counts) =>
+        $"{DisplayNumber.Format(counts.Successful)}/{DisplayNumber.Format(counts.Total)}{(counts.Failed > 0 ? $", {DisplayNumber.Format(counts.Failed)} failed" : null)}";
+
+    /// <summary>The address of the list without the given query parameters (and on the first page).</summary>
+    private string Without(params string[] keys)
+    {
+        var uri = new Uri(Navigation.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query)
+            .Where(p => !keys.Contains(p.Key, StringComparer.OrdinalIgnoreCase) && p.Key != "page")
+            .SelectMany(p => p.Value.Select(v => $"{Uri.EscapeDataString(p.Key)}={Uri.EscapeDataString(v ?? string.Empty)}"));
+        var text = string.Join("&", query);
+        return text.Length == 0 ? uri.AbsolutePath : $"{uri.AbsolutePath}?{text}";
+    }
 
     private TableQuery _table = default!;
     private TablePage<Row> _page = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
@@ -307,6 +342,19 @@
 
         // Superseded, completed, withdrawn, outside and archived updates are values of the rollout filter; the default view hides them.
         rows.AddRange(await OutsideRowsAsync([.. keys, .. rows.Select(r => (r.UpdateId, r.Revision))]));
+
+        // Filtered to a ring (a part of the ring bar of the overview): the updates behind the bar, those with servers of the
+        // ring that are still open somewhere, and the status counts only the servers of the ring (Marc, 2026-11-17).
+        _ring = string.IsNullOrWhiteSpace(RingParam) ? null : rings.FirstOrDefault(r => string.Equals(r.Name, RingParam.Trim(), StringComparison.OrdinalIgnoreCase));
+        _ringState = _ring is null ? null : RingLink.Parse(RingStateParam);
+        if (_ring is { } ring)
+        {
+            _ringServers = await Db.Clients.CountAsync(c => c.State == RegistrationState.Approved && c.RingId == ring.Id);
+            rows = [.. rows
+                .Where(r => counts[(r.UpdateId, r.Revision)].Any(e => e.State != DeploymentState.Successful))
+                .Select(r => r with { Counts = DeploymentCounts.Of(counts[(r.UpdateId, r.Revision)].Where(e => e.RingId == ring.Id)) })
+                .Where(r => r.Counts.Total > 0 && (_ringState is not { } state || RingLink.Count(r.Counts, state) > 0))];
+        }
 
         // Two entries with the same title (two revisions or update IDs, e.g. the MSRT; Marc, 2026-11-13) name their revision.
         var repeated = rows.GroupBy(r => r.Title, StringComparer.Ordinal).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.Ordinal);

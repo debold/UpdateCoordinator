@@ -93,7 +93,7 @@
                             <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@Servers.Link("ring", ring.Name)" Title="Show the servers of this ring" /></td>
                             <td class="n">@ring.Servers</td>
                             <td class="n">@ring.ActiveUpdates</td>
-                            <td><StackedBar Counts="@ring.Counts" />@if (ring.Counts.Queued + ring.Counts.Pending + ring.Counts.Failed > 0) { <div class="note">@OpenText(ring.Counts)</div> }</td>
+                            <td><StackedBar Counts="@ring.Counts" Href="@(cls => RingLink.StateOfClass(cls) is { } state ? RingLink.Link(ring.Name, state) : null)" Title="@(cls => RingLink.StateOfClass(cls) is { } state ? SegmentTitle(ring, state) : null)" />@if (ring.Counts.Queued + ring.Counts.Pending + ring.Counts.Failed > 0) { <div class="note">@OpenLinks(ring)</div> }</td>
                             <td><span class="pill @ring.HealthClass">@ring.Health</span></td>
                         </tr>
                     }
@@ -168,7 +168,42 @@
 @code {
     private sealed record AttentionItem(string Kind, string PillClass, string Title, string? Detail, string Link, string LinkText);
 
-    private sealed record RingRow(int Id, int Order, string Name, int Servers, int ActiveUpdates, DeploymentCounts Counts, string Health, string HealthClass);
+    /// <summary>A ring of the deployment box; <paramref name="Updates"/> counts the updates per state behind the server × update pairs of the bar.</summary>
+    private sealed record RingRow(int Id, int Order, string Name, int Servers, int ActiveUpdates, DeploymentCounts Counts, string Health, string HealthClass, IReadOnlyDictionary<DeploymentState, int> Updates);
+
+    /// <summary>
+    /// The open states of a ring as links to the update list (Marc, 2026-11-17): "3 failed on 2 updates" names the pairs of the
+    /// bar and the updates the list then shows.
+    /// </summary>
+    private static RenderFragment OpenLinks(RingRow ring) => builder =>
+    {
+        var first = true;
+        foreach (var (state, verb) in new[] { (DeploymentState.Failed, "failed"), (DeploymentState.Pending, "to install"), (DeploymentState.Queued, "waiting for release") })
+        {
+            var pairs = RingLink.Count(ring.Counts, state);
+            if (pairs == 0)
+            {
+                continue;
+            }
+
+            if (!first)
+            {
+                builder.AddContent(0, ", ");
+            }
+
+            first = false;
+            builder.OpenElement(1, "a");
+            builder.AddAttribute(2, "href", RingLink.Link(ring.Name, state));
+            builder.AddContent(3, PairText(pairs, verb, ring.Updates.GetValueOrDefault(state)));
+            builder.CloseElement();
+        }
+    };
+
+    private static string PairText(int pairs, string verb, int updates) =>
+        updates == pairs ? $"{DisplayNumber.Format(pairs)} {verb}" : $"{DisplayNumber.Format(pairs)} {verb} on {DisplayNumber.Format(updates)} {(updates == 1 ? "update" : "updates")}";
+
+    private static string SegmentTitle(RingRow ring, DeploymentState state) =>
+        $"{RingLink.Label(state)} in {ring.Name}: {DisplayNumber.Format(RingLink.Count(ring.Counts, state))} server × update, {DisplayNumber.Format(ring.Updates.GetValueOrDefault(state))} updates. Show them in the update list";
 
     [SupplyParameterFromForm(FormName = "pause")]
     private string? PauseRequest { get; set; }
@@ -425,13 +460,6 @@
         }
     }
 
-    /// <summary>What is still open in a ring, counted per server and update: failed, to install, waiting for release.</summary>
-    private static string OpenText(DeploymentCounts counts) => string.Join(", ", new[]
-    {
-        counts.Failed > 0 ? $"{DisplayNumber.Format(counts.Failed)} failed" : null,
-        counts.Pending > 0 ? $"{DisplayNumber.Format(counts.Pending)} to install" : null,
-        counts.Queued > 0 ? $"{DisplayNumber.Format(counts.Queued)} waiting for release" : null,
-    }.OfType<string>());
 
     private async Task LoadRingsAsync(List<ClientEntity> clients, IReadOnlyList<DeploymentEntry> entries)
     {
@@ -446,7 +474,9 @@
         var open = entries.GroupBy(e => (e.UpdateId, e.Revision)).Where(g => g.Any(e => e.State != DeploymentState.Successful)).Select(g => g.Key).ToHashSet();
         _rings = [.. rings.Select(ring =>
         {
-            var counts = DeploymentCounts.Of(entries.Where(e => e.RingId == ring.Id && open.Contains((e.UpdateId, e.Revision))));
+            var inRing = entries.Where(e => e.RingId == ring.Id && open.Contains((e.UpdateId, e.Revision))).ToList();
+            var counts = DeploymentCounts.Of(inRing);
+            var updates = inRing.GroupBy(e => e.State).ToDictionary(g => g.Key, g => g.Select(e => (e.UpdateId, e.Revision)).Distinct().Count());
             var mine = states.Where(s => s.RingId == ring.Id).ToList();
             var (label, cls) = mine.Any(s => s.State == RingRolloutState.Alarm) ? ("Alarm", "fail")
                 : mine.Any(s => s.State == RingRolloutState.AwaitingApproval) ? ("Awaiting approval", "queue")
@@ -454,7 +484,7 @@
                 : counts.Pending > 0 ? ("Rolling out", "pend")
                 : counts.Queued > 0 ? ("Waiting for release", "neutral")
                 : ("Healthy", "ok");
-            return new RingRow(ring.Id, ring.Order, ring.Name, clients.Count(c => c.RingId == ring.Id), mine.Count(s => s.State == RingRolloutState.Released), counts, label, cls);
+            return new RingRow(ring.Id, ring.Order, ring.Name, clients.Count(c => c.RingId == ring.Id), mine.Count(s => s.State == RingRolloutState.Released), counts, label, cls, updates);
         })];
     }
 
