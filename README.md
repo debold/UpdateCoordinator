@@ -21,7 +21,7 @@
 Microsoft has deprecated WSUS. SUSyphos takes its place: a small agent on every server, one central server with a web dashboard, and updates that move through **Pilot**, **Test** and **Production** on their own. No WSUS database, no SQL Server, no content sync.
 
 > [!NOTE]
-> **Public beta: [SUSyphos 0.9.0-rc.4](https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.9.0-rc.4) is out**, a release candidate with third-party software through WinGet. Try it in a lab and tell us what you think in [Issues](https://github.com/debold/UpdateCoordinator/issues). The packages are not code-signed yet; check them against `SHA256SUMS.txt`.
+> **Public beta: [SUSyphos 0.9.0-rc.5](https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.9.0-rc.5) is out**, a release candidate with third-party software through WinGet. Try it in a lab and tell us what you think in [Issues](https://github.com/debold/UpdateCoordinator/issues). The packages are not code-signed yet; check them against `SHA256SUMS.txt`.
 
 ## What makes it different
 
@@ -37,7 +37,7 @@ Microsoft has deprecated WSUS. SUSyphos takes its place: a small agent on every 
     <td width="45%"><img src="docs/images/software.png" alt="Software catalog"></td>
     <td>
       <h3>Software too, through the same rings</h3>
-      See every installed program on every server, update it with WinGet through the same rings, and roll out new software to groups. Every installer is checked against its SHA-256 and virus-scanned on the central server first.
+      See every installed program on every server, update it with WinGet through the same rings, roll out new software to groups and uninstall it again. Signed PowerShell scripts can run before and after an installation. Every installer is checked against its SHA-256 and virus-scanned on the central server first.
     </td>
   </tr>
   <tr>

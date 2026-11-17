@@ -4,6 +4,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.9.0-rc.5] - 2026-11-17
+
 ### Documentation
 
 - New README (Marc, 2026-11-16, variant A "Showcase"): what SUSyphos is in one sentence, four feature blocks with screenshots (rings, software, windows, security), how it works and a quick start. Keeping it current is a release step: a test checks that its NOTE box names the newest release, and the release steps in docs/development.md renew its screenshots.
