@@ -14,6 +14,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - A software version the WinGet source does not offer says why (lab 2026-11-20): a banner on the update page (download and scan pending, scan failed with the reason and the last attempt, threat found), the reason below the rollout state in the update list, and "not in the WinGet source yet" instead of "no server needs it" in Progress by ring.
 - Fix (lab 2026-11-20): **Install now…** in the ⋯ of a server on the update page installed every released update of the server; it now opens the selection with only this update (also for an update still waiting for the ring of the server).
 - Fix: the header of a log collection named version 0.0.0.0; it names the version of the central server.
+- A ring with servers and nothing open shows a full green bar and "everything up to date" on the overview instead of an empty grey bar (Marc, 2026-11-20).
 
 ## [0.9.0-rc.5] - 2026-11-17
 

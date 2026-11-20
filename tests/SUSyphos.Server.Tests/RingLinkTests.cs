@@ -61,6 +61,24 @@ public sealed class RingLinkTests
         Assert.DoesNotContain("Ring: ", all, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RingWithNothingOpen_SaysItIsUpToDate()
+    {
+        // Marc, 2026-11-20: a ring without open updates showed an empty grey bar and no word.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await scenario.AddClientAsync("PILOT01", RingEntity.PilotId);
+        await scenario.Factory.CreateUserAsync("reader", Password, SUSyphos.Server.Administration.AdminRoles.Reader);
+        using var browser = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("reader", Password))
+        {
+        }
+
+        var overview = await (await browser.GetAsync("/")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("everything up to date", overview, StringComparison.Ordinal);
+        Assert.Contains("class=\"seg-ok\"", overview, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("/updates?ring=Nowhere&ring-state=failed")]
     [InlineData("/updates?ring=%27%3Bdrop&ring-state=%3Cscript%3E")]

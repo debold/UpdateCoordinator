@@ -93,7 +93,7 @@
                             <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@Servers.Link("ring", ring.Name)" Title="Show the servers of this ring" /></td>
                             <td class="n">@ring.Servers</td>
                             <td class="n">@ring.ActiveUpdates</td>
-                            <td><StackedBar Counts="@ring.Counts" Href="@(cls => RingLink.StateOfClass(cls) is { } state ? RingLink.Link(ring.Name, state) : null)" Title="@(cls => RingLink.StateOfClass(cls) is { } state ? SegmentTitle(ring, state) : null)" />@if (ring.Counts.Queued + ring.Counts.Pending + ring.Counts.Failed > 0) { <div class="note">@OpenLinks(ring)</div> }</td>
+                            <td>@if (ring.Counts.Total == 0) { <StackedBar Counts="@UpToDate" /> } else { <StackedBar Counts="@ring.Counts" Href="@(cls => RingLink.StateOfClass(cls) is { } state ? RingLink.Link(ring.Name, state) : null)" Title="@(cls => RingLink.StateOfClass(cls) is { } state ? SegmentTitle(ring, state) : null)" /> }@if (ring.Counts.Queued + ring.Counts.Pending + ring.Counts.Failed > 0) { <div class="note">@OpenLinks(ring)</div> } else if (ring.Servers > 0) { <div class="note">everything up to date</div> }</td>
                             <td><span class="pill @ring.HealthClass">@ring.Health</span></td>
                         </tr>
                     }
@@ -175,6 +175,9 @@
     /// The open states of a ring as links to the update list (Marc, 2026-11-17): "3 failed on 2 updates" names the pairs of the
     /// bar and the updates the list then shows.
     /// </summary>
+    /// <summary>A ring with nothing open: a full green bar (Marc, 2026-11-20: an empty grey bar said nothing).</summary>
+    private static readonly DeploymentCounts UpToDate = new(0, 0, 1, 0);
+
     private static RenderFragment OpenLinks(RingRow ring) => builder =>
     {
         var first = true;
