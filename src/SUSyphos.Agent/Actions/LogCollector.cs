@@ -45,7 +45,7 @@ internal sealed class LogCollector(string directory, TimeProvider timeProvider, 
     public (byte[] Archive, int Files) Collect()
     {
         var result = new DiagnosticArchive(timeProvider, AgentActionList.LogDays, AgentActionList.MaxLogBytes)
-            .Build($"SUSyphos agent logs, version {typeof(LogCollector).Assembly.GetName().Version}", [new LogSource(directory, FilePattern, string.Empty), .. parts ?? []]);
+            .Build($"SUSyphos agent logs, version {System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(LogCollector).Assembly)?.InformationalVersion ?? "unknown"}", [new LogSource(directory, FilePattern, string.Empty), .. parts ?? []]);
         return (result.Archive, result.Files);
     }
 }

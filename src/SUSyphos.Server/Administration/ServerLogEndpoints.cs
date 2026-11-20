@@ -47,7 +47,7 @@ internal static partial class ServerLogEndpoints
         var software = await SoftwareCacheOverviewAsync(db, cancellationToken).ConfigureAwait(false);
         var since = timeProvider.GetUtcNow().UtcDateTime.AddDays(-Days);
         var result = new DiagnosticArchive(timeProvider, Days, MaxBytes).Build(
-            $"SUSyphos central server logs, version {typeof(ServerLogEndpoints).Assembly.GetName().Version}",
+            $"SUSyphos central server logs, version {ServerVersion.Full}",
             [
                 new LogSource(LogDirectory(configuration), "server-*.log", string.Empty),
                 new ArchiveText("Events/Application.txt", () => EventLogExtract.Read(since)),

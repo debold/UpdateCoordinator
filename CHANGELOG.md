@@ -4,9 +4,14 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Agent
+
+- Fix (lab 2026-11-20): when an upgrade finds no installer, the install over the installation looks the version up in the source alone; with the installed program attached, WinGet applied its type and language to the install too and refused again (Visual C++ 2013 12.0.21005 on LABVDC01, 0x8A150010). The header of the log collection names the agent version instead of 0.0.0.0.
+
 ### Central server
 
 - Fix (lab 2026-11-20): **Install now…** in the ⋯ of a server on the update page installed every released update of the server; it now opens the selection with only this update (also for an update still waiting for the ring of the server).
+- Fix: the header of a log collection named version 0.0.0.0; it names the version of the central server.
 
 ## [0.9.0-rc.5] - 2026-11-17
 

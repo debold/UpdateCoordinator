@@ -262,6 +262,7 @@ public sealed class WinGetClient(WinGetEngine engine)
         {
             operation = "install";
             Trace?.Invoke($"WinGet sees the {other} installation; installing the {named} version over the {named} installation instead.");
+            (package, install.PackageVersionId) = await FromSourceOnlyAsync(source, id, install.PackageVersionId);
         }
 
         if ((requested ?? guessed) is { } architecture)
@@ -290,10 +291,14 @@ public sealed class WinGetClient(WinGetEngine engine)
         // (12.0.21005, lab 2026-11-16) found no installer, probably because WinGet matched it with one of its MSI parts
         // and accepts no Burn installer for an MSI. Installed over directly instead, as an administrator would do; the
         // installer replaces the old build itself.
+        // The installation must be looked up in the source alone: a package found together with the installed programs
+        // carries the installation, and WinGet applies its type, scope and language to an install as well (lab,
+        // 2026-11-20: the install over the old Visual C++ 2013 build failed the same way, InstallFlow.cpp:140).
         if (operation == "upgrade" && result.Status == InstallResultStatus.NoApplicableInstallers)
         {
             operation = "install";
-            Trace?.Invoke("No installer fits the upgrade of this installation (architecture or language); installing the version over it instead.");
+            Trace?.Invoke("No installer fits the upgrade of this installation (architecture, type or language); installing the version from the source over it instead.");
+            (package, install.PackageVersionId) = await FromSourceOnlyAsync(source, id, install.PackageVersionId);
             result = await ExecuteAsync(operation, package, install);
         }
 
@@ -310,6 +315,16 @@ public sealed class WinGetClient(WinGetEngine engine)
             watch.Elapsed,
             logFile,
             result.ExtendedErrorCode?.HResult ?? 0);
+    }
+
+    /// <summary>
+    /// The package as the source alone offers it, without the installed program WinGet matched to it, with the same
+    /// version as before (an install over an installation must not inherit the filters of that installation).
+    /// </summary>
+    private async Task<(CatalogPackage Package, PackageVersionId? Version)> FromSourceOnlyAsync(PackageCatalogReference? source, string id, PackageVersionId? version)
+    {
+        var package = await FindByIdAsync(Composite(source, CompositeSearchBehavior.RemotePackagesFromRemoteCatalogs), id);
+        return (package, version is null ? null : package.AvailableVersions.FirstOrDefault(candidate => candidate.Version == version.Version) ?? version);
     }
 
     private async Task<InstallResult> ExecuteAsync(string operation, CatalogPackage package, InstallOptions install)
