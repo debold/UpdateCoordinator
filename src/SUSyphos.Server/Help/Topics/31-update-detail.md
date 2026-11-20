@@ -14,6 +14,10 @@ Lasting states appear as banners below the title:
 - **Withdrawn** (red): probably withdrawn by Microsoft. Servers that had it released report that Windows Update no longer knows it, it is not installed on them (inventory, SUSyphos or the Windows Update history), and no newer update, revision or newer version with the same KB replaces it. Depending on the setting under [Release rules](help/release-rules#withdrawn) the rollout was stopped or only a notification sent. **Block** on the right keeps it from coming back. The banner goes away when that turns out wrong (a server gets the update offered again, has it installed, or a newer version appears), and a rollout the mark stopped resumes by itself; a rollout stopped by hand stays stopped.
 - **Superseded** (blue): a newer update replaces this one (Windows Update supersedence). Each ring then gets the newer update as soon as it is released there: servers that get the newer one no longer get this one, the others keep it. Once the newer update has reached every ring this one reached, this rollout stops by itself ("Rollout stopped: superseded by …" in the timeline).
 
+## Not in the WinGet source {#source}
+
+A software version reaches the servers only once the WinGet source of the central server offers it: its installer downloaded, checked against the SHA-256 of the manifest and scanned for viruses (Marc, 2026-11-20). Until then a red or amber banner says why, also after **Release to all rings**: *download and virus scan pending*, *the virus scan of the installer failed* (with the reason and the last attempt; the central server tries again every few minutes while the rollout runs and releases the version as soon as a scan succeeds) or *a virus scan found a threat* (block the version). **Open package** opens the package page with the scan state of every version. The update list shows the same reason below the rollout state.
+
 ## Actions for this update {#actions}
 
 Operators and administrators:

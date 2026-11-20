@@ -89,6 +89,39 @@ public sealed class SoftwareReleaseTests
     }
 
     [Fact]
+    public async Task VersionWithAFailedScan_SaysWhyTheServersWait()
+    {
+        // Lab, Marc 2026-11-20: released to every ring, the servers stayed "queued" without a word while the scan failed.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await AddServerWithZipAsync(scenario, "OLD01", "26.05");
+        await StartRolloutAsync(scenario);
+        await scenario.Factory.WithDbAsync(db => db.PackageVersions.Where(v => v.UpdateId == NewZip).ExecuteUpdateAsync(s => s
+            .SetProperty(v => v.CachedAtUtc, (DateTime?)null)
+            .SetProperty(v => v.ScanState, InstallerScanState.Failed)
+            .SetProperty(v => v.ScanDetail, "setup.exe: Windows could not scan the file"), TestContext.Current.CancellationToken));
+        await scenario.WithServiceAsync<ReleasePlanner, bool>(async p => { await p.SyncAsync(null, CancellationToken.None); return true; });
+        await scenario.Factory.CreateUserAsync("reader", "correct horse battery", SUSyphos.Server.Administration.AdminRoles.Reader);
+        using var browser = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("reader", "correct horse battery"))
+        {
+        }
+
+        var page = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/updates/{NewZip:D}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var list = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/updates")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("Not in the WinGet source", page, StringComparison.Ordinal);
+        Assert.Contains("setup.exe: Windows could not scan the file", page, StringComparison.Ordinal);
+        Assert.Contains("not in the WinGet source yet", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("no server needs it", page, StringComparison.Ordinal);
+        Assert.Contains("not in the WinGet source: the virus scan of the installer failed", list, StringComparison.Ordinal);
+
+        // Once cached, nothing of it is left.
+        await scenario.Factory.WithDbAsync(db => db.PackageVersions.Where(v => v.UpdateId == NewZip).ExecuteUpdateAsync(s => s.SetProperty(v => v.CachedAtUtc, DateTime.UtcNow).SetProperty(v => v.ScanState, InstallerScanState.Clean), TestContext.Current.CancellationToken));
+        var cached = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/updates/{NewZip:D}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("Not in the WinGet source", cached, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ResultOfARunWhoseReleaseEnded_IsStillAccepted()
     {
         await using var scenario = await RolloutScenario.CreateAsync();

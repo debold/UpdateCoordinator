@@ -104,4 +104,26 @@ public sealed class AmsiScannerTests
         {
             File.Delete(file);
         }
-    }}
+    }
+
+    [Fact]
+    public async Task AttachmentCheck_FromAThreadPoolThread_ReachesTheInterface()
+    {
+        // The cache worker scans on a thread-pool thread; there the COM object answered E_NOINTERFACE (lab 2026-11-20).
+        var file = Path.Combine(Path.GetTempPath(), $"susyphos-{Guid.NewGuid():N}.txt");
+        try
+        {
+            File.WriteAllText(file, "harmless");
+
+            var result = await Task.Run(() => AttachmentScanner.ScanFile(file), TestContext.Current.CancellationToken);
+
+            Assert.DoesNotContain("IAttachmentExecute", result.Detail, StringComparison.Ordinal);
+            Assert.DoesNotContain("E_NOINTERFACE", result.Detail, StringComparison.Ordinal);
+            Assert.NotEqual(ScanOutcome.Detected, result.Outcome);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+}

@@ -43,6 +43,13 @@ else
             <Action>@if (_canOperate && _update.BlockedAtUtc is null) { <button type="submit" form="update-actions" name="Action" value="block" class="danger">Block</button> }</Action>
         </Banner>
     }
+    @if (_sourceVersion is { } notOffered && SUSyphos.Server.Software.SoftwareSource.NotOfferedReason(notOffered) is not null)
+    {
+        <Banner Label="Not in the WinGet source" Severity="@(notOffered.ScanState is InstallerScanState.Failed or InstallerScanState.Detected ? "fail" : "queue")" Help="update-detail#source">
+            <ChildContent>@SUSyphos.Server.Software.SoftwareSource.Explain(notOffered)@if (notOffered.ScannedAtUtc is { } scannedAt) { <text> Last attempt @Format(scannedAt).</text> }</ChildContent>
+            <Action>@if (_update.PackageId is { } sourcePackage) { <a class="btn" href="@PackagePage.Link(sourcePackage)">Open package</a> }</Action>
+        </Banner>
+    }
     @if (_holds.Count > 0)
     {
         <Banner Label="On hold" Severity="queue" Help="update-detail#hold">
@@ -184,7 +191,7 @@ else
                                         }
                                     }
                                 </td>
-                                <td class="n">@if (ring.State is not null && ring.Statistics.Targeted == 0) { <span class="note">no server needs it</span> } else { @Percent(ring.Statistics.FeedbackPercent) <span class="note">(@ring.Statistics.Reported/@ring.Statistics.Targeted)</span> }</td>
+                                <td class="n">@if (ring.State is not null && ring.Statistics.Targeted == 0 && ring.Counts.Total > 0) { <span class="note">@(_sourceVersion is { } waiting && SUSyphos.Server.Software.SoftwareSource.NotOfferedReason(waiting) is not null ? "not in the WinGet source yet" : "no server got it yet")</span> } else if (ring.State is not null && ring.Statistics.Targeted == 0) { <span class="note">no server needs it</span> } else { @Percent(ring.Statistics.FeedbackPercent) <span class="note">(@ring.Statistics.Reported/@ring.Statistics.Targeted)</span> }</td>
                                 <td class="n">@Percent(ring.Statistics.SuccessPercent)</td>
                                 <td><StackedBar Counts="@ring.Counts" /></td>
                             </tr>
@@ -542,6 +549,9 @@ else
     }
 
     private bool _canOperate;
+    /// <summary>The version of a software update in the catalog; null for Windows updates.</summary>
+    private PackageVersionEntity? _sourceVersion;
+
     private UpdateEntity? _update;
     private RolloutEntity? _rollout;
     private NewerUpdate? _supersededBy;
@@ -611,6 +621,8 @@ else
         _fixes = (await Baseline.LoadAsync(CancellationToken.None)).FixedBy(_update.KbArticle).OrderByDescending(v => v.Exploited).ThenByDescending(v => v.CvssScore ?? 0).ToList();
         _cveTable = TableQuery.From(Navigation, SUSyphos.Server.Security.VulnerabilityColumns.DefaultSort, defaultDescending: true, prefix: "cve.", defaultPageSize: 10);
         _cvePage = TablePaging.Apply(_fixes, _cveTable, VulnerabilityTable, SUSyphos.Server.Security.VulnerabilityColumns.SearchText);
+        // A software version reaches servers only once the WinGet source of the central server offers it (lab, 2026-11-20).
+        _sourceVersion = _update.Kind == UpdateKind.Software ? await Db.PackageVersions.AsNoTracking().FirstOrDefaultAsync(v => v.UpdateId == UpdateId) : null;
         _supersededBy = (await Supersedence.NewerAsync(Db, [UpdateId])).GetValueOrDefault(UpdateId);
         _holds = await Holds.GetAsync(UpdateId, Revision, CancellationToken.None);
         if (Dialog is "uninstall" or "hold")

@@ -12,7 +12,11 @@ public static partial class AttachmentScanner
 {
     private static readonly Guid ClientId = new("6a3f8a8e-2f8d-4c3b-9c51-5b2f0d3c7e41");
 
-    /// <summary>Scans the file; it must lie on a local drive.</summary>
+    /// <summary>
+    /// Scans the file; it must lie on a local drive. Runs on a thread of its own in a single-threaded apartment: the
+    /// attachment services are an apartment-threaded COM object, and from a thread-pool (multi-threaded) thread COM hands
+    /// out a proxy without the interface (lab 2026-11-20: E_NOINTERFACE for every installer above the AMSI size limit).
+    /// </summary>
     public static ScanResult ScanFile(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
@@ -21,6 +25,36 @@ public static partial class AttachmentScanner
             return new ScanResult(ScanOutcome.Failed, "The file does not exist.");
         }
 
+        if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
+        {
+            return ScanOnThisThread(path);
+        }
+
+        ScanResult? scanned = null;
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                scanned = ScanOnThisThread(path);
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "SUSyphos attachment scan",
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        return failure is null ? scanned! : new ScanResult(ScanOutcome.Failed, $"Windows could not scan the file: {failure.Message}");
+    }
+
+    private static ScanResult ScanOnThisThread(string path)
+    {
         int result;
         try
         {

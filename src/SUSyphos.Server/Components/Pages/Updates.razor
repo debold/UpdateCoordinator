@@ -340,6 +340,13 @@
                     Stages: Stages(rollouts.GetValueOrDefault(key), ringStates[key], rings, counts[key], [.. heldRings[key]]));
             })];
 
+        // A software version the WinGet source does not offer reaches no server, whatever its rollout says (lab, 2026-11-20).
+        var notOffered = (await Db.PackageVersions.AsNoTracking().Where(v => v.CachedAtUtc == null && ids.Contains(v.UpdateId)).ToListAsync())
+            .ToDictionary(v => v.UpdateId, v => SUSyphos.Server.Software.SoftwareSource.NotOfferedReason(v));
+        rows = [.. rows.Select(r => !r.Completed && r.PackageId is not null && notOffered.GetValueOrDefault(r.UpdateId) is { } reason && rollouts.ContainsKey((r.UpdateId, r.Revision))
+            ? r with { RolloutDetail = $"not in the WinGet source: {reason}" }
+            : r)];
+
         // Superseded, completed, withdrawn, outside and archived updates are values of the rollout filter; the default view hides them.
         rows.AddRange(await OutsideRowsAsync([.. keys, .. rows.Select(r => (r.UpdateId, r.Revision))]));
 
