@@ -596,6 +596,17 @@ public sealed class UpdateDetailTests
         Assert.Matches($"value=\"{test.ClientId}\"[^>]*selected", hold);
         Assert.Matches("id=\"hold-target-server\"[^>]*checked", hold);
         Assert.DoesNotMatch("id=\"hold-target-server\"[^>]*checked", malformed);
+
+        // Install now of a row installs only this update (lab, Marc 2026-11-20: it installed every released update).
+        await scenario.Factory.CreateUserAsync("admin", "correct horse battery", AdminRoles.Admin);
+        using var admin = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await admin.LoginAsync("admin", "correct horse battery"))
+        {
+        }
+
+        var adminServers = System.Net.WebUtility.HtmlDecode(await GetHtmlAsync(admin, path + "?tab=servers"));
+        Assert.Contains($"/servers/{test.ClientId}?tab=updates&dialog=install-selection&sel={update.UpdateId:D}", adminServers, StringComparison.Ordinal);
+        Assert.DoesNotContain($"/servers/{test.ClientId}?dialog=install\"", adminServers, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -4,6 +4,10 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Central server
+
+- Fix (lab 2026-11-20): **Install now…** in the ⋯ of a server on the update page installed every released update of the server; it now opens the selection with only this update (also for an update still waiting for the ring of the server).
+
 ## [0.9.0-rc.5] - 2026-11-17
 
 ### Documentation

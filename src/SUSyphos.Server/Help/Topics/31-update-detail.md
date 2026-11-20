@@ -98,7 +98,7 @@ Every approved server, with the **Server** and its operating system below (the f
 
 **View** (see [Working with lists](help/tables#views)) offers **Still to do** (default; hides Installed and Not needed), **Failed**, **Installed** and **All servers**; **Group** groups the rows by ring, status, operating system or group.
 
-**More** (⋯) at the end of a row: **Install now…** opens the dialog of the server that installs its released updates at once (administrators; only for a released update the server has not installed), **Hold for this server…** opens [Hold](#hold) with the server chosen (operators and administrators), and **Uninstall…** opens the uninstall dialog of the server with this update chosen (administrators; only where it is installed and Windows can remove it).
+**More** (⋯) at the end of a row: **Install now…** opens [Install selected updates now](help/server-detail#install-selection) of the server with only this update (administrators; for an update the server still misses; one not released for its ring yet is released for that server alone), **Hold for this server…** opens [Hold](#hold) with the server chosen (operators and administrators), and **Uninstall…** opens the uninstall dialog of the server with this update chosen (administrators; only where it is installed and Windows can remove it).
 
 ## Installed outside SUSyphos {#outside}
 
