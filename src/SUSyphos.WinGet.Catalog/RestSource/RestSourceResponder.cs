@@ -6,13 +6,18 @@ namespace SUSyphos.WinGet.Catalog.RestSource;
 public sealed record RestAnswer(int Status, JsonObject? Body);
 
 /// <summary>
-/// The WinGet REST source protocol (schema 1.1.0) over a <see cref="PackageCache"/>: <c>information</c>,
+/// The WinGet REST source protocol (schemas 1.1.0 and 1.4.0) over a <see cref="PackageCache"/>: <c>information</c>,
 /// <c>manifestSearch</c> and <c>packageManifests</c>. Installers are offered from the cache under
 /// <c>{filesBase}/{file}</c>. Transport (HTTPS, routing) belongs to the host.
 /// </summary>
 public sealed class RestSourceResponder(PackageCache cache, Uri filesBase, string sourceIdentifier = "susyphos")
 {
-    public const string SupportedVersion = "1.1.0";
+    /// <summary>
+    /// The schemas the source speaks. The manifests are passed through as the community source has them; WinGet reads
+    /// the fields of ZIP and portable packages (NestedInstallerType, NestedInstallerFiles) only from schema 1.4.0 on, so
+    /// with 1.1.0 alone such a package had no applicable installer (lab 2026-11-20: BGInfo, 0x8A150010).
+    /// </summary>
+    public static readonly IReadOnlyList<string> SupportedVersions = ["1.1.0", "1.4.0"];
 
     /// <summary>Fields a search may match on; others are reported back as unsupported.</summary>
     private static readonly string[] SupportedFields = ["PackageIdentifier", "PackageName", "Moniker", "Command", "Tag", "ProductCode", "UpgradeCode", "PackageFamilyName", "NormalizedPackageNameAndPublisher"];
@@ -22,7 +27,7 @@ public sealed class RestSourceResponder(PackageCache cache, Uri filesBase, strin
         ["Data"] = new JsonObject
         {
             ["SourceIdentifier"] = sourceIdentifier,
-            ["ServerSupportedVersions"] = new JsonArray(SupportedVersion),
+            ["ServerSupportedVersions"] = Strings(SupportedVersions),
         },
     });
 

@@ -356,7 +356,34 @@ public sealed class RestSourceTests : IDisposable
         var answer = Responder().Information();
 
         Assert.Equal(200, answer.Status);
-        Assert.Equal("1.1.0", answer.Body!["Data"]!["ServerSupportedVersions"]![0]!.GetValue<string>());
+        var versions = answer.Body!["Data"]!["ServerSupportedVersions"]!.AsArray().Select(version => version!.GetValue<string>()).ToList();
+        Assert.Contains("1.1.0", versions);
+
+        // ZIP and portable packages need schema 1.4.0 (lab 2026-11-20: BGInfo found no applicable installer).
+        Assert.Contains("1.4.0", versions);
+    }
+
+    [Fact]
+    public void Manifest_PassesTheFieldsOfZipAndPortablePackagesThrough()
+    {
+        var installer = new JsonObject
+        {
+            ["Architecture"] = "x64",
+            ["InstallerType"] = "zip",
+            ["NestedInstallerType"] = "portable",
+            ["NestedInstallerFiles"] = new JsonArray(new JsonObject { ["RelativeFilePath"] = "Bginfo64.exe", ["PortableCommandAlias"] = "bginfo" }),
+            ["InstallerSha256"] = new string('A', 64),
+            ["CachedFile"] = "bginfo.zip",
+        };
+        var cache = PackageCache.Open(_folder, [], verifyFiles: false);
+        cache.Put(new CachedVersion("Microsoft.Sysinternals.BGInfo", "4.34", new JsonObject { ["PackageName"] = "BGInfo" }, [installer]));
+
+        var served = new RestSourceResponder(cache, new Uri("https://central.example/winget/files/")).Manifest("Microsoft.Sysinternals.BGInfo")
+            .Body!["Data"]!["Versions"]![0]!["Installers"]![0]!;
+
+        Assert.Equal("portable", served["NestedInstallerType"]!.GetValue<string>());
+        Assert.Equal("Bginfo64.exe", served["NestedInstallerFiles"]![0]!["RelativeFilePath"]!.GetValue<string>());
+        Assert.Equal("https://central.example/winget/files/bginfo.zip", served["InstallerUrl"]!.GetValue<string>());
     }
 
     [Fact]

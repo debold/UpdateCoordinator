@@ -71,7 +71,7 @@ Every command also takes `--out <folder>` (default: `probe-results` next to the 
   version of the community source is taken (needs the engine). A download that receives nothing for 60 s is broken off
   and tried again (three attempts); progress is shown every 10 s. Needs internet access; run it on any machine and copy
   the folder.
-- **Serve** offers the cache as a private WinGet REST source (protocol 1.1.0) at `https://<name>:<port>/api/` and the
+- **Serve** offers the cache as a private WinGet REST source (protocols 1.1.0 and 1.4.0) at `https://<name>:<port>/api/` and the
   installers at `https://<name>:<port>/files/<hash>.<ext>`; `<name>` is the DNS name of the certificate. The servers
   that use the source must trust the certificate (WinGet checks TLS like Windows does), e.g. one from the lab's AD CS;
   the self-signed certificate of the central server is not trusted by Windows on its own. Every cached file is checked

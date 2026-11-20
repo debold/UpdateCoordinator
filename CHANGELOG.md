@@ -4,6 +4,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.9.0-rc.6] - 2026-11-20
+
 ### Agent
 
 - Fix (lab 2026-11-20): when an upgrade finds no installer, the install over the installation looks the version up in the source alone; with the installed program attached, WinGet applied its type and language to the install too and refused again (Visual C++ 2013 12.0.21005 on LABVDC01, 0x8A150010). The header of the log collection names the agent version instead of 0.0.0.0.
@@ -15,6 +17,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Fix (lab 2026-11-20): **Install now…** in the ⋯ of a server on the update page installed every released update of the server; it now opens the selection with only this update (also for an update still waiting for the ring of the server).
 - Fix: the header of a log collection named version 0.0.0.0; it names the version of the central server.
 - A ring with servers and nothing open shows a full green bar and "everything up to date" on the overview instead of an empty grey bar (Marc, 2026-11-20).
+- Fix (lab 2026-11-20): ZIP and portable WinGet packages (for example BGInfo) failed with 0x8A150010: the WinGet source of the central server spoke only REST schema 1.1.0, which does not carry the nested installer of a ZIP. It now also speaks 1.4.0.
 
 ## [0.9.0-rc.5] - 2026-11-17
 
