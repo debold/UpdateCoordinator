@@ -24,12 +24,6 @@
     <p class="notice" role="status">@_message</p>
 }
 
-<ActionBand>
-    <button type="submit" form="decision" name="Action" value="approve-selected" class="primary" disabled="@(_pending.Count == 0)" title="@(_pending.Count == 0 ? "No server is waiting for approval" : null)"><Icon Name="check" Size="16" />Approve selected servers</button>
-    <div class="spacer"></div>
-    <span class="note">Approve only servers you expect</span>
-    <button type="submit" form="decision" name="Action" value="reject-selected" class="danger" disabled="@(_pending.Count == 0)" title="@(_pending.Count == 0 ? "No server is waiting for approval" : null)"><Icon Name="x" Size="16" />Reject selected servers</button>
-</ActionBand>
 
 @* One form that is always rendered, so a decision posted after the list changed still reaches the handler. The list
    is outside it (its search and filters are forms of their own); checkboxes and buttons belong to it by form="decision". *@
@@ -47,9 +41,14 @@
     }
     else
     {
-        <ListTable Table="_pendingTable" Page="_pendingPage" Columns="PendingColumns" Search="Search name, domain or address" Noun="servers" ExtraColumns="2">
+        <div class="selection-bar" data-selection="Selected">
+            <span class="note" data-selection-count>Select servers, then</span>
+            <button type="submit" form="decision" name="Action" value="approve-selected" class="primary" title="Approve the selected servers; approve only servers you expect" data-help-term="Approve"><Icon Name="check" Size="16" />Approve</button>
+            <div class="spacer"></div>
+            <button type="submit" form="decision" name="Action" value="reject-selected" class="danger" title="Reject the selected servers; they send nothing until they are deleted" data-help-term="Reject"><Icon Name="x" Size="16" />Reject</button>
+        </div>
+        <ListTable Table="_pendingTable" Page="_pendingPage" Columns="PendingColumns" Search="Search name, domain or address" Noun="servers" ExtraColumns="1">
             <Leading><th class="select"><input type="checkbox" data-select-all="Selected" data-help="tables#select" data-help-term="Select all" aria-label="Select all servers shown" hidden /></th></Leading>
-            <ExtraHeader><th class="n">Decide</th></ExtraHeader>
             <Row Context="client">
                         <tr>
                             <td><input type="checkbox" form="decision" data-help-term="Select" name="Selected" value="@client.Id" aria-label="Select @client.HostName" /></td>
@@ -59,10 +58,6 @@
                             <td>@string.Join(", ", client.Roles)</td>
                             <td class="nowrap">@DisplayTime.FormatDate(client.RegisteredAtUtc)</td>
                             <td class="nowrap">@Format(client.LastHeartbeatAtUtc)</td>
-                            <td class="n"><span class="row-actions">
-                                <button type="submit" form="decision" name="Action" value="approve:@client.Id"><Icon Name="check" Size="16" />Approve</button>
-                                <button type="submit" form="decision" name="Action" value="reject:@client.Id" class="danger"><Icon Name="x" Size="16" />Reject</button>
-                            </span></td>
                         </tr>
             </Row>
         </ListTable>

@@ -4,10 +4,10 @@ Decisions that wait for an operator: new servers, ring transitions, stopped coor
 
 ## Actions for selected servers {#actions}
 
-Tick new servers in the list below (**Select**), then:
+Tick new servers in the list (**Select**), then use the bar above it (Marc, 2026-11-21: one place for the decision instead of buttons in every row):
 
-- **Approve selected servers** (greyed while no server waits): the servers become managed. They get their ring and groups from the assignment rules right away (the inventory is already there) and start receiving releases.
-- **Reject selected servers**: the servers get nothing and send nothing until they are deleted.
+- **Approve**: the servers become managed. They get their ring and groups from the assignment rules right away (the inventory is already there) and start receiving releases.
+- **Reject** (red): the servers get nothing and send nothing until they are deleted.
 
 Approve only servers you expect: a new agent registers without any secret, so anyone who can reach the central server could register a machine.
 

@@ -33,6 +33,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Update page, Servers tab (Marc, 2026-11-20): select servers with checkboxes and act on them from the bar above the list: **Install now…** (with the restart choice; released for a server alone where its ring has not got it yet), **Hold…**, **End hold…** and **Uninstall…**, each with a confirmation that names what is skipped and why. The ⋯ menu of each row is gone.
 - Software from the server page (Marc, 2026-11-21): the Software tab has **Install software…** (search the catalog, choose one or more packages, "Uninstall when the assignment is removed", optionally "Install now" for this server alone) and selection with **Uninstall…** above the list instead of a ⋯ per row; a box **Assigned, not installed yet** shows assignments that wait for their installation, or why the server cannot install them. The server list offers **Software → Install …** for the selected servers.
 - Software page, **Add package…** (lab 2026-11-21): the dialog stays open after Add, confirms what was added, marks the row *Added* with **Assign…** (also for packages already in the catalog), and its button is called **Close**; adding a package used to leave the dialog without a confirmation.
+- Approvals, new servers: **Approve** and **Reject** sit in a bar above the list and act on the selected servers; the buttons in every row are gone (Marc, 2026-11-21, first step of one pattern for all tables with actions).
 
 ## [0.9.0-rc.6] - 2026-11-20
 

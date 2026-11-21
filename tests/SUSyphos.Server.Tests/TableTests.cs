@@ -252,7 +252,7 @@ public sealed class TableTests
         }
 
         var page = await (await operatorBrowser.GetAsync("/approvals")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        Assert.Contains("Approve selected servers", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"approve-selected\"", page, StringComparison.Ordinal);
         Assert.Contains("class=\"active\"", page, StringComparison.Ordinal);
 
         using (var none = await operatorBrowser.PostFormAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "decision", ["Action"] = "approve-selected" }))
