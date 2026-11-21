@@ -102,7 +102,10 @@ public sealed partial class CommunityManifests(HttpClient http)
         var localeManifest = ManifestConverter.Parse(await GetTextAsync(folder + $"{id}.locale.{locale}.yaml", cancellationToken));
         var defaultLocale = ManifestConverter.Locale(localeManifest);
         defaultLocale["PackageLocale"] ??= locale;
-        return new CachedVersion(id, version, defaultLocale, ManifestConverter.Installers(installerManifest, keepX86));
+        return new CachedVersion(id, version, defaultLocale, ManifestConverter.Installers(installerManifest, keepX86))
+        {
+            ManifestVersion = installerManifest["ManifestVersion"] is JsonValue manifestVersion && manifestVersion.TryGetValue<string>(out var schema) ? schema : null,
+        };
     }
 
     /// <summary>Longest wait for a manifest that GitHub throttles (429) or cannot serve right now (503).</summary>

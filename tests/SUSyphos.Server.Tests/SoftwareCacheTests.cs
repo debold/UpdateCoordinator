@@ -225,6 +225,21 @@ public sealed class SoftwareCacheTests : IAsyncDisposable
         Assert.Equal(["26.07", "26.08"], manifest["Data"]!["Versions"]!.AsArray().Select(v => v!["PackageVersion"]!.GetValue<string>()).Order());
     }
 
+    [Fact]
+    public async Task DependencyOfARollingOutVersion_IsOfferedToo()
+    {
+        // WinGet installs a dependency from the same source before the package (ODBC driver 17 needs VC++ x86).
+        _source.SetIndex(new TestIndexPackage("7zip.7zip", "7-Zip", "26.06"), new TestIndexPackage("Microsoft.VCRedist.2015+.x86", "VC++ x86", "14.52.37029.0"));
+        _source.DeclaredDependencies["7zip.7zip"] = ["Microsoft.VCRedist.2015+.x86"];
+        await AddPackageAsync();
+        Assert.Equal(0, await CacheAsync());
+
+        await StartRolloutAsync("26.06");
+
+        Assert.Equal(2, await CacheAsync());
+        Assert.NotNull((await VersionAsync("14.52.37029.0")).CachedAtUtc);
+    }
+
     private sealed class FakeScanner : IInstallerScanner
     {
         public ScanResult Result { get; set; } = new(ScanOutcome.Clean, "No threat found.", 1);

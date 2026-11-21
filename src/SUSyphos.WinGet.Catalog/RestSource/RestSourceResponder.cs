@@ -6,18 +6,22 @@ namespace SUSyphos.WinGet.Catalog.RestSource;
 public sealed record RestAnswer(int Status, JsonObject? Body);
 
 /// <summary>
-/// The WinGet REST source protocol (schemas 1.1.0 and 1.4.0) over a <see cref="PackageCache"/>: <c>information</c>,
+/// The WinGet REST source protocol (schemas 1.1.0 to 1.28.0, see <see cref="SupportedVersions"/>) over a <see cref="PackageCache"/>: <c>information</c>,
 /// <c>manifestSearch</c> and <c>packageManifests</c>. Installers are offered from the cache under
 /// <c>{filesBase}/{file}</c>. Transport (HTTPS, routing) belongs to the host.
 /// </summary>
 public sealed class RestSourceResponder(PackageCache cache, Uri filesBase, string sourceIdentifier = "susyphos")
 {
     /// <summary>
-    /// The schemas the source speaks. The manifests are passed through as the community source has them; WinGet reads
-    /// the fields of ZIP and portable packages (NestedInstallerType, NestedInstallerFiles) only from schema 1.4.0 on, so
-    /// with 1.1.0 alone such a package had no applicable installer (lab 2026-11-20: BGInfo, 0x8A150010).
+    /// The schemas the source speaks; WinGet takes the newest one it knows too. The manifests are passed through as the
+    /// community source has them, and WinGet reads a field only from the schema that introduced it: ZIP and portable
+    /// packages (NestedInstallerType, NestedInstallerFiles) need 1.4.0 (lab 2026-11-20: BGInfo, 0x8A150010), programs of a
+    /// ZIP that must be on the PATH (ArchiveBinariesDependOnPath) 1.9.0. Since 2026-11-21 (Marc) the source offers every
+    /// schema up to the newest the bundled WinGet engine knows; the later ones only add fields (icons 1.5, download
+    /// prohibited 1.6, authentication and repair 1.7, installer authentication 1.10, fonts 1.12, DSC 1.28), checked
+    /// against the WinGet source code. A test fails when the bundled engine knows a newer schema than listed here.
     /// </summary>
-    public static readonly IReadOnlyList<string> SupportedVersions = ["1.1.0", "1.4.0"];
+    public static readonly IReadOnlyList<string> SupportedVersions = ["1.1.0", "1.4.0", "1.5.0", "1.6.0", "1.7.0", "1.9.0", "1.10.0", "1.12.0", "1.28.0"];
 
     /// <summary>Fields a search may match on; others are reported back as unsupported.</summary>
     private static readonly string[] SupportedFields = ["PackageIdentifier", "PackageName", "Moniker", "Command", "Tag", "ProductCode", "UpgradeCode", "PackageFamilyName", "NormalizedPackageNameAndPublisher"];

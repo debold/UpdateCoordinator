@@ -18,6 +18,8 @@ Lasting states appear as banners below the title:
 
 A software version reaches the servers only once the WinGet source of the central server offers it: its installer downloaded, checked against the SHA-256 of the manifest and scanned for viruses (Marc, 2026-11-20). Until then a red or amber banner says why, also after **Release to all rings**: *download and virus scan pending*, *the virus scan of the installer failed* (with the reason and the last attempt; the central server tries again every few minutes while the rollout runs and releases the version as soon as a scan succeeds) or *a virus scan found a threat* (block the version). **Open package** opens the package page with the scan state of every version. The update list shows the same reason below the rollout state.
 
+**Not supported on some servers** lists servers that would need the version but cannot install it, grouped by the reason, so it is not released to them instead of failing there (Marc, 2026-11-21): a minimum Windows version above the server's, a portable package (also inside a ZIP) on Windows Server 2016 or 2019 (WinGet allows portable packages only from Windows 10.0.18362 on), an installer that refuses administrator rights (the agent installs as SYSTEM), or only MSIX or Microsoft Store installers. The Software tab of the server shows such a program as *Newer version not supported here* with the same reason.
+
 ## Actions for this update {#actions}
 
 Operators and administrators:

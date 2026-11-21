@@ -361,6 +361,25 @@ public sealed class RestSourceTests : IDisposable
 
         // ZIP and portable packages need schema 1.4.0 (lab 2026-11-20: BGInfo found no applicable installer).
         Assert.Contains("1.4.0", versions);
+        Assert.Contains("1.9.0", versions);
+        Assert.Equal("1.28.0", versions[^1]);
+    }
+
+    /// <summary>
+    /// Marc, 2026-11-21: the source offers the newest schema the bundled WinGet engine knows. A newer engine with a newer
+    /// schema fails this test until the schema is checked against the WinGet source code and added to
+    /// <see cref="RestSourceResponder.SupportedVersions"/> (the engine names its schemas as "1.N.0" strings).
+    /// </summary>
+    [Fact]
+    public void Source_OffersTheNewestSchemaTheBundledEngineKnows()
+    {
+        var engine = Directory.GetFiles(AppContext.BaseDirectory, "WindowsPackageManager.dll", SearchOption.AllDirectories).First();
+        var text = System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(engine));
+        var known = System.Text.RegularExpressions.Regex.Matches(text, @"(?<![\d.])1\.\d{1,2}\.0(?![\d.])").Select(m => System.Version.Parse(m.Value)).Max()!;
+        var offered = RestSourceResponder.SupportedVersions.Select(System.Version.Parse).Max()!;
+
+        Assert.True(known <= offered, $"The bundled WinGet engine knows schema {known}, the source offers up to {offered}. Check what {known} changes in the WinGet source (src/AppInstallerRepositoryCore/Rest/Schema) and add it to RestSourceResponder.SupportedVersions.");
+        Assert.True(offered >= new System.Version(1, 28, 0));
     }
 
     [Fact]

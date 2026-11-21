@@ -50,6 +50,12 @@ else
             <Action>@if (_update.PackageId is { } sourcePackage) { <a class="btn" href="@PackagePage.Link(sourcePackage)">Open package</a> }</Action>
         </Banner>
     }
+    @if (_unsupported.Count > 0)
+    {
+        <Banner Label="Not supported on some servers" Severity="neutral" Help="update-detail#source">
+            <ChildContent>@DisplayNumber.Count(_unsupported.Sum(u => u.Servers.Count), "server needs", "servers need") this version but cannot install it, so it is not released to them: @foreach (var (reason, servers) in _unsupported) { <span class="note">@reason (@string.Join(", ", servers.Take(5))@(servers.Count > 5 ? $" and {servers.Count - 5} more" : string.Empty))</span> }</ChildContent>
+        </Banner>
+    }
     @if (_holds.Count > 0)
     {
         <Banner Label="On hold" Severity="queue" Help="update-detail#hold">
@@ -551,6 +557,7 @@ else
     private bool _canOperate;
     /// <summary>The version of a software update in the catalog; null for Windows updates.</summary>
     private PackageVersionEntity? _sourceVersion;
+    private IReadOnlyList<(string Reason, IReadOnlyList<string> Servers)> _unsupported = [];
 
     private UpdateEntity? _update;
     private RolloutEntity? _rollout;
@@ -623,6 +630,15 @@ else
         _cvePage = TablePaging.Apply(_fixes, _cveTable, VulnerabilityTable, SUSyphos.Server.Security.VulnerabilityColumns.SearchText);
         // A software version reaches servers only once the WinGet source of the central server offers it (lab, 2026-11-20).
         _sourceVersion = _update.Kind == UpdateKind.Software ? await Db.PackageVersions.AsNoTracking().FirstOrDefaultAsync(v => v.UpdateId == UpdateId) : null;
+        _unsupported = [];
+        if (_update.Kind == UpdateKind.Software)
+        {
+            var unsupported = (await SUSyphos.Server.Software.SoftwareNeeds.UnsupportedAsync(Db, null, CancellationToken.None)).Where(u => u.Need.UpdateId == UpdateId).ToList();
+            var ids = unsupported.Select(u => u.Need.ClientId).ToList();
+            var names = await Db.Clients.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.HostName);
+            _unsupported = [.. unsupported.GroupBy(u => u.Reason).Select(g => (g.Key, (IReadOnlyList<string>)[.. g.Select(u => names.GetValueOrDefault(u.Need.ClientId) ?? "?").Order(StringComparer.OrdinalIgnoreCase)]))];
+        }
+
         _supersededBy = (await Supersedence.NewerAsync(Db, [UpdateId])).GetValueOrDefault(UpdateId);
         _holds = await Holds.GetAsync(UpdateId, Revision, CancellationToken.None);
         if (Dialog is "uninstall" or "hold")

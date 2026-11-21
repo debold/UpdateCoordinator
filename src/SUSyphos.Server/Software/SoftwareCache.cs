@@ -171,6 +171,17 @@ internal sealed partial class SoftwareCacheService(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // The packages they depend on: WinGet installs them first, from the same source (SoftwareDependencies).
+        var dependencyIds = candidates.SelectMany(v => SoftwareDependencies.Of(v.Manifest)).Select(d => d.PackageId).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (dependencyIds.Count > 0)
+        {
+            var dependencyVersions = await db.PackageVersions.Where(v => v.ScanState != InstallerScanState.Detected && dependencyIds.Contains(v.PackageId)).ToListAsync(cancellationToken).ConfigureAwait(false);
+            candidates.AddRange([.. dependencyVersions
+                .GroupBy(v => v.PackageId, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.MaxBy(v => v.Version, VersionComparer.Instance)!)
+                .Where(v => !candidates.Contains(v))]);
+        }
+
         // Not offered yet, or offered without the x86 installer that a server with the 32-bit program now needs.
         var pending = candidates.Where(v => v.CachedAtUtc is null || (x86.Contains(v.PackageId) && !OffersX86(v))).ToList();
         var offered = 0;

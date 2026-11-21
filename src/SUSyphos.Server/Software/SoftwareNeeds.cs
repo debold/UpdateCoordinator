@@ -19,8 +19,29 @@ internal readonly record struct SoftwareNeed(Guid ClientId, Guid UpdateId, int R
 /// </summary>
 internal static class SoftwareNeeds
 {
-    /// <summary>The needed and the installed software versions of the servers (all servers when <paramref name="clientIds"/> is null).</summary>
+    /// <summary>
+    /// The needed and the installed software versions of the servers (all servers when <paramref name="clientIds"/> is
+    /// null). Versions a server cannot install (<see cref="SoftwareApplicability"/>) are not needed there.
+    /// </summary>
     public static async Task<(IReadOnlyList<SoftwareNeed> Needed, IReadOnlyList<SoftwareNeed> Installed)> LoadAsync(ServerDbContext db, IReadOnlyCollection<Guid>? clientIds, CancellationToken cancellationToken)
+    {
+        var (needed, installed) = await LoadRawAsync(db, clientIds, cancellationToken).ConfigureAwait(false);
+        var (applicable, _) = await SplitByApplicabilityAsync(db, needed, cancellationToken).ConfigureAwait(false);
+        return (applicable, installed);
+    }
+
+    /// <summary>
+    /// The versions servers would need but cannot install, with the reason (<see cref="SoftwareApplicability"/>): not
+    /// released to them, shown instead of a failure (Marc, 2026-11-21).
+    /// </summary>
+    public static async Task<IReadOnlyList<(SoftwareNeed Need, string Reason)>> UnsupportedAsync(ServerDbContext db, IReadOnlyCollection<Guid>? clientIds, CancellationToken cancellationToken)
+    {
+        var (needed, _) = await LoadRawAsync(db, clientIds, cancellationToken).ConfigureAwait(false);
+        return (await SplitByApplicabilityAsync(db, needed, cancellationToken).ConfigureAwait(false)).Unsupported;
+    }
+
+    /// <summary>Needed versions (installable or not) and installed ones, as the inventory and the assignments tell.</summary>
+    private static async Task<(List<SoftwareNeed> Needed, List<SoftwareNeed> Installed)> LoadRawAsync(ServerDbContext db, IReadOnlyCollection<Guid>? clientIds, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(db);
         if (!await SoftwareFeature.IsEnabledAsync(db, cancellationToken).ConfigureAwait(false))
@@ -81,6 +102,35 @@ internal static class SoftwareNeeds
         }
 
         return (needed.Distinct().ToList(), installed.Distinct().ToList());
+    }
+
+    /// <summary>Splits needed versions into those the server can install and those it cannot (with the reason).</summary>
+    private static async Task<(List<SoftwareNeed> Applicable, List<(SoftwareNeed Need, string Reason)> Unsupported)> SplitByApplicabilityAsync(ServerDbContext db, List<SoftwareNeed> needed, CancellationToken cancellationToken)
+    {
+        if (needed.Count == 0)
+        {
+            return (needed, []);
+        }
+
+        var updateIds = needed.Select(n => n.UpdateId).Distinct().ToList();
+        var manifests = await db.PackageVersions.AsNoTracking().Where(v => updateIds.Contains(v.UpdateId)).Select(v => new { v.UpdateId, v.Manifest }).ToDictionaryAsync(v => v.UpdateId, v => v.Manifest, cancellationToken).ConfigureAwait(false);
+        var clientIds = needed.Select(n => n.ClientId).Distinct().ToList();
+        var windows = await db.Clients.AsNoTracking().Where(c => clientIds.Contains(c.Id)).Select(c => new { c.Id, c.OsVersion }).ToDictionaryAsync(c => c.Id, c => c.OsVersion, cancellationToken).ConfigureAwait(false);
+        var applicable = new List<SoftwareNeed>();
+        var unsupported = new List<(SoftwareNeed, string)>();
+        foreach (var need in needed)
+        {
+            if (SoftwareApplicability.WhyNot(manifests.GetValueOrDefault(need.UpdateId), windows.GetValueOrDefault(need.ClientId)) is { } reason)
+            {
+                unsupported.Add((need, reason));
+            }
+            else
+            {
+                applicable.Add(need);
+            }
+        }
+
+        return (applicable, unsupported);
     }
 
     /// <summary>Install assignments resolved to servers: directly or through a group, without servers that cannot run WinGet.</summary>

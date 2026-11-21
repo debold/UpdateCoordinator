@@ -17,6 +17,9 @@ internal sealed class FakeSoftwareSource(string directory) : ISoftwareSource, ID
 
     public void ClearIndex() => Index = null;
 
+    /// <summary>Package dependencies the fake manifests declare, by package id.</summary>
+    public Dictionary<string, string[]> DeclaredDependencies { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public Task<CommunityIndex> RefreshIndexAsync(CancellationToken cancellationToken) => Task.FromResult(Index!);
 
     public Task<CachedVersion> ReadManifestAsync(string packageId, string version, CancellationToken cancellationToken)
@@ -41,6 +44,10 @@ internal sealed class FakeSoftwareSource(string directory) : ISoftwareSource, ID
         }
 
         JsonObject[] installers = [new JsonObject { ["Architecture"] = "x64", ["InstallerType"] = "msi", ["InstallerUrl"] = "https://example.com/setup.msi", ["InstallerSha256"] = new string('A', 64), ["ReleaseDate"] = "2026-11-01" }];
+        if (DeclaredDependencies.TryGetValue(packageId, out var needs))
+        {
+            installers[0]["Dependencies"] = new JsonObject { ["PackageDependencies"] = new JsonArray([.. needs.Select(n => (JsonNode)new JsonObject { ["PackageIdentifier"] = n, ["MinimumVersion"] = "14.0" })]) };
+        }
         return Task.FromResult(new CachedVersion(packageId, version, locale, installers));
     }
 

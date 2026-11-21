@@ -349,4 +349,34 @@ public sealed class SoftwareReleaseTests
 
         Assert.Equal([updateId], needed.Select(n => n.UpdateId));
     }
+
+    [Fact]
+    public async Task VersionTheServerCannotInstall_IsNotNeeded_AndSaysWhy()
+    {
+        // Lab, 2026-11-20: BGInfo (portable) on Windows Server 2019 failed with 0x8A150010 again and again.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("DC01", RingEntity.PilotId);
+        const string Tool = "Microsoft.Sysinternals.BGInfo";
+        var updateId = SoftwarePackages.SoftwareUpdateId(Tool, "4.34");
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            await db.Clients.Where(c => c.Id == client.ClientId).ExecuteUpdateAsync(s => s.SetProperty(c => c.OsVersion, "10.0.17763.9487"), TestContext.Current.CancellationToken);
+            db.Packages.Add(new PackageEntity { PackageId = Tool, Name = "BGInfo", AddedBy = "admin" });
+            db.Updates.Add(new UpdateEntity { UpdateId = updateId, Revision = SoftwarePackages.SoftwareRevision, Title = "BGInfo 4.34", Kind = UpdateKind.Software, PackageId = Tool, PackageVersion = "4.34" });
+            db.PackageVersions.Add(new PackageVersionEntity { PackageId = Tool, Version = "4.34", UpdateId = updateId, Manifest = "{\"Installers\":[{\"Architecture\":\"x64\",\"InstallerType\":\"zip\",\"NestedInstallerType\":\"portable\"}]}" });
+            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client.ClientId, View = SoftwareView.Machine64, KeyName = "BGInfo", DisplayName = "BGInfo", PackageId = Tool, InstalledVersion = "4.33", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        var (needed, _) = await scenario.WithServiceAsync<ServerDbContext, (IReadOnlyList<SoftwareNeed>, IReadOnlyList<SoftwareNeed>)>(db => SoftwareNeeds.LoadAsync(db, [client.ClientId], CancellationToken.None));
+        var unsupported = await scenario.WithServiceAsync<ServerDbContext, IReadOnlyList<(SoftwareNeed Need, string Reason)>>(db => SoftwareNeeds.UnsupportedAsync(db, [client.ClientId], CancellationToken.None));
+
+        Assert.Empty(needed);
+        Assert.Contains("portable", Assert.Single(unsupported).Reason, StringComparison.Ordinal);
+
+        // The same server on Windows Server 2022 needs it.
+        await scenario.Factory.WithDbAsync(db => db.Clients.Where(c => c.Id == client.ClientId).ExecuteUpdateAsync(s => s.SetProperty(c => c.OsVersion, "10.0.20348.5870"), TestContext.Current.CancellationToken));
+        (needed, _) = await scenario.WithServiceAsync<ServerDbContext, (IReadOnlyList<SoftwareNeed>, IReadOnlyList<SoftwareNeed>)>(db => SoftwareNeeds.LoadAsync(db, [client.ClientId], CancellationToken.None));
+        Assert.Equal([updateId], needed.Select(n => n.UpdateId));
+    }
 }

@@ -45,6 +45,7 @@ internal sealed partial class SoftwareCatalog(
 
         var (matched, added, failures) = await MatchInventoryAsync(cancellationToken).ConfigureAwait(false);
         var (versions, versionFailures) = await CheckVersionsAsync(cancellationToken).ConfigureAwait(false);
+        added += await AddMissingDependenciesAsync(cancellationToken).ConfigureAwait(false);
         return new SoftwareCheckResult(matched, added, versions, failures + versionFailures);
     }
 
@@ -141,6 +142,7 @@ internal sealed partial class SoftwareCatalog(
         AddVersion(package, manifest, now);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await audit.WriteAsync(actor, "Package.Added", found.Id, string.Create(CultureInfo.InvariantCulture, $"{package.Name}, version {found.LatestVersion}{(package.HasAgreements ? ", has agreements" : string.Empty)}"), cancellationToken).ConfigureAwait(false);
+        await AddDependenciesAsync(manifest.Installers, found.Id, actor, cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
     }
 
@@ -222,6 +224,76 @@ internal sealed partial class SoftwareCatalog(
         return Outcome.Ok;
     }
 
+
+    /// <summary>Longest chain of dependencies the catalog follows (a package needing a package needing a package).</summary>
+    private const int MaxDependencyDepth = 3;
+
+    /// <summary>Packages currently being added through dependencies, against loops between packages.</summary>
+    private readonly HashSet<string> _addingDependencies = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Adds the packages the installers depend on to the catalog (<see cref="SoftwareDependencies"/>), as added by
+    /// "dependency of {package}". A dependency that cannot be added is logged; the package itself stays.
+    /// </summary>
+    private async Task AddDependenciesAsync(IEnumerable<System.Text.Json.Nodes.JsonObject> installers, string packageId, string actor, CancellationToken cancellationToken)
+    {
+        if (_addingDependencies.Count >= MaxDependencyDepth || !_addingDependencies.Add(packageId))
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var dependency in SoftwareDependencies.Of(installers))
+            {
+                if (await db.Packages.AnyAsync(p => p.PackageId == dependency.PackageId, cancellationToken).ConfigureAwait(false))
+                {
+                    continue;
+                }
+
+                var outcome = await AddPackageAsync(dependency.PackageId, $"dependency of {packageId}", cancellationToken).ConfigureAwait(false);
+                if (!outcome.Succeeded)
+                {
+                    LogDependencyFailed(packageId, dependency.PackageId, outcome.Error ?? string.Empty);
+                }
+            }
+        }
+        finally
+        {
+            _addingDependencies.Remove(packageId);
+        }
+    }
+
+    /// <summary>Adds the missing dependencies of the newest version of every package (versions found by the daily check).</summary>
+    public async Task<int> AddMissingDependenciesAsync(CancellationToken cancellationToken)
+    {
+        var known = (await db.Packages.Select(p => p.PackageId).ToListAsync(cancellationToken).ConfigureAwait(false)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var newest = (await db.PackageVersions.AsNoTracking().Where(v => v.Manifest != null).Select(v => new { v.PackageId, v.Version, v.Manifest }).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .GroupBy(v => v.PackageId, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.MaxBy(v => v.Version, VersionComparer.Instance)!);
+        var added = 0;
+        foreach (var version in newest)
+        {
+            foreach (var dependency in SoftwareDependencies.Of(version.Manifest).Where(d => !known.Contains(d.PackageId)))
+            {
+                var outcome = await AddPackageAsync(dependency.PackageId, $"dependency of {version.PackageId}", cancellationToken).ConfigureAwait(false);
+                if (outcome.Succeeded)
+                {
+                    known.Add(dependency.PackageId);
+                    added++;
+                }
+                else
+                {
+                    LogDependencyFailed(version.PackageId, dependency.PackageId, outcome.Error ?? string.Empty);
+                }
+            }
+        }
+
+        return added;
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Software catalog: {PackageId} needs {Dependency}, which could not be added ({Reason}); installing it may fail.")]
+    private partial void LogDependencyFailed(string packageId, string dependency, string reason);
     /// <summary>Adds the newest version of every package when the index names one the catalog does not know yet.</summary>
     public async Task<(int Added, int Failures)> CheckVersionsAsync(CancellationToken cancellationToken)
     {
@@ -272,6 +344,7 @@ internal sealed partial class SoftwareCatalog(
         {
             ["PackageIdentifier"] = package.PackageId,
             ["PackageVersion"] = manifest.PackageVersion,
+            ["ManifestVersion"] = manifest.ManifestVersion,
             ["DefaultLocale"] = manifest.DefaultLocale.DeepClone(),
             ["Installers"] = new JsonArray([.. manifest.Installers.Select(i => (JsonNode)i.DeepClone())]),
         });

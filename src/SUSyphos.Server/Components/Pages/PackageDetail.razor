@@ -61,6 +61,18 @@ else
             <Fact Label="Publisher">@(_package.Publisher ?? "–")</Fact>
             <Fact Label="License">@(_package.License ?? "–")</Fact>
             <Fact Label="In the catalog" Note="@(_package.CheckedAtUtc is { } checkedAt ? $"checked for new versions {DisplayTime.Format(checkedAt)}" : null)">@(_package.AddedBy == SoftwareCatalog.InventoryActor ? "from the software inventory of the servers" : $"added by {_package.AddedBy}") on <span class="nowrap">@DisplayTime.Format(_package.AddedAtUtc)</span></Fact>
+            @if (NewerSchema() is { } schema)
+            {
+                <Fact Label="Manifest schema" Wide="true" Note="Fields the newer schema introduced do not reach WinGet; the installation usually works anyway"><span class="pill queue">@schema newer than the source offers (@SUSyphos.WinGet.Catalog.RestSource.RestSourceResponder.SupportedVersions[^1])</span></Fact>
+            }
+            @if (_dependencies.Count > 0)
+            {
+                <Fact Label="Needs" Wide="true" Note="WinGet installs these packages first, from the WinGet source of the central server">@for (var i = 0; i < _dependencies.Count; i++) { if (i > 0) { <span class="note"> · </span> } var dependency = _dependencies[i]; <a href="@PackagePage.Link(dependency.PackageId)">@dependency.PackageId</a>@if (dependency.MinimumVersion is { } minimum) { <span class="note"> @minimum or later</span> }@if (!_knownDependencies.Contains(dependency.PackageId)) { <span class="pill fail">not in the catalog</span> } }</Fact>
+            }
+            @if (_neededBy.Count > 0)
+            {
+                <Fact Label="Needed by" Wide="true">@for (var i = 0; i < _neededBy.Count; i++) { if (i > 0) { <span class="note"> · </span> } <a href="@PackagePage.Link(_neededBy[i])">@_neededBy[i]</a> }</Fact>
+            }
             @if (Links.Count > 0)
             {
                 <Fact Label="Links" Wide="true">@for (var i = 0; i < Links.Count; i++) { if (i > 0) { <span class="note"> · </span> } <a href="@Links[i].Url" target="_blank" rel="noopener noreferrer">@Links[i].Label</a> }</Fact>
@@ -462,7 +474,34 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
 
     private PackageEntity? _package;
     private bool _enabled = true;
+
+    /// <summary>
+    /// The manifest schema of the newest version when it is newer than the newest schema the WinGet source offers (Marc,
+    /// 2026-11-21): WinGet then does not read the fields the newer schema introduced.
+    /// </summary>
+    private string? NewerSchema()
+    {
+        var manifest = _versions.FirstOrDefault(v => v.Manifest is not null)?.Manifest;
+        if (manifest is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var schema = (System.Text.Json.Nodes.JsonNode.Parse(manifest) as System.Text.Json.Nodes.JsonObject)?["ManifestVersion"]?.GetValue<string>();
+            var offered = SUSyphos.WinGet.Catalog.RestSource.RestSourceResponder.SupportedVersions[^1];
+            return System.Version.TryParse(schema, out var parsed) && parsed > System.Version.Parse(offered) ? schema : null;
+        }
+        catch (Exception exception) when (exception is System.Text.Json.JsonException or InvalidOperationException or FormatException)
+        {
+            return null;
+        }
+    }
     private List<PackageVersionEntity> _versions = [];
+    private IReadOnlyList<SoftwareDependency> _dependencies = [];
+    private HashSet<string> _knownDependencies = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<string> _neededBy = [];
     private Dictionary<Guid, RolloutState> _rollouts = [];
     private List<(Guid ClientId, string HostName, string? Version, SoftwareMatch Match)> _installed = [];
 
@@ -548,6 +587,14 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
         }
 
         _versions = [.. (await Db.PackageVersions.AsNoTracking().Where(v => v.PackageId == PackageId).ToListAsync()).OrderByDescending(v => v.Version, VersionComparer.Instance)];
+        // Packages the newest version needs (WinGet installs them first), and the packages that need this one.
+        _dependencies = SoftwareDependencies.Of(_versions.FirstOrDefault(v => v.Manifest is not null)?.Manifest);
+        var dependencyIds = _dependencies.Select(d => d.PackageId).ToList();
+        _knownDependencies = new(await Db.Packages.AsNoTracking().Where(p => dependencyIds.Contains(p.PackageId)).Select(p => p.PackageId).ToListAsync(), StringComparer.OrdinalIgnoreCase);
+        var quotedId = $"\"{PackageId}\"";
+        _neededBy = [.. (await Db.PackageVersions.AsNoTracking().Where(v => v.PackageId != PackageId && v.Manifest != null && v.Manifest.Contains(quotedId)).Select(v => new { v.PackageId, v.Manifest }).ToListAsync())
+            .Where(v => SoftwareDependencies.Of(v.Manifest).Any(d => string.Equals(d.PackageId, PackageId, StringComparison.OrdinalIgnoreCase)))
+            .Select(v => v.PackageId).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)];
         var ids = _versions.Select(v => v.UpdateId).ToList();
         _rollouts = await Db.Rollouts.AsNoTracking().Where(r => ids.Contains(r.UpdateId)).ToDictionaryAsync(r => r.UpdateId, r => r.State);
         _assignments = await Db.PackageAssignments.AsNoTracking().Where(a => a.PackageId == PackageId).OrderBy(a => a.CreatedAtUtc).ToListAsync();

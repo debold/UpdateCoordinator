@@ -255,4 +255,47 @@ public sealed class SoftwareCatalogTests : IAsyncDisposable
 
         Assert.Null(await _factory.WithDbAsync(db => db.Updates.Where(u => u.Kind == UpdateKind.Software).Select(u => u.ArchivedAtUtc).SingleAsync(TestContext.Current.CancellationToken)));
     }
+
+    [Fact]
+    public async Task PackageWithADependency_AddsTheDependencyToo()
+    {
+        // Manifest audit, 2026-11-21: the ODBC driver 17 needs Microsoft.VCRedist.2015+.x86 from the same source.
+        _source.SetIndex(new TestIndexPackage("Microsoft.msodbcsql.17", "ODBC Driver 17", "17.11.1.1"), new TestIndexPackage("Microsoft.VCRedist.2015+.x86", "VC++ x86", "14.52.37029.0"));
+        _source.DeclaredDependencies["Microsoft.msodbcsql.17"] = ["Microsoft.VCRedist.2015+.x86"];
+
+        Assert.True((await WithCatalogAsync(c => c.AddPackageAsync("Microsoft.msodbcsql.17", "admin", CancellationToken.None))).Succeeded);
+
+        var packages = await _factory.WithDbAsync(db => db.Packages.OrderBy(p => p.PackageId).Select(p => new { p.PackageId, p.AddedBy }).ToListAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(["Microsoft.msodbcsql.17", "Microsoft.VCRedist.2015+.x86"], packages.Select(p => p.PackageId));
+        Assert.Equal("dependency of Microsoft.msodbcsql.17", packages[1].AddedBy);
+        var manifest = await _factory.WithDbAsync(db => db.PackageVersions.Where(v => v.PackageId == "Microsoft.msodbcsql.17").Select(v => v.Manifest).SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Equal([new SoftwareDependency("Microsoft.VCRedist.2015+.x86", "14.0")], SoftwareDependencies.Of(manifest));
+    }
+
+    [Fact]
+    public async Task DependencyTheSourceDoesNotHave_LeavesThePackage()
+    {
+        _source.SetIndex(new TestIndexPackage("Microsoft.msodbcsql.17", "ODBC Driver 17", "17.11.1.1"));
+        _source.DeclaredDependencies["Microsoft.msodbcsql.17"] = ["Vendor.Missing"];
+
+        Assert.True((await WithCatalogAsync(c => c.AddPackageAsync("Microsoft.msodbcsql.17", "admin", CancellationToken.None))).Succeeded);
+        Assert.Equal(["Microsoft.msodbcsql.17"], await _factory.WithDbAsync(db => db.Packages.Select(p => p.PackageId).ToListAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Fact]
+    public async Task DependenciesOfLoopingPackages_EndWithoutRecursion()
+    {
+        _source.SetIndex(new TestIndexPackage("Vendor.A", "A", "1.0"), new TestIndexPackage("Vendor.B", "B", "1.0"));
+        _source.DeclaredDependencies["Vendor.A"] = ["Vendor.B"];
+        _source.DeclaredDependencies["Vendor.B"] = ["Vendor.A"];
+
+        Assert.True((await WithCatalogAsync(c => c.AddPackageAsync("Vendor.A", "admin", CancellationToken.None))).Succeeded);
+        Assert.Equal(2, await _factory.WithDbAsync(db => db.Packages.CountAsync(TestContext.Current.CancellationToken)));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("not json")]
+    [InlineData("{\"Installers\":[{\"Dependencies\":{\"PackageDependencies\":[{\"PackageIdentifier\":\"not an id!\"}]}}]}")]
+    public void NoOrInvalidDependencies_AreNone(string? manifest) => Assert.Empty(SoftwareDependencies.Of(manifest));
 }

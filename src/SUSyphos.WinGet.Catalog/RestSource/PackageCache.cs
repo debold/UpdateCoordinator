@@ -6,7 +6,11 @@ using System.Text.RegularExpressions;
 namespace SUSyphos.WinGet.Catalog.RestSource;
 
 /// <summary>One package version in the cache: its default locale and its installers, which point at cached files.</summary>
-public sealed record CachedVersion(string PackageIdentifier, string PackageVersion, JsonObject DefaultLocale, IReadOnlyList<JsonObject> Installers);
+public sealed record CachedVersion(string PackageIdentifier, string PackageVersion, JsonObject DefaultLocale, IReadOnlyList<JsonObject> Installers)
+{
+    /// <summary>Schema version of the installer manifest in the community repository (ManifestVersion), when known.</summary>
+    public string? ManifestVersion { get; init; }
+}
 
 /// <summary>
 /// The installer cache of a private WinGet source: <c>index.json</c> with the cached package versions and the folder

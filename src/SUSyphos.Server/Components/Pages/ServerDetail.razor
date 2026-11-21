@@ -296,7 +296,7 @@ else
                     <td class="nowrap">@(row.Program.InstalledVersion ?? row.Program.DisplayVersion ?? "–")</td>
                     <td class="wrap">@if (row.Program.PackageId is { } packageId) { <a href="@PackagePage.Link(packageId)" class="mono">@packageId</a> } else { <span class="note">not known to WinGet</span> }</td>
                     <td class="nowrap">@(row.Newest ?? "–")</td>
-                    <td><span class="pill @row.State.Class">@row.State.Label</span></td>
+                    <td><span class="pill @row.State.Class" title="@row.Reason">@row.State.Label</span>@if (row.Reason is { } why) { <div class="note">@why</div> }</td>
                     <td class="n">
                         @{ var blocked = SoftwareUninstallBlocker(row); }
                         <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {row.Program.DisplayName}")">
@@ -996,7 +996,7 @@ else
     private const string AdministratorsOnly = "Only administrators can do this";
 
     /// <summary>An installed program with the newest version the catalog knows and its state.</summary>
-    private sealed record SoftwareItem(ClientSoftwareEntity Program, string? Newest, (string Label, string Class) State);
+    private sealed record SoftwareItem(ClientSoftwareEntity Program, string? Newest, (string Label, string Class) State, string? Reason = null);
 
     private List<SoftwareItem> _software = [];
     private bool _softwareEnabled = true;
@@ -1048,6 +1048,13 @@ else
         var newest = (await Db.PackageVersions.AsNoTracking().Where(v => packageIds.Contains(v.PackageId)).Select(v => new { v.PackageId, v.Version }).ToListAsync())
             .GroupBy(v => v.PackageId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Select(v => v.Version).Max(SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance), StringComparer.OrdinalIgnoreCase);
+        // Newer versions this server cannot install (minimum Windows, portable below 18362, ...) say why instead of waiting.
+        var unsupported = (await SUSyphos.Server.Software.SoftwareNeeds.UnsupportedAsync(Db, [Id], CancellationToken.None)).Select(u => (u.Need.UpdateId, u.Reason)).ToList();
+        var unsupportedIds = unsupported.Select(u => u.UpdateId).ToList();
+        var unsupportedPackages = (await Db.PackageVersions.AsNoTracking().Where(v => unsupportedIds.Contains(v.UpdateId)).Select(v => new { v.UpdateId, v.PackageId }).ToListAsync())
+            .Join(unsupported, v => v.UpdateId, u => u.UpdateId, (v, u) => (v.PackageId, u.Reason))
+            .GroupBy(u => u.PackageId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Reason, StringComparer.OrdinalIgnoreCase);
         _software = [.. programs.Select(p =>
         {
             var latest = p.PackageId is { } id ? newest.GetValueOrDefault(id) : null;
@@ -1057,9 +1064,10 @@ else
                 : latest is null || installed is null ? ("Known to WinGet", "neutral")
                 // An older entry next to a higher version of the same package and architecture: left behind by an upgrade.
                 : SUSyphos.Server.Software.EffectiveInstallations.IsSuperseded(p, programs, r => (r.ClientId, r.PackageId ?? string.Empty, r.DisplayName), r => r.PackageId is null ? null : r.InstalledVersion ?? r.DisplayVersion) ? ("Older entry, newer installed", "neutral")
+                : SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, latest) < 0 && unsupportedPackages.ContainsKey(p.PackageId) ? ("Newer version not supported here", "neutral")
                 : SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, latest) < 0 ? ("Newer version available", "queue")
                 : ("Up to date", "ok");
-            return new SoftwareItem(p, latest, state);
+            return new SoftwareItem(p, latest, state, state.Item1 == "Newer version not supported here" ? unsupportedPackages.GetValueOrDefault(p.PackageId!) : null);
         })];
         _softwareTable = TableQuery.From(Navigation, "program", prefix: "sw.", defaultPageSize: 25, views: SoftwareViews);
         _softwarePage = TablePaging.Apply(_software, _softwareTable, SoftwareColumns, r => $"{r.Program.DisplayName} {r.Program.PackageId} {r.Program.Publisher}");

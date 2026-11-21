@@ -32,6 +32,9 @@ The texts come from the manifest of the newest version in the WinGet community s
 - **Tags**: keywords of the manifest.
 - **Agreements** (a status row above the details): whether the installation accepts licence terms of the publisher. Such a package never starts automatically until an administrator accepts its agreements once; **Accept agreements** (administrators only, at the right of the row) does that and is recorded in the audit log. Read the terms on the publisher's page first: every server installs the package accepting them.
 - **In the catalog**: whether the package came from the software inventory of the servers or was added by an administrator, and when the central server last looked for new versions.
+- **Needs**: packages the newest version depends on (manifest field `Dependencies`). WinGet installs them first, from the WinGet source of the central server, so the catalog adds them by itself (added by "dependency of …"), and the source offers their newest version together with the version that needs them. *not in the catalog* means the community source does not have the package; installing may fail then.
+- **Needed by**: packages that depend on this one.
+- **Manifest schema** (only when it applies): the manifest of the newest version uses a newer schema than the WinGet source of the central server offers. WinGet does not read the fields that schema introduced; the installation usually works anyway. A new SUSyphos release offers the newer schema once it is checked.
 
 ## Versions {#versions}
 
