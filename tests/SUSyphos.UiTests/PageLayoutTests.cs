@@ -28,6 +28,8 @@ public sealed class PageLayoutTests(UiFixture ui)
         "/servers/{main}?dialog=install",
         "/servers/{main}?dialog=uninstall",
         "/servers/{main}?tab=updates&dialog=install-selection",
+        "/servers/{main}?tab=software&dialog=install-software",
+        "/servers/{main}?dialog=debug",
         "/servers/{main}?tab=updates&dialog=hold-selection",
         "/servers/{main}?tab=updates&dialog=end-hold-selection",
         "/servers/{main}?dialog=remove",

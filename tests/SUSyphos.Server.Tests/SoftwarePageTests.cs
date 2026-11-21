@@ -153,7 +153,7 @@ public sealed class SoftwarePageTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Admin_AddingAPackage_OpensItsPage()
+    public async Task Admin_AddingAPackage_KeepsTheDialogOpen_WithAssign()
     {
         using var source = new FakeSoftwareSource(Path.Combine(Path.GetTempPath(), "SUSyphos.Tests", "add-" + Guid.NewGuid().ToString("N")));
         source.SetIndex(new TestIndexPackage("Vendor.Tool", "Vendor Tool", "2.0"));
@@ -165,12 +165,15 @@ public sealed class SoftwarePageTests : IAsyncDisposable
         {
         }
 
-        using var add = await browser.PostFormAsync("/software?dialog=add", new Dictionary<string, string> { ["_handler"] = "software-add", ["PackageId"] = "Vendor.Tool" });
+        using var add = await browser.PostFormAsync("/software?dialog=add&q=Vendor", new Dictionary<string, string> { ["_handler"] = "software-add", ["PackageId"] = "Vendor.Tool" });
 
-        Assert.Equal(HttpStatusCode.Redirect, add.StatusCode);
-        var location = add.Headers.Location!.IsAbsoluteUri ? add.Headers.Location.PathAndQuery : add.Headers.Location.ToString();
-        Assert.Equal(SUSyphos.Server.Components.PackagePage.Link("Vendor.Tool"), location);
-        Assert.Contains("Vendor.Tool", await (await browser.GetAsync(location)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        // Marc, 2026-11-21: the dialog stays open, confirms it and offers Assign… next to the added package.
+        Assert.Equal(HttpStatusCode.OK, add.StatusCode);
+        var html = await add.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("Vendor.Tool was added to the catalog", html, StringComparison.Ordinal);
+        Assert.Contains("Vendor.Tool?dialog=assign", html, StringComparison.Ordinal);
+        Assert.Contains(">Close</a>", html, StringComparison.Ordinal);
+        Assert.True(await factory.WithDbAsync(db => db.Packages.AnyAsync(p => p.PackageId == "Vendor.Tool", TestContext.Current.CancellationToken)));
     }
 
     [Fact]

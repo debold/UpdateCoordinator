@@ -71,6 +71,8 @@ Decided with Marc on 2026-10-22. The agents trust the central server through the
 
 1. The new central server is restored from a backup of the current one (database and trust anchor), so it has the same anchor and knows every agent's credentials.
 2. An administrator announces its address on the current server (Administration → Backup, "Move to a new server"). Approved agents get it with every heartbeat (`HeartbeatResponse.MoveTo`).
+
+The heartbeat answer also carries `DebugUntil` (0.9.0-rc.7): the end of the debug mode of this server, null when it is off; agents before 0.9.0-rc.7 ignore it.
 3. The agent fetches the trust binding from the new address and verifies it against its pinned anchor exactly as in 3.2 (same anchor, valid signature, presented certificate matches, serial not older). It then asks the new server with its credentials (release list, over a connection pinned to the verified certificate). Only if both succeed does it write the new address to the installer value `CentralServerUrl`, keep the verified certificate and restart its service.
 4. Otherwise the agent stays with the current server and reports the reason with its next heartbeats (`HeartbeatRequest.ServerMoveError`); it tries again every 15 minutes. A policy value `CentralServerUrl` is never changed: the agent reports that group policy sets the address.
 

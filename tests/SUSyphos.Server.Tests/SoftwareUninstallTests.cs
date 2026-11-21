@@ -253,7 +253,7 @@ public sealed class SoftwareUninstallTests
 
             var tab = await (await admin.GetAsync($"/servers/{first.ClientId}?tab=software&sw.view=all")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.Contains("Not known to WinGet. Remove it on the server.", tab, StringComparison.Ordinal);
-            Assert.Contains($"dialog=uninstall-software&amp;package={Uri.EscapeDataString(Package)}", tab, StringComparison.Ordinal);
+            Assert.Contains($"name=\"isel\" value=\"p:{Package}\"", System.Net.WebUtility.HtmlDecode(tab), StringComparison.Ordinal);
 
             var dialog = await (await admin.GetAsync($"/servers/{first.ClientId}?tab=software&dialog=uninstall-software&package={Uri.EscapeDataString(Package)}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.Contains($"name=\"Selected\" value=\"p:{Package}\"", System.Net.WebUtility.HtmlDecode(dialog), StringComparison.Ordinal);

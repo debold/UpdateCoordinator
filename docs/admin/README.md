@@ -603,3 +603,11 @@ Dashboard page **Agents** (role `Operator` to download, `Admin` to check and rel
 | `AgentPackages:Directory` | `%ProgramData%\SUSyphos\Server\AgentPackages` | where the packages are kept |
 
 **Scripts of WinGet packages: hurdles** (Marc, 2026-11-14). Scripts run as SYSTEM in Windows PowerShell 5.1. A group policy with the execution policy *AllSigned* or with scripts switched off (`EnableScripts = 0`) stops them: SUSyphos scripts are signed with their own key, not with Authenticode. WDAC or AppLocker put PowerShell into ConstrainedLanguage mode, where many scripts fail; the output names the language mode. EDR products may alert on PowerShell started by a service. Script Block Logging and transcription of Windows log the script text: put secrets into secret parameters, never into the script. A script never restarts the server itself (return 3010). 32-bit programs keep their keys under `WOW6432Node`. To forbid scripts on a server set `HKLM\SOFTWARE\Policies\SUSyphos\Agent\AllowScripts` (DWORD) to 0, for example by group policy. A local administrator of a server can always change what runs there; the signature protects against a changed central server database, changes in transit and replayed older revisions.
+## 23. Debug mode
+
+For a while an agent or the central server logs more (0.9.0-rc.7; administrators, 1 to 72 hours, audit log):
+
+- **Agent**: server page → Server → Debug mode…. The agent takes it with its next heartbeat: file log at Debug, WinGet's verbose log (in `C:\Windows\SystemTemp\WinGet\defaultState\WinGetCOM-*.log`), and "Request logs" adds WindowsUpdate.log, CBS.log and dism.log. Nothing changes in the WinGet settings of the server.
+- **Central server**: SUSyphos page → Central server → Debug mode. The file log of the central server is written at Debug, including every request to the WinGet source; a band above every page says so.
+
+Both end by themselves; turn them off earlier where they are shown. Debug logs contain no secrets either.

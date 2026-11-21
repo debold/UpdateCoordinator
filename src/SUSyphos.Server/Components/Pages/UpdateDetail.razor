@@ -580,7 +580,7 @@ else
 
     /// <summary>Servers selected on the Servers tab (Marc, 2026-11-20: act on several servers of one update at once).</summary>
     [SupplyParameterFromQuery(Name = "srv")]
-    private Guid[]? SelectedServersFromQuery { get; set; }
+    private string[]? SelectedServersFromQuery { get; set; }
 
     [SupplyParameterFromForm(FormName = "install-servers")]
     private Guid[]? InstallServers { get; set; }
@@ -866,7 +866,7 @@ else
             _allGroups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         }
 
-        if (_selectedServers.Count == 0 && SelectedServersFromQuery is { Length: > 0 } selectedIds)
+        if (_selectedServers.Count == 0 && SelectedServersFromQuery is { Length: > 0 } selectedTexts && selectedTexts.Select(t => Guid.TryParse(t, out var id) ? id : Guid.Empty).Where(id => id != Guid.Empty).ToList() is { Count: > 0 } selectedIds)
         {
             await LoadSelectedServersAsync(selectedIds);
         }

@@ -577,8 +577,9 @@ public sealed class UpdateDetailTests
     }
 
     [Fact]
-    public async Task ServerTable_OffersRowActions_AndPreselectsTheServerInTheHoldDialog()
+    public async Task ServerTable_ActsOnSelectedServers_AndPreselectsThemInTheDialogs()
     {
+        // Marc, 2026-11-20: select servers of one update and act on them from the bar above the list.
         await using var scenario = await RolloutScenario.CreateAsync();
         var test = await scenario.AddClientAsync("TEST01", RingEntity.TestId);
         var update = RolloutScenario.Update("Security Updates");
@@ -586,27 +587,33 @@ public sealed class UpdateDetailTests
         using var browser = await LoginAsync(scenario, AdminRoles.Operator);
         var path = $"/updates/{update.UpdateId:D}/1";
 
-        // Not released for its ring yet: holding is offered, installing now is greyed with the reason.
         var servers = System.Net.WebUtility.HtmlDecode(await GetHtmlAsync(browser, path + "?tab=servers"));
-        var hold = await GetHtmlAsync(browser, $"{path}?dialog=hold&server={test.ClientId:D}");
-        var malformed = await GetHtmlAsync(browser, $"{path}?dialog=hold&server=%27%3Bdrop");
+        Assert.Contains($"name=\"srv\" value=\"{test.ClientId}\"", servers, StringComparison.Ordinal);
+        Assert.Contains("value=\"install-servers\" disabled", servers, StringComparison.Ordinal);
+        Assert.DoesNotContain("More for TEST01", servers, StringComparison.Ordinal);
 
-        Assert.Contains($"{path}?dialog=hold&server={test.ClientId:D}", servers, StringComparison.Ordinal);
-        Assert.Contains("title=\"Only administrators can do this\"><svg", servers, StringComparison.Ordinal);
-        Assert.Matches($"value=\"{test.ClientId}\"[^>]*selected", hold);
-        Assert.Matches("id=\"hold-target-server\"[^>]*checked", hold);
-        Assert.DoesNotMatch("id=\"hold-target-server\"[^>]*checked", malformed);
+        var hold = await GetHtmlAsync(browser, $"{path}?tab=servers&dialog=hold&srv={test.ClientId:D}");
+        Assert.Matches("id=\"hold-target-selected\"[^>]*checked", hold);
+        Assert.Contains($"name=\"HoldSelected\" value=\"{test.ClientId}\"", hold, StringComparison.Ordinal);
+        var malformed = await GetHtmlAsync(browser, $"{path}?tab=servers&dialog=hold&srv=%27%3Bdrop");
+        Assert.DoesNotContain("hold-target-selected", malformed, StringComparison.Ordinal);
 
-        // Install now of a row installs only this update (lab, Marc 2026-11-20: it installed every released update).
+        using (await browser.PostFormAsync($"{path}?dialog=hold", new Dictionary<string, string> { ["_handler"] = "hold", ["HoldTarget"] = "Selected", ["HoldSelected"] = test.ClientId.ToString("D") }))
+        {
+        }
+
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.UpdateHolds.AnyAsync(h => h.UpdateId == update.UpdateId && h.ClientId == test.ClientId, TestContext.Current.CancellationToken)));
+
+        // Install now: administrators only, the update is released for this server alone and installed.
         await scenario.Factory.CreateUserAsync("admin", "correct horse battery", AdminRoles.Admin);
         using var admin = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
         using (await admin.LoginAsync("admin", "correct horse battery"))
         {
         }
 
-        var adminServers = System.Net.WebUtility.HtmlDecode(await GetHtmlAsync(admin, path + "?tab=servers"));
-        Assert.Contains($"/servers/{test.ClientId}?tab=updates&dialog=install-selection&sel={update.UpdateId:D}", adminServers, StringComparison.Ordinal);
-        Assert.DoesNotContain($"/servers/{test.ClientId}?dialog=install\"", adminServers, StringComparison.Ordinal);
+        var dialog = await GetHtmlAsync(admin, $"{path}?tab=servers&dialog=install-servers&srv={test.ClientId:D}");
+        Assert.Contains("TEST01", dialog, StringComparison.Ordinal);
+        Assert.Contains("name=\"ServersRestart\"", dialog, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -139,6 +139,8 @@ The HResult is translated into plain text **centrally**, not in the agent.
 
 Periodic, independent of update cycles (guideline 5–15 s); also serves as polling of the action queue.
 
+The answer carries the end of the debug mode of the server (`debugUntil`, Marc 2026-11-21; null when off). While it runs the agent writes its file log at Debug, starts the WinGet helper with `SUSYPHOS_WINGET_VERBOSE=1` (the helper passes WinGet's verbose log level to the engine through `PackageManagerSettings.SetUserSettings`, so nothing is written to the server's WinGet settings) and adds WindowsUpdate.log (Get-WindowsUpdateLog), CBS.log and dism.log to a log collection. It ends at its end time also when the central server cannot be reached.
+
 ### Live status
 
 Detailed status, with percentage progress where possible:
@@ -197,5 +199,7 @@ Implemented (2026-10-22): the release list carries central agent settings; the a
 The operational requirements from `02-guidelines.md` apply: 99.9 % availability, fault tolerance, no memory leaks (in particular clean disposal of the COM objects), retries with backoff, circuit breaker, resource limits, watchdog, no actions endangering operation without configuration.
 
 ### Scripts of WinGet packages (0.9, Marc 2026-11-13)
+
+Since 0.9.0-rc.7 a script revision names its PowerShell (Marc, 2026-11-20): Windows PowerShell 5.1 (default) or PowerShell 7 from `%ProgramFiles%PowerShell7pwsh.exe`, falling back to 5.1 with a warning as the first output line where it is not installed. The choice is part of the signed bytes (`|pwsh7` at the end; 5.1 revisions sign the same bytes as before), so older agents refuse a PowerShell 7 revision instead of running it in 5.1.
 
 Around a software installation, upgrade or uninstallation the agent runs the approved script of each phase (`ScriptRunner`): local veto `HKLM\SOFTWARE\Policies\SUSyphos\Agent\AllowScripts = 0` first (result *Blocked*); then it downloads the revision and verifies anchor → script key → revision, the hashes the release named, package and phase, and that the revision is not older than the highest it saw for the package and phase (kept in `scripts.dat`, DPAPI). It writes the script to `%ProgramData%\SUSyphos\Agent\Scripts\run-<guid>` (SYSTEM full control, administrators read, no inheritance), keeps it open against changes, hashes it again and runs `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass` with the fixed wrapper in a job object that ends the whole process tree after the timeout. Parameters go in on standard input as JSON; the wrapper offers `Get-SUSyphosParameter`, merges all streams and writes each record with UTC time and stream. Exit 0 succeeds, 3010 and 1641 succeed with a restart in the maintenance window, other codes fail. Before installation: a failure stops the installation unless the script says "install anyway" (blocked or not verified always stop); after installation: a failure makes the result failed while the software stays. A group policy with execution policy AllSigned or scripts switched off is detected and reported. Every run is reported with its output (secrets masked) and kept 14 days under `Logs\Scripts`. Installation results: `0xA0050001` script before failed, `0xA0050002` script after failed, `0xA0050003` blocked locally, `0xA0050004` not verified.
