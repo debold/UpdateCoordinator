@@ -25,13 +25,14 @@ internal sealed record UninstallScope(IReadOnlyCollection<int>? Rings = null, IR
 {
     public static readonly UninstallScope All = new();
 
-    /// <summary>The scope the fields of the "Where" choice name (all, rings, groups, server); null when incomplete.</summary>
-    public static UninstallScope? Parse(string? target, int[]? rings, int[]? groups, Guid? server) => target switch
+    /// <summary>The scope the fields of the "Where" choice name (all, rings, groups, server, the servers selected in a list); null when incomplete.</summary>
+    public static UninstallScope? Parse(string? target, int[]? rings, int[]? groups, Guid? server, Guid[]? selected = null) => target switch
     {
         "all" => All,
         "rings" when rings is { Length: > 0 } => new(Rings: rings),
         "groups" when groups is { Length: > 0 } => new(Groups: groups),
         "server" when server is { } one => new(Clients: [one]),
+        "selected" when selected is { Length: > 0 } => new(Clients: [.. selected.Distinct().Take(1000)]),
         _ => null,
     };
 

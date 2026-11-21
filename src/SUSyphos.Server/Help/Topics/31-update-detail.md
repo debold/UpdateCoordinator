@@ -104,7 +104,14 @@ Every approved server, with the **Server** and its operating system below (the f
 
 **View** (see [Working with lists](help/tables#views)) offers **Still to do** (default; hides Installed and Not needed), **Failed**, **Installed** and **All servers**; **Group** groups the rows by ring, status, operating system or group.
 
-**More** (⋯) at the end of a row: **Install now…** opens [Install selected updates now](help/server-detail#install-selection) of the server with only this update (administrators; for an update the server still misses; one not released for its ring yet is released for that server alone), **Hold for this server…** opens [Hold](#hold) with the server chosen (operators and administrators), and **Uninstall…** opens the uninstall dialog of the server with this update chosen (administrators; only where it is installed and Windows can remove it).
+Select servers with their checkboxes, then use the bar above the list (Marc, 2026-11-20: the same for all servers of one update as for all updates of one server):
+
+- **Install now…** (administrators): the selected servers install this update with their next heartbeat, also outside the maintenance window; choose whether they restart in the next maintenance window or right after. Where the ring of a server has not got the update yet, it is released for that server alone. Servers that have it already or are held are skipped, and the result names them.
+- **Hold…** (operators and administrators): opens [Hold](#hold) with *The selected servers* preselected.
+- **End hold…**: ends the holds of the selected servers for this update; holds of their ring or group stay.
+- **Uninstall…** (red, administrators): opens [Uninstall](#uninstall) with *The selected servers* preselected (only those that have it installed count).
+
+The ⋯ menu at the end of each row is gone; the server page offers the same per server.
 
 ## Installed outside SUSyphos {#outside}
 

@@ -2,7 +2,11 @@
    (Windows updates) and the package page (software, Marc 2026-11-14); the fields are read with UninstallScope.Parse. *@
 <fieldset class="choices">
     <legend>Where</legend>
-    <label class="choice"><input type="radio" name="UninstallTarget" value="all" checked data-help-term="All servers that have it" /> <span><b>All servers that have it</b><span class="note">@DisplayNumber.Format(Servers.Count) servers report it as installed.@AllNote</span></span></label>
+    @if (Selected.Count > 0)
+    {
+        <label class="choice"><input type="radio" name="UninstallTarget" value="selected" checked data-help-term="The selected servers" /> <span><b>The selected servers</b><span class="note">@string.Join(", ", Selected.Take(8).Select(s => s.Name))@(Selected.Count > 8 ? $" and {Selected.Count - 8} more" : string.Empty)</span>@foreach (var (id, _) in Selected) { <input type="hidden" name="UninstallSelected" value="@id" /> }</span></label>
+    }
+    <label class="choice"><input type="radio" name="UninstallTarget" value="all" checked="@(Selected.Count == 0)" data-help-term="All servers that have it" /> <span><b>All servers that have it</b><span class="note">@DisplayNumber.Format(Servers.Count) servers report it as installed.@AllNote</span></span></label>
     @if (RingChoices.Count > 0)
     {
         <div class="choice"><input type="radio" id="uninstall-target-rings" name="UninstallTarget" value="rings" data-help-term="Rings" /> <span><label for="uninstall-target-rings"><b>Rings</b></label><span class="choice-list">@foreach (var (id, label, count) in RingChoices) { <label><input type="checkbox" name="UninstallRings" value="@id" data-help-term="Rings" /> @label <span class="note">(@count)</span></label> }</span></span></div>
@@ -30,4 +34,8 @@
     /// <summary>A sentence after the count of "All servers that have it", starting with a space.</summary>
     [Parameter]
     public string? AllNote { get; set; }
+
+    /// <summary>Servers selected in a list (Marc, 2026-11-21); preselected as the target when there are any.</summary>
+    [Parameter]
+    public IReadOnlyList<(Guid Id, string Name)> Selected { get; set; } = [];
 }

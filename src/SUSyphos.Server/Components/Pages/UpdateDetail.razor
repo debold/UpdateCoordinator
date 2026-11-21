@@ -11,6 +11,7 @@
 @inject SUSyphos.Server.Security.SecurityBaseline Baseline
 @inject TimeProvider Time
 @inject SUSyphos.Server.Agents.AgentActionService Actions
+@inject SUSyphos.Server.Rollouts.ServerUpdateSelection Selection
 
 <PageTitle>@(_update is null ? "Update" : UpdateText.Title(_update, UpdateId))</PageTitle>
 
@@ -108,6 +109,44 @@ else
         }
     </ActionBand>
 
+    @if (Dialog == "install-servers" && _canAdminister)
+    {
+        <Dialog Title="@($"Install {(_update.KbArticle is null ? "this update" : $"KB{_update.KbArticle}")} now?")" CloseHref="@ServersTabLink" Help="update-detail#servers">
+            <form method="post" @formname="install-servers" @onsubmit="InstallServersAsync">
+                <AntiforgeryToken />
+                @foreach (var id in SelectedServerIds) { <input type="hidden" name="srv" value="@id" /> }
+                <div class="dialog-body">
+                    @if (SelectedServerIds.Count == 0)
+                    {
+                        <p>Select at least one server in the list first.</p>
+                    }
+                    else
+                    {
+                        <p>@DisplayNumber.Count(SelectedServerIds.Count, "server installs", "servers install") the update with its next heartbeat, also outside the maintenance window: @SelectedServerText. Where its ring has not got the update yet, it is released for that server alone; servers that have it already or are held are skipped, and the result names them.</p>
+                        <fieldset class="choices">
+                            <legend>Restart</legend>
+                            <div class="choice"><input type="radio" id="servers-restart-window" name="ServersRestart" value="window" checked data-help-term="Restart in the maintenance window" /> <label for="servers-restart-window">Restart in the next maintenance window</label></div>
+                            <div class="choice"><input type="radio" id="servers-restart-now" name="ServersRestart" value="now" data-help-term="Restart right after" /> <label for="servers-restart-now">Restart right after the installation, if needed</label></div>
+                        </fieldset>
+                    }
+                </div>
+                <div class="dialog-foot"><a class="btn" href="@ServersTabLink">Cancel</a><button type="submit" class="primary" disabled="@(SelectedServerIds.Count == 0)">Install now</button></div>
+            </form>
+        </Dialog>
+    }
+    @if (Dialog == "end-hold-servers" && _canOperate)
+    {
+        <Dialog Title="End the holds?" CloseHref="@ServersTabLink" Help="update-detail#servers">
+            <form method="post" @formname="end-hold-servers" @onsubmit="EndHoldServersAsync">
+                <AntiforgeryToken />
+                @foreach (var id in SelectedServerIds) { <input type="hidden" name="srv" value="@id" /> }
+                <div class="dialog-body">
+                    <p>@(SelectedServerIds.Count == 0 ? "Select at least one server in the list first." : $"The holds of {SelectedServerText} for this update end; holds of their ring or group stay. Servers without a hold of their own are skipped.")</p>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="@ServersTabLink">Cancel</a><button type="submit" class="primary" disabled="@(SelectedServerIds.Count == 0)">End holds</button></div>
+            </form>
+        </Dialog>
+    }
     @if (Dialog == "hold" && _canOperate)
     {
         <Dialog Title="@($"Hold {(_update.KbArticle is null ? "this update" : $"KB{_update.KbArticle}")}?")" CloseHref="@($"/updates/{UpdateId}/{Revision}")" Help="update-detail#hold">
@@ -117,7 +156,11 @@ else
                     <p>Servers of the target do not get the update while the hold lasts; where it is installed already it stays. A ring on hold does not count as done, so the next ring waits. Elsewhere the rollout goes on.</p>
                     <fieldset class="choices">
                         <legend>For</legend>
-                        <div class="choice"><input type="radio" id="hold-target-ring" name="HoldTarget" value="Ring" checked="@(PreselectedServer is null)" data-help-term="Ring" /> <span><label for="hold-target-ring"><b>Ring</b></label><select name="HoldRing" aria-label="Ring">@foreach (var ring in _rings) { <option value="@ring.Id">@ring.Order @ring.Name</option> }</select></span></div>
+                        @if (_selectedServers.Count > 0)
+                        {
+                            <div class="choice"><input type="radio" id="hold-target-selected" name="HoldTarget" value="Selected" checked data-help-term="The selected servers" /> <span><label for="hold-target-selected"><b>The selected servers</b></label><span class="note">@SelectedServerText</span>@foreach (var id in SelectedServerIds) { <input type="hidden" name="HoldSelected" value="@id" /> }</span></div>
+                        }
+                        <div class="choice"><input type="radio" id="hold-target-ring" name="HoldTarget" value="Ring" checked="@(PreselectedServer is null && _selectedServers.Count == 0)" data-help-term="Ring" /> <span><label for="hold-target-ring"><b>Ring</b></label><select name="HoldRing" aria-label="Ring">@foreach (var ring in _rings) { <option value="@ring.Id">@ring.Order @ring.Name</option> }</select></span></div>
                         @if (_allGroups.Count > 0)
                         {
                             <div class="choice"><input type="radio" id="hold-target-group" name="HoldTarget" value="Group" data-help-term="Server group" /> <span><label for="hold-target-group"><b>Server group</b></label><select name="HoldGroup" aria-label="Server group">@foreach (var group in _allGroups) { <option value="@group.Id">@group.Name</option> }</select></span></div>
@@ -144,7 +187,7 @@ else
                     }
                     else
                     {
-                        <UninstallWhere Servers="@([.. _targets.Select(t => (t.ClientId, t.HostName))])" RingChoices="@SUSyphos.Server.Agents.UninstallScope.RingChoices(_targets, _rings)" GroupChoices="@SUSyphos.Server.Agents.UninstallScope.GroupChoices(_targets, _allGroups)" />
+                        <UninstallWhere Selected="@([.. _selectedServers.Where(s => _targets.Any(t => t.ClientId == s.Id))])" Servers="@([.. _targets.Select(t => (t.ClientId, t.HostName))])" RingChoices="@SUSyphos.Server.Agents.UninstallScope.RingChoices(_targets, _rings)" GroupChoices="@SUSyphos.Server.Agents.UninstallScope.GroupChoices(_targets, _allGroups)" />
                         <UninstallTiming />
                         <label class="check"><input type="checkbox" name="UninstallBlock" value="yes" checked="@(_update.BlockedAtUtc is null)" disabled="@(_update.BlockedAtUtc is not null)" data-help-term="Block the update" /> @(_update.BlockedAtUtc is null ? "Block the update, so its rollout stops and it does not come back (recommended when it goes everywhere)" : "The update is blocked already")</label>
                         <p class="note">The agent uninstalls through Windows Update, or with DISM by the KB number where Windows Update cannot; some packages cannot be removed, the remote action on each server then reports why.</p>
@@ -229,45 +272,56 @@ else
     else if (_tab == "servers")
     {
     <Box Title="Servers" Help="update-detail#servers" Flush="true">
+        @if (_canOperate)
+        {
+            <form id="servers-select" method="get" action="/updates/@UpdateId/@Revision" class="detached"><input type="hidden" name="tab" value="servers" /></form>
+            <div class="selection-bar" data-selection="srv">
+                <span class="note" data-selection-count>Select servers, then</span>
+                <button type="submit" form="servers-select" name="dialog" value="install-servers" disabled="@(!_canAdminister)" title="@(_canAdminister ? "Install the update on the selected servers now (released for them alone if their ring has not got it yet)" : "Only administrators can do this")" data-help-term="Install now"><Icon Name="download" Size="16" />Install now…</button>
+                <button type="submit" form="servers-select" name="dialog" value="hold" title="Keep the update from the selected servers for a while" data-help-term="Hold"><Icon Name="pause" Size="16" />Hold…</button>
+                <button type="submit" form="servers-select" name="dialog" value="end-hold-servers" title="End the holds of the selected servers for this update" data-help-term="End hold"><Icon Name="play" Size="16" />End hold…</button>
+                <div class="spacer"></div>
+                <button type="submit" form="servers-select" name="dialog" value="uninstall" class="danger" disabled="@(!_canAdminister || !Removable)" title="@(!_canAdminister ? "Only administrators can do this" : !Removable ? "Windows cannot uninstall this update this way" : "Uninstall the update from the selected servers")" data-help-term="Uninstall"><Icon Name="undo-2" Size="16" />Uninstall…</button>
+            </div>
+        }
         <TableTools Table="_table" Placeholder="Search server" Labels="ServerLabels" View="_serverPage.View" GroupOptions="ServerGroupOptions" />
         <div class="scroll">
             <table>
                 <thead>
                     <tr>
+                        @if (_canOperate)
+                        {
+                            <th class="select"><input type="checkbox" data-select-all="srv" data-help="tables#select" data-help-term="Select all" aria-label="Select all servers shown" hidden /></th>
+                        }
                         <SortHeader Table="_table" Column="name" Label="Server" FilterColumn="os" FilterLabel="Operating system" Options="@_serverPage.Options.GetValueOrDefault("os")" />
                         <SortHeader Table="_table" Column="ring" Label="Ring and groups" Class="wrap-head" Options="@_serverPage.Options.GetValueOrDefault("ring")" />
                         <SortHeader Table="_table" Column="status" Label="Status" Options="@_serverPage.Options.GetValueOrDefault("status")" />
                         <SortHeader Table="_table" Column="earliest" Label="Earliest installation" />
                         <SortHeader Table="_table" Column="installed" Label="Installed" />
                         <th>Result</th>
-                        <th class="n"><span class="visually-hidden">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody>
                     @if (_serverPage.Rows.Count == 0)
                     {
-                        <tr><td colspan="7" class="note">No server matches.</td></tr>
+                        <tr><td colspan="@(_canOperate ? 7 : 6)" class="note">No server matches.</td></tr>
                     }
                     @foreach (var (group, rows) in TablePaging.Groups(_serverPage, _table, ServerColumns))
                     {
-                        <GroupRow Name="@group" Count="@rows.Count" Columns="7" />
+                        <GroupRow Name="@group" Count="@rows.Count" Columns="@(_canOperate ? 7 : 6)" />
                         @foreach (var row in rows)
                         {
                             <tr>
+                                @if (_canOperate)
+                                {
+                                    <td class="select"><input type="checkbox" form="servers-select" name="srv" value="@row.ClientId" aria-label="@($"Select {row.HostName}")" data-help-term="Select" /></td>
+                                }
                                 <td><a href="/servers/@row.ClientId">@row.HostName</a><div class="note">@row.Os</div></td>
                                 <td>@if (row.RingOrder > 0) { <RingTag Name="@row.Ring" Order="@row.RingOrder" /> } else { <span class="note">–</span> }@if (row.Groups.Count > 0) { <div>@foreach (var member in row.Groups) { <span class="tag">@member</span> }</div> }</td>
                                 <td><span class="pill @StatusClass(row.Status)">@StatusLabel(row.Status)</span></td>
                                 <td class="nowrap">@Format(row.Entry?.EarliestInstallAtUtc)</td>
                                 <td class="nowrap">@if (row.InstalledAtUtc is { } installedAt) { <span>@Format(installedAt)</span> }@if (row.InstalledBy is { } by) { <div class="note">@by</div> }</td>
                                 <td>@(row.Entry is { } entry && row.Status != ServerUpdateStatus.Installed ? DeploymentText.Result(entry) : null)</td>
-                                <td class="n">
-                                    <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {row.HostName}")">
-                                        <MenuItem Href="@($"/servers/{row.ClientId}?tab=updates&dialog=install-selection&sel={UpdateId:D}")" Icon="download" Disabled="@(!_canAdminister || row.Status is not (ServerUpdateStatus.Pending or ServerUpdateStatus.Planned or ServerUpdateStatus.Failed or ServerUpdateStatus.WaitingForRelease))" Reason="@(!_canAdminister ? "Only administrators can do this" : row.Status is ServerUpdateStatus.Pending or ServerUpdateStatus.Planned or ServerUpdateStatus.Failed or ServerUpdateStatus.WaitingForRelease ? "Install only this update on this server now, outside its maintenance window (released for this server alone if its ring has not got it yet)" : "Only for an update the server still misses")">Install now…</MenuItem>
-                                        <MenuItem Href="@($"/updates/{UpdateId}/{Revision}?dialog=hold&server={row.ClientId:D}")" Icon="pause" Disabled="@(!_canOperate || row.Status is ServerUpdateStatus.Installed or ServerUpdateStatus.NotNeeded)" Reason="@(!_canOperate ? "Only operators and administrators can do this" : row.Status is ServerUpdateStatus.Installed or ServerUpdateStatus.NotNeeded ? "The server does not need it" : "Keep the update from this server for a while")">Hold for this server…</MenuItem>
-                                        <MenuSeparator />
-                                        <MenuItem Href="@($"/servers/{row.ClientId}?tab=history&dialog=uninstall&update={UpdateId:D}")" Icon="undo-2" Danger="true" Disabled="@(!_canAdminister || !Removable || row.Status != ServerUpdateStatus.Installed)" Reason="@(!_canAdminister ? "Only administrators can do this" : !Removable ? "Windows cannot uninstall this update this way" : row.Status != ServerUpdateStatus.Installed ? "Not installed on this server" : "Uninstall it on this server")">Uninstall…</MenuItem>
-                                    </ActionMenu>
-                                </td>
                             </tr>
                         }
                     }
@@ -524,9 +578,145 @@ else
     /// <summary>Approved servers that report the update, missing or installed: the servers a hold can be for.</summary>
     private List<(Guid Id, string Name)> _holdServers = [];
 
+    /// <summary>Servers selected on the Servers tab (Marc, 2026-11-20: act on several servers of one update at once).</summary>
+    [SupplyParameterFromQuery(Name = "srv")]
+    private Guid[]? SelectedServersFromQuery { get; set; }
+
+    [SupplyParameterFromForm(FormName = "install-servers")]
+    private Guid[]? InstallServers { get; set; }
+
+    [SupplyParameterFromForm(FormName = "install-servers")]
+    private string? ServersRestart { get; set; }
+
+    [SupplyParameterFromForm(FormName = "end-hold-servers")]
+    private Guid[]? EndHoldServers { get; set; }
+
+    [SupplyParameterFromForm(FormName = "hold")]
+    private Guid[]? HoldSelected { get; set; }
+
+    [SupplyParameterFromForm(FormName = "uninstall")]
+    private Guid[]? UninstallSelected { get; set; }
+
+    private List<(Guid Id, string Name)> _selectedServers = [];
+
+    private IReadOnlyList<Guid> SelectedServerIds => [.. _selectedServers.Select(s => s.Id)];
+
+    private string SelectedServerText => string.Join(", ", _selectedServers.Take(8).Select(s => s.Name)) + (_selectedServers.Count > 8 ? $" and {_selectedServers.Count - 8} more" : string.Empty);
+
+    private string ServersTabLink => $"/updates/{UpdateId}/{Revision}?tab=servers";
+
+    /// <summary>The selected servers that exist, with their names, at most 500.</summary>
+    private async Task LoadSelectedServersAsync(IEnumerable<Guid>? ids)
+    {
+        var wanted = (ids ?? []).Distinct().Take(500).ToList();
+        _selectedServers = wanted.Count == 0 ? [] : [.. (await Db.Clients.AsNoTracking().Where(c => wanted.Contains(c.Id)).Select(c => new { c.Id, c.HostName }).ToListAsync())
+            .OrderBy(c => c.HostName, StringComparer.OrdinalIgnoreCase)
+            .Select(c => (c.Id, c.HostName))];
+    }
+
+    /// <summary>Installs the update on each selected server now (administrators).</summary>
+    private async Task InstallServersAsync()
+    {
+        await LoadSelectedServersAsync(InstallServers);
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer) || _selectedServers.Count == 0)
+        {
+            ShowResult(_selectedServers.Count == 0 ? "Select at least one server in the list first." : "Only administrators can install updates now.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var kind = ServersRestart == "now" ? SUSyphos.Contracts.Agents.AgentActionKind.InstallNow : SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow;
+        var actor = await GetActorAsync();
+        var done = 0;
+        var skipped = new List<string>();
+        foreach (var (id, name) in _selectedServers)
+        {
+            var result = await Selection.InstallAsync(id, [UpdateId], kind, actor, CancellationToken.None);
+            done += result.Done;
+            if (result.Error is { } error)
+            {
+                skipped.Add($"{name} ({error})");
+            }
+            else if (result.Skipped.Count > 0)
+            {
+                skipped.Add($"{name} ({string.Join("; ", result.Skipped.Select(s => s.Reason))})");
+            }
+        }
+
+        ShowResultAndReload(done == 0 && skipped.Count > 0 ? $"Nothing was queued: {string.Join(", ", skipped)}." : null, $"{DisplayNumber.Count(done, "server installs", "servers install")} the update with the next heartbeat.{(skipped.Count > 0 ? $" Skipped: {string.Join(", ", skipped)}." : string.Empty)}");
+        Dialog = null;
+        await LoadAsync();
+    }
+
+    /// <summary>Ends the holds of the selected servers for this update (operators and administrators).</summary>
+    private async Task EndHoldServersAsync()
+    {
+        await LoadSelectedServersAsync(EndHoldServers);
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate) || _selectedServers.Count == 0)
+        {
+            ShowResult(_selectedServers.Count == 0 ? "Select at least one server in the list first." : "Only operators and administrators can end holds.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var actor = await GetActorAsync();
+        var ended = 0;
+        foreach (var (id, _) in _selectedServers)
+        {
+            ended += (await Selection.EndHoldAsync(id, [UpdateId], actor, CancellationToken.None)).Done;
+        }
+
+        ShowResultAndReload(null, $"{DisplayNumber.Count(ended, "hold ended", "holds ended")}; servers without a hold of their own were skipped.");
+        Dialog = null;
+        await LoadAsync();
+    }
+
     /// <summary>Holds the update for one ring, group or server (operators and administrators).</summary>
+    /// <summary>Holds the update for each selected server (Servers tab; operators and administrators).</summary>
+    private async Task HoldSelectedAsync()
+    {
+        await LoadSelectedServersAsync(HoldSelected);
+        var until = DateTimeField.ParseUtc(HoldUntilDate, HoldUntilTime);
+        var error = !await IsAuthorizedAsync(AdminRoles.Policies.Operate) ? "Only operators and administrators can hold updates."
+            : _selectedServers.Count == 0 ? "Select at least one server in the list first."
+            : !string.IsNullOrWhiteSpace(HoldUntilDate) && until is null ? "Enter the end of the hold as a date YYYY-MM-DD, or leave it empty."
+            : null;
+        if (error is not null)
+        {
+            ShowResult(error, string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var actor = await GetActorAsync();
+        var held = 0;
+        var errors = new List<string>();
+        foreach (var (id, name) in _selectedServers)
+        {
+            var outcome = await Holds.HoldAsync(UpdateId, Revision, SUSyphos.Server.Rollouts.HoldTarget.Server, id.ToString("D"), HoldReason, until, actor, CancellationToken.None);
+            if (outcome.Succeeded)
+            {
+                held++;
+            }
+            else
+            {
+                errors.Add($"{name} ({outcome.Error})");
+            }
+        }
+
+        ShowResultAndReload(held == 0 ? string.Join(", ", errors) : null, $"The update is on hold for {DisplayNumber.Count(held, "server", "servers")}.{(errors.Count > 0 ? $" Not for: {string.Join(", ", errors)}." : string.Empty)}");
+        Dialog = null;
+        await LoadAsync();
+    }
+
     private async Task HoldAsync()
     {
+        if (HoldTarget == "Selected")
+        {
+            await HoldSelectedAsync();
+            return;
+        }
+
         var target = Enum.TryParse<SUSyphos.Server.Rollouts.HoldTarget>(HoldTarget, out var parsed) && Enum.IsDefined(parsed) ? parsed : (SUSyphos.Server.Rollouts.HoldTarget?)null;
         var until = DateTimeField.ParseUtc(HoldUntilDate, HoldUntilTime);
         var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Operate) ? new Outcome("Only operators and administrators can hold updates.")
@@ -555,7 +745,7 @@ else
     private async Task UninstallAsync()
     {
         var kind = SUSyphos.Server.Agents.AgentActionService.UninstallKind(UninstallWhen);
-        var scope = SUSyphos.Server.Agents.UninstallScope.Parse(UninstallTarget, UninstallRings, UninstallGroups, UninstallServer);
+        var scope = SUSyphos.Server.Agents.UninstallScope.Parse(UninstallTarget, UninstallRings, UninstallGroups, UninstallServer, UninstallSelected);
 
         var error = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? "Only administrators can uninstall updates."
             : scope is null ? "Choose where the update goes: all servers, at least one ring or group, or one server."
@@ -674,6 +864,11 @@ else
             _targets = await Actions.UninstallTargetsAsync(UpdateId, CancellationToken.None);
             _rings = await Db.Rings.AsNoTracking().OrderBy(r => r.Order).ToListAsync();
             _allGroups = await Db.Groups.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
+        }
+
+        if (_selectedServers.Count == 0 && SelectedServersFromQuery is { Length: > 0 } selectedIds)
+        {
+            await LoadSelectedServersAsync(selectedIds);
         }
 
         if (Dialog == "hold")
