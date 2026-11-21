@@ -7,12 +7,13 @@ namespace SUSyphos.Agent.Scripts;
 /// <param name="ExitCode">Exit code, or null when it was stopped after its timeout.</param>
 /// <param name="Output">The lines the wrapper wrote (time, stream, text).</param>
 /// <param name="Errors">What PowerShell wrote to standard error before the wrapper ran (for example a blocked execution policy).</param>
-internal sealed record ScriptProcessResult(int? ExitCode, string Output, string Errors);
+/// <param name="Shell">The PowerShell that ran it (for the log, when PowerShell 7 was asked for but missing).</param>
+internal sealed record ScriptProcessResult(int? ExitCode, string Output, string Errors, string Shell = PowerShellScriptProcess.WindowsPowerShell);
 
-/// <summary>Runs the wrapper with a script in Windows PowerShell 5.1. Separate so the runner can be tested without PowerShell.</summary>
+/// <summary>Runs the wrapper with a script in Windows PowerShell 5.1 or PowerShell 7. Separate so the runner can be tested without PowerShell.</summary>
 internal interface IScriptProcess
 {
-    Task<ScriptProcessResult> RunAsync(string wrapperPath, string scriptPath, string parametersJson, IReadOnlyDictionary<string, string> environment, TimeSpan timeout, CancellationToken cancellationToken);
+    Task<ScriptProcessResult> RunAsync(string wrapperPath, string scriptPath, string parametersJson, IReadOnlyDictionary<string, string> environment, TimeSpan timeout, CancellationToken cancellationToken, bool powerShell7 = false);
 }
 
 /// <summary>
@@ -26,10 +27,20 @@ internal sealed class PowerShellScriptProcess : IScriptProcess
     /// <summary>The full path, so a powershell.exe elsewhere on the PATH is never started.</summary>
     public static string PowerShellPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
 
-    public async Task<ScriptProcessResult> RunAsync(string wrapperPath, string scriptPath, string parametersJson, IReadOnlyDictionary<string, string> environment, TimeSpan timeout, CancellationToken cancellationToken)
+    /// <summary>PowerShell 7 as its installer (and the WinGet package Microsoft.PowerShell) puts it.</summary>
+    public static string PowerShell7Path => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
+
+    public const string WindowsPowerShell = "Windows PowerShell 5.1";
+
+    public const string PowerShell7 = "PowerShell 7";
+
+    public async Task<ScriptProcessResult> RunAsync(string wrapperPath, string scriptPath, string parametersJson, IReadOnlyDictionary<string, string> environment, TimeSpan timeout, CancellationToken cancellationToken, bool powerShell7 = false)
     {
         ArgumentNullException.ThrowIfNull(environment);
-        var start = new ProcessStartInfo(PowerShellPath)
+        // PowerShell 7 only from its fixed folder under Program Files (writable only by administrators), never from the PATH;
+        // without it the script runs in Windows PowerShell 5.1 (Marc, 2026-11-20).
+        var pwsh = powerShell7 && File.Exists(PowerShell7Path) ? PowerShell7Path : null;
+        var start = new ProcessStartInfo(pwsh ?? PowerShellPath)
         {
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -72,10 +83,10 @@ internal sealed class PowerShellScriptProcess : IScriptProcess
             job.Terminate(unchecked((uint)SUSyphos.Contracts.Scripts.ScriptLimits.TimeoutCode));
             await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            return new ScriptProcessResult(null, await SafeAsync(output).ConfigureAwait(false), await SafeAsync(errors).ConfigureAwait(false));
+            return new ScriptProcessResult(null, await SafeAsync(output).ConfigureAwait(false), await SafeAsync(errors).ConfigureAwait(false), pwsh is null ? WindowsPowerShell : PowerShell7);
         }
 
-        return new ScriptProcessResult(process.ExitCode, await SafeAsync(output).ConfigureAwait(false), await SafeAsync(errors).ConfigureAwait(false));
+        return new ScriptProcessResult(process.ExitCode, await SafeAsync(output).ConfigureAwait(false), await SafeAsync(errors).ConfigureAwait(false), pwsh is null ? WindowsPowerShell : PowerShell7);
     }
 
     private static async Task<string> SafeAsync(Task<string> read)

@@ -53,6 +53,36 @@ public sealed class ScriptRunnerTests : IDisposable
         Assert.Single(Directory.EnumerateFiles(Path.Combine(_folder, "Logs", "Scripts")));
     }
 
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PowerShell7Revision_RunsIn7_OrSaysItFellBackTo51(bool installed)
+    {
+        // Marc, 2026-11-20: PowerShell 7 as an option per script, falling back to Windows PowerShell 5.1.
+        var (package, reference) = Sign("Write-Output 'hello'", revision: 3, powerShell: ScriptPowerShell.PowerShell7);
+        _client.Packages[(1, 3)] = package;
+        _process.ShellFor7 = installed ? PowerShellScriptProcess.PowerShell7 : PowerShellScriptProcess.WindowsPowerShell;
+
+        var outcome = await Create().RunAsync(new ScriptRunRequest(Package, ScriptAction.Install, "1.0", null, null, reference), TestContext.Current.CancellationToken);
+
+        Assert.True(outcome.Succeeded, outcome.Detail);
+        Assert.True(_process.AskedFor7);
+        Assert.Equal(!installed, (Assert.Single(_client.Runs).Output ?? string.Empty).Contains("PowerShell 7 is not installed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RevisionChangedFrom51To7AfterSigning_NeverRuns()
+    {
+        // The PowerShell choice is part of the signature: a 5.1 signature does not cover a revision that asks for 7.
+        var (package, reference) = Sign("Write-Output 'hello'", revision: 4, powerShell: ScriptPowerShell.PowerShell7, signAs51: true);
+        _client.Packages[(1, 4)] = package;
+
+        var outcome = await Create().RunAsync(new ScriptRunRequest(Package, ScriptAction.Install, "1.0", null, null, reference), TestContext.Current.CancellationToken);
+
+        Assert.Equal(ScriptRunResult.NotVerified, outcome.Result);
+        Assert.Equal(0, _process.Calls);
+    }
     [Theory]
     [InlineData("content")]
     [InlineData("package")]
@@ -229,7 +259,7 @@ public sealed class ScriptRunnerTests : IDisposable
     private ProtectedJsonFile<ScriptState> State() => _state ??= new(new ProtectedFile(Path.Combine(_folder, "scripts.dat"), "SUSyphos.Tests.Scripts", NullLogger.Instance), NullLogger.Instance);
 
     /// <summary>A revision signed like the central server signs it, and the reference a release list names it with.</summary>
-    private (ScriptPackage Package, ScriptReference Reference) Sign(string text, int revision = 1, ScriptRunOn runOn = ScriptRunOn.Both, int timeoutSeconds = 300, IReadOnlyList<ScriptParameter>? parameters = null, IReadOnlyDictionary<string, string>? values = null)
+    private (ScriptPackage Package, ScriptReference Reference) Sign(string text, int revision = 1, ScriptRunOn runOn = ScriptRunOn.Both, int timeoutSeconds = 300, IReadOnlyList<ScriptParameter>? parameters = null, IReadOnlyDictionary<string, string>? values = null, ScriptPowerShell powerShell = ScriptPowerShell.WindowsPowerShell, bool signAs51 = false)
     {
         var created = new DateTimeOffset(2026, 11, 14, 8, 0, 0, TimeSpan.Zero);
         var keySpki = _key.ExportSubjectPublicKeyInfo();
@@ -247,10 +277,11 @@ public sealed class ScriptRunnerTests : IDisposable
             RunOn = runOn,
             OnFailure = ScriptOnFailure.Stop,
             TimeoutSeconds = timeoutSeconds,
+            PowerShell = powerShell,
             Content = Convert.ToBase64String(content),
             ParametersJson = parametersJson,
             SignedAt = signedAt,
-            Signature = Convert.ToBase64String(_key.SignData(ScriptSigningFormat.RevisionBytes(1, revision, Package, ScriptPhase.BeforeInstall, runOn, ScriptOnFailure.Stop, timeoutSeconds, contentHash, parametersHash, signedAt), TrustBindingFormat.HashAlgorithm)),
+            Signature = Convert.ToBase64String(_key.SignData(ScriptSigningFormat.RevisionBytes(1, revision, Package, ScriptPhase.BeforeInstall, runOn, ScriptOnFailure.Stop, timeoutSeconds, contentHash, parametersHash, signedAt, signAs51 ? ScriptPowerShell.WindowsPowerShell : powerShell), TrustBindingFormat.HashAlgorithm)),
             KeyId = "k20261114-test0001",
             KeyPublicKey = Convert.ToBase64String(keySpki),
             KeyCreatedAt = created,
@@ -287,13 +318,19 @@ public sealed class ScriptRunnerTests : IDisposable
 
         public IReadOnlyDictionary<string, string>? Environment { get; private set; }
 
-        public Task<ScriptProcessResult> RunAsync(string wrapperPath, string scriptPath, string parametersJson, IReadOnlyDictionary<string, string> environment, TimeSpan timeout, CancellationToken cancellationToken)
+        public bool? AskedFor7 { get; private set; }
+
+        /// <summary>What the fake says it ran in when PowerShell 7 was asked for.</summary>
+        public string ShellFor7 { get; set; } = PowerShellScriptProcess.PowerShell7;
+
+        public Task<ScriptProcessResult> RunAsync(string wrapperPath, string scriptPath, string parametersJson, IReadOnlyDictionary<string, string> environment, TimeSpan timeout, CancellationToken cancellationToken, bool powerShell7 = false)
         {
             Calls++;
             Parameters = parametersJson;
             Environment = environment;
             Assert.True(File.Exists(scriptPath));
-            return Task.FromResult(new ScriptProcessResult(ExitCode, Output, string.Empty));
+            AskedFor7 = powerShell7;
+            return Task.FromResult(new ScriptProcessResult(ExitCode, Output, string.Empty, powerShell7 ? ShellFor7 : PowerShellScriptProcess.WindowsPowerShell));
         }
     }
 }

@@ -22,6 +22,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Server list: the Updates column shows only what is open, as pills (failed, ready to install, waiting for release) or a green "up to date", instead of a donut; installed updates are in the tooltip, and the column sorts and filters by these states. Date and time in "Last heartbeat" are aligned.
 - Installation histories tell installs and uninstalls apart (↓ Install light, ↩ Uninstall dark and filled), and the Software category tag is violet like everything else about software instead of pink.
 - Long hex values (key fingerprint on the agent settings, SHA-256 of a script) are shown in groups of four that wrap instead of running over the edge; the demo data of the layout tests now has a script key.
+- Package assignments to **All servers** (Marc, 2026-11-20): every approved server, also servers approved later; servers without WinGet are left out. Schema: `PackageAssignments.TargetKind` 2 with neither group nor server.
+- Scripts can run in **PowerShell 7** (Marc, 2026-11-20): a choice per script, Windows PowerShell 5.1 by default. PowerShell 7 runs from its folder under Program Files where it is installed; elsewhere the script runs in 5.1 and the first line of its output says so (install PowerShell 7 with the WinGet package Microsoft.PowerShell). The choice is part of the signed revision; agents before 0.9.0-rc.7 refuse such a revision instead of running it in 5.1. The script page shows the choice instead of the fixed "Runs as" line. Schema: `PackageScripts.DraftPowerShell`, `PackageScriptRevisions.PowerShell`.
 
 ## [0.9.0-rc.6] - 2026-11-20
 

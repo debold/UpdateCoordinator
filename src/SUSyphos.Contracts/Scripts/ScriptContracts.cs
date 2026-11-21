@@ -12,6 +12,17 @@ public enum ScriptPhase
     AfterUninstall = 3,
 }
 
+/// <summary>
+/// The PowerShell a script runs in (Marc, 2026-11-20): Windows PowerShell 5.1, present on every server, or PowerShell 7,
+/// which falls back to 5.1 when pwsh.exe is not installed. Part of the signed revision.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ScriptPowerShell>))]
+public enum ScriptPowerShell
+{
+    WindowsPowerShell = 0,
+    PowerShell7 = 1,
+}
+
 /// <summary>For the installation phases: on a new installation, an upgrade or both.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<ScriptRunOn>))]
 public enum ScriptRunOn
@@ -95,6 +106,9 @@ public sealed record ScriptPackage
     public required ScriptOnFailure OnFailure { get; init; }
 
     public required int TimeoutSeconds { get; init; }
+
+    /// <summary>Windows PowerShell 5.1 (default; also what agents before 0.9.0-rc.7 run) or PowerShell 7 with fallback.</summary>
+    public ScriptPowerShell PowerShell { get; init; }
 
     /// <summary>The script as signed: UTF-8 with BOM and CRLF line ends, Base64.</summary>
     public required string Content { get; init; }

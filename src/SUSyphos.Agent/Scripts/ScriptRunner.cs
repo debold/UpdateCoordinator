@@ -184,8 +184,15 @@ internal sealed partial class ScriptRunner(
                 ["SUSYPHOS_INSTALLER_EXIT_CODE"] = request.InstallerExitCode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
             };
             LogRunning(request.PackageId, request.Script.Phase, package.Revision, package.TimeoutSeconds);
-            var ran = await process.RunAsync(wrapperPath, scriptPath, values, environment, TimeSpan.FromSeconds(package.TimeoutSeconds), cancellationToken).ConfigureAwait(false);
+            var wants7 = package.PowerShell == ScriptPowerShell.PowerShell7;
+            var ran = await process.RunAsync(wrapperPath, scriptPath, values, environment, TimeSpan.FromSeconds(package.TimeoutSeconds), cancellationToken, wants7).ConfigureAwait(false);
             var output = ran.Output.TrimStart('\uFEFF') + (string.IsNullOrWhiteSpace(ran.Errors) ? string.Empty : string.Join(Environment.NewLine, ran.Errors.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => ScriptOutput.Line(timeProvider.GetUtcNow(), "Error", line))));
+            if (wants7 && ran.Shell != PowerShellScriptProcess.PowerShell7)
+            {
+                // The revision asks for PowerShell 7, which is not installed here: the run says so at the top of its output.
+                output = ScriptOutput.Line(started, "Warning", "Ran in Windows PowerShell 5.1: PowerShell 7 is not installed (install the WinGet package Microsoft.PowerShell).") + Environment.NewLine + output;
+            }
+
             output = ScriptOutput.Mask(output, secrets);
             var (result, detail) = ran.ExitCode switch
             {

@@ -133,7 +133,7 @@ internal static class SoftwareNeeds
         return (applicable, unsupported);
     }
 
-    /// <summary>Install assignments resolved to servers: directly or through a group, without servers that cannot run WinGet.</summary>
+    /// <summary>Install assignments resolved to servers: directly, through a group or to all approved servers, without servers that cannot run WinGet.</summary>
     private static async Task<List<(Guid ClientId, string PackageId, string? FixedVersion, DateTime CreatedAtUtc)>> AssignedAsync(ServerDbContext db, IReadOnlyCollection<Guid>? clientIds, CancellationToken cancellationToken)
     {
         var assignments = await db.PackageAssignments.AsNoTracking().Where(a => a.Mode == PackageAssignmentMode.Install).ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -145,10 +145,15 @@ internal static class SoftwareNeeds
         var groupIds = assignments.Where(a => a.GroupId is not null).Select(a => a.GroupId!.Value).Distinct().ToList();
         var members = (await db.ClientGroups.AsNoTracking().Where(m => groupIds.Contains(m.GroupId)).ToListAsync(cancellationToken).ConfigureAwait(false)).ToLookup(m => m.GroupId, m => m.ClientId);
         var unsupported = (await db.Clients.AsNoTracking().Where(c => c.SoftwareState == SoftwareSupportState.NotSupported).Select(c => c.Id).ToListAsync(cancellationToken).ConfigureAwait(false)).ToHashSet();
+        var approved = assignments.Any(a => a.TargetKind == PackageAssignmentTarget.AllServers)
+            ? await db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved).Select(c => c.Id).ToListAsync(cancellationToken).ConfigureAwait(false)
+            : [];
         var resolved = new List<(Guid, string, string?, DateTime)>();
         foreach (var assignment in assignments)
         {
-            IEnumerable<Guid> servers = assignment.ClientId is { } server ? [server] : members[assignment.GroupId!.Value];
+            IEnumerable<Guid> servers = assignment.TargetKind == PackageAssignmentTarget.AllServers ? approved
+                : assignment.ClientId is { } server ? [server]
+                : members[assignment.GroupId!.Value];
             resolved.AddRange(servers
                 .Where(s => (clientIds is null || clientIds.Contains(s)) && !unsupported.Contains(s))
                 .Select(s => (s, assignment.PackageId, assignment.FixedVersion, assignment.CreatedAtUtc)));

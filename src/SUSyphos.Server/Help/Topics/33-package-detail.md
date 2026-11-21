@@ -57,7 +57,7 @@ New installations (administrators): the servers of an assigned group, or an assi
 
 ## Assign the package {#assign}
 
-- **Group or server**: one group or one approved server on which WinGet can run.
+- **All servers, a group or a server**: *All servers* (every approved server, also servers approved later; Marc, 2026-11-20), one group or one approved server. Servers on which WinGet cannot run are always left out.
 - **Version**: "Newest released version", or a fixed version of the catalog.
 - **Uninstall when the assignment is removed**: off by default; on, removing the assignment later uninstalls the package from the servers it covered.
 

@@ -20,7 +20,7 @@ else
 {
     var phase = _phase.Value;
     <PageTitle>@ScriptText.Phase(phase): @_package.Name</PageTitle>
-    <PageHeader Icon="@PageIcons.Software" Title="@($"{ScriptText.Phase(phase)}: {_package.Name}")" Subtitle="@($"PowerShell 5.1 as SYSTEM · {_package.PackageId}")" Help="script" Crumbs="@([("Software", "/software"), (_package.Name, PackagePage.Link(_package.PackageId)), (ScriptText.Phase(phase), null)])" />
+    <PageHeader Icon="@PageIcons.Software" Title="@($"{ScriptText.Phase(phase)}: {_package.Name}")" Subtitle="@($"Runs as SYSTEM · {_package.PackageId}")" Help="script" Crumbs="@([("Software", "/software"), (_package.Name, PackagePage.Link(_package.PackageId)), (ScriptText.Phase(phase), null)])" />
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
     @if (!_enabled)
     {
@@ -61,7 +61,7 @@ else
                 <Fact Label="Runs on">@ScriptText.RunOn(approved.RunOn)</Fact>
                 <Fact Label="On failure">@ScriptText.OnFailure(phase, approved.OnFailure)</Fact>
                 <Fact Label="Timeout">@(approved.TimeoutSeconds / 60) minutes</Fact>
-                <Fact Label="Runs as">SYSTEM, Windows PowerShell 5.1</Fact>
+                <Fact Label="PowerShell">@(approved.PowerShell == ScriptPowerShell.PowerShell7 ? "PowerShell 7, else Windows PowerShell 5.1" : "Windows PowerShell 5.1")</Fact>
                 <Fact Label="SHA-256" Mono="true" Wide="true"><HexValue Value="@approved.ContentSha256" /></Fact>
                 <Fact Label="Signing key" Mono="true">@approved.KeyId</Fact>
                 <Fact Label="Approved" Note="@($"by {approved.ApprovedBy}")">@DisplayTime.Format(approved.SignedAtUtc)</Fact>
@@ -97,6 +97,13 @@ else
                                 <option value="@ScriptOnFailure.Continue" selected="@(_view?.Script.DraftOnFailure == ScriptOnFailure.Continue)">@ScriptText.OnFailure(phase, ScriptOnFailure.Continue)</option>
                             }
                         </select>
+                    </label>
+                    <label class="field"><span>PowerShell</span>
+                        <select name="PowerShell" disabled="@(!_canAdminister)">
+                            <option value="@ScriptPowerShell.WindowsPowerShell" selected="@((_view?.Script.DraftPowerShell ?? ScriptPowerShell.WindowsPowerShell) == ScriptPowerShell.WindowsPowerShell)">Windows PowerShell 5.1</option>
+                            <option value="@ScriptPowerShell.PowerShell7" selected="@(_view?.Script.DraftPowerShell == ScriptPowerShell.PowerShell7)">PowerShell 7, else 5.1</option>
+                        </select>
+                        <span class="help">PowerShell 7 runs where pwsh.exe is installed (for example with the WinGet package Microsoft.PowerShell, assigned through SUSyphos); elsewhere the script runs in 5.1 and its log says so.</span>
                     </label>
                     <label class="field"><span>Timeout</span><input name="TimeoutMinutes" type="number" min="1" max="30" value="@((_view?.Script.DraftTimeoutSeconds ?? ScriptLimits.DefaultTimeoutSeconds) / 60)" readonly="@(!_canAdminister)" /><span class="help">minutes, 1 to 30</span></label>
                 </div>
@@ -189,6 +196,8 @@ else
     [SupplyParameterFromForm(FormName = "script-edit")] private string? OnFailure { get; set; }
 
     [SupplyParameterFromForm(FormName = "script-edit")] private int? TimeoutMinutes { get; set; }
+
+    [SupplyParameterFromForm(FormName = "script-edit")] private string? PowerShell { get; set; }
 
     [SupplyParameterFromForm(FormName = "script-approve")] private string? ReadWholeScript { get; set; }
 
@@ -285,7 +294,8 @@ else
             : await Scripts.SaveDraftAsync(PackageId, phase, Content, FormParameters(),
                 Enum.TryParse<ScriptRunOn>(RunOn, out var runOn) ? runOn : ScriptRunOn.Both,
                 Enum.TryParse<ScriptOnFailure>(OnFailure, out var onFailure) ? onFailure : ScriptOnFailure.Stop,
-                (TimeoutMinutes ?? 0) * 60, await GetActorAsync(), CancellationToken.None);
+                (TimeoutMinutes ?? 0) * 60, await GetActorAsync(), CancellationToken.None,
+                Enum.TryParse<ScriptPowerShell>(PowerShell, out var powerShell) && Enum.IsDefined(powerShell) ? powerShell : ScriptPowerShell.WindowsPowerShell);
         ShowResult(outcome.Error, "The draft was saved; approve it to make agents run it.");
         await LoadAsync();
     }

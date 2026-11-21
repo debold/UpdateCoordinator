@@ -25,8 +25,12 @@ public static partial class ScriptSigningFormat
         return Encoding.ASCII.GetBytes(string.Create(CultureInfo.InvariantCulture, $"{KeyPurpose}|{keyId}|{Convert.ToHexString(SHA256.HashData(keySubjectPublicKeyInfo))}|{createdAt.UtcDateTime:yyyy-MM-ddTHH:mm:ssZ}"));
     }
 
-    /// <summary>Bytes of an approved revision the script key signs.</summary>
-    public static byte[] RevisionBytes(int scriptId, int revision, string packageId, ScriptPhase phase, ScriptRunOn runOn, ScriptOnFailure onFailure, int timeoutSeconds, string contentSha256, string parametersSha256, DateTimeOffset signedAt)
+    /// <summary>
+    /// Bytes of an approved revision the script key signs. PowerShell 7 adds "|pwsh7" at the end; a revision for
+    /// Windows PowerShell 5.1 signs the same bytes as before 0.9.0-rc.7, so older revisions stay valid and an older agent
+    /// refuses a PowerShell 7 revision instead of running it in 5.1 (its bytes do not match the signature).
+    /// </summary>
+    public static byte[] RevisionBytes(int scriptId, int revision, string packageId, ScriptPhase phase, ScriptRunOn runOn, ScriptOnFailure onFailure, int timeoutSeconds, string contentSha256, string parametersSha256, DateTimeOffset signedAt, ScriptPowerShell powerShell = ScriptPowerShell.WindowsPowerShell)
     {
         ArgumentNullException.ThrowIfNull(packageId);
         if (packageId.Contains('|', StringComparison.Ordinal) || packageId.Any(c => c > 127 || char.IsControl(c)))
@@ -36,7 +40,7 @@ public static partial class ScriptSigningFormat
 
         return Encoding.ASCII.GetBytes(string.Create(
             CultureInfo.InvariantCulture,
-            $"{ScriptPurpose}|{scriptId}|{revision}|{packageId.ToLowerInvariant()}|{phase}|{runOn}|{onFailure}|{timeoutSeconds}|{contentSha256.ToUpperInvariant()}|{parametersSha256.ToUpperInvariant()}|{signedAt.UtcDateTime:yyyy-MM-ddTHH:mm:ssZ}"));
+            $"{ScriptPurpose}|{scriptId}|{revision}|{packageId.ToLowerInvariant()}|{phase}|{runOn}|{onFailure}|{timeoutSeconds}|{contentSha256.ToUpperInvariant()}|{parametersSha256.ToUpperInvariant()}|{signedAt.UtcDateTime:yyyy-MM-ddTHH:mm:ssZ}{(powerShell == ScriptPowerShell.PowerShell7 ? "|pwsh7" : string.Empty)}"));
     }
 
     /// <summary>
@@ -115,7 +119,7 @@ public static partial class ScriptSigningFormat
 
             using var key = ECDsa.Create();
             key.ImportSubjectPublicKeyInfo(keySpki, out _);
-            var signed = RevisionBytes(package.ScriptId, package.Revision, package.PackageId, package.Phase, package.RunOn, package.OnFailure, package.TimeoutSeconds, contentHash, parametersHash, package.SignedAt);
+            var signed = RevisionBytes(package.ScriptId, package.Revision, package.PackageId, package.Phase, package.RunOn, package.OnFailure, package.TimeoutSeconds, contentHash, parametersHash, package.SignedAt, package.PowerShell);
             return key.VerifyData(signed, Convert.FromBase64String(package.Signature), TrustBindingFormat.HashAlgorithm) ? null : "The signature of the script does not verify.";
         }
         catch (Exception exception) when (exception is FormatException or CryptographicException or ArgumentException)

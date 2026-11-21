@@ -41,6 +41,9 @@ internal sealed class PackageScriptEntity
 
     public ScriptOnFailure DraftOnFailure { get; set; }
 
+    /// <summary>The PowerShell the draft runs in.</summary>
+    public SUSyphos.Contracts.Scripts.ScriptPowerShell DraftPowerShell { get; set; }
+
     public int DraftTimeoutSeconds { get; set; } = ScriptLimits.DefaultTimeoutSeconds;
 
     public DateTime DraftChangedAtUtc { get; set; }
@@ -70,6 +73,9 @@ internal sealed class PackageScriptRevisionEntity
     public ScriptRunOn RunOn { get; set; }
 
     public ScriptOnFailure OnFailure { get; set; }
+
+    /// <summary>Windows PowerShell 5.1 (default, all revisions before 0.9.0-rc.7) or PowerShell 7 with fallback to 5.1.</summary>
+    public SUSyphos.Contracts.Scripts.ScriptPowerShell PowerShell { get; set; }
 
     public int TimeoutSeconds { get; set; }
 

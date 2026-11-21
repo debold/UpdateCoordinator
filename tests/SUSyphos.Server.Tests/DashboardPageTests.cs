@@ -83,7 +83,7 @@ public sealed class ChartTests
     {
         var segments = Charts.Segments(new DeploymentCounts(Queued: 1, Pending: 0, Successful: 2, Failed: 1), 100).ToList();
 
-        Assert.Equal(["ok", "queue", "fail"], segments.Select(s => s.Class));
+        Assert.Equal(["ok", "wait", "fail"], segments.Select(s => s.Class));
         Assert.Equal([50.0, 25.0, 25.0], segments.Select(s => s.Length));
         Assert.Equal([0.0, 50.0, 75.0], segments.Select(s => s.Offset));
     }
@@ -96,7 +96,7 @@ public sealed class ChartTests
     {
         var sorted = Charts.Sorted(Charts.Labeled(new DeploymentCounts(Queued: 3, Pending: 0, Successful: 5, Failed: 3)));
 
-        Assert.Equal(["Successful", "Queued", "Failed"], sorted.Select(p => p.Label));
+        Assert.Equal(["Installed", "Waiting for release", "Failed"], sorted.Select(p => p.Label));
         var (shown, more) = Charts.Legend(sorted);
         Assert.Equal(3, shown.Count);
         Assert.Empty(more);
@@ -349,8 +349,8 @@ public sealed class DashboardViewTests
 
         var html = await (await browser.GetAsync($"/updates/{update.UpdateId}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        Assert.Contains("<span class=\"name\" title=\"Not needed\">Not needed</span><b>2</b>", html, StringComparison.Ordinal);
-        Assert.Contains("<span class=\"name\" title=\"Successful\">Successful</span><b>1</b>", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"name\" title=\"" + DeploymentStates.NotNeededExplanation + "\">Not needed</span><b>2</b>", html, StringComparison.Ordinal);
+        Assert.Contains(">Installed</span><b>1</b>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -624,7 +624,7 @@ public sealed class UpdateDetailTests
 
         var overview = await GetHtmlAsync(browser, "/");
 
-        Assert.Contains("<span class=\"pill neutral\">Waiting for release</span>", overview, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"pill wait\">Waiting for release</span>", overview, StringComparison.Ordinal);
         Assert.Contains("1 waiting for release", overview, StringComparison.Ordinal);
         // Help from the navigation opens in a new tab, so the page one works on stays.
         Assert.Matches("<a(?=[^>]*href=\"/help\")(?=[^>]*target=\"_blank\")(?=[^>]*rel=\"noopener\")[^>]*>", overview);
@@ -705,7 +705,7 @@ public sealed class UpdateDetailTests
         await scenario.ReportAsync(pilot, update);
         using var browser = await LoginAsync(scenario, AdminRoles.Reader);
 
-        Assert.Contains("Queued: no rollout", await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1"), StringComparison.Ordinal);
+        Assert.Contains("Not started", await GetHtmlAsync(browser, $"/updates/{update.UpdateId:D}/1"), StringComparison.Ordinal);
         Assert.Contains("Update not found", await GetHtmlAsync(browser, $"/updates/{Guid.NewGuid():D}/1"), StringComparison.Ordinal);
     }
 

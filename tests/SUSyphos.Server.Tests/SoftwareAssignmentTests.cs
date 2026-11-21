@@ -89,10 +89,34 @@ public sealed class SoftwareAssignmentTests
         }
     }
 
+    [Fact]
+    public async Task AllServersAssignment_CoversEveryApprovedServer_AlsoLaterOnes()
+    {
+        // Marc, 2026-11-20: an assignment to all servers also covers servers approved after it.
+        var (scenario, server, _) = await SetUpAsync();
+        await using (scenario)
+        {
+            var outcome = await scenario.WithServiceAsync<SoftwareAssignments, Outcome>(a => a.AddAsync("Notepad++.Notepad++", null, null, null, false, "admin", CancellationToken.None, allServers: true));
+            Assert.True(outcome.Succeeded, outcome.Error);
+
+            var later = await scenario.AddClientAsync("LATER01", RingEntity.PilotId);
+            var newest = SoftwarePackages.SoftwareUpdateId("Notepad++.Notepad++", "8.9.9");
+            Assert.Equal([newest], (await NeedsAsync(scenario, server.ClientId)).Needed.Select(n => n.UpdateId));
+            Assert.Equal([newest], (await NeedsAsync(scenario, later.ClientId)).Needed.Select(n => n.UpdateId));
+
+            var stored = await scenario.Factory.WithDbAsync(db => db.PackageAssignments.SingleAsync(TestContext.Current.CancellationToken));
+            Assert.Equal((PackageAssignmentTarget.AllServers, (int?)null, (Guid?)null), (stored.TargetKind, stored.GroupId, stored.ClientId));
+
+            // The same target twice is refused.
+            Assert.False((await scenario.WithServiceAsync<SoftwareAssignments, Outcome>(a => a.AddAsync("Notepad++.Notepad++", null, null, null, false, "admin", CancellationToken.None, allServers: true))).Succeeded);
+        }
+    }
+
     public static readonly TheoryData<string, string> Invalid = new()
     {
-        { "both", "one group or one server" },
-        { "none", "one group or one server" },
+        { "both", "one group, one server or all servers" },
+        { "none", "one group, one server or all servers" },
+        { "all-with-server", "one group, one server or all servers" },
         { "version", "not known" },
         { "group", "does not exist" },
         { "package", "not in the catalog" },
@@ -109,6 +133,7 @@ public sealed class SoftwareAssignmentTests
             {
                 "both" => a.AddAsync("Notepad++.Notepad++", group, server.ClientId, null, false, "admin", CancellationToken.None),
                 "none" => a.AddAsync("Notepad++.Notepad++", null, null, null, false, "admin", CancellationToken.None),
+                "all-with-server" => a.AddAsync("Notepad++.Notepad++", null, server.ClientId, null, false, "admin", CancellationToken.None, allServers: true),
                 "version" => a.AddAsync("Notepad++.Notepad++", group, null, "1.0'; DROP TABLE Packages;--", false, "admin", CancellationToken.None),
                 "group" => a.AddAsync("Notepad++.Notepad++", 9999, null, null, false, "admin", CancellationToken.None),
                 _ => a.AddAsync("Unknown.Package", group, null, null, false, "admin", CancellationToken.None),

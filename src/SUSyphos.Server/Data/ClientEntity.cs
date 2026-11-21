@@ -38,6 +38,12 @@ internal sealed class ClientEntity
 
     public DateTime? LastHeartbeatAtUtc { get; set; }
 
+    /// <summary>Debug mode of the agent runs until then (UTC); null when it is off (Marc, 2026-11-21).</summary>
+    public DateTime? DebugUntilUtc { get; set; }
+
+    /// <summary>Who switched the debug mode on.</summary>
+    public string? DebugBy { get; set; }
+
     // Inventory (see docs/05-agent-design.md, section 2); empty until the first inventory arrives.
 
     public string? OsProductName { get; set; }

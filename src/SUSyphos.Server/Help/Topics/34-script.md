@@ -17,7 +17,7 @@ The page is reached from the **Scripts** box of the [package page](help/package-
 
 ## Details {#details}
 
-Of the approved revision, as signed: **Runs on**, **On failure**, **Timeout**, **Runs as** (SYSTEM, Windows PowerShell 5.1), its **SHA-256**, the **Signing key** and when it was **Approved**.
+Of the approved revision, as signed: **Runs on**, **On failure**, **Timeout**, **PowerShell** (Windows PowerShell 5.1, or PowerShell 7 with fallback to 5.1); scripts always run as SYSTEM (the subtitle says so), its **SHA-256**, the **Signing key** and when it was **Approved**.
 
 ## Content {#content}
 
@@ -25,6 +25,7 @@ Of the approved revision, as signed: **Runs on**, **On failure**, **Timeout**, *
 - **Runs on** (before and after installation only): **Installations and upgrades**, **New installations only** or **Upgrades only**.
 - **On failure**: before the installation **Do not install** (default) or **Install anyway**; before the uninstallation **Do not uninstall**; after it, the result counts as failed (the software stays installed or removed).
 - **Timeout**: 1 to 30 minutes (default 5); after it the agent ends the script with every process it started (result *Timed out*, 0x800705B4).
+- **PowerShell** (Marc, 2026-11-20): *Windows PowerShell 5.1* (default, present on every server) or *PowerShell 7, else 5.1*. PowerShell 7 runs from `C:Program FilesPowerShell7pwsh.exe` where it is installed, never from the PATH; elsewhere the script runs in Windows PowerShell 5.1 and the first line of its output says so. To install PowerShell 7 on the servers, add the WinGet package **Microsoft.PowerShell** to the catalog and assign it. The choice is part of the signed revision: changing it needs a new approval, and agents before 0.9.0-rc.7 refuse a PowerShell 7 revision instead of running it in 5.1.
 
 Things to know: never put secrets into the script text (Script Block Logging of Windows may log it); use a secret parameter instead. Do not restart the server from the script, return 3010. 32-bit programs write their registry keys under `WOW6432Node`. A group policy that sets the PowerShell execution policy *AllSigned* or switches scripts off, WDAC or AppLocker (ConstrainedLanguage) and some EDR products stop scripts; the output names the language mode and the execution policy. A local administrator of a server can always change what runs there; the signature protects against a changed central server database, changes in transit and older revisions played back.
 

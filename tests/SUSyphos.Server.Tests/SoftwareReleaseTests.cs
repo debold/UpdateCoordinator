@@ -226,7 +226,7 @@ public sealed class SoftwareReleaseTests
 
         Assert.Contains("7-Zip 26.06", history, StringComparison.Ordinal);
         Assert.Contains(update.Title, history, StringComparison.Ordinal);
-        Assert.Contains("class=\"cat-tag c4\" title=\"Software\">Software</span>", history, StringComparison.Ordinal);
+        Assert.Contains("class=\"cat-tag c9\" title=\"Software\">Software</span>", history, StringComparison.Ordinal);
         Assert.Contains("7-Zip 26.06", softwareOnly, StringComparison.Ordinal);
         Assert.DoesNotContain(update.Title, softwareOnly, StringComparison.Ordinal);
     }

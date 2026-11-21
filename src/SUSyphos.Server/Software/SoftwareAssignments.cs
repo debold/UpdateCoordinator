@@ -16,17 +16,20 @@ namespace SUSyphos.Server.Software;
 /// </summary>
 internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner releases, AuditLog audit, Agents.AgentActionService actions, TimeProvider timeProvider)
 {
-    /// <summary>Adds an assignment to exactly one group or server, with an optional fixed version of the catalog.</summary>
-    public async Task<Outcome> AddAsync(string packageId, int? groupId, Guid? clientId, string? fixedVersion, bool uninstallOnRemoval, string actor, CancellationToken cancellationToken)
+    /// <summary>
+    /// Adds an assignment to exactly one group or server, or with <paramref name="allServers"/> to every server (also those
+    /// added later; Marc, 2026-11-20), with an optional fixed version of the catalog.
+    /// </summary>
+    public async Task<Outcome> AddAsync(string packageId, int? groupId, Guid? clientId, string? fixedVersion, bool uninstallOnRemoval, string actor, CancellationToken cancellationToken, bool allServers = false)
     {
         if (!await SoftwareFeature.IsEnabledAsync(db, cancellationToken).ConfigureAwait(false))
         {
             return new Outcome("Software management is switched off.");
         }
 
-        if (groupId is null == clientId is null)
+        if (allServers ? groupId is not null || clientId is not null : groupId is null == clientId is null)
         {
-            return new Outcome("Choose one group or one server.");
+            return new Outcome("Choose one group, one server or all servers.");
         }
 
         var package = await db.Packages.AsNoTracking().SingleOrDefaultAsync(p => p.PackageId == packageId, cancellationToken).ConfigureAwait(false);
@@ -42,7 +45,11 @@ internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner rel
         }
 
         string target;
-        if (groupId is { } group)
+        if (allServers)
+        {
+            target = "all servers";
+        }
+        else if (groupId is { } group)
         {
             target = await db.Groups.Where(g => g.Id == group).Select(g => "group " + g.Name).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false) ?? string.Empty;
         }
@@ -56,7 +63,8 @@ internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner rel
             return new Outcome("The group or server does not exist.");
         }
 
-        if (await db.PackageAssignments.AnyAsync(a => a.PackageId == package.PackageId && a.GroupId == groupId && a.ClientId == clientId, cancellationToken).ConfigureAwait(false))
+        var kind = allServers ? PackageAssignmentTarget.AllServers : groupId is null ? PackageAssignmentTarget.Server : PackageAssignmentTarget.Group;
+        if (await db.PackageAssignments.AnyAsync(a => a.PackageId == package.PackageId && a.TargetKind == kind && a.GroupId == groupId && a.ClientId == clientId, cancellationToken).ConfigureAwait(false))
         {
             return new Outcome($"The package is already assigned to the {target}.");
         }
@@ -64,7 +72,7 @@ internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner rel
         db.PackageAssignments.Add(new PackageAssignmentEntity
         {
             PackageId = package.PackageId,
-            TargetKind = groupId is null ? PackageAssignmentTarget.Server : PackageAssignmentTarget.Group,
+            TargetKind = kind,
             GroupId = groupId,
             ClientId = clientId,
             Mode = PackageAssignmentMode.Install,
@@ -127,7 +135,7 @@ internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner rel
             }
         }
 
-        await audit.WriteAsync(actor, "Package.AssignmentRemoved", assignment.PackageId, string.Create(CultureInfo.InvariantCulture, $"{(assignment.GroupId is { } group ? $"group {group}" : $"server {assignment.ClientId}")}, {(remove ? $"uninstall from {queued} servers" : "kept installed")}"), cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Package.AssignmentRemoved", assignment.PackageId, string.Create(CultureInfo.InvariantCulture, $"{(assignment.TargetKind == PackageAssignmentTarget.AllServers ? "all servers" : assignment.GroupId is { } group ? $"group {group}" : $"server {assignment.ClientId}")}, {(remove ? $"uninstall from {queued} servers" : "kept installed")}"), cancellationToken).ConfigureAwait(false);
         await releases.SyncAsync(null, cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
     }
@@ -163,9 +171,11 @@ internal sealed class SoftwareAssignments(ServerDbContext db, ReleasePlanner rel
         return assignments.Count;
     }
 
-    /// <summary>The servers an assignment covers: the server, or the members of the group.</summary>
+    /// <summary>The servers an assignment covers: the server, the members of the group, or every approved server.</summary>
     private async Task<List<Guid>> ServersAsync(PackageAssignmentEntity assignment, CancellationToken cancellationToken) =>
-        assignment.ClientId is { } server
+        assignment.TargetKind == PackageAssignmentTarget.AllServers
+            ? await db.Clients.AsNoTracking().Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).Select(c => c.Id).ToListAsync(cancellationToken).ConfigureAwait(false)
+            : assignment.ClientId is { } server
             ? [server]
             : await db.ClientGroups.AsNoTracking().Where(m => m.GroupId == assignment.GroupId).Select(m => m.ClientId).ToListAsync(cancellationToken).ConfigureAwait(false);
 }

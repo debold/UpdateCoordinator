@@ -272,9 +272,10 @@ else if (_package is not null && _enabled && Dialog == "assign")
         <form method="post" @formname="package-assign" @onsubmit="AssignAsync">
             <AntiforgeryToken />
             <div class="dialog-body">
-                <label class="field"><span>Group or server</span>
+                <label class="field"><span>All servers, a group or a server</span>
                     <select name="Target" required>
                         <option value="">Choose…</option>
+                        <option value="all" title="Every approved server, also those added later; servers without WinGet are left out">All servers</option>
                         <optgroup label="Groups">@foreach (var group in _groups) { <option value="@($"g:{group.Id}")">@group.Name</option> }</optgroup>
                         <optgroup label="Servers">@foreach (var server in _servers) { <option value="@($"s:{server.Id}")">@server.HostName</option> }</optgroup>
                     </select>
@@ -455,7 +456,7 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
         {
             int? group = Target is ['g', ':', .. var g] && int.TryParse(g, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var gid) ? gid : null;
             Guid? server = Target is ['s', ':', .. var s] && Guid.TryParse(s, out var sid) ? sid : null;
-            outcome = await Assignments.AddAsync(PackageId, group, server, Version, UninstallOnRemoval == "true", await GetActorAsync(), CancellationToken.None);
+            outcome = await Assignments.AddAsync(PackageId, group, server, Version, UninstallOnRemoval == "true", await GetActorAsync(), CancellationToken.None, allServers: Target == "all");
         }
 
         ShowResult(outcome.Error, "The package was assigned.");

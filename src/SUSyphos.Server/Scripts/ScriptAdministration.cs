@@ -148,7 +148,7 @@ internal sealed class ScriptAdministration(
     }
 
     /// <summary>Saves the draft of a phase (creates the script on first save). Nothing reaches an agent before approval.</summary>
-    public async Task<Outcome> SaveDraftAsync(string packageId, ScriptPhase phase, string? content, IReadOnlyList<ScriptParameter> parameters, ScriptRunOn runOn, ScriptOnFailure onFailure, int timeoutSeconds, string actor, CancellationToken cancellationToken)
+    public async Task<Outcome> SaveDraftAsync(string packageId, ScriptPhase phase, string? content, IReadOnlyList<ScriptParameter> parameters, ScriptRunOn runOn, ScriptOnFailure onFailure, int timeoutSeconds, string actor, CancellationToken cancellationToken, ScriptPowerShell powerShell = ScriptPowerShell.WindowsPowerShell)
     {
         if (!await db.Packages.AnyAsync(p => p.PackageId == packageId, cancellationToken).ConfigureAwait(false))
         {
@@ -174,6 +174,7 @@ internal sealed class ScriptAdministration(
         script.DraftRunOn = runOn;
         script.DraftOnFailure = onFailure;
         script.DraftTimeoutSeconds = timeoutSeconds;
+        script.DraftPowerShell = Enum.IsDefined(powerShell) ? powerShell : ScriptPowerShell.WindowsPowerShell;
         script.DraftChangedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
         script.DraftChangedBy = actor;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -236,7 +237,7 @@ internal sealed class ScriptAdministration(
         var parametersJson = script.DraftParametersJson ?? "[]";
         var contentHash = ScriptSigningFormat.Sha256(content);
         var parametersHash = ScriptSigningFormat.ParametersSha256(parametersJson);
-        var signed = ScriptSigningFormat.RevisionBytes(script.Id, revision, script.PackageId, script.Phase, script.DraftRunOn, script.DraftOnFailure, script.DraftTimeoutSeconds, contentHash, parametersHash, new DateTimeOffset(now));
+        var signed = ScriptSigningFormat.RevisionBytes(script.Id, revision, script.PackageId, script.Phase, script.DraftRunOn, script.DraftOnFailure, script.DraftTimeoutSeconds, contentHash, parametersHash, new DateTimeOffset(now), script.DraftPowerShell);
         db.PackageScriptRevisions.Add(new PackageScriptRevisionEntity
         {
             ScriptId = script.Id,
@@ -248,6 +249,7 @@ internal sealed class ScriptAdministration(
             RunOn = script.DraftRunOn,
             OnFailure = script.DraftOnFailure,
             TimeoutSeconds = script.DraftTimeoutSeconds,
+            PowerShell = script.DraftPowerShell,
             KeyId = key.KeyId,
             Signature = ScriptSigning.Sign(ecdsa, signed),
             SignedAtUtc = now,
@@ -459,6 +461,7 @@ internal sealed class ScriptAdministration(
             RunOn = row.r.RunOn,
             OnFailure = row.r.OnFailure,
             TimeoutSeconds = row.r.TimeoutSeconds,
+            PowerShell = row.r.PowerShell,
             Content = Convert.ToBase64String(row.r.Content),
             ParametersJson = row.r.ParametersJson,
             SignedAt = new DateTimeOffset(DateTime.SpecifyKind(row.r.SignedAtUtc, DateTimeKind.Utc)),

@@ -155,6 +155,9 @@ internal enum PackageAssignmentTarget
 {
     Group = 0,
     Server = 1,
+
+    /// <summary>Every server, also those added later (Marc, 2026-11-20); GroupId and ClientId are empty.</summary>
+    AllServers = 2,
 }
 
 internal enum PackageAssignmentMode

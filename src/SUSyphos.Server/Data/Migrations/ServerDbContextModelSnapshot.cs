@@ -419,6 +419,28 @@ namespace SUSyphos.Server.Data.Migrations
                     b.ToTable("AssignmentRules", (string)null);
                 });
 
+            modelBuilder.Entity("SUSyphos.Server.Data.AttentionAcknowledgementEntity", b =>
+                {
+                    b.Property<string>("Topic")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AcknowledgedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AcknowledgedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("AffectedCount")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Topic");
+
+                    b.ToTable("AttentionAcknowledgements", (string)null);
+                });
+
             modelBuilder.Entity("SUSyphos.Server.Data.AuditEntryEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -537,6 +559,13 @@ namespace SUSyphos.Server.Data.Migrations
 
                     b.Property<bool?>("AzureArc")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("DebugBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DebugUntilUtc")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DomainName")
                         .HasMaxLength(253)
@@ -1159,7 +1188,7 @@ namespace SUSyphos.Server.Data.Migrations
 
                     b.ToTable("PackageAssignments", null, t =>
                         {
-                            t.HasCheckConstraint("CK_PackageAssignments_Target", "(\"TargetKind\" = 0 AND \"GroupId\" IS NOT NULL AND \"ClientId\" IS NULL) OR (\"TargetKind\" = 1 AND \"ClientId\" IS NOT NULL AND \"GroupId\" IS NULL)");
+                            t.HasCheckConstraint("CK_PackageAssignments_Target", "(\"TargetKind\" = 0 AND \"GroupId\" IS NOT NULL AND \"ClientId\" IS NULL) OR (\"TargetKind\" = 1 AND \"ClientId\" IS NOT NULL AND \"GroupId\" IS NULL) OR (\"TargetKind\" = 2 AND \"GroupId\" IS NULL AND \"ClientId\" IS NULL)");
                         });
                 });
 
@@ -1305,6 +1334,9 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<string>("DraftParametersJson")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("DraftPowerShell")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("DraftRunOn")
                         .HasColumnType("INTEGER");
 
@@ -1366,6 +1398,9 @@ namespace SUSyphos.Server.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("PowerShell")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("RunOn")
                         .HasColumnType("INTEGER");

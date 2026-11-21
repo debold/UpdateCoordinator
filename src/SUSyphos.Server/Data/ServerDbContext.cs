@@ -90,6 +90,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<ScriptRunEntity> ScriptRuns => Set<ScriptRunEntity>();
 
+    public DbSet<AttentionAcknowledgementEntity> AttentionAcknowledgements => Set<AttentionAcknowledgementEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Identity tables (accounts, roles) of the web administration.
@@ -319,6 +321,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         client.Property(c => c.SecretHash).HasMaxLength(32).IsRequired();
         client.Property(c => c.State).HasConversion<int>();
         client.Property(c => c.HostName).HasMaxLength(63).IsRequired();
+        client.Property(c => c.DebugBy).HasMaxLength(256);
         client.Property(c => c.DomainName).HasMaxLength(253);
         client.Property(c => c.OsVersion).HasMaxLength(23).IsRequired();
         client.Property(c => c.AgentVersion).HasMaxLength(128).IsRequired();
@@ -471,6 +474,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         script.Property(s => s.Phase).HasConversion<int>();
         script.Property(s => s.DraftRunOn).HasConversion<int>();
         script.Property(s => s.DraftOnFailure).HasConversion<int>();
+        script.Property(s => s.DraftPowerShell).HasConversion<int>();
         script.Property(s => s.DraftChangedBy).HasMaxLength(256);
         script.HasIndex(s => new { s.PackageId, s.Phase }).IsUnique();
         script.HasOne<PackageEntity>().WithMany().HasForeignKey(s => s.PackageId).OnDelete(DeleteBehavior.Cascade);
@@ -482,6 +486,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         scriptRevision.Property(r => r.ParametersSha256).HasMaxLength(64);
         scriptRevision.Property(r => r.RunOn).HasConversion<int>();
         scriptRevision.Property(r => r.OnFailure).HasConversion<int>();
+        scriptRevision.Property(r => r.PowerShell).HasConversion<int>();
         scriptRevision.Property(r => r.KeyId).HasMaxLength(64);
         scriptRevision.Property(r => r.ApprovedBy).HasMaxLength(256);
         scriptRevision.Property(r => r.ScanState).HasConversion<int>();
@@ -511,10 +516,16 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         scriptRun.HasIndex(r => new { r.PackageId, r.Phase });
         scriptRun.HasOne<ClientEntity>().WithMany().HasForeignKey(r => r.ClientId).OnDelete(DeleteBehavior.Cascade);
 
+        var acknowledgement = modelBuilder.Entity<AttentionAcknowledgementEntity>();
+        acknowledgement.ToTable("AttentionAcknowledgements");
+        acknowledgement.HasKey(a => a.Topic);
+        acknowledgement.Property(a => a.Topic).HasMaxLength(AttentionAcknowledgementEntity.MaxTopicLength);
+        acknowledgement.Property(a => a.AcknowledgedBy).HasMaxLength(256).IsRequired();
+
         var packageAssignment = modelBuilder.Entity<PackageAssignmentEntity>();
         packageAssignment.ToTable("PackageAssignments", t => t.HasCheckConstraint(
             "CK_PackageAssignments_Target",
-            "(\"TargetKind\" = 0 AND \"GroupId\" IS NOT NULL AND \"ClientId\" IS NULL) OR (\"TargetKind\" = 1 AND \"ClientId\" IS NOT NULL AND \"GroupId\" IS NULL)"));
+            "(\"TargetKind\" = 0 AND \"GroupId\" IS NOT NULL AND \"ClientId\" IS NULL) OR (\"TargetKind\" = 1 AND \"ClientId\" IS NOT NULL AND \"GroupId\" IS NULL) OR (\"TargetKind\" = 2 AND \"GroupId\" IS NULL AND \"ClientId\" IS NULL)"));
         packageAssignment.HasKey(a => a.Id);
         packageAssignment.Property(a => a.PackageId).HasMaxLength(PackageEntity.MaxIdLength).UseCollation("NOCASE");
         packageAssignment.Property(a => a.TargetKind).HasConversion<int>();
