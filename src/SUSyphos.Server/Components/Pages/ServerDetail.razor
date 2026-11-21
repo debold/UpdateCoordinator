@@ -1055,6 +1055,8 @@ else
             (string, string) state = p.PackageId is null ? ("Not managed", "neutral")
                 : _uninstallingPackages.Contains(p.PackageId) ? ("Uninstalling", "pend")
                 : latest is null || installed is null ? ("Known to WinGet", "neutral")
+                // An older entry next to a higher version of the same package and architecture: left behind by an upgrade.
+                : SUSyphos.Server.Software.EffectiveInstallations.IsSuperseded(p, programs, r => (r.ClientId, r.PackageId ?? string.Empty, r.DisplayName), r => r.PackageId is null ? null : r.InstalledVersion ?? r.DisplayVersion) ? ("Older entry, newer installed", "neutral")
                 : SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, latest) < 0 ? ("Newer version available", "queue")
                 : ("Up to date", "ok");
             return new SoftwareItem(p, latest, state);

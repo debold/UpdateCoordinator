@@ -31,7 +31,7 @@ internal static class SoftwareNeeds
         var unsupported = db.Clients.Where(c => c.SoftwareState == SoftwareSupportState.NotSupported).Select(c => c.Id);
         var programs = await db.ClientSoftware.AsNoTracking()
             .Where(s => s.PackageId != null && (clientIds == null || clientIds.Contains(s.ClientId)) && !unsupported.Contains(s.ClientId))
-            .Select(s => new { s.ClientId, s.PackageId, s.InstalledVersion, s.ReportedAtUtc })
+            .Select(s => new { s.ClientId, s.PackageId, s.InstalledVersion, s.DisplayName, s.ReportedAtUtc })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
         var assigned = await AssignedAsync(db, clientIds, cancellationToken).ConfigureAwait(false);
@@ -50,7 +50,8 @@ internal static class SoftwareNeeds
 
         var needed = new List<SoftwareNeed>();
         var installed = new List<SoftwareNeed>();
-        foreach (var program in programs.Where(p => p.InstalledVersion is not null))
+        // Per package and architecture only the highest installed version counts (an entry left behind is no installation).
+        foreach (var program in EffectiveInstallations.Highest(programs.Where(p => p.InstalledVersion is not null), p => (p.ClientId, p.PackageId!, p.DisplayName), p => p.InstalledVersion))
         {
             foreach (var version in versions[program.PackageId!])
             {
@@ -105,5 +106,37 @@ internal static class SoftwareNeeds
 
         // A server assigned the same package twice (directly and through a group) takes the assignment with a fixed version.
         return [.. resolved.GroupBy(r => (r.Item1, r.Item2.ToUpperInvariant())).Select(g => g.OrderBy(r => r.Item3 is null).First())];
+    }
+}
+
+/// <summary>
+/// The installations of a package that count on a server: per package and architecture (from the program's name) only the
+/// highest version. An upgrade that has to wait for a restart can leave the uninstall entry of the replaced version behind,
+/// and nothing removes it later (lab, 2026-11-21: Visual C++ 2015+ x64 14.51 stayed registered next to 14.52; the old
+/// bundle refused to act with 0x8007015E, "a restart is required"). Counted on its own, such an entry made the version
+/// look missing forever, and every installation attempt ended with "no applicable upgrade".
+/// </summary>
+internal static class EffectiveInstallations
+{
+    /// <summary>Key of an installation: server, package and architecture (empty when the name does not tell it).</summary>
+    public static (Guid ClientId, string PackageId, string Architecture) Key(Guid clientId, string packageId, string? displayName) =>
+        (clientId, packageId.ToUpperInvariant(), SoftwareArchitecture.FromName(displayName) ?? string.Empty);
+
+    /// <summary>The highest version of each key; <paramref name="version"/> gives a row's version.</summary>
+    public static IEnumerable<T> Highest<T>(IEnumerable<T> rows, Func<T, (Guid ClientId, string PackageId, string? DisplayName)> identity, Func<T, string?> version) =>
+        rows.GroupBy(row => { var (client, package, name) = identity(row); return Key(client, package, name); })
+            .Select(group => group.MaxBy(row => version(row) ?? string.Empty, VersionComparer.Instance)!);
+
+    /// <summary>True when the same server has a higher version of the package for the same architecture (an entry left behind).</summary>
+    public static bool IsSuperseded<T>(T row, IEnumerable<T> sameServer, Func<T, (Guid ClientId, string PackageId, string? DisplayName)> identity, Func<T, string?> version)
+    {
+        var (client, package, name) = identity(row);
+        var key = Key(client, package, name);
+        return sameServer.Any(other =>
+        {
+            var (otherClient, otherPackage, otherName) = identity(other);
+            return Key(otherClient, otherPackage, otherName) == key
+                && VersionComparer.Instance.Compare(version(other) ?? string.Empty, version(row) ?? string.Empty) > 0;
+        });
     }
 }

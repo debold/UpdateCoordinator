@@ -115,7 +115,9 @@ internal sealed partial class UpdateReportService(
         var packageIds = software.Values.Select(s => s.PackageId).ToList();
         // With several installations of a package (x64 and x86 of a runtime) the oldest one is the one to update; its name
         // tells its architecture, so WinGet updates it instead of installing the other platform (lab, 2026-11-16).
-        var installed = (await db.ClientSoftware.AsNoTracking().Where(s => s.ClientId == clientId && s.PackageId != null && packageIds.Contains(s.PackageId)).Select(s => new { s.PackageId, Version = s.InstalledVersion ?? s.DisplayVersion, s.DisplayName }).ToListAsync(cancellationToken).ConfigureAwait(false))
+        var programs = await db.ClientSoftware.AsNoTracking().Where(s => s.ClientId == clientId && s.PackageId != null && packageIds.Contains(s.PackageId)).Select(s => new { s.PackageId, Version = s.InstalledVersion ?? s.DisplayVersion, s.DisplayName }).ToListAsync(cancellationToken).ConfigureAwait(false);
+        // Entries left behind by an upgrade (an older version of the same architecture) are no installations.
+        var installed = Software.EffectiveInstallations.Highest(programs, s => (clientId, s.PackageId!, s.DisplayName), s => s.Version)
             .GroupBy(s => s.PackageId!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.OrderBy(s => s.Version ?? string.Empty, SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance).First(), StringComparer.OrdinalIgnoreCase);
         foreach (var (updateId, release) in software.ToList())

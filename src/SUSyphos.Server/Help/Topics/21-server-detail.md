@@ -156,7 +156,7 @@ The programs the agent reports with its inventory ("Programs and Features" and p
 - **Installed**: the installed version, in WinGet's notation where WinGet knows the program.
 - **Package**: the WinGet package of the program; it opens the [package page](help/package-detail). "not known to WinGet" for programs WinGet cannot update.
 - **Newest**: the newest version the catalog knows.
-- **State**: *Up to date*, *Newer version available*, *Known to WinGet* (no newer version known yet), *Uninstalling* (an uninstallation waits on the server) or *Not managed*.
+- **State**: *Up to date*, *Newer version available*, *Known to WinGet* (no newer version known yet), *Older entry, newer installed* (an uninstall entry an upgrade left behind: the same package and architecture is installed in a higher version, which is what counts; such an entry stays when the installer of the new version had to wait for a restart and could not remove the old one), *Uninstalling* (an uninstallation waits on the server) or *Not managed*.
 
 **View** (see [Working with lists](help/tables#views)) offers **Known to WinGet** (default: programs SUSyphos can update and uninstall; the others are hidden), **Newer version available** and **All programs**.
 

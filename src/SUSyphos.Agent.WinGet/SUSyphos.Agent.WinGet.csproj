@@ -14,6 +14,8 @@
     <RootNamespace>SUSyphos.Agent.WinGet</RootNamespace>
     <MinVerTagPrefix>agent/v</MinVerTagPrefix>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Declares Windows 10 support, so Windows reports the real version to the WinGet engine (see app.manifest). -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

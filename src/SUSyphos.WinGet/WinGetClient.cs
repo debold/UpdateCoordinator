@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 using Microsoft.Management.Deployment;
 
@@ -33,7 +34,10 @@ public sealed record WinGetOperationResult(
     string LogFile,
     int ExtendedErrorCode = 0)
 {
-    public bool Succeeded => Status == nameof(InstallResultStatus.Ok);
+    /// <summary>Status of an upgrade WinGet had nothing to do for, because the version is installed already.</summary>
+    public const string AlreadyInstalled = "AlreadyInstalled";
+
+    public bool Succeeded => Status is nameof(InstallResultStatus.Ok) or AlreadyInstalled;
 }
 
 /// <summary>Thrown when WinGet answers an operation with an error status before installing anything.</summary>
@@ -240,7 +244,9 @@ public sealed class WinGetClient(WinGetEngine engine)
         var package = await FindByIdAsync(Composite(source, operation == "upgrade" ? CompositeSearchBehavior.RemotePackagesFromAllCatalogs : CompositeSearchBehavior.RemotePackagesFromRemoteCatalogs), id);
 
         var install = engine.CreateInstallOptions();
-        install.PackageInstallScope = PackageInstallScope.System;
+        // For the machine, preferred; installers whose manifest names no scope are allowed too. "System" alone rejects them
+        // (WinGet's ScopeComparator), so a package without a Scope field could never be installed.
+        install.PackageInstallScope = PackageInstallScope.SystemOrUnknown;
         install.PackageInstallMode = PackageInstallMode.Silent;
         install.AcceptPackageAgreements = acceptAgreements;
         var logFile = LogFile(logFolder, operation, id);
@@ -304,17 +310,54 @@ public sealed class WinGetClient(WinGetEngine engine)
 
         watch.Stop();
         Trace?.Invoke($"WinGet answered {result.Status} after {watch.Elapsed.TotalSeconds:0.0} s (installer exit code {result.InstallerErrorCode}).");
+
+        // "No applicable upgrade" while WinGet already sees the version (or a newer one) installed: the version is there.
+        // An older uninstall entry that the upgrade could not remove leaves the central server believing otherwise (lab,
+        // 2026-11-21: Visual C++ 2015+ x64 14.51 stayed registered next to 14.52 after the installer asked for a restart).
+        var status = result.Status.ToString();
+        if (result.Status == InstallResultStatus.NoApplicableUpgrade && version is not null && InstalledAtLeast(package, version))
+        {
+            Trace?.Invoke($"WinGet sees {id} {package.InstalledVersion?.Version} installed, so {version} is there already.");
+            status = WinGetOperationResult.AlreadyInstalled;
+        }
+
         return new WinGetOperationResult(
             operation,
             id,
             version ?? package.DefaultInstallVersion?.Version,
-            result.Status.ToString(),
-            result.ExtendedErrorCode is null ? null : Describe(result.ExtendedErrorCode),
+            status,
+            result.ExtendedErrorCode is null || status == WinGetOperationResult.AlreadyInstalled ? null : Describe(result.ExtendedErrorCode),
             result.InstallerErrorCode,
-            result.RebootRequired,
+            AsksForRestart(result.RebootRequired, result.InstallerErrorCode),
             watch.Elapsed,
             logFile,
-            result.ExtendedErrorCode?.HResult ?? 0);
+            status == WinGetOperationResult.AlreadyInstalled ? 0 : result.ExtendedErrorCode?.HResult ?? 0);
+    }
+
+    /// <summary>
+    /// True when the installation needs a restart: WinGet says so, or the installer ended with 3010 (restart required)
+    /// or 1641 (restart started). Many manifests list 3010 only as a success code, so WinGet reports no restart for it
+    /// (lab, 2026-11-20: Visual C++ 2015+ x64 replaced runtime files in use and returned 3010).
+    /// </summary>
+    internal static bool AsksForRestart(bool rebootRequired, uint installerExitCode) =>
+        rebootRequired || installerExitCode is RestartRequiredExitCode or RestartStartedExitCode;
+
+    /// <summary>Installer exit code "restart required" (ERROR_SUCCESS_REBOOT_REQUIRED).</summary>
+    internal const uint RestartRequiredExitCode = 3010;
+
+    /// <summary>Installer exit code "restart started" (ERROR_SUCCESS_REBOOT_INITIATED).</summary>
+    internal const uint RestartStartedExitCode = 1641;
+
+    private static bool InstalledAtLeast(CatalogPackage package, string version)
+    {
+        try
+        {
+            return package.InstalledVersion?.CompareToVersion(version) is CompareResult.Equal or CompareResult.Greater;
+        }
+        catch (COMException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

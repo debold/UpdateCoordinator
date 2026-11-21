@@ -14,6 +14,8 @@
     <RootNamespace>SUSyphos.WinGetProbe</RootNamespace>
     <Version>0.1.0</Version>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Same as the agent's WinGet helper: without the Windows 10 entry WinGet sees Windows 8 (6.2) and rejects installers. -->
+    <ApplicationManifest>../../src/SUSyphos.Agent.WinGet/app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

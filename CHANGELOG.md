@@ -4,6 +4,17 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Agent
+
+- Fix (lab 2026-11-21): WinGet rejected every installer with a minimum Windows version (BGInfo and other portable packages, Visual C++ 2013) with 0x8A150010, on Windows Server 2019, 2022 and 2025: the WinGet helper had no application manifest entry for Windows 10, so Windows reported 6.2 (Windows 8) to the WinGet engine in its process. The helper (and the WinGet probe) now declare Windows 10; a test checks the built programs. Portable packages stay impossible on Windows Server 2016 and 2019, where WinGet itself does not allow them.
+- Fix (lab 2026-11-20): an installer exit code 3010 (restart required) or 1641 (restart started) counts as "restart required" even when WinGet reports no restart (many manifests list 3010 only as a success code).
+- An upgrade WinGet answers with "no applicable upgrade" while it already sees the version (or a newer one) installed counts as installed instead of failed.
+- WinGet installs for the machine as before, but also accepts installers whose manifest names no scope (`SystemOrUnknown`); with machine scope alone such packages could never be installed.
+
+### Central server
+
+- Fix (lab 2026-11-21): an uninstall entry an upgrade left behind (Visual C++ 2015+ x64 14.51 next to 14.52: the old installer refuses to act while a restart is pending, and nothing removes it later) made the version look missing forever. Per server, package and architecture only the highest installed version counts now; the Software tab of the server marks the older entry as "Older entry, newer installed".
+
 ## [0.9.0-rc.6] - 2026-11-20
 
 ### Agent

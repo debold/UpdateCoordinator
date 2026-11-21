@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Application manifest of the WinGet helper. Without the Windows 10 entry under "compatibility", Windows reports version
+  6.2 (Windows 8) to the process, and the WinGet engine running in it rejects every installer with a minimum Windows
+  version: portable packages (WinGet allows them from 10.0.18362 on) and manifests with MinimumOSVersion (lab, 2026-11-21:
+  BGInfo and Visual C++ 2013 on Windows Server 2019, 2022 and 2025, 0x8A150010). Windows 10, 11 and Windows Server 2016
+  and later share this one entry.
+-->
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="SUSyphos.Agent.WinGet" />
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10, Windows 11, Windows Server 2016 and later -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+</assembly>

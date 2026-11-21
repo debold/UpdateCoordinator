@@ -24,3 +24,29 @@ public sealed class InstallArgumentTests
     public void HelperArguments_RefuseUnknownArchitectures(params string[] arguments) =>
         Assert.Null(SUSyphos.Agent.WinGet.InstallCommand.ParseWithArchitecture(arguments, out _));
 }
+
+/// <summary>Results of WinGet that the agent reports differently from WinGet's status (lab, 2026-11-20/21).</summary>
+public sealed class OperationResultTests
+{
+    [Theory]
+    [InlineData(false, 3010u)]
+    [InlineData(false, 1641u)]
+    [InlineData(true, 0u)]
+    public void RestartExitCodes_AskForARestart(bool winGetSays, uint exitCode) =>
+        Assert.True(WinGetClient.AsksForRestart(winGetSays, exitCode));
+
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(1u)]
+    [InlineData(1603u)]
+    public void OtherExitCodes_DoNotAskForARestart(uint exitCode) =>
+        Assert.False(WinGetClient.AsksForRestart(false, exitCode));
+
+    [Theory]
+    [InlineData("Ok", true)]
+    [InlineData(WinGetOperationResult.AlreadyInstalled, true)]
+    [InlineData("NoApplicableUpgrade", false)]
+    [InlineData("NoApplicableInstallers", false)]
+    public void AnUpgradeWithTheVersionInstalled_Succeeds(string status, bool succeeded) =>
+        Assert.Equal(succeeded, new WinGetOperationResult("upgrade", "Vendor.Tool", "1.2", status, null, 0, false, TimeSpan.Zero, "log").Succeeded);
+}

@@ -299,4 +299,54 @@ public sealed class SoftwareReleaseTests
 
         Assert.Equal(("10.0.12.50000", "x64"), (software.InstalledVersion, software.Architecture));
     }
+
+    [Fact]
+    public async Task EntryLeftBehindByAnUpgrade_DoesNotMakeTheVersionMissing()
+    {
+        // Lab, 2026-11-21: Visual C++ 2015+ x64 14.51 stayed registered next to 14.52 after the upgrade had to wait for a
+        // restart; counted on its own it asked for 14.52 forever.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("DC01", RingEntity.PilotId);
+        const string Runtime = "Microsoft.VCRedist.2015+.x64";
+        var updateId = SoftwarePackages.SoftwareUpdateId(Runtime, "14.52.37029.0");
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            db.Packages.Add(new PackageEntity { PackageId = Runtime, Name = "Visual C++ v14 Redistributable (x64)", AddedBy = "inventory" });
+            db.Updates.Add(new UpdateEntity { UpdateId = updateId, Revision = SoftwarePackages.SoftwareRevision, Title = "Visual C++ 14.52", Kind = UpdateKind.Software, PackageId = Runtime, PackageVersion = "14.52.37029.0" });
+            db.PackageVersions.Add(new PackageVersionEntity { PackageId = Runtime, Version = "14.52.37029.0", UpdateId = updateId });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client.ClientId, View = SoftwareView.Machine32, KeyName = "{old}", DisplayName = "Microsoft Visual C++ v14 Redistributable (x64) - 14.51.36247", PackageId = Runtime, InstalledVersion = "14.51.36247.0", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client.ClientId, View = SoftwareView.Machine32, KeyName = "{new}", DisplayName = "Microsoft Visual C++ v14 Redistributable (x64) - 14.52.37029", PackageId = Runtime, InstalledVersion = "14.52.37029.0", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        var (needed, installed) = await scenario.WithServiceAsync<ServerDbContext, (IReadOnlyList<SoftwareNeed>, IReadOnlyList<SoftwareNeed>)>(db => SoftwareNeeds.LoadAsync(db, [client.ClientId], CancellationToken.None));
+
+        Assert.Empty(needed);
+        Assert.Equal([updateId], installed.Select(i => i.UpdateId));
+    }
+
+    [Fact]
+    public async Task OlderVersionOfTheOtherArchitecture_IsStillNeeded()
+    {
+        // Negative: x86 14.51 next to x64 14.52 is a second installation, not an entry left behind.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("APP02", RingEntity.PilotId);
+        const string Runtime = "Microsoft.VCRedist.2015+.x64";
+        var updateId = SoftwarePackages.SoftwareUpdateId(Runtime, "14.52.37029.0");
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            db.Packages.Add(new PackageEntity { PackageId = Runtime, Name = "Visual C++ v14 Redistributable", AddedBy = "inventory" });
+            db.Updates.Add(new UpdateEntity { UpdateId = updateId, Revision = SoftwarePackages.SoftwareRevision, Title = "Visual C++ 14.52", Kind = UpdateKind.Software, PackageId = Runtime, PackageVersion = "14.52.37029.0" });
+            db.PackageVersions.Add(new PackageVersionEntity { PackageId = Runtime, Version = "14.52.37029.0", UpdateId = updateId });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client.ClientId, View = SoftwareView.Machine32, KeyName = "{x86}", DisplayName = "Microsoft Visual C++ v14 Redistributable (x86) - 14.51.36247", PackageId = Runtime, InstalledVersion = "14.51.36247.0", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = client.ClientId, View = SoftwareView.Machine32, KeyName = "{x64}", DisplayName = "Microsoft Visual C++ v14 Redistributable (x64) - 14.52.37029", PackageId = Runtime, InstalledVersion = "14.52.37029.0", MatchKind = SoftwareMatch.WinGet, ReportedAtUtc = DateTime.UtcNow });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        var (needed, _) = await scenario.WithServiceAsync<ServerDbContext, (IReadOnlyList<SoftwareNeed>, IReadOnlyList<SoftwareNeed>)>(db => SoftwareNeeds.LoadAsync(db, [client.ClientId], CancellationToken.None));
+
+        Assert.Equal([updateId], needed.Select(n => n.UpdateId));
+    }
 }
