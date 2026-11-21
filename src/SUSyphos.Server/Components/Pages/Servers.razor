@@ -12,6 +12,7 @@
 @inject SUSyphos.Server.AgentPackages.AgentUpdateService AgentUpdates
 @inject SUSyphos.Server.Lifecycle.SupportLifecycle Lifecycle
 @inject SUSyphos.Server.Security.SecurityBaseline Baseline
+@inject SUSyphos.Server.Software.SoftwareAssignments SoftwareAssignments
 
 <PageTitle>Servers</PageTitle>
 
@@ -39,6 +40,15 @@
                 }
             }
         </ActionMenu>
+        @if (_packages.Count > 0)
+        {
+            <ActionMenu Label="Software" Icon="@PageIcons.Software">
+                @foreach (var package in _packages.Take(MultiSelect.MaxOptions))
+                {
+                    <MenuItem Form="bulk" Name="Bulk" Value="@($"software:{package.Key}")" Icon="download" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? "Assign the package to the selected servers; they install its newest released version when it is released for their ring" : "Only administrators can do this")">Install @package.Value</MenuItem>
+                }
+            </ActionMenu>
+        }
         <a class="btn" href="@Navigation.Uri" title="Load the list again with the latest state"><Icon Name="refresh-cw" Size="16" />Refresh</a>
         <div class="spacer"></div>
         <span class="note">Applies to the servers selected in the list</span>
@@ -201,6 +211,7 @@
     private IReadOnlyDictionary<int, (TimeSpan MinimumWait, TimeSpan MaximumWait, bool ManualGate)> _transitions = new Dictionary<int, (TimeSpan, TimeSpan, bool)>();
 
     private IReadOnlyDictionary<int, string> _groups = new Dictionary<int, string>();
+    private IReadOnlyDictionary<string, string> _packages = new Dictionary<string, string>();
 
     private TableQuery _table = default!;
     private TablePage<Row> _page = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
@@ -214,6 +225,12 @@
         if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate))
         {
             ShowResult("Only operators and administrators can send actions to servers.", string.Empty);
+            return;
+        }
+
+        if (Bulk?.Split(':', 2) is ["software", var packageId] && SUSyphos.Server.Software.SoftwarePackages.IsValidId(packageId))
+        {
+            await AssignSoftwareAsync(packageId);
             return;
         }
 
@@ -252,6 +269,42 @@
         await LoadAsync();
     }
 
+    /// <summary>Assigns a package of the catalog to each selected server (administrators; Marc, 2026-11-21).</summary>
+    private async Task AssignSoftwareAsync(string packageId)
+    {
+        var selected = (Selected ?? []).Distinct().Take(1000).ToList();
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators assign software.", string.Empty);
+        }
+        else if (selected.Count == 0)
+        {
+            ShowResult("Select at least one server in the list first.", string.Empty);
+        }
+        else
+        {
+            var actor = await GetActorAsync();
+            var assigned = 0;
+            var errors = new List<string>();
+            foreach (var id in selected)
+            {
+                var outcome = await SoftwareAssignments.AddAsync(packageId, null, id, null, false, actor, CancellationToken.None);
+                if (outcome.Succeeded)
+                {
+                    assigned++;
+                }
+                else if (!errors.Contains(outcome.Error!))
+                {
+                    errors.Add(outcome.Error!);
+                }
+            }
+
+            ShowResult(assigned == 0 ? string.Join(" ", errors) : null, $"{_packages.GetValueOrDefault(packageId) ?? packageId} was assigned to {DisplayNumber.Count(assigned, "server", "servers")}; they install it when its newest version is released for their ring.{(errors.Count > 0 ? " Not for the others: " + string.Join(" ", errors) : string.Empty)}");
+        }
+
+        await LoadAsync();
+    }
+
     /// <summary>Moves the selected servers to a ring by hand, or adds them to a group (administrators).</summary>
     private async Task AssignAsync(string target, int id)
     {
@@ -287,6 +340,9 @@
         _transitions = (await Db.RingTransitions.AsNoTracking().ToListAsync()).ToDictionary(t => t.FromRingId, t => (t.MinimumWait, t.MaximumWait, t.ManualGate));
         var groups = await Db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, g => g.Name);
         _groups = groups.OrderBy(g => g.Value, StringComparer.CurrentCulture).ToDictionary(g => g.Key, g => g.Value);
+        _packages = await SUSyphos.Server.Software.SoftwareFeature.IsEnabledAsync(Db, CancellationToken.None)
+            ? (await Db.Packages.AsNoTracking().Select(p => new { p.PackageId, p.Name }).ToListAsync()).OrderBy(p => p.Name, StringComparer.CurrentCulture).ToDictionary(p => p.PackageId, p => p.Name, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>();
         var memberships = (await Db.ClientGroups.AsNoTracking().ToListAsync()).ToLookup(m => m.ClientId, m => m.GroupId);
         var clients = await Db.Clients.AsNoTracking().Where(c => c.State != RegistrationState.Deleted).ToListAsync();
         _rule = Rule is { } ruleId ? await Db.AssignmentRules.AsNoTracking().SingleOrDefaultAsync(r => r.Id == ruleId) : null;

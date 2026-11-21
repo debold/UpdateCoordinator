@@ -18,6 +18,8 @@ Operators and administrators see a band above the list. Tick the servers in the 
 - **Move to ring** with the ring: the selected servers are assigned to that ring by hand; assignment rules no longer move them, their groups and maintenance windows stay. To give a server back to the rules, set its ring to "Automatic" on its [details page](help/server-detail#ring).
 - **Add to group** with the group: the selected servers become members of that server group by hand (also if a rule added them before); their other groups stay. See [Server groups](help/groups).
 
+**Software** (administrators, while software management is on; Marc, 2026-11-21): **Install** with a package of the catalog assigns it to each selected server; they install its newest released version when it is released for their ring. The servers keep the package when the assignment is removed later (change that on the package page).
+
 **Refresh** loads the list again.
 
 Actions for the agents are queued and each agent runs them with its next heartbeat (every 10 seconds while the agent is running). Agents that are offline run them when they come back. Servers that are not approved get no actions. At most 500 servers are taken per click. Every action is recorded in the [audit log](help/audit-log) and shown on the server's detail page.

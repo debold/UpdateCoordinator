@@ -18,6 +18,7 @@
 @inject SUSyphos.Server.Security.SecurityBaseline Baseline
 @inject SUSyphos.Server.Assignment.SchedulePreview Preview
 @inject SUSyphos.Server.Administration.DebugMode Debug
+@inject SUSyphos.Server.Software.SoftwareAssignments Assignments
 
 <PageTitle>@(_client?.HostName ?? "Server")</PageTitle>
 
@@ -302,22 +303,52 @@ else
     else if (_tab == ServerPage.Software)
     {
     <FeatureOff Off="@(!_softwareEnabled)" Title="Software management is switched off" Help="software#switch" Text="An administrator switched off software with WinGet on the Software page. The data stays, but nothing is updated or installed until it is switched on again.">
+    <form id="software-select" method="get" action="/servers/@Id" class="detached"><input type="hidden" name="tab" value="software" /></form>
+    @if (_assignedWaiting.Count > 0)
+    {
+        <Box Title="Assigned, not installed yet" Anchor="assigned" Help="server-detail#assigned" Flush="true" Hint="Packages assigned to this server, one of its groups or all servers; installed when the version is released for its ring">
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>Package</th><th>Version</th><th>Assigned to</th><th>State</th></tr></thead>
+                    <tbody>
+                        @foreach (var waiting in _assignedWaiting)
+                        {
+                            <tr>
+                                <td class="wrap"><a href="@PackagePage.Link(waiting.PackageId)">@waiting.Name</a><div class="note mono">@waiting.PackageId</div></td>
+                                <td class="nowrap">@(waiting.Version ?? "newest released")</td>
+                                <td>@waiting.Via</td>
+                                <td><span class="pill @(waiting.Reason is null ? "wait" : "neutral")" title="@waiting.Reason">@(waiting.Reason is null ? "Assigned, waiting" : "Not supported here")</span>@if (waiting.Reason is { } reason) { <div class="note">@reason</div> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </Box>
+    }
     <Box Title="Installed software" Anchor="software" Help="server-detail#software" Flush="true" Hint="@SoftwareHint">
-        <ListTable Table="_softwareTable" Page="_softwarePage" Columns="SoftwareColumns" Search="Search program or package" Noun="programs" Empty="The agent has reported no installed programs yet (from version 0.9)." ExtraColumns="1">
-            <ExtraHeader><th class="n"><span class="visually-hidden">Actions</span></th></ExtraHeader>
+        @if (_canAdminister)
+        {
+            <div class="selection-bar" data-selection="isel">
+                <a class="btn primary" href="@DialogLink("install-software")" title="Assign packages of the catalog to this server" data-help-term="Install software"><Icon Name="plus" Size="16" />Install software…</a>
+                <span class="note" data-selection-count>Select programs, then</span>
+                <div class="spacer"></div>
+                <button type="submit" form="software-select" name="dialog" value="uninstall" class="danger" title="Uninstall the selected programs from this server with WinGet" data-help-term="Uninstall"><Icon Name="undo-2" Size="16" />Uninstall…</button>
+            </div>
+        }
+        <ListTable Table="_softwareTable" Page="_softwarePage" Columns="SoftwareColumns" Search="Search program or package" Noun="programs" Empty="The agent has reported no installed programs yet (from version 0.9)." ExtraColumns="@(_canAdminister ? 1 : 0)">
+            <Leading>@if (_canAdminister) { <th class="select"><input type="checkbox" data-select-all="isel" data-help="tables#select" data-help-term="Select all" aria-label="Select all programs shown" hidden /></th> }</Leading>
             <Row Context="row">
                 <tr>
+                    @if (_canAdminister)
+                    {
+                        var blocked = SoftwareUninstallBlocker(row);
+                        <td>@if (row.Program.PackageId is { } selectable && blocked is null) { <input type="checkbox" form="software-select" name="isel" value="@($"p:{selectable}")" aria-label="@($"Select {row.Program.DisplayName}")" data-help-term="Select" /> } else { <input type="checkbox" disabled title="@(blocked ?? "Not known to WinGet")" aria-label="@($"{row.Program.DisplayName} cannot be selected")" /> }</td>
+                    }
                     <td class="wrap">@row.Program.DisplayName@if (row.Program.Publisher is not null) { <div class="note">@row.Program.Publisher</div> }</td>
                     <td class="nowrap">@(row.Program.InstalledVersion ?? row.Program.DisplayVersion ?? "–")</td>
                     <td class="wrap">@if (row.Program.PackageId is { } packageId) { <a href="@PackagePage.Link(packageId)" class="mono">@packageId</a> } else { <span class="note">not known to WinGet</span> }</td>
                     <td class="nowrap">@(row.Newest ?? "–")</td>
                     <td><span class="pill @row.State.Class" title="@row.Reason">@row.State.Label</span>@if (row.Reason is { } why) { <div class="note">@why</div> }</td>
-                    <td class="n">
-                        @{ var blocked = SoftwareUninstallBlocker(row); }
-                        <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {row.Program.DisplayName}")">
-                            <MenuItem Href="@($"{DialogLink("uninstall-software")}&package={Uri.EscapeDataString(row.Program.PackageId ?? string.Empty)}")" Icon="trash-2" Danger="true" Disabled="@(blocked is not null)" Reason="@(blocked ?? "Uninstall this program from the server with WinGet")">Uninstall…</MenuItem>
-                        </ActionMenu>
-                    </td>
                 </tr>
             </Row>
         </ListTable>
@@ -713,6 +744,52 @@ else
             </form>
         </Dialog>
     }
+    else if (Dialog == "install-software" && _canAdminister)
+    {
+        <Dialog Title="@($"Install software on {_client.HostName}")" CloseHref="@ServerPage.Link(Id, "software")" Wide="true" Help="server-detail#install-software">
+            <form method="get" action="/servers/@Id" class="dialog-search">
+                <input type="hidden" name="tab" value="software" />
+                <input type="hidden" name="dialog" value="install-software" />
+                <label class="field"><span>Search the catalog</span><input name="swq" maxlength="100" value="@SoftwareQuery" placeholder="Name or ID, e.g. 7zip" /></label>
+                <button type="submit">Search</button>
+            </form>
+            <form method="post" @formname="install-software" @onsubmit="InstallSoftwareAsync">
+                <AntiforgeryToken />
+                <div class="dialog-body">
+                    @if (_catalogChoices.Count == 0)
+                    {
+                        <p class="note">@(string.IsNullOrWhiteSpace(SoftwareQuery) ? "Every package of the catalog is installed or assigned already." : "No package of the catalog matches.") Packages that are not in the catalog yet are added on the <a href="/software?dialog=add">Software page</a>.</p>
+                    }
+                    else
+                    {
+                        <div class="scroll">
+                            <table>
+                                <thead><tr><th class="select"><span class="visually-hidden">Choose</span></th><th>Package</th><th>Newest version</th></tr></thead>
+                                <tbody>
+                                    @foreach (var choice in _catalogChoices)
+                                    {
+                                        <tr>
+                                            <td><input type="checkbox" name="InstallPackage" value="@choice.PackageId" aria-label="@($"Choose {choice.Name}")" data-help-term="Choose" /></td>
+                                            <td class="wrap">@choice.Name<div class="note mono">@choice.PackageId</div>@if (choice.Reason is { } reason) { <div class="note">Not supported here: @reason</div> }</td>
+                                            <td class="nowrap">@(choice.Newest ?? "–")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        @if (_catalogMore > 0)
+                        {
+                            <p class="note">@DisplayNumber.Count(_catalogMore, "more package matches", "more packages match"); search to narrow the list.</p>
+                        }
+                    }
+                    <label class="check"><input type="checkbox" name="InstallUninstallOnRemoval" value="true" data-help-term="Uninstall when the assignment is removed" /> Uninstall when the assignment is removed</label>
+                    <label class="check"><input type="checkbox" name="InstallRightAway" value="true" data-help-term="Install now" /> Install now: release the newest version for this server alone and install it at once (restart in the maintenance window)</label>
+                    <p class="help">Each chosen package is assigned to this server with its newest released version. Without "Install now" it installs when the version is released for the ring of the server.</p>
+                </div>
+                <div class="dialog-foot"><a class="btn" href="@ServerPage.Link(Id, "software")">Close</a><button type="submit" class="primary" disabled="@(_catalogChoices.Count == 0)">Assign to @_client.HostName</button></div>
+            </form>
+        </Dialog>
+    }
     else if (Dialog == "debug")
     {
         <Dialog Title="@($"Debug mode for {_client.HostName}")" CloseHref="@Here" Help="server-detail#debug">
@@ -1081,6 +1158,7 @@ else
         _softwareEnabled = await SUSyphos.Server.Software.SoftwareFeature.IsEnabledAsync(Db, CancellationToken.None);
         _trust = await Trust.GetAsync(Id, CancellationToken.None);
         var programs = await Db.ClientSoftware.AsNoTracking().Where(s => s.ClientId == Id).ToListAsync();
+        await LoadSoftwareChoicesAsync(programs);
         _uninstallingPackages = new((await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id && a.PackageId != null && (a.State == AgentActionState.Queued || a.State == AgentActionState.Delivered)).Select(a => a.PackageId!).ToListAsync()), StringComparer.OrdinalIgnoreCase);
         var packageIds = programs.Where(p => p.PackageId != null).Select(p => p.PackageId!).Distinct().ToList();
         var newest = (await Db.PackageVersions.AsNoTracking().Where(v => packageIds.Contains(v.PackageId)).Select(v => new { v.PackageId, v.Version }).ToListAsync())
@@ -1355,6 +1433,129 @@ else
             : $"The installation was queued; the agent installs {what} after its next heartbeat, and a needed restart waits for the next maintenance window.");
         Dialog = null;
         await LoadAsync();
+    }
+
+    [SupplyParameterFromQuery(Name = "swq")]
+    private string? SoftwareQuery { get; set; }
+
+    [SupplyParameterFromForm(FormName = "install-software")]
+    private string[]? InstallPackage { get; set; }
+
+    [SupplyParameterFromForm(FormName = "install-software")]
+    private string? InstallUninstallOnRemoval { get; set; }
+
+    [SupplyParameterFromForm(FormName = "install-software")]
+    private string? InstallRightAway { get; set; }
+
+    /// <summary>A package of the catalog the install dialog offers: not installed or assigned on this server yet.</summary>
+    private sealed record CatalogChoice(string PackageId, string Name, string? Newest, string? Reason);
+
+    /// <summary>An assignment covering this server whose package is not installed yet.</summary>
+    private sealed record AssignedWaiting(string PackageId, string Name, string? Version, string Via, string? Reason);
+
+    private const int MaxCatalogChoices = 25;
+
+    private List<CatalogChoice> _catalogChoices = [];
+    private int _catalogMore;
+    private List<AssignedWaiting> _assignedWaiting = [];
+
+    /// <summary>
+    /// Assigns the chosen packages to this server (Marc, 2026-11-21: installing software from the server page instead of
+    /// the package page), optionally releasing the newest version for this server alone right away.
+    /// </summary>
+    private async Task InstallSoftwareAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))
+        {
+            ShowResult("Only administrators install software.", string.Empty);
+            return;
+        }
+
+        var chosen = (InstallPackage ?? []).Where(SUSyphos.Server.Software.SoftwarePackages.IsValidId).Distinct(StringComparer.OrdinalIgnoreCase).Take(MaxCatalogChoices).ToList();
+        if (chosen.Count == 0)
+        {
+            ShowResult("Choose at least one package.", string.Empty);
+            Dialog = "install-software";
+            await LoadAsync();
+            return;
+        }
+
+        var actor = await GetActorAsync();
+        var errors = new List<string>();
+        var assigned = new List<string>();
+        foreach (var packageId in chosen)
+        {
+            var outcome = await Assignments.AddAsync(packageId, null, Id, null, InstallUninstallOnRemoval == "true", actor, CancellationToken.None);
+            if (outcome.Succeeded)
+            {
+                assigned.Add(packageId);
+            }
+            else
+            {
+                errors.Add($"{packageId}: {outcome.Error}");
+            }
+        }
+
+        var installed = string.Empty;
+        if (InstallRightAway == "true" && assigned.Count > 0)
+        {
+            var newest = (await Db.PackageVersions.AsNoTracking().Where(v => assigned.Contains(v.PackageId)).Select(v => new { v.PackageId, v.Version, v.UpdateId }).ToListAsync())
+                .GroupBy(v => v.PackageId, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.MaxBy(v => v.Version, SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance)!.UpdateId)
+                .ToList();
+            var result = await Selection.InstallAsync(Id, newest, SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow, actor, CancellationToken.None);
+            installed = result.Error is { } error ? $" Install now: {error}" : $" {DisplayNumber.Count(result.Done, "installs", "install")} now{(result.Skipped.Count > 0 ? $"; skipped: {string.Join("; ", result.Skipped.Select(s => $"{s.Title} ({s.Reason})"))}" : string.Empty)}.";
+        }
+
+        ShowResultAndReload(errors.Count > 0 && assigned.Count == 0 ? string.Join(" ", errors) : null, $"{DisplayNumber.Count(assigned.Count, "package was", "packages were")} assigned to {_client?.HostName}.{installed}{(errors.Count > 0 ? $" Not assigned: {string.Join("; ", errors)}" : string.Empty)}");
+        Dialog = null;
+        await LoadAsync();
+    }
+
+    /// <summary>Catalog packages for the install dialog and the assignments of this server that wait for their installation.</summary>
+    private async Task LoadSoftwareChoicesAsync(List<ClientSoftwareEntity> programs)
+    {
+        var installedIds = programs.Where(p => p.PackageId is not null).Select(p => p.PackageId!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var groupIds = _memberships.Select(m => m.GroupId).ToList();
+        var assignments = await Db.PackageAssignments.AsNoTracking()
+            .Where(a => a.Mode == PackageAssignmentMode.Install && (a.ClientId == Id || (a.GroupId != null && groupIds.Contains(a.GroupId.Value)) || a.TargetKind == PackageAssignmentTarget.AllServers))
+            .ToListAsync();
+        var packages = await Db.Packages.AsNoTracking().Select(p => new { p.PackageId, p.Name }).ToListAsync();
+        var names = packages.ToDictionary(p => p.PackageId, p => p.Name, StringComparer.OrdinalIgnoreCase);
+        var newest = (await Db.PackageVersions.AsNoTracking().Select(v => new { v.PackageId, v.Version }).ToListAsync())
+            .GroupBy(v => v.PackageId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Select(v => v.Version).Max(SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance), StringComparer.OrdinalIgnoreCase);
+        var unsupported = await SUSyphos.Server.Software.SoftwareNeeds.UnsupportedAsync(Db, [Id], CancellationToken.None);
+        var unsupportedIds = unsupported.Select(u => u.Need.UpdateId).ToList();
+        var reasons = unsupported
+            .Join(await Db.PackageVersions.AsNoTracking().Where(v => unsupportedIds.Contains(v.UpdateId)).Select(v => new { v.UpdateId, v.PackageId }).ToListAsync(), u => u.Need.UpdateId, v => v.UpdateId, (u, v) => (v.PackageId, u.Reason))
+            .GroupBy(r => r.PackageId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Reason, StringComparer.OrdinalIgnoreCase);
+
+        _assignedWaiting = [.. assignments
+            .Where(a => !installedIds.Contains(a.PackageId))
+            .GroupBy(a => a.PackageId, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var a = g.OrderBy(x => x.TargetKind == PackageAssignmentTarget.Server ? 0 : x.TargetKind == PackageAssignmentTarget.Group ? 1 : 2).First();
+                var via = a.TargetKind == PackageAssignmentTarget.AllServers ? "all servers" : a.GroupId is { } group ? $"group {_groups.FirstOrDefault(x => x.Id == group)?.Name}" : "this server";
+                return new AssignedWaiting(a.PackageId, names.GetValueOrDefault(a.PackageId) ?? a.PackageId, a.FixedVersion, via, reasons.GetValueOrDefault(a.PackageId));
+            })
+            .OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase)];
+
+        if (Dialog != "install-software")
+        {
+            return;
+        }
+
+        var taken = installedIds.Concat(assignments.Select(a => a.PackageId)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var query = SoftwareQuery?.Trim();
+        var matches = packages
+            .Where(p => !taken.Contains(p.PackageId) && (string.IsNullOrEmpty(query) || p.PackageId.Contains(query, StringComparison.OrdinalIgnoreCase) || p.Name.Contains(query, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        _catalogMore = Math.Max(0, matches.Count - MaxCatalogChoices);
+        _catalogChoices = [.. matches.Take(MaxCatalogChoices).Select(p => new CatalogChoice(p.PackageId, p.Name, newest.GetValueOrDefault(p.PackageId), reasons.GetValueOrDefault(p.PackageId)))];
     }
 
     [SupplyParameterFromForm(FormName = "debug")]

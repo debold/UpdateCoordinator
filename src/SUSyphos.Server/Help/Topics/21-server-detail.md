@@ -161,11 +161,21 @@ The programs the agent reports with its inventory ("Programs and Features" and p
 
 **View** (see [Working with lists](help/tables#views)) offers **Known to WinGet** (default: programs SUSyphos can update and uninstall; the others are hidden), **Newer version available** and **All programs**.
 
-**More** (⋯) at the end of a row offers **Uninstall…** (administrators): it opens [Uninstall](#uninstall) with that program; the box [Installed updates](#installed) of the Updates tab uninstalls several at once. It is greyed with the reason for programs WinGet does not know ("Not known to WinGet. Remove it on the server."), on servers where WinGet does not work, while an uninstallation of the program already waits, and for SUSyphos itself, which goes with **Remove server**.
+The bar above the list (administrators; Marc, 2026-11-21: actions above the list instead of in each row): **Install software…** opens [Install software](#install-software); select programs with their checkboxes (only programs WinGet knows and SUSyphos may uninstall can be selected), then **Uninstall…** opens [Uninstall](#uninstall) with them.
+
+
+
+## Install software {#install-software}
+
+Assigns packages of the catalog to this server without going to each package page (Marc, 2026-11-21). **Search the catalog** narrows the list to names and IDs (at most 25 are shown; installed and already assigned packages are left out; a package the server cannot install says why). **Choose** one or more packages; **Uninstall when the assignment is removed** works as on the package page; **Install now** releases the newest version for this server alone and installs it right away (restart in the maintenance window), otherwise it installs when the version is released for the ring of the server. **Assign to** the server stores the assignments (audit log); **Close** closes the dialog. Packages that are not in the catalog yet are added on the Software page first.
+
+## Assigned, not installed yet {#assigned}
+
+Packages assigned to this server, one of its groups or all servers that it does not have yet: **Package**, **Version** (fixed, or the newest released), **Assigned to** and the state: *Assigned, waiting* (it installs when the version is released for the ring) or *Not supported here* with the reason.
 
 ## Missing updates {#missing}
 
-Updates the last search of the agent found missing, Windows updates and software (marked *Software*: newer versions of programs WinGet manages). Where the title carries a KB number, the KB links to Microsoft's release notes and **Catalog** to the Microsoft Update Catalog (also in both histories). **Status**: *Not released* (not released to the server's ring yet), *Pending* (released, waits for the maintenance window), *Failed* (last installation failed), *Restart pending* (installed, Windows reports it missing until the restart that completes it; the agent does not install it again meanwhile); "on hold for …" below it names a hold of this server, its ring or a group. An update installed before and reported missing again (uninstalled) is *Pending* again with the note "Missing again after the installation of …". **Earliest installation** is the time the release allows the installation from (in the past: in the next maintenance window); **Result** shows the error code of a failed installation with a plain explanation.
+Updates the last search of the agent found missing, Windows updates and software (marked *Software*: newer versions of programs WinGet manages). Where the title carries a KB number, the KB links to Microsoft's release notes and **Catalog** to the Microsoft Update Catalog (also in both histories). **Status** (see [Deployment states](help/overview#states)): *Waiting for release* (not released to the server's ring yet), *Ready to install* (released, waits for the maintenance window), *Failed* (last installation failed), *Restart pending* (installed, Windows reports it missing until the restart that completes it; the agent does not install it again meanwhile); "on hold for …" below it names a hold of this server, its ring or a group. An update installed before and reported missing again (uninstalled) is *Ready to install* again with the note "Missing again after the installation of …". **Earliest installation** is the time the release allows the installation from (in the past: in the next maintenance window); **Result** shows the error code of a failed installation with a plain explanation.
 
 ![Missing updates with one update selected and the bar of actions above the list](help-images/server-update-selection.png)
 

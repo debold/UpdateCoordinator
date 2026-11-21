@@ -85,6 +85,10 @@ else if (_dialog == "add" && _enabled)
                 {
                     <p class="error" role="alert">@Message</p>
                 }
+                else if (!string.IsNullOrEmpty(Message))
+                {
+                    <p class="notice" role="status">@Message</p>
+                }
                 <label class="field"><span>Search the WinGet community source</span><input name="q" maxlength="100" value="@Query" placeholder="Name, ID or tag, e.g. 7zip" /></label>
                 @if (_results is { } results)
                 {
@@ -102,7 +106,7 @@ else if (_dialog == "add" && _enabled)
                                     <tr>
                                         <td class="wrap">@result.Name<div class="note mono">@result.Id</div></td>
                                         <td class="nowrap">@result.LatestVersion</td>
-                                        <td class="n">@if (_known.Contains(result.Id)) { <span class="pill ok">in the catalog</span> } else { <button type="submit" form="software-add" name="PackageId" value="@result.Id" data-help-term="Add">Add</button> }</td>
+                                        <td class="n">@if (_known.Contains(result.Id)) { <span class="pill ok">@(_added.Contains(result.Id) ? "Added" : "in the catalog")</span> <a class="btn" href="@($"{PackagePage.Link(result.Id)}?dialog=assign")" title="Assign the package to all servers, a group or a server" data-help-term="Assign">Assign…</a> } else { <button type="submit" form="software-add" name="PackageId" value="@result.Id" data-help-term="Add">Add</button> }</td>
                                     </tr>
                                 }
                             </tbody>
@@ -112,7 +116,7 @@ else if (_dialog == "add" && _enabled)
                 }
                 <p class="help">Adding a package takes its newest version into the catalog; the start rules for software decide when it rolls out (by default it waits for a manual start). Assign it to groups or servers for new installations.</p>
             </div>
-            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">Search</button></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">Close</a><button type="submit" class="primary">Search</button></div>
         </form>
         <form id="software-add" method="post" @formname="software-add" @onsubmit="AddAsync" class="detached"><AntiforgeryToken /></form>
     </Dialog>
@@ -142,6 +146,9 @@ else if (_dialog == "add" && _enabled)
     }
 
     private string? _dialog;
+
+    /// <summary>Packages added in this dialog session, shown as "Added".</summary>
+    private readonly HashSet<string> _added = new(StringComparer.OrdinalIgnoreCase);
     private TableQuery _table = default!;
     private TablePage<SoftwareRow> _page = default!;
     private IReadOnlyList<IndexPackage>? _results;
@@ -208,8 +215,11 @@ else if (_dialog == "add" && _enabled)
             : new Outcome("Software management is switched off.");
         if (outcome.Succeeded && PackageId is { } added)
         {
-            // The package page is where it is managed next (Marc, 2026-11-13); the filtered list may not even show it.
-            Navigation.NavigateTo(PackagePage.Link(added));
+            // The dialog stays open for the next package (Marc, 2026-11-21); the row shows "Added" with Assign….
+            _added.Add(added);
+            _dialog = DialogName;
+            ShowResult(null, $"{added} was added to the catalog; Assign… next to it assigns it to servers.");
+            await LoadAsync();
             return;
         }
 
