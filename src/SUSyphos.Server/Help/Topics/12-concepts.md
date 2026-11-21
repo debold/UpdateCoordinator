@@ -37,3 +37,7 @@ Groups give servers common settings and, when **coordinated**, make sure that on
 ## Assignment {#assignment}
 
 Servers get their ring and groups from [assignment rules](help/assignment-rules) (by role, domain or name), by hand on their [details page](help/server-detail#assignment), or end up in the last ring (Production) when nothing applies.
+
+## My requests {#my-requests}
+
+**My requests** in the navigation (Marc, 2026-11-20) lists the remote actions you requested yourself, never those of others: open ones (requested, picked up by the agent, running) and those finished within the last hour, each with its server, its step and, for log requests, **Download logs**. The number shows how many are open, with a pulsing dot while any is. With script the list refreshes every 10 seconds, and when one of your requests finishes a message appears at the bottom right: for 10 seconds when it succeeded, until you close it when it failed. Without script the list shows the state when the page was loaded.

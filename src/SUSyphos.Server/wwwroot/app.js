@@ -740,6 +740,121 @@
         update();
     };
 
+    // My requests (Marc, 2026-11-20): the user's own remote actions every 10 seconds; a message at the bottom right when
+    // one finishes (success for 10 seconds, failure until closed). Built with textContent only, never as HTML.
+    const myRequests = document.querySelector('[data-my-requests]');
+    if (myRequests) {
+        const source = myRequests.getAttribute('data-my-requests');
+        const count = myRequests.querySelector('[data-my-count]');
+        const list = myRequests.querySelector('[data-my-list]');
+        const known = new Map();
+        for (const item of list.querySelectorAll('.my-request')) {
+            known.set(item.dataset.id, item.dataset.open === '1');
+        }
+
+        const element = (tag, className, text) => {
+            const node = document.createElement(tag);
+            if (className) {
+                node.className = className;
+            }
+
+            if (text !== undefined && text !== null) {
+                node.textContent = text;
+            }
+
+            return node;
+        };
+
+        let toasts = document.querySelector('.toasts');
+        const toast = (request) => {
+            if (!toasts) {
+                toasts = element('div', 'toasts');
+                toasts.setAttribute('role', 'status');
+                document.body.appendChild(toasts);
+            }
+
+            const failed = request.stateClass === 'fail';
+            const box = element('div', 'toast ' + (failed ? 'fail' : 'ok'));
+            box.appendChild(element('b', null, request.action + ' on ' + request.server + ': ' + request.state));
+            if (request.detail) {
+                box.appendChild(element('span', 'note', request.detail));
+            }
+
+            const links = element('span', 'links');
+            const open = element('a', null, 'Open server');
+            open.href = request.serverLink;
+            links.appendChild(open);
+            if (request.download) {
+                const download = element('a', null, 'Download logs');
+                download.href = request.download;
+                links.appendChild(download);
+            }
+
+            const close = element('button', 'close', '×');
+            close.type = 'button';
+            close.setAttribute('aria-label', 'Close');
+            close.addEventListener('click', () => box.remove());
+            links.appendChild(close);
+            box.appendChild(links);
+            toasts.appendChild(box);
+            if (!failed) {
+                window.setTimeout(() => box.remove(), 10000);
+            }
+        };
+
+        const render = (requests) => {
+            const open = requests.filter((r) => r.open).length;
+            count.textContent = '';
+            if (open > 0) {
+                count.appendChild(element('span', 'pulse'));
+            }
+
+            count.appendChild(document.createTextNode(String(open)));
+            count.classList.toggle('idle', open === 0);
+            list.textContent = '';
+            if (requests.length === 0) {
+                list.appendChild(element('p', 'note', 'No requests of yours in the last hour.'));
+            }
+
+            for (const request of requests) {
+                const row = element('div', 'my-request');
+                row.appendChild(element('span', 'pill ' + request.stateClass, request.state));
+                const text = element('div');
+                const server = element('a', null, request.server);
+                server.href = request.serverLink;
+                text.appendChild(server);
+                text.appendChild(document.createTextNode(': ' + request.action));
+                text.appendChild(element('div', 'note', request.step + (request.detail ? ' · ' + request.detail : '')));
+                if (request.download) {
+                    const download = element('a', null, 'Download logs');
+                    download.href = request.download;
+                    text.appendChild(download);
+                }
+
+                row.appendChild(text);
+                list.appendChild(row);
+                if (known.get(request.id) === true && !request.open) {
+                    toast(request);
+                }
+
+                known.set(request.id, request.open);
+            }
+        };
+
+        const poll = async () => {
+            try {
+                const response = await fetch(source, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+                if (response.ok) {
+                    render(await response.json());
+                }
+            } catch {
+                // Offline or signed out: the next round tries again.
+            }
+        };
+
+        window.setInterval(poll, 10000);
+    }
+
     applyGates();
     fillFromAddress();
     markHelpSection();

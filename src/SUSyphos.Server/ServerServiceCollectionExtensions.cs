@@ -63,6 +63,7 @@ internal static class ServerServiceCollectionExtensions
         services.AddHostedService<CertificateWorker>();
         services.AddScoped<Administration.DebugMode>();
         services.AddScoped<Administration.AttentionAcknowledgements>();
+        services.AddScoped<Administration.MyRequests>();
         services.AddHostedService<Administration.DebugModeWorker>();
         services.AddScoped<CertificateAdministration>();
         services.AddScoped<TrustBindingService>();

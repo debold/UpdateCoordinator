@@ -29,6 +29,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
   - Central server: in the Central server box of the SUSyphos page. The central server logs at Debug (the file log level now changes at runtime), including every request to its WinGet source with status and contract version; a band above every page says so while it runs.
   - The overview lists both under Needs attention.
 - **Acknowledge** in "Needs attention" (operators; Marc, 2026-11-20): hides a topic (for example "out of support"), not single servers; it shows again when it concerns more items than when it was acknowledged, and the acknowledgement ends once the topic is resolved. "N acknowledged topics hidden" lists them with Show again; audit log entries `Attention.Acknowledged`/`Attention.Restored`. Schema: table `AttentionAcknowledgements`.
+- **My requests** in the navigation (Marc, 2026-11-20, mockup variants 1 and 2): the remote actions you requested yourself, open ones and those finished within the last hour, with server, step and log download; the number of open ones with a pulsing dot. With script the list refreshes every 10 seconds and a message at the bottom right says when one finishes (success for 10 seconds, failure until closed); without script it shows the state on load. Only your own actions (`/dashboard/my-requests`, signed-in users).
 
 ## [0.9.0-rc.6] - 2026-11-20
 

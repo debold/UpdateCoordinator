@@ -22,4 +22,7 @@ public static class PageIcons
     public const string AuditLog = "scroll-text";
     public const string AgentSettings = "sliders-horizontal";
     public const string Help = "circle-help";
+
+    /// <summary>My requests in the navigation (Marc, 2026-11-20).</summary>
+    public const string Requests = "list-checks";
 }

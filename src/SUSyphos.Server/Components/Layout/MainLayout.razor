@@ -4,6 +4,7 @@
 @inject ServerDbContext Db
 @inject SUSyphos.Server.AgentPackages.AgentPackageAdministration ServerUpdates
 @inject SUSyphos.Server.Administration.DebugMode Debug
+@inject SUSyphos.Server.Administration.MyRequests MyRequestList
 
 <div class="shell">
     <AuthorizeView Policy="@AdminRoles.Policies.Read">
@@ -34,6 +35,24 @@
                     <NavLink href="/administration/audit"><span class="nav-label"><Icon Name="@PageIcons.AuditLog" />Audit log</span></NavLink>
                 </AuthorizeView>
                 <NavLink href="/help" Match="NavLinkMatch.Prefix" class="nav-help" target="_blank" rel="noopener"><span class="nav-label"><Icon Name="@PageIcons.Help" />Help</span></NavLink>
+                @* My requests (Marc, 2026-11-20, mockup variants 1 and 2): the user's own remote actions; the dashboard script
+                   refreshes the list every 10 seconds and shows a message when one finishes; without script, the state on load. *@
+                <details class="my-requests" data-my-requests="@SUSyphos.Server.Administration.MyRequests.Path" data-menu>
+                    <summary class="nav-label"><Icon Name="@PageIcons.Requests" />My requests <span class="pill@(_myOpen == 0 ? " idle" : null)" data-my-count>@(_myOpen > 0 ? (MarkupString)$"<span class=\"pulse\"></span>{_myOpen}" : (MarkupString)"0")</span></summary>
+                    <div class="menu-pop my-requests-pop" data-my-list>
+                        @if (_myRequests.Count == 0)
+                        {
+                            <p class="note">No requests of yours in the last hour.</p>
+                        }
+                        @foreach (var request in _myRequests)
+                        {
+                            <div class="my-request" data-id="@request.Id" data-open="@(request.Open ? "1" : "0")">
+                                <span class="pill @request.StateClass">@request.State</span>
+                                <div><a href="@request.ServerLink">@request.Server</a>: @request.Action<div class="note">@request.Step@if (request.Detail is { Length: > 0 } detail) { <text> · @detail</text> }</div>@if (request.Download is { } download) { <a href="@download">Download logs</a> }</div>
+                            </div>
+                        }
+                    </div>
+                </details>
                 <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="account">
                     <AntiforgeryToken />
                     <input type="hidden" name="_handler" value="logout" />
@@ -62,6 +81,8 @@
     private int _waiting;
     private SUSyphos.Server.AgentPackages.ServerUpdate? _serverUpdate;
     private SUSyphos.Server.Administration.DebugState? _centralDebug;
+    private IReadOnlyList<SUSyphos.Server.Administration.MyRequest> _myRequests = [];
+    private int _myOpen;
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,6 +95,11 @@
                 .CountAsync(r => Db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.State == RolloutState.Active));
             _serverUpdate = await ServerUpdates.GetServerUpdateAsync(CancellationToken.None);
             _centralDebug = await Debug.CentralAsync(CancellationToken.None);
+            if ((await AuthenticationState).User.Identity?.Name is { Length: > 0 } user)
+            {
+                _myRequests = await MyRequestList.ListAsync(user, CancellationToken.None);
+                _myOpen = _myRequests.Count(r => r.Open);
+            }
             _waiting = servers + transitions + await Db.Groups.CountAsync(g => g.LeasesHalted) + await Db.Clients.CountAsync(c => c.State == RegistrationState.Blocked)
                 + await ActionResults.OpenFailuresAsync(CancellationToken.None);
         }

@@ -182,4 +182,42 @@ public sealed class DebugModeTests
 
         Assert.False(await scenario.Factory.WithDbAsync(db => db.AttentionAcknowledgements.AnyAsync(TestContext.Current.CancellationToken)));
     }
+
+    [Fact]
+    public async Task MyRequests_ListsOnlyTheUsersOwnActions_OpenAndJustFinished()
+    {
+        // Marc, 2026-11-20: "My requests" with a message when one finishes; only the user's own actions.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV08", RingEntity.PilotId);
+        using var mine = await LoginAsync(scenario, AdminRoles.Operator, "alice");
+        using var other = await LoginAsync(scenario, AdminRoles.Operator, "bob");
+        using (await mine.PostFormAsync($"/servers/{client.ClientId}", new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:SearchNow" }))
+        {
+        }
+
+        using var response = await mine.GetAsync(MyRequests.Path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("\"server\":\"SRV08\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"open\":true", json, StringComparison.Ordinal);
+        Assert.Contains("data-my-count", await HtmlAsync(mine, "/"), StringComparison.Ordinal);
+
+        using var others = await other.GetAsync(MyRequests.Path);
+        Assert.Equal("[]", await others.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+        // Finished more than an hour ago: gone.
+        await scenario.Factory.WithDbAsync(db => db.AgentActions.ExecuteUpdateAsync(s => s.SetProperty(a => a.State, AgentActionState.Succeeded).SetProperty(a => a.CompletedAtUtc, DateTime.UtcNow.AddHours(-2)), TestContext.Current.CancellationToken));
+        Assert.Empty(await scenario.WithServiceAsync<MyRequests, IReadOnlyList<MyRequest>>(m => m.ListAsync("alice", CancellationToken.None)));
+    }
+
+    [Fact]
+    public async Task MyRequests_NeedsASignIn()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        using var anonymous = new DashboardClient(scenario.Factory);
+
+        using var response = await anonymous.GetAsync(MyRequests.Path);
+
+        Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+    }
 }

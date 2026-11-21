@@ -43,6 +43,7 @@ app.MapHealthChecks(ApiRoutes.Health);
 app.MapAgentEndpoints();
 app.MapTrustEndpoints();
 app.MapAgentLogEndpoints();
+app.MapMyRequestsEndpoint();
 app.MapServerLogEndpoints();
 SUSyphos.Server.Scripts.ScriptEndpoints.MapScriptEndpoints(app);
 SUSyphos.Server.Scripts.ScriptRunEndpoints.MapScriptRunEndpoints(app);
