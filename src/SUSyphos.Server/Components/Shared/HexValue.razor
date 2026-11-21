@@ -1,0 +1,10 @@
+@* A long hex value (fingerprint, SHA-256, thumbprint) in groups of four that wrap between the groups instead of running
+   over the edge (Marc, 2026-11-20). The groups are spans without spaces, so copying gives the value unchanged. *@
+<span class="hex" title="@Value">@foreach (var group in Groups) { <span>@group</span> }</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    private IEnumerable<string> Groups => Enumerable.Range(0, (Value.Length + 3) / 4).Select(i => Value.Substring(i * 4, Math.Min(4, Value.Length - (i * 4))));
+}

@@ -23,6 +23,10 @@
     --pend-soft: #E5EEFC;
     --queue: #B7791F;
     --queue-soft: #FBF1DE;
+    /* Waiting for release: calm grey-blue, not the amber of attention (Marc, 2026-11-20). */
+    --wait: #8FA6BF;
+    --wait-text: #536B85;
+    --wait-soft: #EEF2F7;
     --fail: #C0392B;
     --fail-soft: #FBE7E4;
     --idle: #8A94A3;
@@ -86,6 +90,7 @@ tr.unusable td { color: var(--muted); }
 .dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; margin-right: 0.45rem; vertical-align: 0.05em; }
 .dot.ok { background: var(--ok); }
 .dot.queue { background: var(--queue); }
+.dot.wait { background: var(--wait); }
 .dot.fail { background: var(--fail); }
 
 /* Result of an action repeated in view when the page kept its scroll position (app.js). */
@@ -244,6 +249,7 @@ main { container: page / inline-size; }
 .swatch-dot.s1 { background: var(--series-1); } .swatch-dot.s2 { background: var(--series-2); } .swatch-dot.s4 { background: var(--series-4); } .swatch-dot.s5 { background: var(--series-5); } .swatch-dot.s7 { background: var(--series-7); }
 .swatch-dot.pend { background: var(--pend); }
 .swatch-dot.queue { background: var(--queue); }
+.swatch-dot.wait { background: var(--wait); }
 .swatch-dot.fail { background: var(--fail); }
 
 /* Pills (state in form, not only in text). */
@@ -252,6 +258,7 @@ main { container: page / inline-size; }
 .pill.ok { color: var(--ok); }
 .pill.pend { color: var(--pend); }
 .pill.queue { color: var(--queue); }
+.pill.wait { color: var(--wait-text); }
 .pill.fail { color: var(--fail); }
 .pill.neutral { color: var(--muted); }
 .pill.esu { color: #4F46C8; }
@@ -361,6 +368,7 @@ details.col-filter[open] > summary { color: var(--accent); background: var(--acc
 .seg-ok { fill: var(--ok); }
 .seg-pend { fill: var(--pend); }
 .seg-queue { fill: var(--queue); }
+.seg-wait { fill: var(--wait); }
 .seg-fail { fill: var(--fail); }
 .seg-none { fill: var(--idle); opacity: 0.45; }
 /* A bar whose parts are links (ring bar of the overview, Marc 2026-11-17): taller to hit, and the part under the pointer or in focus stands out. */
@@ -377,6 +385,7 @@ td.status-bar .note { margin-top: 0.2rem; }
 .donut .ok { stroke: var(--ok); }
 .donut .pend { stroke: var(--pend); }
 .donut .queue { stroke: var(--queue); }
+.donut .wait { stroke: var(--wait); }
 .donut .fail { stroke: var(--fail); }
 .donut .warn { stroke: var(--queue); opacity: 0.55; }
 .donut .none, .donut .neutral { stroke: var(--idle); opacity: 0.45; }
@@ -388,6 +397,7 @@ td.status-bar .note { margin-top: 0.2rem; }
 .swatch.ok { background: var(--ok); }
 .swatch.pend { background: var(--pend); }
 .swatch.queue { background: var(--queue); }
+.swatch.wait { background: var(--wait); }
 .swatch.fail { background: var(--fail); }
 .swatch.warn { background: var(--queue); opacity: 0.55; }
 .legend a { color: var(--text); text-decoration: none; }
@@ -768,6 +778,8 @@ details.release-notes > .release-notes-body { padding: 0 0.8rem 0.6rem; }
 .stat-chart .mark.s7, .stat-chart .dot.s7 { fill: var(--series-7); } .stat-chart .mark.s8, .stat-chart .dot.s8 { fill: var(--series-8); }
 .stat-chart .mark.ok, .stat-chart .dot.ok { fill: var(--ok); } .stat-chart .mark.pend, .stat-chart .dot.pend { fill: var(--pend); }
 .stat-chart .mark.queue, .stat-chart .dot.queue { fill: var(--queue); } .stat-chart .mark.warn { fill: var(--queue); opacity: 0.55; }
+.stat-chart .mark.wait, .stat-chart .dot.wait { fill: var(--wait); }
+.tab-badge.wait { background: var(--wait-soft); color: var(--wait-text); }
 .stat-chart .mark.fail, .stat-chart .dot.fail { fill: var(--fail); } .stat-chart .mark.none { fill: var(--idle); opacity: 0.6; }
 .stat-chart .line.ok { stroke: var(--ok); } .stat-chart .line.fail { stroke: var(--fail); } .stat-chart .line.pend { stroke: var(--pend); }
 .swatch.s1 { background: var(--series-1); } .swatch.s2 { background: var(--series-2); } .swatch.s3 { background: var(--series-3); } .swatch.s4 { background: var(--series-4); }
@@ -799,6 +811,7 @@ details.menu.align-right .menu-pop { left: auto; right: 0; }
 .banner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.6rem 0.9rem; border: 1px solid; border-radius: var(--r-sm); }
 .banner.fail { background: var(--fail-soft); border-color: var(--fail); }
 .banner.queue { background: var(--queue-soft); border-color: var(--queue); }
+.banner.wait { background: var(--wait-soft); border-color: var(--wait); }
 .banner.pend { background: var(--pend-soft); border-color: var(--pend); }
 .banner-action { margin-left: auto; display: inline-flex; gap: 0.5rem; }
 .banner-action form { display: contents; }
@@ -876,6 +889,7 @@ td .kb-links { margin-top: 0.2rem; }
 .share-bar .track { fill: var(--line); }
 .share-bar .ok { fill: var(--ok); }
 .share-bar .queue { fill: var(--queue); }
+.share-bar .wait { fill: var(--wait); }
 
 /* Agent settings (page, group dialog, server configuration): sections with a small heading and a line, one row per
    setting with the label left, a field of fixed width with the unit inside and the range or source right. A value that
@@ -905,7 +919,7 @@ td .kb-links { margin-top: 0.2rem; }
 
 /* Category tags tell kinds apart with a tint of the categorical palette (not a status colour). */
 .cat-tag { --cat: var(--series-1); display: inline-flex; align-items: center; height: 20px; padding: 0 0.6rem; border: 1px solid color-mix(in srgb, var(--cat) 45%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--cat) 14%, var(--surface)); color: var(--text); font-size: 0.78rem; white-space: nowrap; vertical-align: middle; }
-.cat-tag.c5 { --cat: #2F3B4C; } .cat-tag.c6 { --cat: #566273; } .cat-tag.c7 { --cat: #687282; } .cat-tag.c8 { --cat: #0E7C86; }
+.cat-tag.c5 { --cat: #2F3B4C; } .cat-tag.c6 { --cat: #566273; } .cat-tag.c7 { --cat: #687282; } .cat-tag.c8 { --cat: #0E7C86; } .cat-tag.c9 { --cat: #6B4FBB; }
 .cat-tag.c0 { --cat: var(--idle); } .cat-tag.c1 { --cat: var(--series-5); } .cat-tag.c2 { --cat: var(--series-7); } .cat-tag.c3 { --cat: var(--series-3); } .cat-tag.c4 { --cat: var(--series-8); }
 
 /* Expanded rows (ListTable Details): the row stays tinted, the details open right below it, indented and shaded. */
@@ -957,3 +971,12 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 .pkg-logo.initials { border-radius: 50%; background: var(--pend-soft); color: var(--accent-dark); font-weight: 600; font-size: 0.7rem; }
 .pkg-logo.initials.large { font-size: 1.1rem; }
 .pkg-name { display: flex; align-items: center; gap: 0.6rem; }
+.stamp { display: inline-block; vertical-align: top; }
+.stamp .note { display: block; }
+.pill-list { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+/* Operation of a history entry (Marc, 2026-11-20): install light, uninstall dark and filled; no status colour. */
+.op-tag { display: inline-flex; align-items: center; gap: 0.3rem; height: 20px; padding: 0 0.6rem; border: 1px solid var(--line); border-radius: 999px; font-size: 0.78rem; white-space: nowrap; vertical-align: middle; }
+.op-tag.install { background: var(--surface); color: var(--text); }
+.op-tag.uninstall { background: #3A4556; border-color: #3A4556; color: #fff; }
+/* Long hex values in groups of four that wrap between groups (Marc, 2026-11-20). */
+.hex { display: inline-flex; flex-wrap: wrap; column-gap: 0.4em; max-width: 100%; font-family: var(--mono, ui-monospace, monospace); }

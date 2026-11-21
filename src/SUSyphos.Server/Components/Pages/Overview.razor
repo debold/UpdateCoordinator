@@ -481,11 +481,11 @@
             var counts = DeploymentCounts.Of(inRing);
             var updates = inRing.GroupBy(e => e.State).ToDictionary(g => g.Key, g => g.Select(e => (e.UpdateId, e.Revision)).Distinct().Count());
             var mine = states.Where(s => s.RingId == ring.Id).ToList();
-            var (label, cls) = mine.Any(s => s.State == RingRolloutState.Alarm) ? ("Alarm", "fail")
+            var (label, cls) = mine.Any(s => s.State == RingRolloutState.Alarm) ? ("Stopped before this ring", "fail")
                 : mine.Any(s => s.State == RingRolloutState.AwaitingApproval) ? ("Awaiting approval", "queue")
                 : counts.Failed > 0 ? ("Failures", "fail")
                 : counts.Pending > 0 ? ("Rolling out", "pend")
-                : counts.Queued > 0 ? ("Waiting for release", "neutral")
+                : counts.Queued > 0 ? (DeploymentStates.WaitingForRelease, DeploymentStates.WaitClass)
                 : ("Healthy", "ok");
             return new RingRow(ring.Id, ring.Order, ring.Name, clients.Count(c => c.RingId == ring.Id), mine.Count(s => s.State == RingRolloutState.Released), counts, label, cls, updates);
         })];

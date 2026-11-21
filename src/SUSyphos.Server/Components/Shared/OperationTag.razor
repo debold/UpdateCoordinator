@@ -1,0 +1,11 @@
+@* What an entry of an installation history did: installed (↓, light) or uninstalled (↩, dark and filled), told apart at a
+   glance without a status colour (Marc, 2026-11-20); the result has its own pill next to it. *@
+<span class="op-tag @(IsUninstall ? "uninstall" : "install")" title="@Text"><span aria-hidden="true">@(IsUninstall ? "↩" : "↓")</span> @(IsUninstall ? "Uninstall" : "Install")</span>
+
+@code {
+    /// <summary>The operation as the history names it ("Installation", "Uninstallation").</summary>
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    private bool IsUninstall => Text.StartsWith("Uninstall", StringComparison.OrdinalIgnoreCase);
+}

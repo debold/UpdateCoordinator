@@ -35,15 +35,14 @@ Each tile has a title, the values in the middle and one line of context at the b
 One row per ring, in rollout order. The ring tag (number and name, outlined in the colour of the ring) opens the server list filtered to that ring.
 
 - **Servers**: approved servers in the ring.
-- **Status (server × update)**: one bar segment per installation state, counting each server once per update that is still open somewhere (updates installed everywhere drop out, so the bar shows the work left): successful (green), pending (blue, released and not installed yet), queued (amber, not released to this ring yet) and failed (red). The line below names what is open, with the number of updates where it differs ("2 failed on 1 update, 3 to install"). Every part of the bar and every part of that line is a link (Marc, 2026-11-17): it opens the [update list](help/updates#ring-filter) with the updates of this ring in that state, for example the red part the updates that failed on at least one server of the ring. A ring with servers and nothing open shows a full green bar with *everything up to date*.
-- **Status (server × update)**: one bar segment per installation state, counting each server once per update that is still open somewhere (updates installed everywhere drop out, so the bar shows the work left), with a line below it naming what is open ("3 to install, 7 waiting for release"): successful (green), pending (blue, released and not installed yet), queued (amber, not released to this ring yet) and failed (red).
+- **Status (server × update)**: one bar segment per installation state, counting each server once per update that is still open somewhere (updates installed everywhere drop out, so the bar shows the work left): *Installed* (green), *Ready to install* (blue), *Waiting for release* (grey-blue) and *Failed* (red); the legend explains each name in its tooltip (see [Deployment states](help/overview#states)). The line below names what is open, with the number of updates where it differs ("2 failed on 1 update, 3 to install"). Every part of the bar and every part of that line is a link (Marc, 2026-11-17): it opens the [update list](help/updates#ring-filter) with the updates of this ring in that state, for example the red part the updates that failed on at least one server of the ring. A ring with servers and nothing open shows a full green bar with *everything up to date*.
 - **State**: *Healthy* (nothing open), *Waiting for release* (updates wait until the rollout reaches this ring), *Rolling out* (installations pending), *Failures* (at least one failed installation), *Awaiting approval* (a release gate waits for a person) or *Alarm* (the rollout stopped before this ring because a threshold was exceeded).
 
 ## Needs attention {#attention}
 
 Everything that waits for a human decision or points to a problem, each with a button that leads to where it is resolved:
 
-- **Alarm**: a rollout stopped before a ring, with the reason (for example too many failures in the previous ring). Open the update to look at the failures and decide.
+- **Stopped before this ring** (state of the ring, red): a rollout stopped before a ring, with the reason (for example too many failures in the previous ring). Open the update to look at the failures and decide.
 - **Release gate**: an update waits for a manual release to the next ring.
 - **Clone**: servers were blocked because the same agent credentials were used by two hosts in turn (a cloned virtual machine). Review them under [Approvals](help/approvals#blocked).
 - **Registration**: new servers wait for approval.
@@ -76,3 +75,14 @@ Released updates that are not installed everywhere yet, ordered by the earliest 
 - **Patch day to installation by Windows version**: median days from the release of a security baseline to its installation, per version.
 
 The central server records the daily values (status, fully patched, open updates) from version 0.7.7 on, so those charts fill from then.
+
+## Deployment states {#states}
+
+The same four names and colours appear in every legend, bar, donut and pill (Marc, 2026-11-20):
+
+- **Installed** (green): The server reported the update as installed.
+- **Ready to install** (blue): Released for the server; it installs in its next maintenance window, or right now with Install now.
+- **Waiting for release** (grey-blue): The server needs the update, but its ring has not released it yet.
+- **Failed** (red): The last installation on the server failed; the agent tries again in its next window.
+
+Donuts add **Not needed** (grey): The server does not need the update (not applicable, or a newer one replaces it). Amber stays for what needs attention, such as a release gate or a warning.

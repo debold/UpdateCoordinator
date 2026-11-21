@@ -98,7 +98,7 @@
             <Fact Label="Signing key" Mono="true" Note="@(_key is null ? "created when the first script is approved; certified by the trust anchor and part of the backup" : $"created {DisplayTime.Format(_key.CreatedAtUtc)}, certified by the trust anchor, part of the backup")">@(_key?.KeyId ?? "none yet")</Fact>
             @if (_key is not null)
             {
-                <Fact Label="Key fingerprint" Mono="true" Wide="true">@SUSyphos.Contracts.Scripts.ScriptSigningFormat.Sha256(_key.PublicKey)</Fact>
+                <Fact Label="Key fingerprint" Mono="true" Wide="true"><HexValue Value="@SUSyphos.Contracts.Scripts.ScriptSigningFormat.Sha256(_key.PublicKey)" /></Fact>
             }
         </FactGrid>
     </div>

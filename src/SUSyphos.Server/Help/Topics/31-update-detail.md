@@ -80,11 +80,11 @@ Shown when Microsoft lists Windows Server vulnerabilities this update (by its KB
 
 One row per ring, with the ring tag first; it opens the Servers tab filtered to the servers of that ring.
 
-- **State**: *Waiting* (the previous ring has not met its transition rule yet), *Released*, *Awaiting approval* (a manual gate), *Alarm* with the reason, or *Not started* when the rollout has not reached the ring.
+- **State**: *Waiting* (the previous ring has not met its transition rule yet), *Released*, *Awaiting approval* (a manual gate), *Stopped before this ring* with the reason (the rollout stopped before it), or *Not started* when the rollout has not reached the ring.
 - **Released**: when the update was released to the ring. For rings the rollout has not reached yet it shows the **expected** time: from the release of the last reached ring plus the minimum waits of the transitions (all servers report at once) to the same plus the maximum waits (a good success rate without full feedback). **manual approval** marks a ring that needs an operator on the way. It is an estimate: low feedback, alarms and gates change it, and rings behind an alarm or an open gate show none.
 - **Feedback**: share of the targeted servers of the ring that reported a result (reported / targeted).
 - **Success**: share of successful installations among the results. The last result per server counts, so a successful retry replaces a failure.
-- **Status (servers)**: the servers of the ring by state.
+- **Status (servers)**: the servers of the ring by state, as on the overview (Marc, 2026-11-20): *Installed*, *Ready to install*, *Waiting for release* and *Failed* (see [Deployment states](help/overview#states)). Every part of the bar opens the Servers tab filtered to the ring and that state; the line below names what is open, or *everything up to date*, with a full green bar when no server of the ring needs the update.
 
 ## All servers {#all-servers}
 
@@ -95,7 +95,7 @@ All approved servers by their state for this update: successful, pending (releas
 Every approved server, with the **Server** and its operating system below (the funnel filters by operating system), **Ring and groups**, **Status**, **Earliest installation**, **Installed** (when, and below it by whom: by SUSyphos, by Windows Update or another tool from the Windows Update history, or found in the inventory) and **Result** (for a failed installation the error code and an explanation). The tab names the work left: "1 failed" in red when an installation failed, else "3 to do" for the servers that still have to install it. **Show ›** on the box "All servers" and **Show all servers ›** below "Progress by ring" open it. The status:
 
 - **Failed**: the last installation failed (the result shows the error code and an explanation).
-- **Pending: window or installing**: released and due; installs in the current or next maintenance window.
+- **Ready to install**: released and due; installs in the current or next maintenance window, or right now with **Install now**.
 - **Planned**: released, but the earliest installation is still ahead (a start delay or the spread of the ring).
 - **Restart pending**: installed, but Windows reports it missing until the restart that completes it; the agent does not install it again meanwhile.
 - **Waiting for release**: reported as missing, not released to the server's ring yet.

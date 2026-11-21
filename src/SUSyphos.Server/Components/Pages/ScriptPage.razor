@@ -62,7 +62,7 @@ else
                 <Fact Label="On failure">@ScriptText.OnFailure(phase, approved.OnFailure)</Fact>
                 <Fact Label="Timeout">@(approved.TimeoutSeconds / 60) minutes</Fact>
                 <Fact Label="Runs as">SYSTEM, Windows PowerShell 5.1</Fact>
-                <Fact Label="SHA-256" Mono="true" Wide="true">@approved.ContentSha256</Fact>
+                <Fact Label="SHA-256" Mono="true" Wide="true"><HexValue Value="@approved.ContentSha256" /></Fact>
                 <Fact Label="Signing key" Mono="true">@approved.KeyId</Fact>
                 <Fact Label="Approved" Note="@($"by {approved.ApprovedBy}")">@DisplayTime.Format(approved.SignedAtUtc)</Fact>
             </FactGrid>

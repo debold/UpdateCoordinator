@@ -9,7 +9,7 @@ internal static class Charts
     public static IReadOnlyList<(string Class, int Value)> Parts(DeploymentCounts counts)
     {
         ArgumentNullException.ThrowIfNull(counts);
-        return [("ok", counts.Successful), ("pend", counts.Pending), ("queue", counts.Queued), ("fail", counts.Failed), ("none", counts.NotNeeded)];
+        return [("ok", counts.Successful), ("pend", counts.Pending), (DeploymentStates.WaitClass, counts.Queued), ("fail", counts.Failed), ("none", counts.NotNeeded)];
     }
 
     /// <summary>Segments in the order successful, pending, queued, failed, not needed, scaled to <paramref name="length"/>; empty states are left out.</summary>
@@ -42,7 +42,7 @@ internal static class Charts
     public static string Describe(DeploymentCounts counts)
     {
         ArgumentNullException.ThrowIfNull(counts);
-        return string.Create(CultureInfo.InvariantCulture, $"{counts.Successful} successful, {counts.Pending} pending, {counts.Queued} queued, {counts.Failed} failed{(counts.NotNeeded > 0 ? $", {counts.NotNeeded} not needed" : string.Empty)}");
+        return string.Create(CultureInfo.InvariantCulture, $"{counts.Successful} installed, {counts.Pending} ready to install, {counts.Queued} waiting for release, {counts.Failed} failed{(counts.NotNeeded > 0 ? $", {counts.NotNeeded} not needed" : string.Empty)}");
     }
 
     /// <summary>Text for screen readers of any split, e.g. "3 ok, 1 fail".</summary>
@@ -56,7 +56,14 @@ internal static class Charts
     public static IReadOnlyList<DonutPart> Labeled(DeploymentCounts counts)
     {
         ArgumentNullException.ThrowIfNull(counts);
-        return [new("ok", "Successful", counts.Successful), new("pend", "Pending", counts.Pending), new("queue", "Queued", counts.Queued), new("fail", "Failed", counts.Failed), new("none", "Not needed", counts.NotNeeded)];
+        return
+        [
+            new("ok", DeploymentStates.Installed, counts.Successful) { Explanation = DeploymentStates.Explanation(DeploymentState.Successful) },
+            new("pend", DeploymentStates.ReadyToInstall, counts.Pending) { Explanation = DeploymentStates.Explanation(DeploymentState.Pending) },
+            new(DeploymentStates.WaitClass, DeploymentStates.WaitingForRelease, counts.Queued) { Explanation = DeploymentStates.Explanation(DeploymentState.Queued) },
+            new("fail", DeploymentStates.Failed, counts.Failed) { Explanation = DeploymentStates.Explanation(DeploymentState.Failed) },
+            new("none", DeploymentStates.NotNeeded, counts.NotNeeded) { Explanation = DeploymentStates.NotNeededExplanation },
+        ];
     }
 
     /// <summary>The parts of a donut as donut and legend show them: largest first, empty parts left out (equal counts keep their order).</summary>
@@ -83,4 +90,8 @@ public enum DonutSize
 }
 
 /// <summary>One part of a donut with legend: status class, label, count and an optional link (e.g. the filtered list).</summary>
-public sealed record DonutPart(string Class, string Label, int Value, string? Href = null);
+public sealed record DonutPart(string Class, string Label, int Value, string? Href = null)
+{
+    /// <summary>One sentence explaining the part, shown as tooltip of its legend line; the label when none.</summary>
+    public string? Explanation { get; init; }
+}

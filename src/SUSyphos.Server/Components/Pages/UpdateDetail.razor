@@ -164,11 +164,11 @@ else
         <FactGrid ShowLabel="true">
             @if (_rollout is { } started)
             {
-                <Fact Label="Rollout started" Note="Start rules decide only once, when the rollout starts; later changes to rules do not change running rollouts.">@Format(started.StartedAtUtc) @(started.StartRuleSummary is { } summary ? $"by start rule {started.StartRuleId} ({summary})" : $"by {started.StartedBy}{(started.StartedBy == RolloutService.RuleActor ? " (before the starting rule was recorded)" : string.Empty)}")</Fact>
+                <Fact Label="Rollout started" Wide="true" Note="Start rules decide only once, when the rollout starts; later changes to rules do not change running rollouts.">@Format(started.StartedAtUtc) @(started.StartRuleSummary is { } summary ? $"by start rule {started.StartRuleId} ({summary})" : $"by {started.StartedBy}{(started.StartedBy == RolloutService.RuleActor ? " (before the starting rule was recorded)" : string.Empty)}")</Fact>
             }
             @if (_startRule is { } rule)
             {
-                <Fact Label="@(_rollout is null ? "Decided by" : "Would decide now")" Note="@($"{rule.Classification ?? "any classification"}, {rule.MsrcSeverity ?? "any severity"}, title {rule.TitlePattern ?? "any"}")"><a href="/administration/release-rules?dialog=rule&id=@rule.Id">start rule with priority @rule.Priority</a></Fact>
+                <Fact Label="@(_rollout is null ? "Decided by" : "Would decide now")" Wide="true" Note="@($"{rule.Classification ?? "any classification"}, {rule.MsrcSeverity ?? "any severity"}, title {rule.TitlePattern ?? "any"}")"><a href="/administration/release-rules?dialog=rule&id=@rule.Id">start rule with priority @rule.Priority</a></Fact>
             }
         </FactGrid>
     </Box>
@@ -199,7 +199,7 @@ else
                                 </td>
                                 <td class="n">@if (ring.State is not null && ring.Statistics.Targeted == 0 && ring.Counts.Total > 0) { <span class="note">@(_sourceVersion is { } waiting && SUSyphos.Server.Software.SoftwareSource.NotOfferedReason(waiting) is not null ? "not in the WinGet source yet" : "no server got it yet")</span> } else if (ring.State is not null && ring.Statistics.Targeted == 0) { <span class="note">no server needs it</span> } else { @Percent(ring.Statistics.FeedbackPercent) <span class="note">(@ring.Statistics.Reported/@ring.Statistics.Targeted)</span> }</td>
                                 <td class="n">@Percent(ring.Statistics.SuccessPercent)</td>
-                                <td><StackedBar Counts="@ring.Counts" /></td>
+                                <td>@if (ring.Counts.Total == 0) { <StackedBar Counts="@UpToDate" /> } else { <StackedBar Counts="@ring.Counts" Href="@(cls => SegmentLink(ring.Name, cls))" Title="@(cls => SegmentTitle(ring.Counts, cls))" /> }@if (ring.Counts.Queued + ring.Counts.Pending + ring.Counts.Failed > 0) { <div class="note">@OpenText(ring.Counts)</div> } else { <div class="note">everything up to date</div> }</td>
                             </tr>
                         }
                     </tbody>
@@ -332,7 +332,7 @@ else
     private static string StatusLabel(ServerUpdateStatus status) => status switch
     {
         ServerUpdateStatus.Failed => "Failed",
-        ServerUpdateStatus.Pending => "Pending: window or installing",
+        ServerUpdateStatus.Pending => "Ready to install",
         ServerUpdateStatus.Planned => "Planned",
         ServerUpdateStatus.RestartPending => "Restart pending",
         ServerUpdateStatus.WaitingForRelease => "Waiting for release",
@@ -340,11 +340,39 @@ else
         _ => "Not needed",
     };
 
+
+    /// <summary>A full green bar for a ring with nothing open, as on the overview (Marc, 2026-11-20).</summary>
+    private static readonly DeploymentCounts UpToDate = new(0, 0, 1, 0);
+
+    /// <summary>The servers of the ring in the state of a bar part, on the Servers tab (Marc, 2026-11-20).</summary>
+    private string? SegmentLink(string ringName, string segmentClass)
+    {
+        string[]? labels = RingLink.StateOfClass(segmentClass) switch
+        {
+            DeploymentState.Successful => [StatusLabel(ServerUpdateStatus.Installed), StatusLabel(ServerUpdateStatus.RestartPending)],
+            DeploymentState.Pending => [StatusLabel(ServerUpdateStatus.Pending), StatusLabel(ServerUpdateStatus.Planned)],
+            DeploymentState.Queued => [StatusLabel(ServerUpdateStatus.WaitingForRelease)],
+            DeploymentState.Failed => [StatusLabel(ServerUpdateStatus.Failed)],
+            _ => null,
+        };
+        return labels is null ? null : $"{TabLink("servers")}&f.ring={Uri.EscapeDataString(ringName)}{string.Concat(labels.Select(l => $"&f.status={Uri.EscapeDataString(l)}"))}#servers";
+    }
+
+    private static string? SegmentTitle(DeploymentCounts counts, string segmentClass) =>
+        RingLink.StateOfClass(segmentClass) is { } state ? $"{DeploymentStates.Label(state)}: {DisplayNumber.Count(RingLink.Count(counts, state), "server", "servers")}" : null;
+
+    /// <summary>What is open in a ring, e.g. "1 failed, 2 ready to install".</summary>
+    private static string OpenText(DeploymentCounts counts) => string.Join(", ", new[]
+    {
+        counts.Failed > 0 ? $"{DisplayNumber.Format(counts.Failed)} failed" : null,
+        counts.Pending > 0 ? $"{DisplayNumber.Format(counts.Pending)} ready to install" : null,
+        counts.Queued > 0 ? $"{DisplayNumber.Format(counts.Queued)} waiting for release" : null,
+    }.OfType<string>());
     private static string StatusClass(ServerUpdateStatus status) => status switch
     {
         ServerUpdateStatus.Failed => "fail",
         ServerUpdateStatus.Pending or ServerUpdateStatus.Planned or ServerUpdateStatus.RestartPending => "pend",
-        ServerUpdateStatus.WaitingForRelease => "queue",
+        ServerUpdateStatus.WaitingForRelease => "wait",
         ServerUpdateStatus.Installed => "ok",
         _ => "neutral",
     };
@@ -399,8 +427,8 @@ else
     private IReadOnlyList<StatusRow> StartRows => _startRule is { } rule
         ? [rule.Mode == StartMode.Automatic
             ? new StatusRow("ok", "automatic", "Start", $"starts automatically, delay {rule.Delay.TotalHours:0} h", _rollout is null ? "decided by the rule below" : "the rule below would decide now")
-            : new StatusRow("queue", "manual", "Start", "manual start", "stays queued until an operator starts it")]
-        : [new StatusRow("queue", "none", "Start", "no start rule matches", "The update stays queued until an operator starts it or a matching rule is created.")];
+            : new StatusRow("queue", "manual", "Start", "manual start", "waits until an operator starts it")]
+        : [new StatusRow("queue", "none", "Start", "no start rule matches", "The update is not started until an operator starts it or a matching rule is created.")];
     private string ReleaseRuleLink => _update is null
         ? "/administration/release-rules"
         : _update.Kind == UpdateKind.Software && _update.PackageId is { } package
@@ -673,7 +701,7 @@ else
         {
             _ when _update.BlockedAtUtc is not null => ("Blocked", "fail"),
             _ when _update.WithdrawnAtUtc is not null => ("Withdrawn by Microsoft", "fail"),
-            null => ("Queued: no rollout", "queue"),
+            null => ("Not started", "neutral"),
             { State: RolloutState.Stopped } => ("Stopped", "fail"),
             { Override: true } => ("Released to all rings", "pend"),
             _ => ("Rolling out", "pend"),
@@ -807,7 +835,7 @@ else
         _ => entry.Action,
     };
 
-    private static string RingStateLabel(RingRow ring) => ring.State == RingRolloutState.Alarm ? $"Alarm: {ring.Reason}" : RingStage.Of(ring.State).Label;
+    private static string RingStateLabel(RingRow ring) => ring.State == RingRolloutState.Alarm ? $"Stopped before this ring: {ring.Reason}" : RingStage.Of(ring.State).Label;
 
     private static string RingStateClass(RingRolloutState? state) => RingStage.Of(state).Class;
 

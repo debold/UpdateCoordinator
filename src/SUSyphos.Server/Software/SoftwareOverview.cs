@@ -75,7 +75,7 @@ internal sealed class SoftwareOverview(ServerDbContext db)
         return [.. result.OrderByDescending(v => v, VersionComparer.Instance)];
     }
 
-    /// <summary>The state of the newest version as a pill: no version, blocked by the virus scan, waiting for the agreements, queued, rolling out or stopped.</summary>
+    /// <summary>The state of the newest version as a pill: no version, blocked by the virus scan, waiting for the agreements, not started, rolling out or stopped.</summary>
     internal static (string Label, string Class) RolloutState(PackageEntity package, PackageVersionEntity? newest, Data.RolloutState? rollout) => newest switch
     {
         null => ("No version", "neutral"),
@@ -83,7 +83,7 @@ internal sealed class SoftwareOverview(ServerDbContext db)
         _ when rollout == Data.RolloutState.Active => ("Rolling out", "pend"),
         _ when rollout == Data.RolloutState.Stopped => ("Stopped", "fail"),
         _ when package.HasAgreements && package.AgreementsAcceptedAtUtc is null => ("Agreements not accepted", "queue"),
-        _ => ("Queued", "neutral"),
+        _ => ("Not started", "neutral"),
     };
 
     /// <summary>Text of a scan state for the dashboard.</summary>

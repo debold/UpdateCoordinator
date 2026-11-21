@@ -200,16 +200,10 @@ internal static class DeploymentText
     public static string Label(DeploymentEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        return entry.RestartPending ? "Restart pending" : entry.State == DeploymentState.Queued ? "Not released" : entry.State.ToString();
+        return entry.RestartPending ? "Restart pending" : DeploymentStates.Label(entry.State);
     }
 
-    public static string PillClass(DeploymentState state) => state switch
-    {
-        DeploymentState.Successful => "ok",
-        DeploymentState.Pending => "pend",
-        DeploymentState.Queued => "queue",
-        _ => "fail",
-    };
+    public static string PillClass(DeploymentState state) => DeploymentStates.Class(state);
 
     public static string Result(DeploymentEntry entry)
     {

@@ -86,8 +86,8 @@
                             <td class="nowrap" title="@SecurityTitle(row.Security)"><StatusTag Text="@SUSyphos.Server.Security.SecuritySnapshot.Label(row.Security.State)" Kind="@SUSyphos.Server.Security.SecuritySnapshot.Class(row.Security.State)" />@if (row.Security.Exploited > 0) { <div><span class="pill fail">Exploited</span></div> }</td>
                             <td class="mono nowrap" title="@row.AgentVersion"><span class="mark @ServerIndicators.Class(row.Agent)" title="@AgentTitle(row)">@ServerIndicators.Symbol(row.Agent)</span> @AgentVersion.ShortForm(row.AgentVersion)</td>
                             <td><span class="pill @ServerHealth.PillClass(row.Health)">@ServerHealth.Label(row.Health)</span>@if (row.RestartAt is { } restartAt) { <div class="note nowrap">restart @DisplayTime.Format(restartAt)</div> }</td>
-                            <td class="nowrap"><span class="donut-cell" title="@($"{row.Pending} released and pending, {row.Counts.Failed} failed, {row.Counts.Successful} installed; {row.Missing} missing in all, released or not")"><Donut Counts="@row.Counts" Size="DonutSize.Cell" /><span class="note num">@row.Pending</span></span>@if (row.Missing > 0) { <div class="note">@row.Missing missing</div> }</td>
-                            <td class="nowrap"><span class="dot @ServerIndicators.Class(row.Freshness)" title="@ServerIndicators.Label(row.Freshness)"></span>@(row.LastHeartbeat is { } seen ? DisplayTime.FormatDate(seen) : "–")@if (row.LastHeartbeat is { } seenAt) { <div class="note">@DisplayTime.ToLocal(seenAt).ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)</div> }</td>
+                            <td class="nowrap" title="@UpdatesTitle(row)">@if (row.Counts.Failed == 0 && row.Counts.Pending == 0 && row.Counts.Queued == 0) { <span class="pill ok">up to date</span> } else { <span class="pill-list">@if (row.Counts.Failed > 0) { <span class="pill fail">@DisplayNumber.Format(row.Counts.Failed) failed</span> }@if (row.Counts.Pending > 0) { <span class="pill pend">@DisplayNumber.Format(row.Counts.Pending) ready to install</span> }@if (row.Counts.Queued > 0) { <span class="pill wait">@DisplayNumber.Format(row.Counts.Queued) waiting for release</span> }</span> }</td>
+                            <td class="nowrap"><span class="dot @ServerIndicators.Class(row.Freshness)" title="@ServerIndicators.Label(row.Freshness)"></span><span class="stamp">@(row.LastHeartbeat is { } seen ? DisplayTime.FormatDate(seen) : "–")@if (row.LastHeartbeat is { } seenAt) { <span class="note">@DisplayTime.ToLocal(seenAt).ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)</span> }</span></td>
                         </tr>
                     }
                 }
@@ -102,6 +102,29 @@
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["domain"] = "Domain", ["os"] = "Operating system", ["ring"] = "Ring", ["group"] = "Group", ["agent"] = "Agent", ["status"] = "Status", ["pending"] = "Updates", ["support"] = "Support", ["security"] = "Security" };
 
     /// <summary>Filter values of the pending column; the overview links to them.</summary>
+
+    /// <summary>The open states of a server as filter values of the Updates column (Marc, 2026-11-20).</summary>
+    private static IEnumerable<string> UpdateStates(Row row)
+    {
+        if (row.Counts.Failed > 0)
+        {
+            yield return DeploymentStates.Failed;
+        }
+
+        if (row.Counts.Pending > 0)
+        {
+            yield return DeploymentStates.ReadyToInstall;
+        }
+
+        if (row.Counts.Queued > 0)
+        {
+            yield return DeploymentStates.WaitingForRelease;
+        }
+    }
+
+    /// <summary>Tooltip of the Updates column: the open states and what is installed already.</summary>
+    private static string UpdatesTitle(Row row) =>
+        $"{row.Counts.Failed} failed, {row.Counts.Pending} ready to install, {row.Counts.Queued} waiting for release; {row.Counts.Successful} installed; {row.Missing} missing in all, released or not";
     public const string PendingYes = "Updates pending";
     public const string PendingNo = "Up to date";
 
@@ -144,7 +167,7 @@
         new("agent", "Agent", r => AgentVersion.SortKey(r.AgentVersion), r => [AgentVersion.ShortForm(r.AgentVersion), ServerIndicators.Label(r.Agent)]),
         new("status", "Status", r => (int)r.Health, r => [ServerHealth.Label(r.Health)]),
         new("security", "Security baseline", r => (int)r.Security.State, r => r.Security.Exploited > 0 ? [SUSyphos.Server.Security.SecuritySnapshot.Label(r.Security.State), "Exploited"] : [SUSyphos.Server.Security.SecuritySnapshot.Label(r.Security.State)]),
-        new("pending", "Pending updates", r => r.Pending, r => [r.Pending > 0 ? PendingYes : PendingNo, r.Missing > 0 ? NotFullyPatched : FullyPatched]),
+        new("pending", "Updates", r => (r.Counts.Failed * 1_000_000) + (r.Counts.Pending * 1_000) + r.Counts.Queued, r => [r.Pending > 0 ? PendingYes : PendingNo, r.Missing > 0 ? NotFullyPatched : FullyPatched, .. UpdateStates(r)]),
         new("seen", "Last heartbeat", r => r.LastHeartbeat, r => [ServerIndicators.Label(r.Freshness)]),
     ];
 

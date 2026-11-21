@@ -5,7 +5,7 @@ namespace SUSyphos.Server.Components;
 /// <summary>
 /// The update list filtered to one ring and a deployment state there (Marc, 2026-11-17, mockup
 /// https://claude.ai/artifact/1UnpVC3i3ZcN1c7gpY1NpJ): the parts of the ring bar of the overview link to it, and the
-/// update list reads it back. The state names the colour of the bar: successful, pending, queued or failed.
+/// update list reads it back. The state names the colour of the bar: installed, ready to install, waiting for release or failed.
 /// </summary>
 internal static class RingLink
 {
@@ -17,10 +17,10 @@ internal static class RingLink
 
     private static readonly (string Key, string Class, DeploymentState State, string Label)[] States =
     [
-        ("successful", "ok", DeploymentState.Successful, "Successful"),
-        ("pending", "pend", DeploymentState.Pending, "Pending"),
-        ("queued", "queue", DeploymentState.Queued, "Queued"),
-        ("failed", "fail", DeploymentState.Failed, "Failed"),
+        ("successful", "ok", DeploymentState.Successful, DeploymentStates.Installed),
+        ("pending", "pend", DeploymentState.Pending, DeploymentStates.ReadyToInstall),
+        ("queued", DeploymentStates.WaitClass, DeploymentState.Queued, DeploymentStates.WaitingForRelease),
+        ("failed", "fail", DeploymentState.Failed, DeploymentStates.Failed),
     ];
 
     /// <summary>The update list for a ring, optionally only with updates in one state there.</summary>
@@ -31,7 +31,7 @@ internal static class RingLink
         return state is { } chosen ? $"{link}&{StateParameter}={KeyOf(chosen)}" : link;
     }
 
-    /// <summary>The state behind a segment class of the bar ("ok", "pend", "queue", "fail"); null for others.</summary>
+    /// <summary>The state behind a segment class of the bar ("ok", "pend", "wait", "fail"); null for others.</summary>
     public static DeploymentState? StateOfClass(string? segmentClass) =>
         States.FirstOrDefault(s => s.Class == segmentClass) is { Key: not null } match ? match.State : null;
 

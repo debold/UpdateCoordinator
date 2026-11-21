@@ -57,6 +57,9 @@ public static class DemoData
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ServerDbContext>();
+            // A script signing key, so the pages that show its 64-character fingerprint are checked for layout (Marc, 2026-11-20:
+            // the fingerprint ran over the edge; the demo had no key).
+            db.ScriptKeys.Add(new ScriptKeyEntity { KeyId = "k20261101-5a1f3c9e", PublicKey = [.. Enumerable.Range(0, 91).Select(i => (byte)i)], Certificate = [1], CreatedAtUtc = now.AddDays(-20) });
             db.Groups.Add(new GroupEntity { Id = 10, Name = "SQL cluster", Coordinated = true, LeasePercent = 50, LeaseMaximum = 1 });
             db.Groups.Add(new GroupEntity { Id = 11, Name = "Web farm" });
             foreach (var s in servers)

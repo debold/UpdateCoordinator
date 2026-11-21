@@ -1,7 +1,8 @@
-@* Key of the deployment state colours, without counts (a donut with counts uses DonutLegend). *@
+@using SUSyphos.Server.Rollouts
+@* Key of the deployment state colours, without counts (a donut with counts uses DonutLegend); each name explains itself in a tooltip (Marc, 2026-11-20). *@
 <div class="legend">
-    <span><span class="swatch ok"></span>Successful</span>
-    <span><span class="swatch pend"></span>Pending</span>
-    <span><span class="swatch queue"></span>Queued</span>
-    <span><span class="swatch fail"></span>Failed</span>
+    @foreach (var state in new[] { DeploymentState.Successful, DeploymentState.Pending, DeploymentState.Queued, DeploymentState.Failed })
+    {
+        <span title="@DeploymentStates.Explanation(state)"><span class="swatch @DeploymentStates.Class(state)"></span>@DeploymentStates.Label(state)</span>
+    }
 </div>

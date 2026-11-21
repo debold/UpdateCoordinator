@@ -16,7 +16,7 @@ internal static class RingStage
         RingRolloutState.Released when ring is { Pending: > 0 } => ("Rolling out", "pend"),
         RingRolloutState.Released => ("Released", "ok"),
         RingRolloutState.AwaitingApproval => ("Awaiting approval", "queue"),
-        RingRolloutState.Alarm => ("Alarm", "fail"),
+        RingRolloutState.Alarm => ("Stopped before this ring", "fail"),
         RingRolloutState.Waiting => ("Waiting", "neutral"),
         _ => ("Not started", "neutral"),
     };
