@@ -1,4 +1,5 @@
 using SUSyphos.Server.Rollouts;
+using SUSyphos.Server.Components;
 
 namespace SUSyphos.Server.Tests;
 
