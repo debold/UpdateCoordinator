@@ -39,7 +39,7 @@ internal static class AgentHostBuilder
         builder.Services.AddWindowsService(options => options.ServiceName = ServiceName);
         var logDirectory = builder.Configuration[$"{FileLoggingOptions.SectionName}:Directory"] is { Length: > 0 } configured ? configured : Path.Combine(DataPaths.Agent, "Logs");
         builder.Services.AddRollingFileLogging(builder.Configuration, Path.Combine(DataPaths.Agent, "Logs"), "agent");
-        builder.Services.AddSingleton<ILogCollector>(services => new LogCollector(logDirectory, services.GetRequiredService<TimeProvider>(), LogCollector.ServerParts(logDirectory, services.GetRequiredService<TimeProvider>())));
+        builder.Services.AddSingleton<ILogCollector>(services => new LogCollector(logDirectory, services.GetRequiredService<TimeProvider>(), LogCollector.ServerParts(logDirectory, services.GetRequiredService<TimeProvider>()), () => services.GetRequiredService<Diagnostics.AgentDebugMode>().IsActive));
         builder.Services.AddAgent(builder.Configuration);
         return builder;
     }
@@ -70,6 +70,7 @@ internal static class AgentHostBuilder
         services.AddSingleton<IInstalledUpdateSource, WuaInstalledUpdateSource>();
         services.AddSingleton<RoleDetector>();
         services.AddSingleton<IEsuProbe, WmiEsuProbe>();
+        services.AddSingleton<Diagnostics.AgentDebugMode>();
         services.AddSingleton<IWinGetHelperRunner, WinGetHelperRunner>();
         services.AddSingleton<ISoftwareInventorySource, WinGetHelperInventory>();
         services.AddSingleton<InventoryCollector>();

@@ -17,6 +17,7 @@
 @inject SUSyphos.Server.Lifecycle.SupportLifecycle Support
 @inject SUSyphos.Server.Security.SecurityBaseline Baseline
 @inject SUSyphos.Server.Assignment.SchedulePreview Preview
+@inject SUSyphos.Server.Administration.DebugMode Debug
 
 <PageTitle>@(_client?.HostName ?? "Server")</PageTitle>
 
@@ -53,6 +54,19 @@ else
             </Action>
         </Banner>
     }
+    @if (_debug is { } debug)
+    {
+        <Banner Label="Debug mode" Severity="queue" Help="server-detail#debug">
+            <ChildContent>On until @Format(debug.UntilUtc) (@DebugLeft(debug.UntilUtc) left), switched on by @debug.By: the agent logs at Debug, WinGet writes its verbose log, and a log collection adds the Windows Update, CBS and DISM logs.</ChildContent>
+            <Action>
+                <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="debugActions">
+                    <a class="btn" href="@DialogLink("debug")">Extend…</a>
+                    <button type="submit" form="debug-off">Turn off</button>
+                </AuthorizeView>
+            </Action>
+        </Banner>
+        <form id="debug-off" method="post" @formname="debug-off" @onsubmit="DebugOffAsync" class="detached"><AntiforgeryToken /></form>
+    }
     @if (RestartQueuedText is { } restartText)
     {
         <Banner Label="@(_client.RestartAnnouncedAtUtc is null ? "Restart queued" : "Restart announced")" Severity="fail" Help="server-detail#restart-queued">
@@ -79,6 +93,7 @@ else
                 <MenuSeparator />
                 <MenuItem Form="actions" Name="RemoteAction" Value="queue:RestartService" Icon="rotate-cw">Restart agent service</MenuItem>
                 <MenuItem Form="actions" Name="RemoteAction" Value="queue:UploadLogs" Icon="file-down">Request logs</MenuItem>
+                <MenuItem Href="@DialogLink("debug")" Icon="scroll-text" Disabled="@(!_canAdminister)" Reason="@(_canAdminister ? "More detailed logs from this server for a while" : AdministratorsOnly)">Debug mode…</MenuItem>
             </ActionMenu>
         }
         <a class="btn" href="@AddressWithoutMessage" title="Load the page again with the latest state"><Icon Name="refresh-cw" Size="16" />Refresh</a>
@@ -695,6 +710,29 @@ else
                     <p class="note">A global pause holds the installation until it ends; in a coordinated group the agent waits for a free slot. A local veto (registry value AllowReboot) prevents the restart.</p>
                 </div>
                 <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" name="InstallRestart" value="window" disabled="@(released.Count == 0)">Install, restart in the next window</button><button type="submit" name="InstallRestart" value="now" class="danger" disabled="@(released.Count == 0)">Install and restart right after</button></div>
+            </form>
+        </Dialog>
+    }
+    else if (Dialog == "debug")
+    {
+        <Dialog Title="@($"Debug mode for {_client.HostName}")" CloseHref="@Here" Help="server-detail#debug">
+            <form method="post" @formname="debug" @onsubmit="DebugOnAsync">
+                <AntiforgeryToken />
+                <div class="dialog-body">
+                    <p>For a while the agent collects what its normal logs leave out: it logs at Debug, WinGet writes its verbose log (why an installer does not fit), and <b>Request logs</b> adds WindowsUpdate.log, CBS.log and the DISM log. It ends by itself; the agent takes it with its next heartbeat.</p>
+                    <fieldset class="choices">
+                        <legend>Duration</legend>
+                        @foreach (var hours in SUSyphos.Server.Administration.DebugMode.Durations)
+                        {
+                            <div class="choice"><input type="radio" id="@($"debug-{hours}")" name="DebugHours" value="@hours" checked="@(hours == SUSyphos.Server.Administration.DebugMode.DefaultHours)" data-help-term="Duration" /> <label for="@($"debug-{hours}")">@DisplayNumber.Count(hours, "hour", "hours")</label></div>
+                        }
+                    </fieldset>
+                    @if (_debug is { } running)
+                    {
+                        <p class="note">It is on until @Format(running.UntilUtc); a new duration starts now.</p>
+                    }
+                </div>
+                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="primary">@(_debug is null ? "Turn on" : "Extend")</button></div>
             </form>
         </Dialog>
     }
@@ -1319,6 +1357,38 @@ else
         await LoadAsync();
     }
 
+    [SupplyParameterFromForm(FormName = "debug")]
+    private int? DebugHours { get; set; }
+
+    private SUSyphos.Server.Administration.DebugState? _debug;
+
+    /// <summary>Switches the debug mode of the server on or extends it (Marc, 2026-11-21).</summary>
+    private async Task DebugOnAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer)
+            ? new Outcome("Only administrators switch the debug mode.")
+            : await Debug.SetServerAsync(Id, DebugHours ?? SUSyphos.Server.Administration.DebugMode.DefaultHours, await GetActorAsync(), CancellationToken.None);
+        ShowResultAndReload(outcome.Error, "Debug mode is on; the agent takes it with its next heartbeat.");
+        Dialog = null;
+        await LoadAsync();
+    }
+
+    private async Task DebugOffAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer)
+            ? new Outcome("Only administrators switch the debug mode.")
+            : await Debug.SetServerAsync(Id, null, await GetActorAsync(), CancellationToken.None);
+        ShowResultAndReload(outcome.Error, "Debug mode is off; the agent takes it with its next heartbeat.");
+        await LoadAsync();
+    }
+
+    /// <summary>Time left of a debug mode, e.g. "3 h 20 min".</summary>
+    private string DebugLeft(DateTime untilUtc)
+    {
+        var left = untilUtc - Time.GetUtcNow().UtcDateTime;
+        return left.TotalHours >= 1 ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{(int)left.TotalHours} h {left.Minutes} min") : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Math.Max(1, (int)left.TotalMinutes)} min");
+    }
+
     private async Task RestartAsync()
     {
         var kind = When switch
@@ -1652,6 +1722,7 @@ else
         _leaseHolders = await SUSyphos.Server.Assignment.GroupLeaseStatus.HoldersAsync(Db, memberGroupIds, CancellationToken.None);
         _groupSizes = await Db.ClientGroups.AsNoTracking().Where(m => memberGroupIds.Contains(m.GroupId)).GroupBy(m => m.GroupId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count);
         _pendingRemoval = await Removal.PendingAsync(Id, CancellationToken.None);
+        _debug = await Debug.ServerAsync(Id, CancellationToken.None);
         await LoadSoftwareAsync();
         _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(MaxHistory).ToListAsync();
         _actionTable = TableQuery.From(Navigation, "requested", defaultDescending: true, prefix: "ra.", defaultPageSize: 10, views: ActionViews);

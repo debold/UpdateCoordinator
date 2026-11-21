@@ -12,7 +12,8 @@ namespace SUSyphos.Contracts.Agents;
 /// New address of the central server (docs/03-communication-protocol.md, 3.4): the agent switches only if the server there proves the
 /// same trust anchor and accepts the agent's credentials. Null when no move is announced.
 /// </param>
-public sealed record HeartbeatResponse(RegistrationState State, long? ReleasesVersion = null, bool InstallationsPaused = false, int PendingActions = 0, AgentUpdate? AgentUpdate = null, Uri? MoveTo = null);
+/// <param name="DebugUntil">End of the debug mode of this server (Marc, 2026-11-21); null when it is off.</param>
+public sealed record HeartbeatResponse(RegistrationState State, long? ReleasesVersion = null, bool InstallationsPaused = false, int PendingActions = 0, AgentUpdate? AgentUpdate = null, Uri? MoveTo = null, DateTimeOffset? DebugUntil = null);
 
 /// <summary>
 /// An agent package to update to (docs/05-agent-design.md, section 7). The agent downloads it from the central server

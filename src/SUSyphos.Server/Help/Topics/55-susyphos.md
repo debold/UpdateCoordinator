@@ -52,6 +52,11 @@ The box shows the running version and, when the check found a newer release, the
 
 The central server does not install itself. To upgrade: check the package against SHA256SUMS.txt of the release, then run it as administrator on the central server. The upgrade keeps database, trust anchor, settings, port and certificate. The dashboard is unavailable for about a minute while the service restarts; agents keep working and report again afterwards. Upgrade the central server before releasing agents of the same version.
 
+
+### Debug mode {#debug}
+
+In the **Central server** box (administrators; Marc, 2026-11-21): for a chosen **Duration** (1, 4, 24 or 72 hours) the central server writes its log at Debug, including every request of WinGet to its WinGet source with the answer status and contract version, and ends by itself at its end time (also after a restart in between). **Turn on** starts it, **Extend** starts a new duration now, **Turn off** ends it at once. While it runs, a band above every page of the dashboard says so; the overview lists it under **Needs attention**. Every change is in the audit log. Collect the logs with "Download central server logs" (see [Central server logs](#logs)).
+
 ## Install new agents {#install}
 
 Downloads the agent installer for new servers; the pill names the agent version it contains:

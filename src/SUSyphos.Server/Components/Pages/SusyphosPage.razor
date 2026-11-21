@@ -11,6 +11,7 @@
 @inject DirectoryCoverage Coverage
 @inject Microsoft.Extensions.Options.IOptions<AgentPackageOptions> PackageOptions
 @inject NavigationManager Navigation
+@inject SUSyphos.Server.Administration.DebugMode Debug
 
 <PageTitle>SUSyphos</PageTitle>
 
@@ -114,6 +115,33 @@
                 {
                     <p class="note">The newest release. The daily check of the GitHub releases (or "Check for new versions now") finds newer ones.</p>
                 }
+                <form method="post" @formname="central-debug" @onsubmit="CentralDebugAsync" class="debug-switch" id="debug">
+                    <AntiforgeryToken />
+                    <h3>Debug mode<HelpLink To="susyphos#debug" Label="Debug mode" /></h3>
+                    @if (_centralDebug is { } debug)
+                    {
+                        <p><span class="pill queue">on until @DisplayTime.Format(debug.UntilUtc)</span> <span class="note">switched on by @debug.By; the central server logs at Debug, including every request to its WinGet source.</span></p>
+                    }
+                    else
+                    {
+                        <p class="note">Off. For a while the central server logs at Debug, including every request to its WinGet source; it ends by itself.</p>
+                    }
+                    <div class="actions">
+                        <label class="field inline"><span>Duration</span>
+                            <select name="CentralDebugHours" disabled="@(!_canAdminister)">
+                                @foreach (var hours in SUSyphos.Server.Administration.DebugMode.Durations)
+                                {
+                                    <option value="@hours" selected="@(hours == SUSyphos.Server.Administration.DebugMode.DefaultHours)">@DisplayNumber.Count(hours, "hour", "hours")</option>
+                                }
+                            </select>
+                        </label>
+                        <button type="submit" name="CentralDebug" value="on" disabled="@(!_canAdminister)">@(_centralDebug is null ? "Turn on" : "Extend")</button>
+                        @if (_centralDebug is not null)
+                        {
+                            <button type="submit" name="CentralDebug" value="off" disabled="@(!_canAdminister)">Turn off</button>
+                        }
+                    </div>
+                </form>
             </ChildContent>
         </Box>
 
@@ -288,6 +316,26 @@
         await LoadAsync();
     }
 
+    [SupplyParameterFromForm(FormName = "central-debug")]
+    private string? CentralDebug { get; set; }
+
+    [SupplyParameterFromForm(FormName = "central-debug")]
+    private int? CentralDebugHours { get; set; }
+
+    private SUSyphos.Server.Administration.DebugState? _centralDebug;
+
+    private bool _canAdminister;
+
+    /// <summary>Switches the debug mode of the central server on, extends it or switches it off (Marc, 2026-11-21).</summary>
+    private async Task CentralDebugAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer)
+            ? new Outcome("Only administrators switch the debug mode.")
+            : await Debug.SetCentralAsync(CentralDebug == "off" ? null : CentralDebugHours ?? SUSyphos.Server.Administration.DebugMode.DefaultHours, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, CentralDebug == "off" ? "Debug mode of the central server is off." : "Debug mode of the central server is on; it ends by itself.");
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
         _packages = [.. (await Store.ListAsync(CancellationToken.None)).OrderByDescending(p => AgentVersion.TryParse(p.Version, out var v) ? v : null)];
@@ -296,6 +344,8 @@
         _newestReleased = AgentPackageStore.Newest(_packages.Where(p => p.ReleasedThroughRingOrder is not null));
         _lastCheck = await Administration.GetLastCheckAsync(CancellationToken.None);
         _serverUpdate = await Administration.GetServerUpdateAsync(CancellationToken.None);
+        _centralDebug = await Debug.CentralAsync(CancellationToken.None);
+        _canAdminister = await IsAuthorizedAsync(AdminRoles.Policies.Administer);
         _failed = await Db.Clients.AsNoTracking().Where(c => c.State == RegistrationState.Approved && c.AgentUpdateError != null).OrderBy(c => c.HostName).Take(1000).ToListAsync();
         _failedTable = TableQuery.From(Navigation, "name", prefix: "fail.", defaultPageSize: 10);
         _failedPage = TablePaging.Apply(_failed, _failedTable, FailedColumns, c => $"{c.HostName} {c.AgentUpdateError}");

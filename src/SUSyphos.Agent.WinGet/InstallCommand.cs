@@ -80,6 +80,7 @@ internal static partial class InstallCommand
         {
             trace.Write("Loading the WinGet engine.");
             using var engine = WinGetEngine.Load(engineFolder);
+            HelperTrace.EnableVerboseWhenAsked(engine, trace);
             var client = new WinGetClient(engine) { Trace = trace.Write };
             var catalog = await client.UseSourceAsync(source).ConfigureAwait(false);
             trace.Write("Reading the installed programs.");

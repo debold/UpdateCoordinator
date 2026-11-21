@@ -16,6 +16,8 @@
 @inject SUSyphos.Server.Lifecycle.SupportLifecycle Support
 @inject SUSyphos.Server.Software.SoftwareTrust Trust
 @inject SUSyphos.Server.Security.SecurityBaseline Baseline
+@inject SUSyphos.Server.Administration.DebugMode Debug
+@inject SUSyphos.Server.Administration.AttentionAcknowledgements Acknowledgements
 
 <PageTitle>Overview</PageTitle>
 
@@ -24,6 +26,7 @@
 
 @* The form is always rendered (the handler checks the role again); only operators see the buttons. *@
 <form id="pause" method="post" @formname="pause" @onsubmit="TogglePauseAsync"><AntiforgeryToken /></form>
+<form id="attention" method="post" @formname="attention" @onsubmit="AttentionAsync"><AntiforgeryToken /></form>
 @if (_paused)
 {
     <Banner Label="Paused" Severity="fail" Help="overview#pause">
@@ -121,7 +124,31 @@
                         }
                     </div>
                     <a class="btn" href="@item.Link">@item.LinkText</a>
+                    @if (_canOperate)
+                    {
+                        <button type="submit" form="attention" name="AcknowledgeTopic" value="@item.Topic" class="btn quiet" title="Hide this topic until it concerns more items or comes up again after it was resolved" data-help-term="Acknowledge">Acknowledge</button>
+                    }
                 </div>
+            }
+            @if (_acknowledged.Count > 0)
+            {
+                <details class="acknowledged">
+                    <summary>@DisplayNumber.Count(_acknowledged.Count, "acknowledged topic", "acknowledged topics") hidden</summary>
+                    @foreach (var (item, acknowledgement) in _acknowledged)
+                    {
+                        <div class="item">
+                            <span class="pill neutral">@item.Kind</span>
+                            <div class="text">
+                                <div class="title">@item.Title</div>
+                                <div class="sub">Acknowledged by @acknowledgement.AcknowledgedBy on @Format(acknowledgement.AcknowledgedAtUtc) at @DisplayNumber.Format(acknowledgement.AffectedCount); shows again when more are affected or once it was resolved.</div>
+                            </div>
+                            @if (_canOperate)
+                            {
+                                <button type="submit" form="attention" name="RestoreTopic" value="@item.Topic" class="btn" data-help-term="Show again">Show again</button>
+                            }
+                        </div>
+                    }
+                </details>
             }
         </div>
     </Box>
@@ -166,7 +193,17 @@
 </Box>
 
 @code {
-    private sealed record AttentionItem(string Kind, string PillClass, string Title, string? Detail, string Link, string LinkText);
+    /// <summary>
+    /// An entry of "Needs attention". <see cref="Topic"/> names its kind, the same for every count (Marc, 2026-11-20:
+    /// acknowledged is the topic, e.g. "out of support", not each server); <see cref="Count"/> is how many it concerns, and
+    /// more than when it was acknowledged brings it back.
+    /// </summary>
+    private sealed record AttentionItem(string Kind, string PillClass, string Title, string? Detail, string Link, string LinkText, int Count = 1)
+    {
+        public string? TopicKey { get; init; }
+
+        public string Topic => TopicKey ?? $"{Kind.ToLowerInvariant().Replace(' ', '-')}-{Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Link)))[..16]}";
+    }
 
     /// <summary>A ring of the deployment box; <paramref name="Updates"/> counts the updates per state behind the server × update pairs of the bar.</summary>
     private sealed record RingRow(int Id, int Order, string Name, int Servers, int ActiveUpdates, DeploymentCounts Counts, string Health, string HealthClass, IReadOnlyDictionary<DeploymentState, int> Updates);
@@ -230,6 +267,9 @@
     private TablePage<NextInstallation> _nextPage = default!;
     private bool _canOperate;
     private List<AttentionItem> _attention = [];
+
+    /// <summary>Acknowledged entries, hidden from the list; shown again from the "acknowledged" line.</summary>
+    private List<(AttentionItem Item, AttentionAcknowledgementEntity Acknowledgement)> _acknowledged = [];
     private List<RingRow> _rings = [];
     private ChartData _chart = new(StatisticKind.Compliance, ChartForm.Lines, [], [], string.Empty, null, string.Empty);
     private int _days = 90;
@@ -279,6 +319,38 @@
     protected override async Task OnInitializedAsync()
     {
         _canOperate = await IsAuthorizedAsync(AdminRoles.Policies.Operate);
+        await LoadAsync();
+    }
+
+    /// <summary>Acknowledges a topic of "Needs attention" or shows it again (operators; Marc, 2026-11-20).</summary>
+    private async Task AttentionAsync()
+    {
+        await LoadAsync();
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Operate))
+        {
+            ShowResult("Only operators and administrators acknowledge entries.", string.Empty);
+            return;
+        }
+
+        var actor = await GetActorAsync();
+        var acknowledge = Request.Form["AcknowledgeTopic"].ToString();
+        var restore = Request.Form["RestoreTopic"].ToString();
+        Outcome outcome;
+        string done;
+        if (acknowledge.Length > 0)
+        {
+            // The count is taken from the entry as it is now, never from the form.
+            var item = _attention.FirstOrDefault(a => a.Topic == acknowledge);
+            outcome = item is null ? new Outcome("The entry is no longer shown.") : await Acknowledgements.AcknowledgeAsync(item.Topic, item.Count, item.Title, actor, CancellationToken.None);
+            done = "Acknowledged; it shows again when more are affected or once it was resolved.";
+        }
+        else
+        {
+            outcome = await Acknowledgements.RestoreAsync(restore, actor, CancellationToken.None);
+            done = "The entry shows again.";
+        }
+
+        ShowResult(outcome.Error, done);
         await LoadAsync();
     }
 
@@ -392,7 +464,7 @@
         var blocked = await Db.Clients.CountAsync(c => c.State == RegistrationState.Blocked);
         if (blocked > 0)
         {
-            _attention.Add(new AttentionItem("Clone", "fail", $"{DisplayNumber.Count(blocked, "server", "servers")} blocked on clone suspicion", "The same credentials were used by two hosts in turn.", "/approvals", "Review"));
+            _attention.Add(new AttentionItem("Clone", "fail", $"{DisplayNumber.Count(blocked, "server", "servers")} blocked on clone suspicion", "The same credentials were used by two hosts in turn.", "/approvals", "Review", blocked));
         }
 
         if (_serverUpdate is { } serverUpdate)
@@ -403,12 +475,12 @@
         var pending = await Db.Clients.CountAsync(c => c.State == RegistrationState.Pending);
         if (pending > 0)
         {
-            _attention.Add(new AttentionItem("Registration", "pend", (pending == 1 ? "1 new server waits for approval" : $"{DisplayNumber.Format(pending)} new servers wait for approval"), null, "/approvals", "Review"));
+            _attention.Add(new AttentionItem("Registration", "pend", (pending == 1 ? "1 new server waits for approval" : $"{DisplayNumber.Format(pending)} new servers wait for approval"), null, "/approvals", "Review", pending));
         }
 
         foreach (var group in await Db.Groups.AsNoTracking().Where(g => g.LeasesHalted).ToListAsync())
         {
-            _attention.Add(new AttentionItem("Lease", "fail", $"Group {group.Name}: {group.ConsecutiveLeaseFailures} leases in a row failed or expired", "The central server issues no leases for this group until an operator resumes it.", "/approvals", "Review"));
+            _attention.Add(new AttentionItem("Lease", "fail", $"Group {group.Name}: {group.ConsecutiveLeaseFailures} leases in a row failed or expired", "The central server issues no leases for this group until an operator resumes it.", "/approvals", "Review", group.ConsecutiveLeaseFailures) { TopicKey = $"lease-{group.Id}" });
         }
 
         // Security baseline (Marc, 2026-10-26): exploited vulnerabilities, servers behind a baseline released longer ago than
@@ -417,19 +489,19 @@
         var behindDays = await Baseline.BehindDaysAsync(CancellationToken.None);
         if (security.Count(s => s.Exploited > 0) is > 0 and var exploited)
         {
-            _attention.Add(new AttentionItem("Security", "fail", $"{DisplayNumber.Count(exploited, "server has", "servers have")} a vulnerability Microsoft knows to be exploited", "Install the security baseline on them first.", Servers.Link("security", "Exploited"), "Show servers"));
+            _attention.Add(new AttentionItem("Security", "fail", $"{DisplayNumber.Count(exploited, "server has", "servers have")} a vulnerability Microsoft knows to be exploited", "Install the security baseline on them first.", Servers.Link("security", "Exploited"), "Show servers", exploited));
         }
 
         if (security.Count(s => s.Missing is { } missing && _now - missing.ReleasedAtUtc > TimeSpan.FromDays(behindDays)) is > 0 and var late)
         {
-            _attention.Add(new AttentionItem("Security", "queue", $"{DisplayNumber.Count(late, "server misses", "servers miss")} a security baseline released more than {behindDays} days ago", "Longer than the way through the rings takes; check their maintenance windows and failures.", Servers.Link("security", SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.OneBehind), SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.TwoBehind)), "Show servers"));
+            _attention.Add(new AttentionItem("Security", "queue", $"{DisplayNumber.Count(late, "server misses", "servers miss")} a security baseline released more than {behindDays} days ago", "Longer than the way through the rings takes; check their maintenance windows and failures.", Servers.Link("security", SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.OneBehind), SUSyphos.Server.Security.SecuritySnapshot.Label(SUSyphos.Server.Security.BaselineState.TwoBehind)), "Show servers", late));
         }
 
         var known = security.Count(s => s.State != SUSyphos.Server.Security.BaselineState.Unknown);
         var behind = security.Count(s => s.State is SUSyphos.Server.Security.BaselineState.OneBehind or SUSyphos.Server.Security.BaselineState.TwoBehind);
         if (known > 0 && DisplayNumber.Share(behind, known) is { } share && share >= Baseline.BehindPercent)
         {
-            _attention.Add(new AttentionItem("Security", "queue", $"{share} % of the servers are behind the security baseline", $"{behind} of {known} servers; the threshold is {Baseline.BehindPercent} %.", "/operating-systems", "Show versions"));
+            _attention.Add(new AttentionItem("Security", "queue", $"{share} % of the servers are behind the security baseline", $"{behind} of {known} servers; the threshold is {Baseline.BehindPercent} %.", "/operating-systems", "Show versions", behind));
         }
 
         // End of support (Marc, 2026-10-26): red without ESU after the first missed patch day, amber shortly before the end and
@@ -437,21 +509,42 @@
         var support = clients.Select(c => Support.Of(c, _security.Of(c)).State).ToList();
         if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.OutOfSupport) is > 0 and var unsupported)
         {
-            _attention.Add(new AttentionItem("Support", "fail", $"{DisplayNumber.Count(unsupported, "server is", "servers are")} out of support without Extended Security Updates", "Windows gets no security updates for them any more; plan an upgrade or ESU.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.OutOfSupport)), "Show servers"));
+            _attention.Add(new AttentionItem("Support", "fail", $"{DisplayNumber.Count(unsupported, "server is", "servers are")} out of support without Extended Security Updates", "Windows gets no security updates for them any more; plan an upgrade or ESU.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.OutOfSupport)), "Show servers", unsupported));
         }
 
         if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.Ended) is > 0 and var ended)
         {
-            _attention.Add(new AttentionItem("Support", "queue", $"{DisplayNumber.Count(ended, "server", "servers")} passed the end of support; no ESU found yet", "They count as without ESU once the first patch day after the end passes without their updates.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.Ended)), "Show servers"));
+            _attention.Add(new AttentionItem("Support", "queue", $"{DisplayNumber.Count(ended, "server", "servers")} passed the end of support; no ESU found yet", "They count as without ESU once the first patch day after the end passes without their updates.", Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.Ended)), "Show servers", ended));
         }
 
         if (support.Count(s => s == SUSyphos.Server.Lifecycle.SupportState.EndingSoon) is > 0 and var ending)
         {
-            _attention.Add(new AttentionItem("Support", "queue", $"{DisplayNumber.Count(ending, "server reaches", "servers reach")} the end of support within {Support.Options.WarningDays} days", null, Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.EndingSoon)), "Show servers"));
+            _attention.Add(new AttentionItem("Support", "queue", $"{DisplayNumber.Count(ending, "server reaches", "servers reach")} the end of support within {Support.Options.WarningDays} days", null, Servers.Link("support", SUSyphos.Server.Lifecycle.SupportLifecycle.Label(SUSyphos.Server.Lifecycle.SupportState.EndingSoon)), "Show servers", ending));
         }
 
         AddServers(health, ServerHealthState.Failed, "Failed", "fail", "with a failed installation or pre-flight check");
         AddServers(health, ServerHealthState.Offline, "Offline", "fail", "without heartbeat for over an hour");
+
+        // Debug mode (Marc, 2026-11-21): presented prominently, acknowledged like every topic.
+        if (await Debug.ServersAsync(CancellationToken.None) is { Count: > 0 } debugServers)
+        {
+            _attention.Add(new AttentionItem("Debug mode", "queue", $"Debug mode is on for {DisplayNumber.Count(debugServers.Count, "server", "servers")}", string.Join(", ", debugServers.Take(5).Select(s => $"{s.HostName} until {Format(s.State.UntilUtc)}")) + (debugServers.Count > 5 ? $" and {debugServers.Count - 5} more" : string.Empty), debugServers.Count == 1 ? $"/servers/{debugServers[0].ClientId:D}" : "/servers", debugServers.Count == 1 ? "Open server" : "Show servers", debugServers.Count) { TopicKey = "debug-servers" });
+        }
+
+        if (await Debug.CentralAsync(CancellationToken.None) is { } centralDebug)
+        {
+            _attention.Add(new AttentionItem("Debug mode", "queue", "The central server is in debug mode", $"Until {Format(centralDebug.UntilUtc)}, switched on by {centralDebug.By}.", SusyphosPage.Route + "#debug", "Show") { TopicKey = "debug-central" });
+        }
+
+        // Acknowledged topics stay hidden while they concern no more items than then; resolved ones lose the acknowledgement.
+        var acknowledged = await Acknowledgements.ListAsync(CancellationToken.None);
+        if (await Acknowledgements.PruneAsync([.. _attention.Select(a => a.Topic)], CancellationToken.None) > 0)
+        {
+            acknowledged = await Acknowledgements.ListAsync(CancellationToken.None);
+        }
+
+        _acknowledged = [.. _attention.Where(a => SUSyphos.Server.Administration.AttentionAcknowledgements.Hides(acknowledged, a.Topic, a.Count)).Select(a => (a, acknowledged[a.Topic]))];
+        _attention = [.. _attention.Where(a => !SUSyphos.Server.Administration.AttentionAcknowledgements.Hides(acknowledged, a.Topic, a.Count))];
     }
 
     private void AddServers(Dictionary<Guid, ServerHealthState> health, ServerHealthState state, string kind, string pill, string text)
@@ -459,7 +552,7 @@
         var count = health.Values.Count(h => h == state);
         if (count > 0)
         {
-            _attention.Add(new AttentionItem(kind, pill, $"{DisplayNumber.Count(count, "server", "servers")} {text}", null, Servers.Link("status", ServerHealth.Label(state)), "Show servers"));
+            _attention.Add(new AttentionItem(kind, pill, $"{DisplayNumber.Count(count, "server", "servers")} {text}", null, Servers.Link("status", ServerHealth.Label(state)), "Show servers", count));
         }
     }
 

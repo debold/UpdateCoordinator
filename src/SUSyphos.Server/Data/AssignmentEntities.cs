@@ -147,6 +147,11 @@ internal sealed class SettingEntity
     /// <summary>Central agent settings for all agents as JSON (setting key to value).</summary>
     public const string SystemAgentSettings = "AgentSettings.SystemDefault";
 
+    /// <summary>Debug mode of the central server (Marc, 2026-11-21): its end (UTC, round-trip format) and who switched it on.</summary>
+    public const string DebugUntil = "Debug.Until";
+
+    public const string DebugBy = "Debug.By";
+
     public required string Key { get; set; }
 
     public required string Value { get; set; }

@@ -61,6 +61,9 @@ internal static class ServerServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<CertificateLifecycle>();
         services.AddHostedService<CertificateWorker>();
+        services.AddScoped<Administration.DebugMode>();
+        services.AddScoped<Administration.AttentionAcknowledgements>();
+        services.AddHostedService<Administration.DebugModeWorker>();
         services.AddScoped<CertificateAdministration>();
         services.AddScoped<TrustBindingService>();
         services.AddScoped<UpdateCatalog>();

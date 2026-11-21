@@ -403,7 +403,8 @@ internal static class AgentEndpoints
             await globalPause.IsActiveAsync(cancellationToken).ConfigureAwait(false),
             await actions.CountQueuedAsync(clientId, cancellationToken).ConfigureAwait(false),
             agentUpdate,
-            moveTo));
+            moveTo,
+            await db.Clients.Where(c => c.Id == clientId && c.DebugUntilUtc != null).Select(c => c.DebugUntilUtc).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false) is { } debugUntil && debugUntil > timeProvider.GetUtcNow().UtcDateTime ? new DateTimeOffset(debugUntil, TimeSpan.Zero) : null));
     }
 
     /// <summary>

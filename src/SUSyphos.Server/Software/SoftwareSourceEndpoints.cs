@@ -30,6 +30,19 @@ internal static partial class SoftwareSourceEndpoints
                 var address = context.HttpContext.Connection.RemoteIpAddress is { } remote ? remote.ToString() : "unknown";
                 LogInstallerRequested(logger, request.Path.Value ?? string.Empty, address, request.Headers.Range.Count > 0);
             }
+            else
+            {
+                // Every other request of WinGet with its answer, at Debug: visible in the debug mode of the central server
+                // (Marc, 2026-11-21), to see what WinGet asked for and got.
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(SoftwareSourceEndpoints));
+                var address = context.HttpContext.Connection.RemoteIpAddress is { } remote ? remote.ToString() : "unknown";
+                if (logger.IsEnabled(LogLevel.Debug))
+                {
+                    var status = (result as IStatusCodeHttpResult)?.StatusCode ?? context.HttpContext.Response.StatusCode;
+                    var contract = request.Headers["Version"].ToString();
+                    LogSourceRequest(logger, request.Method, request.Path.Value ?? string.Empty, address, status, contract);
+                }
+            }
 
             return result;
         });
@@ -53,4 +66,7 @@ internal static partial class SoftwareSourceEndpoints
 
     [LoggerMessage(Level = LogLevel.Information, Message = "WinGet source: installer {Path} requested by {Address} (range request: {Range}).")]
     private static partial void LogInstallerRequested(ILogger logger, string path, string address, bool range);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "WinGet source: {Method} {Path} from {Address} answered {Status} (contract version {Version}).")]
+    private static partial void LogSourceRequest(ILogger logger, string method, string path, string address, int status, string version);
 }

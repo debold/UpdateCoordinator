@@ -102,7 +102,7 @@ public sealed class RingLinkTests
     [Theory]
     [InlineData("ok", (int)DeploymentState.Successful)]
     [InlineData("pend", (int)DeploymentState.Pending)]
-    [InlineData("queue", (int)DeploymentState.Queued)]
+    [InlineData("wait", (int)DeploymentState.Queued)]
     [InlineData("fail", (int)DeploymentState.Failed)]
     public void SegmentClass_NamesItsState_AndTheLinkReadsBack(string segment, int value)
     {

@@ -980,3 +980,12 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 .op-tag.uninstall { background: #3A4556; border-color: #3A4556; color: #fff; }
 /* Long hex values in groups of four that wrap between groups (Marc, 2026-11-20). */
 .hex { display: inline-flex; flex-wrap: wrap; column-gap: 0.4em; max-width: 100%; font-family: var(--mono, ui-monospace, monospace); }
+/* Debug mode of the central server: a band above every page while it runs (Marc, 2026-11-21). */
+.debug-band { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0 0 1rem; padding: 0.55rem 0.9rem; border: 1px solid var(--queue); border-radius: var(--r-sm); background: var(--queue-soft); color: var(--text); }
+.debug-band a { margin-left: auto; font-weight: 600; }
+.debug-switch { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--line); }
+.debug-switch h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.debug-switch .actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
+.attention .btn.quiet { background: transparent; border-color: transparent; color: var(--muted, #5B6675); }
+.attention details.acknowledged { border-top: 1px solid var(--line); }
+.attention details.acknowledged > summary { padding: 0.6rem 1rem; cursor: pointer; color: var(--muted, #5B6675); font-size: 0.85rem; }

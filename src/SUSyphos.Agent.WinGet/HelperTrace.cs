@@ -37,6 +37,29 @@ internal sealed class HelperTrace(TextWriter error, string? logFolder)
         }
     }
 
+    /// <summary>Environment variable the agent sets in its debug mode (Marc, 2026-11-21).</summary>
+    internal const string VerboseVariable = "SUSYPHOS_WINGET_VERBOSE";
+
+    /// <summary>Turns on WinGet's verbose log when the agent asks for it (debug mode); before the first WinGet call.</summary>
+    public static void EnableVerboseWhenAsked(SUSyphos.WinGet.WinGetEngine engine, HelperTrace trace)
+    {
+        ArgumentNullException.ThrowIfNull(engine);
+        ArgumentNullException.ThrowIfNull(trace);
+        if (Environment.GetEnvironmentVariable(VerboseVariable) != "1")
+        {
+            return;
+        }
+
+        try
+        {
+            trace.Write(engine.EnableVerboseLogging() ? "Debug mode: WinGet writes its verbose log." : "Debug mode: WinGet refused the verbose log setting.");
+        }
+        catch (Exception exception) when (exception is System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            trace.Write($"Debug mode: WinGet refused the verbose log setting ({exception.Message}).");
+        }
+    }
+
     /// <summary>Deletes trace files older than <see cref="Retention"/>; WinGet's own logs are left alone.</summary>
     public static void Clean(string logFolder, DateTime now)
     {

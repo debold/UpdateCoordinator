@@ -54,6 +54,10 @@ Everything that waits for a human decision or points to a problem, each with a b
 
 "Nothing waits for a human decision" means the list is empty.
 
+**Acknowledge** (operators and administrators; Marc, 2026-11-20) hides a topic you know about, for example servers that deliberately run past their end of support. What is acknowledged is the topic, not each server: the entry shows again by itself as soon as it concerns more items than when it was acknowledged, and an acknowledgement ends when the topic is resolved, so it shows again the next time it comes up. The line **N acknowledged topics hidden** below the list opens them with who acknowledged them and when; **Show again** brings one back at once. Every acknowledgement is in the audit log.
+
+**Debug mode** entries list servers in debug mode and the central server when it is in debug mode (see [Debug mode](help/server-detail#debug)).
+
 ## Next installations {#next}
 
 Released updates that are not installed everywhere yet, ordered by the earliest time one of the servers will install them. **Earliest installation** is the start of the next maintenance window of the first server that still needs the update, or "due now" when a window is already open. **Servers** counts the servers that still need it, **Rings** the rings they are in.

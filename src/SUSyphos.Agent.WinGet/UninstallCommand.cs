@@ -41,6 +41,7 @@ internal static partial class UninstallCommand
         {
             trace.Write($"Uninstalling {packageId}.");
             using var engine = WinGetEngine.Load(engineFolder);
+            HelperTrace.EnableVerboseWhenAsked(engine, trace);
             var result = await new WinGetClient(engine) { Trace = trace.Write }.UninstallAsync(packageId, null, logFolder).ConfigureAwait(false);
             trace.Write($"WinGet answered {result.Status} (uninstaller exit code {result.InstallerErrorCode}).");
             return new SoftwareInstallOutcome

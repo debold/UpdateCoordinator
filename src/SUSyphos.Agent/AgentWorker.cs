@@ -39,6 +39,7 @@ internal sealed partial class AgentWorker(
     ILogger<AgentWorker> logger,
     Configuration.AppliedSettingsReport? appliedSettings = null,
     Trust.CentralCertificateTrust? centralCertificate = null,
+    Diagnostics.AgentDebugMode? debugMode = null,
     Trust.CentralZoneTrust? centralZone = null) : BackgroundService
 {
     private RegistrationState? _lastState;
@@ -98,6 +99,8 @@ internal sealed partial class AgentWorker(
     internal async Task RunCycleAsync(CancellationToken cancellationToken)
     {
         // Nothing is sent before the central server has proven its identity.
+        // A debug mode ends at its end time also when the central server cannot be reached.
+        debugMode?.Refresh();
         await trust.EnsureTrustedAsync(cancellationToken).ConfigureAwait(false);
 
         var identity = identityStore.Load() ?? await RegisterAsync(cancellationToken).ConfigureAwait(false);
@@ -142,6 +145,7 @@ internal sealed partial class AgentWorker(
         }
 
         appliedSettings?.Acknowledge(applied);
+        debugMode?.Apply(response.State == RegistrationState.Approved ? response.DebugUntil : null);
 
         if (response.State != _lastState)
         {

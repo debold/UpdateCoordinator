@@ -29,6 +29,7 @@ internal static partial class InventoryCommand
         try
         {
             using var engine = WinGetEngine.Load(engineFolder);
+            HelperTrace.EnableVerboseWhenAsked(engine, new HelperTrace(log, null));
             var installed = await new WinGetClient(engine).InstalledAsync().ConfigureAwait(false);
             return Report(SoftwareInventory.Build(entries, installed), SoftwareSupportState.Supported, null);
         }

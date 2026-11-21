@@ -27,6 +27,7 @@ The band below the title groups the actions by topic in drop-down buttons. Opera
 - **Restart server…** (administrators): opens the [restart dialog](#restart).
 - **Restart agent service**: the SUSyphos agent service restarts itself; the server keeps running.
 - **Request logs**: the agent uploads its logs of the last 3 days compressed (at most 10 MB); when they arrived, a **Download** link appears in the remote action. The ZIP file holds the agent logs, `Events/Application.txt` (Windows Installer, crashes, .NET, Windows Error Reporting and SUSyphos from the Application event log), the WinGet helper steps and installer logs (`WinGet/`), WinGet's own logs (`WinGetCOM/`), logs installers wrote straight into the temp folders of SYSTEM (`SystemTemp/`, `WindowsTemp/`, for example `dd_*.log` or `MSI*.log`), the msiexec logs of agent updates (`AgentUpdate/`) and `collection.txt`, which lists what is in it, which folders were missing and what was left out to stay within 10 MB (the agent logs come first).
+- **Debug mode…** (administrators): opens the [debug mode dialog](#debug).
 
 **Refresh** loads the page again with the latest state. **Download logs** (blue, operators) appears once the agent uploaded its logs and downloads the newest upload while it is kept. While the agent works or an action waits to be picked up or for its result, the page also refreshes itself every 10 seconds (the hint of the Tasks box says so) and keeps its scroll position. After an action the page is loaded anew, so F5 never sends the action a second time.
 
@@ -270,3 +271,9 @@ The server leaves SUSyphos: open releases, actions and installation slots are ca
 - **Remove server** removes the server or starts the agent uninstallation; **Cancel** closes the dialog.
 
 A removed server that registers again (for example because its agent was offline) is never approved by an approval rule: it waits under [Approvals](help/approvals) for a manual decision. The agent's data folder (%ProgramData%\SUSyphos\Agent) stays after the uninstallation; delete it if the server will not come back.
+
+## Debug mode {#debug}
+
+For a while the agent collects what its normal logs leave out (Marc, 2026-11-21): it logs at Debug, WinGet writes its verbose log (for example why no installer fits the server), and **Request logs** adds WindowsUpdate.log (made with Get-WindowsUpdateLog), CBS.log and the DISM log. Choose the **Duration** (1, 4, 24 or 72 hours; 24 is preselected) and **Turn on**; the agent takes it with its next heartbeat and ends it by itself at its end time, also when it cannot reach the central server. Nothing is written to the server's settings: the agent passes WinGet's log level to its WinGet helper directly.
+
+While it runs, a **Debug mode** banner on the server page says until when, how much time is left and who switched it on; **Extend…** opens the dialog again (a new duration starts now) and **Turn off** ends it at once. The overview lists servers in debug mode under **Needs attention**. Every change is in the audit log. Debug logs contain no secrets (client secret, passwords, tokens) either.

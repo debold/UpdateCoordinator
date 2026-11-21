@@ -35,10 +35,12 @@ public static class FileLoggingExtensions
 
         var directory = string.IsNullOrWhiteSpace(options.Directory) ? defaultDirectory : options.Directory;
         var path = Path.Combine(directory, filePrefix + "-.log");
+        var level = new FileLogLevel(options.MinimumLevel);
+        services.AddSingleton(level);
 
         services.AddSerilog(
             logger => logger
-                .MinimumLevel.Is(ToSerilog(options.MinimumLevel))
+                .MinimumLevel.ControlledBy(level.Switch)
                 .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
                 .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
                 .MinimumLevel.Override("System.Net.Http", LogEventLevel.Warning)

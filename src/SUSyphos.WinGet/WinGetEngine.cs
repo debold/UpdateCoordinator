@@ -134,6 +134,17 @@ public sealed partial class WinGetEngine : IDisposable
 
     public UninstallOptions CreateUninstallOptions() => Create("UninstallOptions", UninstallOptions.FromAbi);
 
+    /// <summary>
+    /// Turns on WinGet's verbose log for this process (debug mode of the agent, Marc 2026-11-21): the reasons why an installer
+    /// does not fit are written only at that level. Passed as user settings of the in-proc engine, so no settings file is
+    /// written on the server; call it before the first package manager is created. False when the engine refused it.
+    /// </summary>
+    public bool EnableVerboseLogging()
+    {
+        var settings = Create("PackageManagerSettings", PackageManagerSettings.FromAbi);
+        return settings.SetUserSettings("{\"$schema\": \"https://aka.ms/winget-settings.schema.json\", \"logging\": {\"level\": \"verbose\"}}");
+    }
+
     public void Dispose()
     {
         // The engine stays loaded for the life of the process: objects of the API may still be referenced, and WinRT

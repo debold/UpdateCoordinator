@@ -106,13 +106,16 @@ internal sealed partial class WinGetHelperInventory(IWinGetHelperRunner runner, 
 /// The step lines the helper writes to standard error go into the agent log as they come, so the log shows where a
 /// helper hangs before the agent stops it.
 /// </remarks>
-internal sealed partial class WinGetHelperRunner(ILogger<WinGetHelperRunner> logger) : IWinGetHelperRunner
+internal sealed partial class WinGetHelperRunner(ILogger<WinGetHelperRunner> logger, Diagnostics.AgentDebugMode? debugMode = null) : IWinGetHelperRunner
 {
     /// <summary>Lines longer than this are cut in the agent log (stack traces stay in the helper's own file).</summary>
     internal const int MaxLineLength = 1000;
 
     /// <summary>File name of the helper next to the agent.</summary>
     internal const string FileName = "SUSyphos.Agent.WinGet.exe";
+
+    /// <summary>Environment variable that tells the helper to write WinGet's verbose log.</summary>
+    internal const string VerboseVariable = "SUSYPHOS_WINGET_VERBOSE";
 
     public async Task<(int ExitCode, string Output)?> RunAsync(IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken cancellationToken)
     {
@@ -130,6 +133,12 @@ internal sealed partial class WinGetHelperRunner(ILogger<WinGetHelperRunner> log
             CreateNoWindow = true,
             WorkingDirectory = AppContext.BaseDirectory,
         };
+        // Debug mode: the helper turns on WinGet's verbose log (why an installer does not fit; Marc, 2026-11-21).
+        if (debugMode?.IsActive == true)
+        {
+            start.Environment[VerboseVariable] = "1";
+        }
+
         foreach (var argument in arguments)
         {
             start.ArgumentList.Add(argument);

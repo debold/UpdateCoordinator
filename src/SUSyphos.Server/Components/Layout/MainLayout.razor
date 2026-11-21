@@ -3,6 +3,7 @@
 @inject SUSyphos.Server.Agents.ActionResults ActionResults
 @inject ServerDbContext Db
 @inject SUSyphos.Server.AgentPackages.AgentPackageAdministration ServerUpdates
+@inject SUSyphos.Server.Administration.DebugMode Debug
 
 <div class="shell">
     <AuthorizeView Policy="@AdminRoles.Policies.Read">
@@ -45,6 +46,11 @@
     </AuthorizeView>
 
     <main>
+        @if (_centralDebug is { } debug)
+        {
+            @* Always visible while it runs, on every page (Marc, 2026-11-21: an active debug mode is presented prominently). *@
+            <div class="debug-band" role="status"><Icon Name="scroll-text" Size="16" /><span>The central server is in <b>debug mode</b> until @DisplayTime.Format(debug.UntilUtc), switched on by @debug.By: it logs at Debug.</span><a href="@(SUSyphos.Server.Components.Pages.SusyphosPage.Route)#debug">Turn off or extend</a></div>
+        }
         @Body
     </main>
 </div>
@@ -55,6 +61,7 @@
 
     private int _waiting;
     private SUSyphos.Server.AgentPackages.ServerUpdate? _serverUpdate;
+    private SUSyphos.Server.Administration.DebugState? _centralDebug;
 
     protected override async Task OnInitializedAsync()
     {
@@ -66,6 +73,7 @@
                 .Where(r => r.State == RingRolloutState.AwaitingApproval || r.State == RingRolloutState.Alarm)
                 .CountAsync(r => Db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.State == RolloutState.Active));
             _serverUpdate = await ServerUpdates.GetServerUpdateAsync(CancellationToken.None);
+            _centralDebug = await Debug.CentralAsync(CancellationToken.None);
             _waiting = servers + transitions + await Db.Groups.CountAsync(g => g.LeasesHalted) + await Db.Clients.CountAsync(c => c.State == RegistrationState.Blocked)
                 + await ActionResults.OpenFailuresAsync(CancellationToken.None);
         }
