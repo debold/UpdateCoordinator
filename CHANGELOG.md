@@ -4,6 +4,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.9.0-rc.7] - 2026-11-21
+
 ### Agent
 
 - Fix (lab 2026-11-21): WinGet rejected every installer with a minimum Windows version (BGInfo and other portable packages, Visual C++ 2013) with 0x8A150010, on Windows Server 2019, 2022 and 2025: the WinGet helper had no application manifest entry for Windows 10, so Windows reported 6.2 (Windows 8) to the WinGet engine in its process. The helper (and the WinGet probe) now declare Windows 10; a test checks the built programs. Portable packages stay impossible on Windows Server 2016 and 2019, where WinGet itself does not allow them.
