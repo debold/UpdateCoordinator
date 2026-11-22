@@ -569,4 +569,35 @@ public sealed class InteractionTests(UiFixture ui)
         Assert.NotNull(toastBox);
         Assert.True(toastBox.X + toastBox.Width > 1280 - 40 && toastBox.Y + toastBox.Height > 800 - 40, "The message should sit at the bottom right.");
     }
+
+    /// <summary>
+    /// The script editor (Marc, 2026-11-22): PowerShell is highlighted behind the text, and the syntax check answers while
+    /// typing. Nothing is saved, so the demo lab stays unchanged.
+    /// </summary>
+    [Fact]
+    public async Task ScriptEditor_HighlightsPowerShell_AndChecksTheSyntaxWhileTyping()
+    {
+        await using var context = await ui.NewContextAsync(1280, 900);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync("/software/7zip.7zip/scripts/before-install");
+
+        var editor = page.Locator("textarea.script-editor");
+        await Assertions.Expect(editor).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("highlighted"));
+        await Assertions.Expect(page.Locator(".script-wrap pre code .token.comment").First).ToBeVisibleAsync();
+
+        await editor.FillAsync("Write-Output 'start'\nif ($true {\n");
+        await Assertions.Expect(page.Locator("[data-parse-result]")).ToContainTextAsync("syntax error", new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
+        await Assertions.Expect(page.Locator("[data-parse-result] li").First).ToContainTextAsync("Line 2");
+        await Assertions.Expect(page.Locator(".script-wrap pre code .token.string").First).ToHaveTextAsync("'start'");
+
+        await editor.FillAsync("Write-Output 'fine'\nexit 0\n");
+        await Assertions.Expect(page.Locator("[data-parse-result]")).ToContainTextAsync("no syntax errors", new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
+
+        // The text area and its highlighted copy stay on top of each other.
+        var area = await editor.BoundingBoxAsync();
+        var copy = await page.Locator(".script-wrap pre").BoundingBoxAsync();
+        Assert.NotNull(area);
+        Assert.NotNull(copy);
+        Assert.True(Math.Abs(area.Y - copy.Y) < 1 && Math.Abs(area.Height - copy.Height) < 1, "The highlighted copy does not lie under the text area.");
+    }
 }

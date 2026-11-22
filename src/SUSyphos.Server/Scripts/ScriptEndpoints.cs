@@ -48,9 +48,25 @@ internal static class ScriptEndpoints
                     : Results.NotFound())
             .RequireAuthorization(Administration.AdminRoles.Policies.Read)
             .WithName("ScriptFilesDownload");
+
+        endpoints.MapPost(ParsePath, ParseAsync)
+            .RequireAuthorization(Administration.AdminRoles.Policies.Administer)
+            .WithMetadata(new RequestSizeLimitAttribute(ScriptLimits.MaxContentBytes * 2L))
+            .WithName("ScriptParse");
         return endpoints;
     }
 
+
+    /// <summary>The syntax check of the script editor while typing (administrators; the dashboard script calls it).</summary>
+    public const string ParsePath = "/dashboard/script-parse";
+
+    /// <summary>What the editor sends: the text and the PowerShell it runs in.</summary>
+    internal sealed record ParseRequest(string? Content, ScriptPowerShell PowerShell);
+
+    internal static async Task<IResult> ParseAsync(ParseRequest request, IScriptParser parser, CancellationToken cancellationToken) =>
+        request?.Content is not { } content || !Enum.IsDefined(request.PowerShell)
+            ? TypedResults.BadRequest()
+            : TypedResults.Json(await parser.ParseAsync(content, request.PowerShell, cancellationToken).ConfigureAwait(false));
     /// <summary>Download of the ZIP of files of a draft or revision from the script page (every role may read scripts).</summary>
     public const string FilesDownloadRoute = "/software-script-files/{sha256}";
 

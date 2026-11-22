@@ -70,3 +70,5 @@ Agent and central server are versioned separately from git tags (`agent/v1.2.3`,
 ## Licenses of third-party assets
 
 The dashboard icons are from [Lucide](https://lucide.dev) (ISC license, [assets/icons/lucide/LICENSE](../assets/icons/lucide/LICENSE)); `build/New-IconData.ps1` turns the SVG files into the table the dashboard renders inline.
+
+The script editor highlights PowerShell with [Prism](https://prismjs.com) 1.30.0 (MIT license, [src/SUSyphos.Server/wwwroot/lib/prism/LICENSE.txt](../src/SUSyphos.Server/wwwroot/lib/prism/LICENSE.txt)): `lib/prism/prism-powershell.js` is its core and PowerShell grammar unchanged, in manual mode, loaded only by the script page. To update it, take `components/prism-core.min.js` and `components/prism-powershell.min.js` of the new version from the npm package `prismjs`.

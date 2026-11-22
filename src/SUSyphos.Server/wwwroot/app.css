@@ -1015,3 +1015,19 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 /* Recommended packages on the Software page (Marc, 2026-11-22). */
 .recommended { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
 .recommended .pkg-name { flex: 1 1 24rem; min-width: 0; }
+/* Script editor (Marc, 2026-11-22): the text area lies transparent over the highlighted copy Prism renders; without the
+   dashboard script it stays a plain text area. */
+.script-wrap { position: relative; display: block; margin-top: 0.25rem; }
+.script-wrap > textarea, .script-wrap > pre { margin: 0; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: var(--r-sm); font-family: var(--mono); font-size: 0.93em; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; letter-spacing: normal; }
+.script-wrap > pre { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: var(--surface); color: var(--text); border-color: transparent; }
+.script-wrap > textarea.highlighted { position: relative; background: transparent; color: transparent; caret-color: var(--text); resize: vertical; }
+.script-wrap > textarea.highlighted::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); color: transparent; }
+.script-wrap .token.comment { color: var(--muted, #5B6675); font-style: italic; }
+.script-wrap .token.string { color: var(--ok); }
+.script-wrap .token.variable { color: #8A4FBF; }
+.script-wrap .token.keyword, .script-wrap .token.boolean { color: var(--pend); font-weight: 600; }
+.script-wrap .token.function { color: var(--accent-dark, var(--accent)); }
+.script-wrap .token.operator, .script-wrap .token.punctuation { color: var(--muted, #5B6675); }
+.script-wrap .token.namespace { color: #A0522D; }
+.parse-result { margin-top: 0.4rem; font-size: 0.85rem; }
+.parse-result ul { margin: 0.35rem 0 0; padding-left: 1.2rem; }

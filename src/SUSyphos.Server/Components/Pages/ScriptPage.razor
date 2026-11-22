@@ -8,6 +8,7 @@
 @inject ServerDbContext Db
 @inject ScriptAdministration Scripts
 @inject NavigationManager Navigation
+@inject IScriptParser Parser
 
 @* The script of one phase of a WinGet package (Marc, 2026-11-13, detail view C of the concept): status, details,
    content and parameters; administrators save drafts and approve them, which signs a new revision. Everybody who may
@@ -22,6 +23,7 @@ else
 {
     var phase = _phase.Value;
     <PageTitle>@ScriptText.Phase(phase): @_package.Name</PageTitle>
+    <HeadContent><script src="@Assets["lib/prism/prism-powershell.js"]" defer></script></HeadContent>
     <PageHeader Icon="@PageIcons.Software" Title="@($"{ScriptText.Phase(phase)}: {_package.Name}")" Subtitle="@($"Runs as SYSTEM · {_package.PackageId}")" Help="script" Crumbs="@([("Software", "/software"), (_package.Name, PackagePage.Link(_package.PackageId)), (ScriptText.Phase(phase), null)])" />
     <StatusMessage Text="@Message" IsError="@MessageIsError" />
     @if (!_enabled)
@@ -76,9 +78,10 @@ else
         <Box Title="Content" Help="script#content" Hint="@(_view?.HasDraft == true ? "draft, not yet approved: agents run the approved revision" : "the approved revision; changes become a draft")">
             <div class="box-body form">
                 <label class="field"><span>Script</span>
-                    <textarea name="Content" class="mono script-editor" rows="22" spellcheck="false" readonly="@(!_canAdminister)" maxlength="200000">@(_view?.Text ?? Template(phase))</textarea>
+                    <textarea name="Content" class="mono script-editor" rows="22" spellcheck="false" readonly="@(!_canAdminister)" maxlength="200000" data-parse="@(_canAdminister ? ScriptEndpoints.ParsePath : null)" data-help-term="Syntax check">@(_view?.Text ?? Template(phase))</textarea>
                     <span class="help">Exit code 0 is success, 3010 asks for a restart in the maintenance window, anything else is a failure. Read values with Get-SUSyphosParameter Name; never put secrets into the script itself. Do not restart the server from the script.</span>
                 </label>
+                    <div class="parse-result" data-parse-result aria-live="polite">@if (_parse is { } parse) { @if (!parse.Checked) { <span class="note">Syntax not checked: @parse.Problem</span> } else if (parse.Ok) { <span class="pill ok">no syntax errors</span> <span class="note">checked with @parse.Parser</span> } else { <span class="pill fail">@DisplayNumber.Count(parse.Errors.Count, "syntax error", "syntax errors")</span> <span class="note">@parse.Parser; approving is blocked until they are fixed</span><ul>@foreach (var error in parse.Errors) { <li><b>Line @error.Line, column @error.Column:</b> @error.Message</li> }</ul> } }</div>
                 <div class="field-row">
                     @if (phase is ScriptPhase.BeforeInstall or ScriptPhase.AfterInstall)
                     {
@@ -277,6 +280,8 @@ else
         _canAdminister = await IsAuthorizedAsync(AdminRoles.Policies.Administer);
         _servers = await Db.ClientSoftware.AsNoTracking().Where(s => s.PackageId == _package.PackageId).Select(s => s.ClientId).Distinct().CountAsync();
         _draftFiles = await Scripts.FilesAsync(_view?.Script.DraftFilesSha256, CancellationToken.None);
+        // The syntax of a draft is checked on the server too, so the result shows without the dashboard script.
+        _parse = _view is { HasDraft: true } draft && _canAdminister ? await Parser.ParseAsync(draft.Text, draft.Script.DraftPowerShell, CancellationToken.None) : null;
         _withoutPowerShell7 = _view?.Approved?.PowerShell == ScriptPowerShell.PowerShell7 ? await PowerShell7Coverage.MissingAsync(Db, _package.PackageId, CancellationToken.None) : [];
     }
 
@@ -333,6 +338,8 @@ else
         + "# Parameters: Get-SUSyphosParameter Name.\r\n";
 
     private ScriptFilesView? _draftFiles;
+
+    private ScriptParseResult? _parse;
 
     private IReadOnlyList<(Guid ClientId, string HostName)> _withoutPowerShell7 = [];
 

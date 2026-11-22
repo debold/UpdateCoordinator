@@ -38,6 +38,7 @@ internal sealed class ScriptAdministration(
     IInstallerScanner scanner,
     IOptions<SoftwareOptions> softwareOptions,
     AuditLog audit,
+    IScriptParser parser,
     TimeProvider timeProvider)
 {
     public const string EnabledKey = "Scripts.Enabled";
@@ -222,6 +223,13 @@ internal sealed class ScriptAdministration(
             return new Outcome(error);
         }
 
+
+        // Syntax errors block the approval (Marc, 2026-11-22); saving a draft with errors stays possible.
+        var parsed = await parser.ParseAsync(text, script.DraftPowerShell, cancellationToken).ConfigureAwait(false);
+        if (parsed.Checked && parsed.Errors is [var first, ..])
+        {
+            return new Outcome($"{parsed.Parser} found {(parsed.Errors.Count == 1 ? "a syntax error" : $"{parsed.Errors.Count} syntax errors")} in the script, first in line {first.Line}: {first.Message}");
+        }
         var content = ScriptSigningFormat.NormalizeContent(text);
         var (state, detail) = Scan(content, $"{script.PackageId}-{script.Phase}.ps1");
         if (softwareOptions.Value.ScanMode == ScanMode.Enforce && state is InstallerScanState.Detected or InstallerScanState.Failed)

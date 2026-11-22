@@ -184,6 +184,7 @@ internal static class DashboardServiceCollectionExtensions
         services.AddSingleton<Scripts.ScriptKey>();
         services.AddScoped<Scripts.ScriptSigning>();
         services.AddScoped<Scripts.ScriptAdministration>();
+        services.AddSingleton<Scripts.IScriptParser, Scripts.PowerShellScriptParser>();
         services.AddHostedService<Software.SoftwareCatalogWorker>();
         services.AddSingleton<Software.IInstallerScanner, Software.AmsiInstallerScanner>();
         services.AddSingleton<Software.SoftwareSourceCache>();

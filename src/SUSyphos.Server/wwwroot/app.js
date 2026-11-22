@@ -862,6 +862,107 @@
         window.setInterval(poll, 10000);
     }
 
+
+    // Script editor (Marc, 2026-11-22): PowerShell highlighting behind the text area (Prism, loaded by the script page
+    // after this file, hence on DOMContentLoaded) and the syntax check of the central server while typing. The check
+    // result is built with textContent only.
+    document.addEventListener('DOMContentLoaded', () => {
+        for (const editor of document.querySelectorAll('textarea.script-editor')) {
+            const wrap = document.createElement('span');
+            wrap.className = 'script-wrap';
+            const pre = document.createElement('pre');
+            pre.setAttribute('aria-hidden', 'true');
+            const code = document.createElement('code');
+            pre.appendChild(code);
+            editor.parentNode.insertBefore(wrap, editor);
+            wrap.appendChild(pre);
+            wrap.appendChild(editor);
+            editor.classList.add('highlighted');
+            const paint = () => {
+                const grammar = window.Prism && window.Prism.languages && window.Prism.languages.powershell;
+                if (grammar) {
+                    // Prism escapes the text itself; the result holds only its own token spans.
+                    code.innerHTML = window.Prism.highlight(editor.value, grammar, 'powershell') + '\n';
+                } else {
+                    code.textContent = editor.value + '\n';
+                }
+            };
+            const follow = () => {
+                pre.scrollTop = editor.scrollTop;
+                pre.scrollLeft = editor.scrollLeft;
+            };
+            editor.addEventListener('input', () => {
+                paint();
+                follow();
+            });
+            editor.addEventListener('scroll', follow);
+            paint();
+
+            const url = editor.getAttribute('data-parse');
+            const result = editor.form ? editor.form.querySelector('[data-parse-result]') : null;
+            if (!url || !result || editor.readOnly) {
+                continue;
+            }
+
+            const shell = editor.form.querySelector('select[name="PowerShell"]');
+            const show = (answer) => {
+                result.textContent = '';
+                const pill = document.createElement('span');
+                const note = document.createElement('span');
+                note.className = 'note';
+                if (!answer.checked) {
+                    note.textContent = 'Syntax not checked: ' + (answer.problem || 'no parser answered');
+                    result.appendChild(note);
+                    return;
+                }
+
+                pill.className = 'pill ' + (answer.ok ? 'ok' : 'fail');
+                pill.textContent = answer.ok ? 'no syntax errors' : answer.errors.length + (answer.errors.length === 1 ? ' syntax error' : ' syntax errors');
+                note.textContent = ' ' + answer.parser + (answer.ok ? '' : '; approving is blocked until they are fixed');
+                result.appendChild(pill);
+                result.appendChild(note);
+                if (!answer.ok) {
+                    const list = document.createElement('ul');
+                    for (const error of answer.errors) {
+                        const item = document.createElement('li');
+                        const place = document.createElement('b');
+                        place.textContent = 'Line ' + error.line + ', column ' + error.column + ':';
+                        item.appendChild(place);
+                        item.appendChild(document.createTextNode(' ' + error.message));
+                        list.appendChild(item);
+                    }
+
+                    result.appendChild(list);
+                }
+            };
+            let timer = 0;
+            let asked = 0;
+            const check = async () => {
+                const ticket = ++asked;
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                        body: JSON.stringify({ content: editor.value, powerShell: shell ? shell.value : 'PowerShell7' }),
+                    });
+                    if (response.ok && ticket === asked) {
+                        show(await response.json());
+                    }
+                } catch {
+                    // Offline: the check on saving still runs.
+                }
+            };
+            const later = () => {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(check, 900);
+            };
+            editor.addEventListener('input', later);
+            if (shell) {
+                shell.addEventListener('change', later);
+            }
+        }
+    });
     applyGates();
     fillFromAddress();
     markHelpSection();

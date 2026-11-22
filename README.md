@@ -73,4 +73,4 @@ Microsoft has deprecated WSUS. SUSyphos takes its place: a small agent on every 
 
 ## License
 
-[MIT](LICENSE) © Marc Debold. Icons from [Lucide](https://lucide.dev) (ISC).
+[MIT](LICENSE) © Marc Debold. Icons from [Lucide](https://lucide.dev) (ISC), PowerShell highlighting in the script editor by [Prism](https://prismjs.com) (MIT).

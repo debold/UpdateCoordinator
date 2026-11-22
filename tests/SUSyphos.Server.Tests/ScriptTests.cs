@@ -284,6 +284,54 @@ public sealed class ScriptTests
         Assert.Contains("The files were added to the draft", result, StringComparison.Ordinal);
         Assert.Equal("bginfo.zip", await factory.WithDbAsync(db => db.ScriptFiles.Select(f => f.FileName).SingleAsync(TestContext.Current.CancellationToken)));
     }
+
+    [Fact]
+    public async Task SyntaxErrors_AreShown_AndBlockTheApproval()
+    {
+        // Marc, 2026-11-22: the real parser of PowerShell checks the draft; saving works, approving does not.
+        await using var factory = await CreateAsync();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var parser = scope.ServiceProvider.GetRequiredService<IScriptParser>();
+            var good = await parser.ParseAsync("param()\nWrite-Output 'ok'\nexit 0", ScriptPowerShell.WindowsPowerShell, CancellationToken.None);
+            var bad = await parser.ParseAsync("Write-Output 'ok'\nif ($true {\n", ScriptPowerShell.WindowsPowerShell, CancellationToken.None);
+            Assert.True(good.Checked, good.Problem);
+            Assert.True(good.Ok);
+            Assert.True(bad.Checked, bad.Problem);
+            Assert.False(bad.Ok);
+            Assert.Equal(2, bad.Errors[0].Line);
+        }
+
+        Assert.True((await SaveAsync(factory, "if ($true {\nexit 0")).Succeeded);
+        var id = await ScriptIdAsync(factory);
+        var refused = await WithAsync(factory, s => s.ApproveAsync(id, true, "admin", CancellationToken.None));
+        Assert.False(refused.Succeeded);
+        Assert.Contains("syntax error", refused.Error, StringComparison.Ordinal);
+
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var admin = new DashboardClient(factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        var page = await (await admin.GetAsync(ScriptText.Link(Package, ScriptPhase.BeforeInstall))).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("syntax error", page, StringComparison.Ordinal);
+        Assert.Contains("Line 1", page, StringComparison.Ordinal);
+        Assert.Contains("lib/prism/prism-powershell", page, StringComparison.Ordinal);
+
+        // The check while typing answers administrators only.
+        using var response = await admin.Http.PostAsJsonAsync(new Uri(ScriptEndpoints.ParsePath, UriKind.Relative), new { content = "exit 0", powerShell = "WindowsPowerShell" }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("\"ok\":true", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        await factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        using var forbidden = await reader.Http.PostAsJsonAsync(new Uri(ScriptEndpoints.ParsePath, UriKind.Relative), new { content = "exit 0", powerShell = "WindowsPowerShell" }, TestContext.Current.CancellationToken);
+        Assert.NotEqual(HttpStatusCode.OK, forbidden.StatusCode);
+    }
     [Fact]
     public async Task Agent_GetsTheScriptOnlyWhileSwitchedOn_AndReportsRunsOnce()
     {
