@@ -4,6 +4,32 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.9.0-rc.8] - 2026-11-22
+
+### Agent
+
+- Fix (rc.7 lab, LABVDC01): a restart an installer asked for (exit code 3010 or 1641, for example Visual C++ 2013) did not happen, because only the registry keys of Windows Update and component servicing were read. A restart reported by an installation or uninstallation now counts as pending until the server has started again: "Install now" with "restart right after" restarts, otherwise the restart waits for the maintenance window, a coordinated group keeps its lease for it, and the heartbeat reports it.
+- Scripts can bring **files** along (Marc, 2026-11-22): the agent downloads the ZIP of a revision once per content (kept 30 days), checks it against the SHA-256 the revision signs, and unpacks it for every run into the folder `files` of the run, which `$env:SUSYPHOS_FILES` names; only relative paths, at most 1000 files and 200 MB, no links. Agents before rc.8 refuse a revision with files instead of running it without them.
+- The agent reports the version of **PowerShell 7** under Program Files with its inventory.
+- The log collection contains the full output of every script run (folder `Scripts` in the archive).
+
+### Central server
+
+- Fix (rc.7 lab): **Install now** and **End hold** for the servers ticked on the Servers tab of an update did nothing ("Select at least one server in the list first."): the dialog's server list did not reach the action. A test now submits both dialogs.
+- Fix (rc.7 lab): **My requests** in the navigation was hardly visible (dark on dark) and opened only a thin white line. It now looks like the other links of the navigation, opens beside the navigation, and the message when a request finishes appears at the bottom right; a browser test opens it and lets a request finish.
+- **Virus scan** (rc.7 lab, WebView2 158 stood on "Threat found" although Defender found nothing): every installer is scanned as a whole through AMSI over a read-only memory-mapped view of the file, by whichever antivirus product is registered, up to `Software:MaxScanMegabytes` (now 2048 MB, at most 4095). The Windows check for downloaded files (`IAttachmentExecute`), which took a file that vanished for another reason for a threat, is no longer used. Only a finding of the product counts as a threat; every scan result is logged with its AMSI result or HRESULT. Administrators discard a wrong result with **Scan again** on the version's update page (audit `Package.ScanAgain`); versions the old check marked that way are scanned anew after the update.
+- The server page keeps refreshing for three minutes after **Install now**, an uninstallation or a search finished, so the installation report, the inventory, the tiles and the tab counters appear without a click; the History tab refreshes too.
+- The **Software tab** of a server follows the rule of the Updates tab and says why a newer version is not offered: *Newer version blocked by the virus scan* (red), *Newer version not in the WinGet source yet*, *Newer version not supported here* (now amber). Only *Newer version available* counts in the number on the tab.
+- Software versions: servers that need a version but cannot install it are listed on its Servers tab as **Not supported** (amber, with the reason; also as a filter and under "Still to do") instead of "Not needed". The banner "Not supported on some servers" is amber, gives only the number and opens the filtered list with **Show servers**.
+- Server page: a **Restart pending** banner (amber) as present as "Restart announced", naming what asked for the restart and when the agent restarts the server, with **Restart now…**.
+- **Download logs** shows whether you downloaded these logs already: blue while not, green with a check once you did (from the audit log of your downloads), the times in the tooltip, a dot while newer logs are requested.
+- Script output: a link below the result of a software installation in the history opens the output of each script that ran with it.
+- **Files for scripts** (Marc, 2026-11-22): the script page has a box **Files** to add one ZIP per draft (at most 50 MB; 200 MB and 1000 files unpacked; relative paths only), checked like the agent checks it and scanned file by file; the approval signs its SHA-256 with the script, and the box lists every file with size and SHA-256. Agents fetch it from `/api/v1/scripts/{id}/{revision}/files`. Schema: table `ScriptFiles` (one row per content, so it is in every backup), `PackageScripts.DraftFilesSha256`, `PackageScriptRevisions.FilesSha256`. New scripts explain `$env:SUSYPHOS_FILES` with the other variables in their comment header.
+- **Script editor** (Marc, 2026-11-22): PowerShell is highlighted (Prism 1.30, MIT, served by the central server, only on the script page) and the syntax is checked with the real parser of Windows PowerShell 5.1, or of PowerShell 7 for a PowerShell 7 script where it is installed on the central server, while typing and when the page loads; the script is only parsed, never run. Saving a draft with errors works, approving it does not.
+- **PowerShell 7** (Microsoft deprecated Windows PowerShell 5.1 on 2026-11-17): new scripts run in PowerShell 7 by default, with the fallback to 5.1; the server page shows the PowerShell 7 version of the server; the script page and "Needs attention" name servers that run PowerShell 7 scripts without it; the Software page has a box **Recommended** with **Add and assign…** for the package Microsoft.PowerShell. Agent-internal PowerShell calls stay in Windows PowerShell 5.1. Schema: `Clients.PowerShell7Version`.
+- The help has a complete example: **BGInfo** with its configuration as a ZIP, a script after the installation that copies it to ProgramData and starts BGInfo at sign-in, and a script after the uninstallation that removes both.
+- Every remaining list with buttons per row works with checkboxes and a bar above the list (Marc, 2026-11-21): on the Approvals page the ring transitions, stopped groups, clone suspicions and remote action results; the assignments of a package; the queued remote actions of a server; accounts and AD group mappings; server groups; assignment rules; rings and start rules; one-time windows and blackout periods. Names or numbers open the entry for editing; actions for exactly one row are grey while more are ticked. The TLS certificate and the agent versions are chosen with option buttons.
+
 ## [0.9.0-rc.7] - 2026-11-21
 
 ### Agent

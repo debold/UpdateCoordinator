@@ -21,7 +21,7 @@
 Microsoft has deprecated WSUS. SUSyphos takes its place: a small agent on every server, one central server with a web dashboard, and updates that move through **Pilot**, **Test** and **Production** on their own. No WSUS database, no SQL Server, no content sync.
 
 > [!NOTE]
-> **Public beta: [SUSyphos 0.9.0-rc.7](https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.9.0-rc.7) is out**, a release candidate with third-party software through WinGet. Try it in a lab and tell us what you think in [Issues](https://github.com/debold/UpdateCoordinator/issues). The packages are not code-signed yet; check them against `SHA256SUMS.txt`.
+> **Public beta: [SUSyphos 0.9.0-rc.8](https://github.com/debold/UpdateCoordinator/releases/tag/release/v0.9.0-rc.8) is out**, a release candidate with third-party software through WinGet. Try it in a lab and tell us what you think in [Issues](https://github.com/debold/UpdateCoordinator/issues). The packages are not code-signed yet; check them against `SHA256SUMS.txt`.
 
 ## What makes it different
 

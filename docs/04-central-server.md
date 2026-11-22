@@ -178,6 +178,8 @@ Since 0.9.0-rc.7: package assignments can target all servers (`PackageAssignment
 
 `Clients.DebugUntilUtc` and `DebugBy` hold the debug mode of a server (sent with the heartbeat); the debug mode of the central server is stored in `Settings` (`Debug.Until`, `Debug.By`) and switches the file log level at runtime. `AttentionAcknowledgements` (key `Topic`, `AffectedCount`, `AcknowledgedBy`, `AcknowledgedAtUtc`) holds acknowledged topics of "Needs attention"; a row is deleted when its topic is resolved. `PackageScripts.DraftPowerShell` and `PackageScriptRevisions.PowerShell` hold the PowerShell of a script. Marc left the schema to the implementation on 2026-11-21.
 
+0.9.0-rc.8 (migration `Rc8ScriptFilesPowerShell7`, schema decided by the implementation as Marc asked on 2026-11-21): `ScriptFiles` (key `Sha256`, the ZIP as `Content`, sizes, file count, `FilesJson` with path, size and SHA-256 of every file, original file name, scan state and detail, uploaded at and by) holds the files of scripts once per content, inside the database and therefore in every backup; `PackageScripts.DraftFilesSha256` (set null when the row goes) and `PackageScriptRevisions.FilesSha256` (restrict) refer to it, and rows nothing refers to are deleted. `Clients.PowerShell7Version` holds the PowerShell 7 version of the last inventory. The migration also resets versions the Windows check for downloaded files of rc.7 marked as threats ("removed the file while scanning") to not scanned, so the cache scans them again through AMSI.
+
 ## 8. Open points
 
 - Concrete table schema (to be derived from section 2)
