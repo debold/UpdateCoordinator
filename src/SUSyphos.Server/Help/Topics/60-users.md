@@ -16,7 +16,7 @@ The roles build on each other:
 
 The list shows every account with its **Source**, **Role** and **State** (Active, Locked by an administrator, or Locked out after five failed sign-ins for 15 minutes). **Source** tells "Active Directory" accounts (they sign in with Windows; their role comes from their AD groups and is set at every sign-in) from "Local" accounts in two colours. Below the role of an Active Directory account the list names the mapped AD group that gave it, as of its last sign-in ("from LAB\SUSyphos-Admins, at sign-in …"); a change in AD shows after the next sign-in. The list is grouped by source, and while it is, the **Source** column is left out because the group rows name it; **Group** switches grouping off ("No grouping") and brings the column back, and the column filter shows one kind only. **View** offers **All accounts** (default) and **Locked**.
 
-- **New user**: opens the [dialog](#new-user) for a local account.
+- **Edit**: the name of a local account opens it, to change its role or password. Tick accounts in the first column for the bar above the list:
 - **Edit** (the pencil at the end of the row): change role or password of a local account. The other actions are under **More** (⋯):
 - **Lock**: the account can no longer sign in, and its open sessions end. **Unlock** allows it again and also ends a lockout after failed sign-ins.
 - **Delete account…**: opens a confirmation; **Delete user** ends the account and its sign-in at once. Audit entries keep its name. Your own account and the last active administrator cannot be deleted; the last local administrator is always kept, so Windows sign-in can never lock everyone out.
@@ -43,7 +43,7 @@ Their role comes from the AD groups mapped here; if a user is in several mapped 
 - **AD group**: the group as DOMAIN\Group (for example LAB\SUSyphos-Admins) or its SID. While you type (two characters or more) a list shows the matching groups from Active Directory; choose one to fill the field. Groups Windows filters by User Account Control are listed greyed with a red **Filtered by UAC** tag on the right and cannot be chosen. Without a connection to the directory the field still takes a typed name.
 - **Role**: the role members of this group get.
 - **Add** (next to the role) adds the mapping. A privileged group (Domain Admins, Enterprise Admins, Schema Admins, Group Policy Creator Owners, Administrators and the built-in operator groups) is refused with "Filtered by UAC": Windows filters these groups to "deny only" in a logon without elevation, so their members would get no role. They are recognised by their well-known SID, whatever language the domain uses. A mapping of such a group saved by an earlier version stays in the table with a red **Filtered by UAC** tag (the tooltip says why) until you remove it.
-- **Remove mapping** (in the ⋯ menu of a row) deletes a mapping.
+- **Remove mapping** (red, above the list) deletes the ticked mappings.
 - The table shows each mapped group with its SID below the name and its role as a tag. A group every user is in (Domain Users, Domain Guests, Authenticated Users, Users, Everyone) is allowed, but the row says that every user of the domain can sign in with that role.
 - **Switch on** / **Switch off** (in the head of the box, next to the on/off state) turns Windows sign-in on or off. Local accounts keep working either way.
 

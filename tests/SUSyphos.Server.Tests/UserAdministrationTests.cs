@@ -168,6 +168,32 @@ public sealed class UserAdministrationTests
         Assert.Contains("role=\"alert\"", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public async Task SelectedAccounts_AreLockedAndUnlocked_FromTheBar()
+    {
+        // Marc, 2026-11-21: tick accounts, then Lock or Unlock above the list; the name opens a local account.
+        await using var factory = new ServerFactory();
+        using var browser = await LoginAsync(factory, "admin", AdminRoles.Admin);
+        await factory.CreateUserAsync("bob", "correct horse battery", AdminRoles.Reader);
+        var bob = await factory.WithDbAsync(db => db.Users.Where(u => u.UserName == "bob").Select(u => u.Id).SingleAsync(TestContext.Current.CancellationToken));
+
+        var page = await (await browser.GetAsync("/administration/users")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains($"name=\"Selected\" value=\"{bob}\"", page, StringComparison.Ordinal);
+        Assert.Contains($"dialog=edit&amp;id={bob}", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("More for bob", page, StringComparison.Ordinal);
+
+        using (var locked = await browser.PostFormAsync("/administration/users", new Dictionary<string, string> { ["_handler"] = "users", ["Action"] = "lock", ["Selected"] = bob }))
+        {
+            Assert.Contains("1 account was locked.", await locked.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.True(await factory.WithDbAsync(db => db.Users.Where(u => u.Id == bob).Select(u => u.LockoutEnd != null).SingleAsync(TestContext.Current.CancellationToken)));
+
+        using var delete = await browser.PostFormAsync("/administration/users", new Dictionary<string, string> { ["_handler"] = "users", ["Action"] = "delete", ["Selected"] = bob });
+        Assert.Equal(HttpStatusCode.Redirect, delete.StatusCode);
+        Assert.Contains("dialog=delete", delete.Headers.Location!.ToString(), StringComparison.Ordinal);
+    }
     [Fact]
     public async Task UserPage_IsForAdministratorsOnly()
     {

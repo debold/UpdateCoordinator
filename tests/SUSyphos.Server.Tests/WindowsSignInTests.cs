@@ -237,7 +237,7 @@ public sealed class WindowsSignInTests
         Assert.Contains("Windows sign-in is on.", await PostAsync(new() { ["WindowsAction"] = "enable" }), StringComparison.Ordinal);
 
         // Removing the last group switches Windows sign-in off again.
-        await PostAsync(new() { ["WindowsAction"] = $"remove:{Operators}" });
+        await PostAsync(new() { ["WindowsAction"] = "remove-selected", ["RemoveSids"] = Operators });
         await using var scope = factory.Services.CreateAsyncScope();
         Assert.False(await scope.ServiceProvider.GetRequiredService<WindowsSignIn>().IsEnabledAsync(CancellationToken.None));
         Assert.True(await factory.WithDbAsync(db => db.AuditEntries.AnyAsync(a => a.Action == "WindowsSignIn.GroupMapped", TestContext.Current.CancellationToken)));

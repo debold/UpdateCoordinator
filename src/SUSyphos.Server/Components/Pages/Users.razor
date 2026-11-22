@@ -20,11 +20,20 @@
 </form>
 <section class="box">
     <header class="box-head"><h2>Accounts<HelpLink To="users#accounts" Label="Accounts" /></h2></header>
+    @* Marc, 2026-11-21: the name opens the account, the bar acts on the ticked accounts. *@
+    <div class="selection-bar" data-selection="Selected">
+        <span class="note" data-selection-count>Select accounts, then</span>
+        <button type="submit" form="users" name="Action" value="lock" data-help-term="Lock"><Icon Name="ban" Size="16" />Lock</button>
+        <button type="submit" form="users" name="Action" value="unlock" data-help-term="Unlock"><Icon Name="rotate-ccw" Size="16" />Unlock</button>
+        <div class="spacer"></div>
+        <button type="submit" form="users" name="Action" value="delete" class="danger" data-single data-help-term="Delete account"><Icon Name="trash-2" Size="16" />Delete account…</button>
+    </div>
     <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search account" Noun="accounts" ExtraColumns="1" GroupOptions="GroupOptions" HideGroupedColumn="true">
-        <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+        <Leading><th class="select"><input type="checkbox" data-select-all="Selected" data-help="tables#select" data-help-term="Select all" aria-label="Select all accounts shown" hidden /></th></Leading>
         <Row Context="user">
                     <tr>
-                        <td>@user.UserName</td>
+                        <td class="select"><input type="checkbox" form="users" name="Selected" value="@user.Id" aria-label="@($"Select {user.UserName}")" data-help-term="Select" /></td>
+                        <td>@if (user.Windows) { @user.UserName } else { <a href="@Path?dialog=edit&id=@Uri.EscapeDataString(user.Id)" title="Edit @user.UserName" data-help-term="Edit">@user.UserName</a> }</td>
                         @if (!ListTable<UserSummary>.Hides(_table, "source", true))
                         {
                             <td>@if (user.Windows) { <CategoryTag Text="Active Directory" Index="8" /> } else { <CategoryTag Text="Local" Index="0" /> }</td>
@@ -39,26 +48,6 @@
                             {
                                 <span class="pill ok">Active</span>
                             }
-                        </td>
-                        <td class="n">
-                            <span class="row-actions">
-                                @if (!user.Windows)
-                                {
-                                    <a class="btn icon-button" href="@Path?dialog=edit&id=@Uri.EscapeDataString(user.Id)" title="Edit @user.UserName" aria-label="Edit @user.UserName" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
-                                }
-                                <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {user.UserName}")">
-                                    @if (user.LockedOut)
-                                    {
-                                        <MenuItem Form="users" Name="Action" Value="@($"unlock:{user.Id}")" Icon="rotate-ccw">Unlock</MenuItem>
-                                    }
-                                    else
-                                    {
-                                        <MenuItem Form="users" Name="Action" Value="@($"lock:{user.Id}")" Icon="ban">Lock</MenuItem>
-                                    }
-                                    <MenuSeparator />
-                                    <MenuItem Href="@($"{Path}?dialog=delete&id={Uri.EscapeDataString(user.Id)}")" Icon="trash-2" Danger="true">Delete account…</MenuItem>
-                                </ActionMenu>
-                            </span>
                         </td>
                     </tr>
         </Row>
@@ -90,20 +79,25 @@
             without a password. Their role comes from the AD groups mapped below, the highest one wins; users in no mapped group cannot sign in.
             Local accounts keep working, and the last local administrator cannot be removed.
         </p>
+        @if (_mappings.Count > 0)
+        {
+            <div class="selection-bar" data-selection="RemoveSids"><span class="note" data-selection-count>Select groups, then</span><div class="spacer"></div><button type="submit" name="WindowsAction" value="remove-selected" class="danger" data-help-term="Remove mapping"><Icon Name="trash-2" Size="16" />Remove mapping</button></div>
+        }
         <div class="scroll">
             <table>
-                <thead><tr><th>AD group</th><th>Role</th><th class="n"></th></tr></thead>
+                <thead><tr><th class="select"><span class="visually-hidden">Select</span></th><th>AD group</th><th>Role</th></tr></thead>
                 <tbody>
                     @if (_mappings.Count == 0)
                     {
-                        <tr><td colspan="3" class="note">No group mapped yet.</td></tr>
+                        <tr><td></td><td colspan="2" class="note">No group mapped yet.</td></tr>
                     }
                     @foreach (var mapping in _mappings)
                     {
                         <tr>
+                            <td class="select"><input type="checkbox" name="RemoveSids" value="@mapping.Sid" aria-label="@($"Select {mapping.Name}")" data-help-term="Select" /></td>
                             <td>@mapping.Name<div class="mono note">@mapping.Sid</div>@if (WindowsSignIn.IsFilteredByUac(mapping.Sid)) { <div title="@WindowsSignIn.UacRefusal(mapping.Name)"><StatusTag Text="Filtered by UAC" Kind="fail" /></div> }</td>
                             <td><CategoryTag Text="@mapping.Role" Index="@RoleIndex(mapping.Role)" />@if (WindowsSignIn.IsBroad(mapping.Sid)) { <div class="note">every user of the domain can sign in with this role</div> }</td>
-                            <td class="n"><ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {mapping.Name}")"><MenuItem Name="WindowsAction" Value="@($"remove:{mapping.Sid}")" Icon="trash-2" Danger="true">Remove mapping</MenuItem></ActionMenu></td>
+
                         </tr>
                     }
                 </tbody>
@@ -275,7 +269,7 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
         var (outcome, success) = WindowsAction?.Split(':', 2) switch
         {
             ["add"] => (await Windows.AddMappingAsync(WindowsGroup, WindowsRole, actor, CancellationToken.None), "The group was mapped; its members get the role at their next sign-in."),
-            ["remove", var sid] => (await Windows.RemoveMappingAsync(sid, actor, CancellationToken.None), "The group mapping was removed."),
+            ["remove-selected"] => await RemoveMappingsAsync(actor),
             ["enable"] => (await Windows.SetEnabledAsync(true, actor, CancellationToken.None), "Windows sign-in is on."),
             ["disable"] => (await Windows.SetEnabledAsync(false, actor, CancellationToken.None), "Windows sign-in is off; accounts that signed in with Windows stay in the list."),
             _ => (new Outcome("Invalid request."), string.Empty),
@@ -286,18 +280,74 @@ else if (_dialog == "delete" && _users.FirstOrDefault(u => u.Id == DialogId) is 
         ShowResult(outcome.Error, success);
     }
 
-    /// <summary>Lock and unlock from the list.</summary>
+    [SupplyParameterFromForm(FormName = "windows-sign-in")]
+    private string[]? RemoveSids { get; set; }
+
+    [SupplyParameterFromForm(FormName = "users")]
+    private string[]? Selected { get; set; }
+
+    private async Task<(Outcome, string)> RemoveMappingsAsync(string actor)
+    {
+        var sids = (RemoveSids ?? []).Where(s => s.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Take(100).ToList();
+        if (sids.Count == 0)
+        {
+            return (new Outcome("Select at least one group mapping first."), string.Empty);
+        }
+
+        foreach (var sid in sids)
+        {
+            if ((await Windows.RemoveMappingAsync(sid, actor, CancellationToken.None)).Error is { } error)
+            {
+                return (new Outcome(error), string.Empty);
+            }
+        }
+
+        return (Outcome.Ok, $"{DisplayNumber.Count(sids.Count, "group mapping was", "group mappings were")} removed.");
+    }
+
+    /// <summary>Lock, unlock and delete for the accounts ticked in the list (Marc, 2026-11-21: actions above the table).</summary>
     private async Task HandleAsync()
     {
         var actor = await GetActorAsync();
-        var (outcome, success) = Action?.Split(':', 2) switch
+        var selected = (Selected ?? []).Where(s => s.Length > 0).Distinct(StringComparer.Ordinal).Take(200).ToList();
+        if (selected.Count == 0)
         {
-            ["lock", var id] when id.Length > 0 => (await Administration.SetLockedAsync(id, true, actor, CancellationToken.None), "The account was locked."),
-            ["unlock", var id] when id.Length > 0 => (await Administration.SetLockedAsync(id, false, actor, CancellationToken.None), "The account was unlocked."),
-            _ => (new Outcome("Invalid request."), string.Empty),
-        };
+            ShowResult("Select at least one account in the list first.", string.Empty);
+            await LoadAsync();
+            return;
+        }
 
-        ShowResult(outcome.Error, success);
+        if (Action == "delete")
+        {
+            // One account at a time, with the confirmation of its dialog.
+            if (selected.Count != 1)
+            {
+                ShowResult("Select exactly one account to delete.", string.Empty);
+                await LoadAsync();
+                return;
+            }
+
+            Navigation.NavigateTo($"{Path}?dialog=delete&id={Uri.EscapeDataString(selected[0])}");
+            return;
+        }
+
+        if (Action is not ("lock" or "unlock"))
+        {
+            ShowResult("Invalid request.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var errors = new List<string>();
+        foreach (var id in selected)
+        {
+            if ((await Administration.SetLockedAsync(id, Action == "lock", actor, CancellationToken.None)).Error is { } error)
+            {
+                errors.Add(error);
+            }
+        }
+
+        ShowResult(errors.Count > 0 ? string.Join(" ", errors.Distinct()) : null, $"{DisplayNumber.Count(selected.Count, "account was", "accounts were")} {(Action == "lock" ? "locked" : "unlocked")}.");
         await LoadAsync();
     }
 
