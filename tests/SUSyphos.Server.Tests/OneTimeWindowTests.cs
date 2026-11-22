@@ -85,6 +85,15 @@ public sealed class OneTimeWindowTests
         }
 
         Assert.Single((await scenario.ReleasesAsync(server)).OneTimeWindows!);
+
+        // Removed from the bar above the list (Marc, 2026-11-21).
+        var windowId = await scenario.Factory.WithDbAsync(db => db.OneTimeWindows.Select(w => w.Id).SingleAsync(TestContext.Current.CancellationToken));
+        using (var removed = await browser.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "one-time", ["OneTimeAction"] = "remove-selected", ["RemoveOneTime"] = windowId.ToString(System.Globalization.CultureInfo.InvariantCulture) }))
+        {
+            Assert.Contains("The selected one-time windows were removed.", await removed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.OneTimeWindows.AnyAsync(TestContext.Current.CancellationToken)));
     }
 
     private static Task<Outcome> AddAsync(RolloutScenario scenario, WindowScope scope, string? target, DateTime start, DateTime end) =>

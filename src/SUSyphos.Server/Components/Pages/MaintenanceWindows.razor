@@ -76,9 +76,13 @@
 <form method="post" @formname="one-time" @onsubmit="ChangeOneTimeAsync" class="box">
     <AntiforgeryToken />
     <header class="box-head"><h2>One-time windows<HelpLink To="maintenance-windows#one-time" Label="One-time windows" /></h2><span class="hint">Installations may start in these times too, in addition to the weekly windows; for all servers, a ring, a group or a server</span></header>
+    @if (_oneTime.Count > 0)
+    {
+        <div class="selection-bar" data-selection="RemoveOneTime"><span class="note" data-selection-count>Select windows, then</span><div class="spacer"></div><button type="submit" name="OneTimeAction" value="remove-selected" class="danger" data-help-term="Remove window"><Icon Name="trash-2" Size="16" />Remove window</button></div>
+    }
     <div class="scroll">
         <table>
-            <thead><tr><th>Start</th><th>End</th><th>For</th><th>Reason</th><th>State</th><th class="n">Actions</th></tr></thead>
+            <thead><tr><th class="select"><input type="checkbox" data-select-all="RemoveOneTime" data-help="tables#select" data-help-term="Select all" aria-label="Select all one-time windows" hidden /></th><th>Start</th><th>End</th><th>For</th><th>Reason</th><th>State</th></tr></thead>
             <tbody>
                 @if (_oneTime.Count == 0)
                 {
@@ -88,12 +92,13 @@
                 {
                     var now = Time.GetUtcNow().UtcDateTime;
                     <tr>
+                        <td class="select"><input type="checkbox" name="RemoveOneTime" value="@window.Id" aria-label="@($"Select the window from {Format(window.StartUtc)}")" data-help-term="Select" /></td>
                         <td class="nowrap">@Format(window.StartUtc)</td>
                         <td class="nowrap">@Format(window.EndUtc)</td>
                         <td>@if (window.Scope == SUSyphos.Server.Assignment.WindowScope.All) { <span>All servers</span> } else { <span class="tag">@(window.Scope switch { SUSyphos.Server.Assignment.WindowScope.Ring => "Ring", SUSyphos.Server.Assignment.WindowScope.Group => "Group", _ => "Server" })</span> @window.ScopeName }</td>
                         <td>@window.Reason</td>
                         <td><span class="pill @(window.EndUtc <= now ? "neutral" : window.StartUtc <= now ? "ok" : "queue")">@(window.EndUtc <= now ? "ended" : window.StartUtc <= now ? "open" : "planned")</span></td>
-                        <td class="n"><ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for the window from {Format(window.StartUtc)}")"><MenuItem Name="OneTimeAction" Value="@($"remove:{window.Id}")" Icon="trash-2" Danger="true">Remove window</MenuItem></ActionMenu></td>
+
                     </tr>
                 }
             </tbody>
@@ -121,9 +126,13 @@
 <form method="post" @formname="blackouts" @onsubmit="ChangeBlackoutAsync" class="box">
     <AntiforgeryToken />
     <header class="box-head"><h2>Blackout periods<HelpLink To="maintenance-windows#blackouts" Label="Blackout periods" /></h2><span class="hint">No installation starts anywhere during these times, like a planned global pause; search and reporting continue</span></header>
+    @if (_blackouts.Count > 0)
+    {
+        <div class="selection-bar" data-selection="RemoveBlackouts"><span class="note" data-selection-count>Select periods, then</span><div class="spacer"></div><button type="submit" name="BlackoutAction" value="remove-selected" class="danger" data-help-term="Remove"><Icon Name="trash-2" Size="16" />Remove</button></div>
+    }
     <div class="scroll">
         <table>
-            <thead><tr><th>Start</th><th>End</th><th>Reason</th><th>State</th><th class="n">Actions</th></tr></thead>
+            <thead><tr><th class="select"><input type="checkbox" data-select-all="RemoveBlackouts" data-help="tables#select" data-help-term="Select all" aria-label="Select all blackout periods" hidden /></th><th>Start</th><th>End</th><th>Reason</th><th>State</th></tr></thead>
             <tbody>
                 @if (_blackouts.Count == 0)
                 {
@@ -133,6 +142,7 @@
                 {
                     var now = Time.GetUtcNow().UtcDateTime;
                     <tr>
+                        <td class="select"><input type="checkbox" name="RemoveBlackouts" value="@period.Id" aria-label="@($"Select the blackout from {Format(period.StartUtc)}")" data-help-term="Select" /></td>
                         <td class="nowrap">@Format(period.StartUtc)</td>
                         <td class="nowrap">@Format(period.EndUtc)</td>
                         <td>@period.Reason</td>
@@ -150,7 +160,7 @@
                                 <span class="pill queue">planned</span>
                             }
                         </td>
-                        <td class="n"><button type="submit" name="BlackoutAction" value="remove:@period.Id" class="danger">Remove</button></td>
+
                     </tr>
                 }
             </tbody>
@@ -239,9 +249,17 @@
                 ? await Blackouts.AddAsync(start, end, BlackoutReason, actor, CancellationToken.None)
                 : new Outcome("Enter start and end as date and time.");
         }
-        else if (BlackoutAction?.StartsWith("remove:", StringComparison.Ordinal) == true && Guid.TryParse(BlackoutAction["remove:".Length..], out var id))
+        else if (BlackoutAction == "remove-selected")
         {
-            outcome = await Blackouts.RemoveAsync(id, actor, CancellationToken.None);
+            var selected = (RemoveBlackouts ?? []).Distinct().Take(200).ToList();
+            outcome = selected.Count == 0 ? new Outcome("Select at least one blackout period first.") : Outcome.Ok;
+            foreach (var id in selected)
+            {
+                if ((await Blackouts.RemoveAsync(id, actor, CancellationToken.None)).Error is { } error)
+                {
+                    outcome = new Outcome(error);
+                }
+            }
         }
         else
         {
@@ -249,7 +267,7 @@
         }
 
         _keepBlackoutInput = BlackoutAction == "add" && outcome.Error is not null;
-        ShowResult(outcome.Error, BlackoutAction == "add" ? "The blackout period was added." : "The blackout period was removed.");
+        ShowResult(outcome.Error, BlackoutAction == "add" ? "The blackout period was added." : "The selected blackout periods were removed.");
         await LoadAsync();
     }
 
@@ -261,6 +279,8 @@
     private string? Kept(string? posted) => _keepBlackoutInput ? posted : null;
 
     [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeAction { get; set; }
+    [SupplyParameterFromForm(FormName = "one-time")] private int[]? RemoveOneTime { get; set; }
+    [SupplyParameterFromForm(FormName = "blackouts")] private Guid[]? RemoveBlackouts { get; set; }
     [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeScope { get; set; }
     [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeStartDate { get; set; }
     [SupplyParameterFromForm(FormName = "one-time")] private string? OneTimeStartTime { get; set; }
@@ -286,16 +306,24 @@
                     ? await OneTime.AddAsync(scope, parts.Length > 1 ? parts[1] : null, start, end, OneTimeReason, actor, CancellationToken.None)
                     : new Outcome("Enter start and end as date and time.");
         }
-        else if (OneTimeAction?.StartsWith("remove:", StringComparison.Ordinal) == true && int.TryParse(OneTimeAction["remove:".Length..], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id))
+        else if (OneTimeAction == "remove-selected")
         {
-            outcome = await OneTime.RemoveAsync(id, actor, CancellationToken.None);
+            var selected = (RemoveOneTime ?? []).Distinct().Take(200).ToList();
+            outcome = selected.Count == 0 ? new Outcome("Select at least one one-time window first.") : Outcome.Ok;
+            foreach (var id in selected)
+            {
+                if ((await OneTime.RemoveAsync(id, actor, CancellationToken.None)).Error is { } error)
+                {
+                    outcome = new Outcome(error);
+                }
+            }
         }
         else
         {
             outcome = new Outcome("Invalid request.");
         }
 
-        ShowResult(outcome.Error, OneTimeAction == "add" ? "The one-time window was added and is delivered to the agents." : "The one-time window was removed.");
+        ShowResult(outcome.Error, OneTimeAction == "add" ? "The one-time window was added and is delivered to the agents." : "The selected one-time windows were removed.");
         await LoadAsync();
     }
 

@@ -102,9 +102,9 @@ public sealed class BlackoutPeriodTests
         }
 
         var id = Assert.Single(await scenario.WithServiceAsync<BlackoutPeriods, IReadOnlyList<BlackoutPeriod>>(b => b.ListAsync(CancellationToken.None))).Id;
-        using (var removed = await admin.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "blackouts", ["BlackoutAction"] = $"remove:{id}" }))
+        using (var removed = await admin.PostFormAsync("/administration/maintenance", new Dictionary<string, string> { ["_handler"] = "blackouts", ["BlackoutAction"] = "remove-selected", ["RemoveBlackouts"] = id.ToString() }))
         {
-            Assert.Contains("The blackout period was removed.", await removed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            Assert.Contains("The selected blackout periods were removed.", await removed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
     }
 
