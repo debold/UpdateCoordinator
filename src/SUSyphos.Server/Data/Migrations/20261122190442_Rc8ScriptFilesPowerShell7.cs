@@ -11,6 +11,10 @@ namespace SUSyphos.Server.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // 0.9.0-rc.7 took an installer that vanished during the Windows check for downloaded files for a threat
+            // (WebView2 158, lab 2026-11-22); such versions are scanned anew through AMSI with the next run of the cache.
+            migrationBuilder.Sql("UPDATE PackageVersions SET ScanState = 0, ScanDetail = NULL, ScannedAtUtc = NULL WHERE ScanState = 2 AND ScanDetail LIKE '%removed the file while scanning%';");
+
             migrationBuilder.AddColumn<string>(
                 name: "DraftFilesSha256",
                 table: "PackageScripts",
@@ -78,10 +82,6 @@ namespace SUSyphos.Server.Data.Migrations
                 principalTable: "ScriptFiles",
                 principalColumn: "Sha256",
                 onDelete: ReferentialAction.SetNull);
-
-            // 0.9.0-rc.7 took an installer that vanished during the Windows check for downloaded files for a threat
-            // (WebView2 158, lab 2026-11-22); such versions are scanned anew through AMSI with the next run of the cache.
-            migrationBuilder.Sql("UPDATE PackageVersions SET ScanState = 0, ScanDetail = NULL, ScannedAtUtc = NULL WHERE ScanState = 2 AND ScanDetail LIKE '%removed the file while scanning%';");
         }
 
         /// <inheritdoc />

@@ -10,7 +10,7 @@ A new group is empty. Servers join it in one of three ways: select them in the [
 
 The table shows each group with its name (opens the [group page](help/group-detail)), **Description**, number of **Members** (opens the server list filtered to the group), its **Maintenance windows** and **Reboots** as tags (*inherited* when the group sets none), **Coordination** (*Coordinated* with share and maximum below, or *Not coordinated*) and the **State**: *Stopped* in red when its installations were stopped after failed leases, or which server holds the lease and until when.
 
-- **Open**: the name of a group opens the group page; its member count opens the server list filtered to the group (**Show members**). Tick groups in the first column for the bar above the list: **Next 30 days…** (one group: the [maintenance windows, one-time windows and blackouts](help/maintenance-windows#preview) of the group on the next 30 days, with its holds), **Resume group** (the stopped ones among the ticked groups), and on the right in red:
+- **Open**: the name of a group opens the group page; its member count opens the server list filtered to the group (**Show members**). **Select** groups with the checkboxes in the first column for the bar above the list: **Next 30 days…** (one group: the [maintenance windows, one-time windows and blackouts](help/maintenance-windows#preview) of the group on the next 30 days, with its holds), **Resume group** (the stopped ones among the ticked groups), and on the right in red:
 - **Delete group…** (one group): opens a confirmation. With **Delete group**, members leave the group and fall back to the system defaults; assignment rules that point to the group are removed too.
 
 ## New group {#dialog}
