@@ -205,7 +205,7 @@ A new file is started every day and when the size limit is reached. Client secre
 | Agent | `%ProgramData%\SUSyphos\Agent\scripts.dat` | highest script revision run per package and phase (an older one never runs again), DPAPI-protected |
 | Agent | `%ProgramData%\SUSyphos\Agent\Scripts\run-<guid>` | the script and the wrapper of a running script (SYSTEM full control, administrators read); deleted after the run |
 | Agent | `%ProgramData%\SUSyphos\Agent\Logs\Scripts` | output of every script run, kept 14 days |
-| Agent | `%ProgramData%SUSyphosAgentScriptsiles-cache` | ZIPs of files of script revisions, one per SHA-256 (SYSTEM full control, administrators read); removed after 30 days without use |
+| Agent | `%ProgramData%\SUSyphos\Agent\Scripts\files-cache` | ZIPs of files of script revisions, one per SHA-256 (SYSTEM full control, administrators read); removed after 30 days without use |
 | Central server | `script-key.key` next to `Trust:AnchorPath` | private key that signs approved scripts, DPAPI-protected, in the backup encrypted with the backup password |
 | Agent | `%ProgramData%\SUSyphos\Agent\Update` | downloaded agent package and msiexec log of the last self-update; recreated for every update with access for SYSTEM and administrators only |
 | Central server | `AgentPackages:Directory` (`%ProgramData%\SUSyphos\Server\AgentPackages`) | agent packages: the one shipped with the central server and those downloaded from GitHub |
