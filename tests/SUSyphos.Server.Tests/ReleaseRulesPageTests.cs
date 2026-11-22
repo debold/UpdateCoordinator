@@ -26,5 +26,12 @@ public sealed class ReleaseRulesPageTests
         Assert.Contains("all updates", rules, StringComparison.Ordinal);
         Assert.Contains("<span class=\"pill neutral\">Final ring</span>", rings, StringComparison.Ordinal);
         Assert.Contains("feedback ≥ 80 %", rings, StringComparison.Ordinal);
+
+        // Marc, 2026-11-21: names and priorities open the entries, the bar above acts on the ticked one.
+        Assert.Contains("form=\"rules-select\" name=\"id\"", rules, StringComparison.Ordinal);
+        Assert.Contains("value=\"rule-delete\"", rules, StringComparison.Ordinal);
+        Assert.Contains("form=\"rings-select\" name=\"id\"", rings, StringComparison.Ordinal);
+        Assert.Contains("value=\"ring-delete\"", rings, StringComparison.Ordinal);
+        Assert.DoesNotContain("More for", rules + rings, StringComparison.Ordinal);
     }
 }

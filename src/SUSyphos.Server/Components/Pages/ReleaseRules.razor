@@ -28,16 +28,25 @@
 {
 
 <Box Title="Rings and transitions" Help="release-rules#transitions" Flush="true" Hint="The next ring gets an update after the minimum wait when enough servers reported and enough succeeded; at the maximum wait a good success rate is enough; a poor success rate raises an alarm">
+    @* Marc, 2026-11-21: the ring name opens the ring, the server count its servers, the bar acts on the ticked ring. *@
+    <form id="rings-select" method="get" action="@Path" class="detached"><input type="hidden" name="tab" value="rings" /></form>
+    <div class="selection-bar" data-selection="id">
+        <span class="note" data-selection-count>Select a ring, then</span>
+        <button type="submit" form="rings-select" name="dialog" value="preview" data-single data-help-term="Next 30 days"><Icon Name="calendar-clock" Size="16" />Next @SUSyphos.Server.Assignment.SchedulePreview.Days days…</button>
+        <div class="spacer"></div>
+        <button type="submit" form="rings-select" name="dialog" value="ring-delete" class="danger" data-single title="Delete the ticked ring; the final ring cannot be deleted" data-help-term="Delete ring"><Icon Name="trash-2" Size="16" />Delete ring…</button>
+    </div>
     <div class="scroll">
         <table>
-            <thead><tr><th>Ring</th><th class="n">Servers</th><th>Transition to the next ring</th><th class="n">Actions</th></tr></thead>
+            <thead><tr><th class="select"><span class="visually-hidden">Select</span></th><th>Ring</th><th class="n">Servers</th><th>Transition to the next ring</th></tr></thead>
             <tbody>
                 @for (var i = 0; i < _rings.Count; i++)
                 {
                     var ring = _rings[i];
                     var final = i == _rings.Count - 1;
                     <tr>
-                        <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@Servers.Link("ring", ring.Name)" Title="Show the servers of this ring" /></td>
+                        <td class="select"><input type="checkbox" form="rings-select" name="id" value="@ring.Id" aria-label="@($"Select {ring.Name}")" data-help-term="Select" /></td>
+                        <td class="nowrap"><RingTag Name="@ring.Name" Order="@ring.Order" Href="@($"{RingsPath}&dialog=ring&id={ring.Id}")" Title="@($"Edit {ring.Name}")" /></td>
                         <td class="n"><a href="@Servers.Link("ring", ring.Name)">@_servers.GetValueOrDefault(ring.Id)</a></td>
                         <td>
                             @if (final)
@@ -57,14 +66,6 @@
                                 <span class="tag">spread over @ring.SpreadHours h</span>
                             }
                         </td>
-                        <td class="n"><span class="row-actions">
-                            <a class="btn icon-button" href="@($"{RingsPath}&dialog=ring&id={ring.Id}")" title="Edit @ring.Name" aria-label="Edit @ring.Name" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
-                            <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {ring.Name}")">
-                                <MenuItem Href="@($"{RingsPath}&dialog=preview&id={ring.Id}")" Icon="calendar-clock">Next @SUSyphos.Server.Assignment.SchedulePreview.Days days</MenuItem>
-                                <MenuSeparator />
-                                <MenuItem Href="@($"{RingsPath}&dialog=ring-delete&id={ring.Id}")" Icon="trash-2" Danger="true" Disabled="@final" Reason="@(final ? "The final ring cannot be deleted" : null)">Delete ring…</MenuItem>
-                            </ActionMenu>
-                        </span></td>
                     </tr>
                 }
             </tbody>
@@ -75,22 +76,23 @@
 else
 {
 <Box Title="Start rules" Help="release-rules#start-rules" Flush="true" Hint="The matching rule with the lowest priority number decides how a newly reported update starts; without a matching rule it stays queued">
+    <form id="rules-select" method="get" action="@Path" class="detached"></form>
+    <div class="selection-bar" data-selection="id">
+        <span class="note" data-selection-count>Select a start rule, then</span>
+        <div class="spacer"></div>
+        <button type="submit" form="rules-select" name="dialog" value="rule-delete" class="danger" data-single data-help-term="Delete start rule"><Icon Name="trash-2" Size="16" />Delete start rule…</button>
+    </div>
     <ListTable Table="_ruleTable" Page="_rulePage" Columns="RuleColumns" Search="Search pattern" Noun="rules" Empty="No start rule: every update waits for a manual start." ExtraColumns="1">
-        <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+        <Leading><th class="select"><span class="visually-hidden">Select</span></th></Leading>
         <Row Context="rule">
                     <tr>
-                        <td class="n">@rule.Priority</td>
+                        <td class="select"><input type="checkbox" form="rules-select" name="id" value="@rule.Id" aria-label="@($"Select start rule {rule.Priority}")" data-help-term="Select" /></td>
+                        <td class="n"><a href="@Path?dialog=rule&id=@rule.Id" title="Edit start rule @rule.Priority" data-help-term="Edit">@rule.Priority</a></td>
                         <td><span class="pill @(rule.Kind == UpdateKind.Software ? "sw" : "neutral")">@KindText(rule.Kind)</span></td>
                         <td class="wrap">@{ var conditions = Conditions(rule); }@if (conditions.Count == 0) { <span class="note">@(rule.Kind == UpdateKind.Software ? "all packages" : "all updates")</span> } else { @for (var c = 0; c < conditions.Count; c++) { if (c > 0) { <span class="note"> · </span> } <span class="@(conditions[c].Mono ? "mono" : null)">@conditions[c].Text</span> } }</td>
                         <td>@if (rule.RebootBehavior is null) { <span class="note">any</span> } else { <span class="pill neutral">@UpdateText.Restart(rule.RebootBehavior)</span> }</td>
                         <td><span class="pill @(rule.Mode == StartMode.Automatic ? "ok" : "neutral")" title="@StartText(rule)">@StartShort(rule)</span>@if (rule.Mode == StartMode.Automatic && rule.Delay > TimeSpan.Zero) { <div class="note">after @((int)rule.Delay.TotalHours) h</div> }</td>
                         <td class="nowrap">@{ var ruleRings = RingsOf(rule).ToList(); }@if (ruleRings.Count > 1 && ruleRings.Count == _rings.Count) { <span class="pill neutral">All rings</span> } else { @foreach (var ring in ruleRings) { <RingTag Name="@ring.Name" Order="@ring.Order" /> } }</td>
-                        <td class="n"><span class="row-actions">
-                            <a class="btn icon-button" href="@Path?dialog=rule&id=@rule.Id" title="Edit start rule @rule.Priority" aria-label="Edit start rule @rule.Priority" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
-                            <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for start rule {rule.Priority}")">
-                                <MenuItem Href="@($"{Path}?dialog=rule-delete&id={rule.Id}")" Icon="trash-2" Danger="true">Delete start rule…</MenuItem>
-                            </ActionMenu>
-                        </span></td>
                     </tr>
         </Row>
     </ListTable>

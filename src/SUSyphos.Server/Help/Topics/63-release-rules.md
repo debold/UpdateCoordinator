@@ -15,8 +15,8 @@ All rings in order with their number of servers (opens the server list of the ri
 
 The next ring gets an update after the minimum wait when enough servers reported (feedback) and enough of them succeeded (success). At the maximum wait a good success rate is enough, even if feedback is missing. A poor success rate, or no report at all at the maximum wait, raises an alarm that an operator decides. A server counts as successful when its last result succeeded or it has the update installed by now. When no server of a ring needs the update ("no server needs it" instead of the rates), it moves on once the minimum wait has passed; a manual gate still waits for an operator. The days count for each update separately, from its release in the ring it is in (in the first ring: after the delay of its start rule), not from the start of the rollout.
 
-- **Edit** (the pencil at the end of the row): opens the ring dialog.
-- **More** (⋯): **Next 30 days** shows the windows of the ring's servers on the next 30 days (system default and one-time windows for the ring) and the updates on hold for the ring, see [Next 30 days](help/maintenance-windows#preview). **Delete ring…** opens a confirmation (greyed out for the final ring); **Delete ring** there removes the ring (not the final ring). Only a ring without servers and without assignment rules can be deleted; running rollouts skip it from then on.
+- **Edit**: the ring name opens the ring dialog; the number of **Servers** opens them in the server list. Tick a ring in the first column for the bar above the list:
+- **Next 30 days…** shows the windows of the ring's servers on the next 30 days (system default and one-time windows for the ring) and the updates on hold for the ring, see [Next 30 days](help/maintenance-windows#preview). **Delete ring…** (red, on the right) opens a confirmation; **Delete ring** there removes the ring (not the final ring). Only a ring without servers and without assignment rules can be deleted; running rollouts skip it from then on.
 
 ## Ring dialog {#ring-dialog}
 
@@ -37,7 +37,7 @@ When an approved server reports an update for the first time, the matching start
 
 Rules are applied when a server reports an update, when a rule is saved and every minute to all waiting updates. A rule decides only once per update; changing it later does not change running rollouts.
 
-- **Edit** (the pencil at the end of the row) opens the start rule dialog; **More** (⋯) has **Delete start rule…**, which opens a confirmation, and **Delete start rule** there removes the rule (updates it would start are handled by the next matching rule, or stay queued).
+- **Edit**: the priority of a start rule opens the start rule dialog. **Delete start rule…** (red, above the list, for the ticked rule) opens a confirmation, and **Delete start rule** there removes the rule (updates it would start are handled by the next matching rule, or stay queued).
 
 ## Updates withdrawn by Microsoft {#withdrawn}
 
