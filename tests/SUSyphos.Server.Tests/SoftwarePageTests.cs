@@ -233,6 +233,33 @@ public sealed class SoftwarePageTests : IAsyncDisposable
         }
     }
 
+
+    [Fact]
+    public async Task SoftwarePage_RecommendsPowerShell7_AndOnlyAdministratorsAddIt()
+    {
+        // Marc, 2026-11-22: Microsoft deprecated Windows PowerShell 5.1; SUSyphos recommends the package Microsoft.PowerShell.
+        var (reader, _) = await SeedAsync(AdminRoles.Reader);
+        using (reader)
+        {
+            var html = System.Net.WebUtility.HtmlDecode(await (await reader.GetAsync("/software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Contains("id=\"recommended\"", html, StringComparison.Ordinal);
+            Assert.Contains("Microsoft.PowerShell", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("Add and assign…", html, StringComparison.Ordinal);
+
+            var before = await _factory.WithDbAsync(db => db.AuditEntries.CountAsync(TestContext.Current.CancellationToken));
+            using var refused = await reader.PostFormAsync("/software", new Dictionary<string, string> { ["_handler"] = "software-recommend", ["Recommended"] = "Microsoft.PowerShell" });
+            Assert.Equal(before, await _factory.WithDbAsync(db => db.AuditEntries.CountAsync(TestContext.Current.CancellationToken)));
+        }
+
+        await _factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var admin = new DashboardClient(_factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        var adminHtml = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync("/software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains(adminHtml.Contains("Add and assign…", StringComparison.Ordinal) ? "Add and assign…" : "?dialog=assign", adminHtml, StringComparison.Ordinal);
+    }
     [Fact]
     public async Task ServerSoftwareTab_ShowsPrograms_StateAndSupport()
     {

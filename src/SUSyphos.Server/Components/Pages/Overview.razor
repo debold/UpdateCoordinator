@@ -536,6 +536,13 @@
             _attention.Add(new AttentionItem("Debug mode", "queue", "The central server is in debug mode", $"Until {Format(centralDebug.UntilUtc)}, switched on by {centralDebug.By}.", SusyphosPage.Route + "#debug", "Show") { TopicKey = "debug-central" });
         }
 
+        // Marc, 2026-11-22 (Windows PowerShell 5.1 deprecated): servers whose PowerShell 7 scripts fall back to 5.1.
+        var withoutPowerShell7 = await SUSyphos.Server.Scripts.PowerShell7Coverage.MissingAsync(Db, null, CancellationToken.None);
+        if (withoutPowerShell7.Count > 0)
+        {
+            _attention.Add(new AttentionItem("PowerShell", "queue", $"{DisplayNumber.Count(withoutPowerShell7.Count, "server runs", "servers run")} PowerShell 7 scripts without PowerShell 7", $"{string.Join(", ", withoutPowerShell7.Take(5).Select(s => s.HostName))}{(withoutPowerShell7.Count > 5 ? $" and {withoutPowerShell7.Count - 5} more" : string.Empty)}: the scripts run in Windows PowerShell 5.1, which Microsoft deprecated. Assign the package Microsoft.PowerShell.", "/software#recommended", "Install PowerShell 7", withoutPowerShell7.Count) { TopicKey = "powershell7-missing" });
+        }
+
         // Acknowledged topics stay hidden while they concern no more items than then; resolved ones lose the acknowledgement.
         var acknowledged = await Acknowledgements.ListAsync(CancellationToken.None);
         if (await Acknowledgements.PruneAsync([.. _attention.Select(a => a.Topic)], CancellationToken.None) > 0)

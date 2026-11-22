@@ -183,6 +183,27 @@ internal sealed partial class ScriptRunner(
                 ["SUSYPHOS_ARCHITECTURE"] = Environment.Is64BitOperatingSystem ? "x64" : "x86",
                 ["SUSYPHOS_INSTALLER_EXIT_CODE"] = request.InstallerExitCode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
             };
+
+            // The files of the revision (0.9.0-rc.8): only the ZIP whose SHA-256 the signed revision names is unpacked,
+            // into the folder "files" of the run, which only SYSTEM and administrators reach.
+            if (package.FilesSha256 is { } filesSha)
+            {
+                var zip = await LoadFilesAsync(identity, package, filesSha, cancellationToken).ConfigureAwait(false);
+                if (zip is null)
+                {
+                    return await FinishAsync(identity, request, package, started, null, ScriptRunResult.NotVerified, "The files of the script could not be downloaded or differ from the signed ones.", ScriptOnFailure.Stop, null, cancellationToken).ConfigureAwait(false);
+                }
+
+                var filesFolder = Path.Combine(runFolder, ScriptFilesFormat.FolderName);
+                using var zipStream = new MemoryStream(zip, writable: false);
+                if (ScriptFilesFormat.Extract(zipStream, filesFolder) is { } unpackError)
+                {
+                    return await FinishAsync(identity, request, package, started, null, ScriptRunResult.Failed, unpackError, package.OnFailure, null, cancellationToken).ConfigureAwait(false);
+                }
+
+                environment[ScriptFilesFormat.EnvironmentVariable] = filesFolder;
+            }
+
             LogRunning(request.PackageId, request.Script.Phase, package.Revision, package.TimeoutSeconds);
             var wants7 = package.PowerShell == ScriptPowerShell.PowerShell7;
             var ran = await process.RunAsync(wrapperPath, scriptPath, values, environment, TimeSpan.FromSeconds(package.TimeoutSeconds), cancellationToken, wants7).ConfigureAwait(false);
@@ -264,6 +285,77 @@ internal sealed partial class ScriptRunner(
         return new ScriptRunOutcome(true, result, onFailure, detail);
     }
 
+
+    /// <summary>How long a ZIP of files stays in the cache of the agent without being used.</summary>
+    public static readonly TimeSpan FilesCacheRetention = TimeSpan.FromDays(30);
+
+    /// <summary>
+    /// The ZIP of files of a revision from the cache of the agent (one file per SHA-256) or from the central server; null
+    /// when neither has one that matches the signed SHA-256.
+    /// </summary>
+    private async Task<byte[]?> LoadFilesAsync(AgentIdentity identity, ScriptPackage package, string sha256, CancellationToken cancellationToken)
+    {
+        var cache = Path.Combine(_folder, "Scripts", "files-cache");
+        var cached = Path.Combine(cache, $"{sha256.ToUpperInvariant()}.zip");
+        try
+        {
+            if (File.Exists(cached))
+            {
+                var bytes = await File.ReadAllBytesAsync(cached, cancellationToken).ConfigureAwait(false);
+                if (string.Equals(ScriptSigningFormat.Sha256(bytes), sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.SetLastWriteTimeUtc(cached, timeProvider.GetUtcNow().UtcDateTime);
+                    return bytes;
+                }
+
+                File.Delete(cached);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            LogFilesCache(exception.Message);
+        }
+
+        byte[]? downloaded;
+        try
+        {
+            downloaded = await client.GetFilesAsync(identity, package.ScriptId, package.Revision, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or InvalidDataException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            LogFilesCache(exception.Message);
+            return null;
+        }
+
+        if (downloaded is null || !string.Equals(ScriptSigningFormat.Sha256(downloaded), sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        try
+        {
+            if (!Directory.Exists(cache))
+            {
+                CreateRunFolder(cache);
+            }
+
+            foreach (var old in new DirectoryInfo(cache).EnumerateFiles("*.zip").Where(f => f.LastWriteTimeUtc < timeProvider.GetUtcNow().UtcDateTime - FilesCacheRetention))
+            {
+                old.Delete();
+            }
+
+            await File.WriteAllBytesAsync(cached, downloaded, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            LogFilesCache(exception.Message);
+        }
+
+        return downloaded;
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The files of a script could not be loaded or cached: {Reason}")]
+    private partial void LogFilesCache(string reason);
     /// <summary>Keeps the run as a file under Logs\Scripts for 14 days (SYSTEM and administrators, like the agent logs).</summary>
     private void WriteLog(ScriptRunReport report)
     {

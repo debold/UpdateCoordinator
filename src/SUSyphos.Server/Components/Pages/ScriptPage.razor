@@ -1,5 +1,7 @@
 @page "/software/{PackageId}/scripts/{PhaseSlug}"
 @attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@attribute [Microsoft.AspNetCore.Mvc.RequestSizeLimit(ScriptPageLimits.RequestBytes)]
+@attribute [Microsoft.AspNetCore.Mvc.RequestFormLimits(MultipartBodyLengthLimit = ScriptPageLimits.RequestBytes)]
 @inherits DashboardPageBase
 @using SUSyphos.Contracts.Scripts
 @using SUSyphos.Server.Scripts
@@ -100,10 +102,10 @@ else
                     </label>
                     <label class="field"><span>PowerShell</span>
                         <select name="PowerShell" disabled="@(!_canAdminister)">
-                            <option value="@ScriptPowerShell.WindowsPowerShell" selected="@((_view?.Script.DraftPowerShell ?? ScriptPowerShell.WindowsPowerShell) == ScriptPowerShell.WindowsPowerShell)">Windows PowerShell 5.1</option>
-                            <option value="@ScriptPowerShell.PowerShell7" selected="@(_view?.Script.DraftPowerShell == ScriptPowerShell.PowerShell7)">PowerShell 7, else 5.1</option>
+                            <option value="@ScriptPowerShell.WindowsPowerShell" selected="@(_view?.Script.DraftPowerShell == ScriptPowerShell.WindowsPowerShell)">Windows PowerShell 5.1</option>
+                            <option value="@ScriptPowerShell.PowerShell7" selected="@((_view?.Script.DraftPowerShell ?? ScriptPowerShell.PowerShell7) == ScriptPowerShell.PowerShell7)">PowerShell 7, else 5.1</option>
                         </select>
-                        <span class="help">PowerShell 7 runs where pwsh.exe is installed (for example with the WinGet package Microsoft.PowerShell, assigned through SUSyphos); elsewhere the script runs in 5.1 and its log says so.</span>
+                        <span class="help">PowerShell 7 is the default for new scripts (Microsoft deprecated Windows PowerShell 5.1 in November 2026). It runs where pwsh.exe is installed (for example with the WinGet package Microsoft.PowerShell, assigned through SUSyphos); elsewhere the script runs in 5.1 and its log says so.</span>
                     </label>
                     <label class="field"><span>Timeout</span><input name="TimeoutMinutes" type="number" min="1" max="30" value="@((_view?.Script.DraftTimeoutSeconds ?? ScriptLimits.DefaultTimeoutSeconds) / 60)" readonly="@(!_canAdminister)" /><span class="help">minutes, 1 to 30</span></label>
                 </div>
@@ -132,6 +134,52 @@ else
             </div>
         </Box>
     </form>
+
+    @* Files the script brings along as one ZIP (Marc, 2026-11-22), part of the signed revision. *@
+    <Box Title="Files" Anchor="files" Help="script#files" Flush="true" Hint="@(_draftFiles is null ? "none: the script brings no files along" : "unpacked for every run into the folder in $env:SUSYPHOS_FILES")">
+        @if (_draftFiles is { } files)
+        {
+            <div class="box-body">
+                <p><b>@files.FileName</b> · @DisplayNumber.Count(files.Files.Count, "file", "files"), @ByteSize(files.UnpackedBytes) unpacked · <StatusTag Text="@($"scan {files.ScanState}")" Kind="@(files.ScanState == InstallerScanState.Clean ? "ok" : files.ScanState == InstallerScanState.NotScanned ? "neutral" : "fail")" Detail="@files.ScanDetail" /> <span class="note">uploaded by @files.UploadedBy on @DisplayTime.Format(files.UploadedAtUtc)</span> · <a href="@ScriptEndpoints.FilesDownloadPath(files.Sha256)" download data-help-term="Download ZIP">Download ZIP</a></p>
+                @if (_view?.Approved?.FilesSha256 != files.Sha256)
+                {
+                    <p class="note">In the draft only: agents get these files with the next approval@(_view?.Approved?.FilesSha256 is null ? "." : "; until then they unpack the files of the approved revision.")</p>
+                }
+            </div>
+            <div class="scroll">
+                <table>
+                    <thead><tr><th>File</th><th class="n">Size</th><th>SHA-256</th></tr></thead>
+                    <tbody>
+                        @foreach (var entry in files.Files.Take(200))
+                        {
+                            <tr><td class="mono">@entry.Path</td><td class="n nowrap">@ByteSize(entry.Size)</td><td><HexValue Value="@entry.Sha256" /></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="filesAdmin">
+            @if (_view is not null)
+            {
+                <form method="post" enctype="multipart/form-data" @formname="script-files" @onsubmit="UploadFilesAsync" class="box-body form">
+                    <AntiforgeryToken />
+                    <label class="field"><span>@(_draftFiles is null ? "Add files" : "Replace the files")</span>
+                        <input type="file" name="FilesZip" accept=".zip,application/zip" required data-help-term="ZIP file" />
+                        <span class="help">One ZIP of at most @(ScriptLimits.MaxFilesZipBytes / (1024 * 1024)) MB, @(ScriptLimits.MaxFilesUnpackedBytes / (1024 * 1024)) MB and @ScriptLimits.MaxFiles files unpacked, relative paths only. No secrets: those belong into secret parameters. Save changes to the script first: uploading keeps the saved draft, not unsaved text.</span>
+                    </label>
+                    <div class="actions"><button type="submit" data-help-term="Upload"><Icon Name="upload" Size="16" />Upload</button></div>
+                </form>
+                @if (_draftFiles is not null)
+                {
+                    <form method="post" @formname="script-files-remove" @onsubmit="RemoveFilesAsync" class="box-body"><AntiforgeryToken /><button type="submit" class="danger" data-help-term="Remove files"><Icon Name="trash-2" Size="16" />Remove files</button></form>
+                }
+            }
+            else
+            {
+                <p class="box-body note">Save a draft of the script first; then you can add files.</p>
+            }
+        </AuthorizeView>
+    </Box>
 
     @if (_view is { Revisions.Count: > 0 } withRevisions)
     {
@@ -164,6 +212,7 @@ else
                 <div class="dialog-body">
                     <p>@(_view.Approved is { } current ? $"Replaces revision {current.Revision}." : "The first revision of this script.") It runs as SYSTEM on @DisplayNumber.Count(_servers, "server", "servers") that have or get @_package.Name, from their next release list.</p>
                     <p class="note">Change: @ScriptAdministration.DiffSummary(_view.Approved is { } before ? SUSyphos.Contracts.Scripts.ScriptSigningFormat.ContentText(before.Content) : string.Empty, _view.Text). The script is scanned for malware before it is signed.</p>
+                    @if (_draftFiles is { } signedFiles) { <p class="note">The revision brings @DisplayNumber.Count(signedFiles.Files.Count, "file", "files") along (@signedFiles.FileName, SHA-256 <HexValue Value="@signedFiles.Sha256" />); their hash is signed with the script, see the box Files.</p> }
                     <label class="check"><input type="checkbox" name="ReadWholeScript" value="true" required data-help-term="I have read the whole script" /> I have read the whole script</label>
                 </div>
                 <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="primary">Approve and sign</button></div>
@@ -227,6 +276,8 @@ else
         _enabled = await Scripts.IsEnabledAsync(CancellationToken.None);
         _canAdminister = await IsAuthorizedAsync(AdminRoles.Policies.Administer);
         _servers = await Db.ClientSoftware.AsNoTracking().Where(s => s.PackageId == _package.PackageId).Select(s => s.ClientId).Distinct().CountAsync();
+        _draftFiles = await Scripts.FilesAsync(_view?.Script.DraftFilesSha256, CancellationToken.None);
+        _withoutPowerShell7 = _view?.Approved?.PowerShell == ScriptPowerShell.PowerShell7 ? await PowerShell7Coverage.MissingAsync(Db, _package.PackageId, CancellationToken.None) : [];
     }
 
     private IReadOnlyList<StatusRow> StatusRows
@@ -252,18 +303,75 @@ else
                 rows.Add(new StatusRow(scanned.ScanState == InstallerScanState.Clean ? "ok" : scanned.ScanState == InstallerScanState.NotScanned ? "queue" : "fail", scanned.ScanState.ToString(), "Virus scan", scanned.ScanState == InstallerScanState.NotScanned ? "not scanned: no antivirus product answered (AMSI)" : "scanned with AMSI before signing", scanned.ScanDetail));
             }
 
+            if (_withoutPowerShell7.Count > 0)
+            {
+                rows.Add(new StatusRow("queue", "missing", "PowerShell 7", $"{DisplayNumber.Count(_withoutPowerShell7.Count, "server has", "servers have")} no PowerShell 7: {string.Join(", ", _withoutPowerShell7.Take(5).Select(s => s.HostName))}{(_withoutPowerShell7.Count > 5 ? $" and {_withoutPowerShell7.Count - 5} more" : string.Empty)}", "there the script runs in Windows PowerShell 5.1; install PowerShell 7 with Recommended on the Software page"));
+            }
+
             rows.Add(new StatusRow("neutral", "per server", "Local veto", "a server with AllowScripts = 0 in HKLM\\SOFTWARE\\Policies\\SUSyphos\\Agent runs no script", "such servers report \"Blocked locally\" and do not install the package"));
             return rows;
         }
     }
 
-    private static string Template(ScriptPhase phase) => phase switch
+    /// <summary>
+    /// The text of a new script: what it is for and, as before, the values SUSyphos hands over, now with the folder of its
+    /// files (Marc, 2026-11-22: the variables stay explained as a comment at the top of new scripts).
+    /// </summary>
+    internal static string Template(ScriptPhase phase) => phase switch
     {
-        ScriptPhase.BeforeInstall => "# Runs before WinGet installs or upgrades the package, as SYSTEM.\r\n# $env:SUSYPHOS_ACTION, $env:SUSYPHOS_VERSION and $env:SUSYPHOS_PREVIOUS_VERSION tell what happens.\r\n# Exit 0 to go on; any other exit code stops the installation.\r\n\r\nexit 0\r\n",
-        ScriptPhase.AfterInstall => "# Runs after WinGet installed or upgraded the package, as SYSTEM.\r\n# Exit 0 for success, 3010 when a restart is needed.\r\n\r\nexit 0\r\n",
-        ScriptPhase.BeforeUninstall => "# Runs before WinGet uninstalls the package, as SYSTEM.\r\n# Exit 0 to go on; any other exit code keeps the package installed.\r\n\r\nexit 0\r\n",
-        _ => "# Runs after WinGet uninstalled the package, as SYSTEM, for example to remove what the uninstaller left.\r\n\r\nexit 0\r\n",
+        ScriptPhase.BeforeInstall => "# Runs before WinGet installs or upgrades the package, as SYSTEM.\r\n" + Variables + "# Exit 0 to go on; any other exit code stops the installation.\r\n\r\nexit 0\r\n",
+        ScriptPhase.AfterInstall => "# Runs after WinGet installed or upgraded the package, as SYSTEM.\r\n" + Variables + "# Exit 0 for success, 3010 when a restart is needed.\r\n\r\nexit 0\r\n",
+        ScriptPhase.BeforeUninstall => "# Runs before WinGet uninstalls the package, as SYSTEM.\r\n" + Variables + "# Exit 0 to go on; any other exit code keeps the package installed.\r\n\r\nexit 0\r\n",
+        _ => "# Runs after WinGet uninstalled the package, as SYSTEM, for example to remove what the uninstaller left.\r\n" + Variables + "\r\nexit 0\r\n",
     };
+
+    private const string Variables =
+        "# $env:SUSYPHOS_ACTION (Install, Upgrade or Uninstall), $env:SUSYPHOS_PACKAGE_ID, $env:SUSYPHOS_VERSION and\r\n"
+        + "# $env:SUSYPHOS_PREVIOUS_VERSION tell what happens; $env:SUSYPHOS_ARCHITECTURE is x64 or x86, and after the\r\n"
+        + "# installation $env:SUSYPHOS_INSTALLER_EXIT_CODE holds the exit code of the installer.\r\n"
+        + "# $env:SUSYPHOS_FILES is the folder with the unpacked files of this script (box Files), deleted after the run.\r\n"
+        + "# Parameters: Get-SUSyphosParameter Name.\r\n";
+
+    private ScriptFilesView? _draftFiles;
+
+    private IReadOnlyList<(Guid ClientId, string HostName)> _withoutPowerShell7 = [];
+
+    [SupplyParameterFromForm(FormName = "script-files")] private IFormFile? FilesZip { get; set; }
+
+    private static string ByteSize(long bytes) => bytes < 1024 ? $"{bytes} B" : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB" : $"{bytes / (1024.0 * 1024):0.#} MB";
+
+    private async Task UploadFilesAsync()
+    {
+        Outcome outcome;
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer) || _phase is not { } phase)
+        {
+            outcome = new Outcome("Only administrators change scripts.");
+        }
+        else if (FilesZip is not { Length: > 0 } upload)
+        {
+            outcome = new Outcome("Choose a ZIP file.");
+        }
+        else if (upload.Length > ScriptLimits.MaxFilesZipBytes)
+        {
+            outcome = new Outcome($"Choose a ZIP file of at most {ScriptLimits.MaxFilesZipBytes / (1024 * 1024)} MB.");
+        }
+        else
+        {
+            await using var stream = upload.OpenReadStream();
+            outcome = await Scripts.SetDraftFilesAsync(PackageId, phase, stream, upload.FileName, await GetActorAsync(), CancellationToken.None);
+        }
+
+        ShowResult(outcome.Error, "The files were added to the draft; approve it to hand them to the agents.");
+        await LoadAsync();
+    }
+
+    private async Task RemoveFilesAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) || _phase is not { } phase ? new Outcome("Only administrators change scripts.")
+            : await Scripts.RemoveDraftFilesAsync(PackageId, phase, await GetActorAsync(), CancellationToken.None);
+        ShowResult(outcome.Error, "The files were removed from the draft; approve it to take them from the agents.");
+        await LoadAsync();
+    }
 
     /// <summary>The parameter rows of the form; rows without a name are left out.</summary>
     private List<ScriptParameter> FormParameters()
@@ -295,7 +403,7 @@ else
                 Enum.TryParse<ScriptRunOn>(RunOn, out var runOn) ? runOn : ScriptRunOn.Both,
                 Enum.TryParse<ScriptOnFailure>(OnFailure, out var onFailure) ? onFailure : ScriptOnFailure.Stop,
                 (TimeoutMinutes ?? 0) * 60, await GetActorAsync(), CancellationToken.None,
-                Enum.TryParse<ScriptPowerShell>(PowerShell, out var powerShell) && Enum.IsDefined(powerShell) ? powerShell : ScriptPowerShell.WindowsPowerShell);
+                Enum.TryParse<ScriptPowerShell>(PowerShell, out var powerShell) && Enum.IsDefined(powerShell) ? powerShell : ScriptPowerShell.PowerShell7);
         ShowResult(outcome.Error, "The draft was saved; approve it to make agents run it.");
         await LoadAsync();
     }

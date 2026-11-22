@@ -1012,3 +1012,6 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 .btn.done { background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
 .btn.done:hover { background: color-mix(in srgb, var(--ok) 18%, var(--surface)); color: var(--ok); }
 .btn .pend-dot { display: inline-block; width: 0.5rem; height: 0.5rem; margin-left: 0.35rem; border-radius: 50%; background: var(--pend, var(--accent)); box-shadow: 0 0 0 2px var(--surface); }
+/* Recommended packages on the Software page (Marc, 2026-11-22). */
+.recommended { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.recommended .pkg-name { flex: 1 1 24rem; min-width: 0; }

@@ -244,6 +244,57 @@ public sealed class ScriptRunnerTests : IDisposable
         Assert.DoesNotContain(System.Diagnostics.Process.GetProcessesByName("PING"), p => !before.Contains(p.Id));
     }
 
+
+    private static byte[] FilesZip(params (string Name, string Content)[] entries)
+    {
+        using var buffer = new MemoryStream();
+        using (var archive = new System.IO.Compression.ZipArchive(buffer, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, content) in entries)
+            {
+                using var writer = new StreamWriter(archive.CreateEntry(name).Open());
+                writer.Write(content);
+            }
+        }
+
+        return buffer.ToArray();
+    }
+
+    [Fact]
+    public async Task SignedFiles_AreUnpackedForTheRun_CachedByHash_AndGoneAfterwards()
+    {
+        // Marc, 2026-11-22: the script finds its files in $env:SUSYPHOS_FILES.
+        var zip = FilesZip(("config.bgi", "BGINFO"), ("sub/logo.bmp", "BM"));
+        var (package, reference) = Sign("exit 0", revision: 4, filesSha256: ScriptSigningFormat.Sha256(zip));
+        _client.Packages[(1, 4)] = package;
+        _client.Files[(1, 4)] = zip;
+
+        var outcome = await Create().RunAsync(new ScriptRunRequest(Package, ScriptAction.Install, "1.0", null, null, reference), TestContext.Current.CancellationToken);
+        Assert.True(outcome.Succeeded, outcome.Detail);
+        Assert.Equal(["config.bgi", Path.Combine("sub", "logo.bmp")], _process.FilesSeen!.Order(StringComparer.Ordinal));
+        Assert.Empty(Directory.EnumerateDirectories(Path.Combine(_folder, "Scripts"), "run-*"));
+
+        // The second run takes the ZIP from the cache of the agent.
+        _client.Files.Clear();
+        outcome = await Create().RunAsync(new ScriptRunRequest(Package, ScriptAction.Install, "1.0", null, null, reference), TestContext.Current.CancellationToken);
+        Assert.True(outcome.Succeeded, outcome.Detail);
+        Assert.Equal(1, _client.FileDownloads);
+    }
+
+    [Fact]
+    public async Task FilesThatDifferFromTheSignedHash_NeverRun()
+    {
+        var zip = FilesZip(("config.bgi", "BGINFO"));
+        var (package, reference) = Sign("exit 0", revision: 5, filesSha256: ScriptSigningFormat.Sha256(zip));
+        _client.Packages[(1, 5)] = package;
+        _client.Files[(1, 5)] = FilesZip(("config.bgi", "EVIL"));
+
+        var outcome = await Create().RunAsync(new ScriptRunRequest(Package, ScriptAction.Install, "1.0", null, null, reference), TestContext.Current.CancellationToken);
+
+        Assert.False(outcome.Succeeded);
+        Assert.Equal(ScriptRunResult.NotVerified, outcome.Result);
+        Assert.Equal(0, _process.Calls);
+    }
     private ScriptRunner Create(bool blocked = false) => new(_client, _process, Identity(), Trust(), State(), _time, NullLogger<ScriptRunner>.Instance, _folder)
     {
         IsBlockedLocally = () => blocked,
@@ -259,7 +310,7 @@ public sealed class ScriptRunnerTests : IDisposable
     private ProtectedJsonFile<ScriptState> State() => _state ??= new(new ProtectedFile(Path.Combine(_folder, "scripts.dat"), "SUSyphos.Tests.Scripts", NullLogger.Instance), NullLogger.Instance);
 
     /// <summary>A revision signed like the central server signs it, and the reference a release list names it with.</summary>
-    private (ScriptPackage Package, ScriptReference Reference) Sign(string text, int revision = 1, ScriptRunOn runOn = ScriptRunOn.Both, int timeoutSeconds = 300, IReadOnlyList<ScriptParameter>? parameters = null, IReadOnlyDictionary<string, string>? values = null, ScriptPowerShell powerShell = ScriptPowerShell.WindowsPowerShell, bool signAs51 = false)
+    private (ScriptPackage Package, ScriptReference Reference) Sign(string text, int revision = 1, ScriptRunOn runOn = ScriptRunOn.Both, int timeoutSeconds = 300, IReadOnlyList<ScriptParameter>? parameters = null, IReadOnlyDictionary<string, string>? values = null, ScriptPowerShell powerShell = ScriptPowerShell.WindowsPowerShell, bool signAs51 = false, string? filesSha256 = null)
     {
         var created = new DateTimeOffset(2026, 11, 14, 8, 0, 0, TimeSpan.Zero);
         var keySpki = _key.ExportSubjectPublicKeyInfo();
@@ -281,7 +332,8 @@ public sealed class ScriptRunnerTests : IDisposable
             Content = Convert.ToBase64String(content),
             ParametersJson = parametersJson,
             SignedAt = signedAt,
-            Signature = Convert.ToBase64String(_key.SignData(ScriptSigningFormat.RevisionBytes(1, revision, Package, ScriptPhase.BeforeInstall, runOn, ScriptOnFailure.Stop, timeoutSeconds, contentHash, parametersHash, signedAt, signAs51 ? ScriptPowerShell.WindowsPowerShell : powerShell), TrustBindingFormat.HashAlgorithm)),
+            Signature = Convert.ToBase64String(_key.SignData(ScriptSigningFormat.RevisionBytes(1, revision, Package, ScriptPhase.BeforeInstall, runOn, ScriptOnFailure.Stop, timeoutSeconds, contentHash, parametersHash, signedAt, signAs51 ? ScriptPowerShell.WindowsPowerShell : powerShell, filesSha256), TrustBindingFormat.HashAlgorithm)),
+            FilesSha256 = filesSha256,
             KeyId = "k20261114-test0001",
             KeyPublicKey = Convert.ToBase64String(keySpki),
             KeyCreatedAt = created,
@@ -295,6 +347,16 @@ public sealed class ScriptRunnerTests : IDisposable
         public Dictionary<(int, int), ScriptPackage> Packages { get; } = [];
 
         public List<ScriptRunReport> Runs { get; } = [];
+
+        public Dictionary<(int, int), byte[]> Files { get; } = [];
+
+        public int FileDownloads { get; private set; }
+
+        public Task<byte[]?> GetFilesAsync(AgentIdentity identity, int scriptId, int revision, CancellationToken cancellationToken)
+        {
+            FileDownloads++;
+            return Task.FromResult(Files.GetValueOrDefault((scriptId, revision)));
+        }
 
         public Task<ScriptPackage?> GetScriptAsync(AgentIdentity identity, int scriptId, int revision, CancellationToken cancellationToken) =>
             Task.FromResult(Packages.GetValueOrDefault((scriptId, revision)));
@@ -320,6 +382,8 @@ public sealed class ScriptRunnerTests : IDisposable
 
         public bool? AskedFor7 { get; private set; }
 
+        public List<string>? FilesSeen { get; private set; }
+
         /// <summary>What the fake says it ran in when PowerShell 7 was asked for.</summary>
         public string ShellFor7 { get; set; } = PowerShellScriptProcess.PowerShell7;
 
@@ -330,6 +394,7 @@ public sealed class ScriptRunnerTests : IDisposable
             Environment = environment;
             Assert.True(File.Exists(scriptPath));
             AskedFor7 = powerShell7;
+            FilesSeen = environment.TryGetValue("SUSYPHOS_FILES", out var files) && Directory.Exists(files) ? [.. Directory.EnumerateFiles(files, "*", SearchOption.AllDirectories).Select(p => Path.GetRelativePath(files, p))] : null;
             return Task.FromResult(new ScriptProcessResult(ExitCode, Output, string.Empty, powerShell7 ? ShellFor7 : PowerShellScriptProcess.WindowsPowerShell));
         }
     }

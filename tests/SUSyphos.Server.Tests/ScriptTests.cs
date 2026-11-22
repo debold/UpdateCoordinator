@@ -170,6 +170,120 @@ public sealed class ScriptTests
         Assert.Empty(await WithAsync(factory, s => s.ReferencesAsync(Package, server, [ScriptPhase.AfterUninstall], CancellationToken.None)));
     }
 
+
+    private static byte[] FilesZip(params (string Name, string Content)[] entries)
+    {
+        using var buffer = new MemoryStream();
+        using (var archive = new System.IO.Compression.ZipArchive(buffer, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, content) in entries)
+            {
+                using var writer = new StreamWriter(archive.CreateEntry(name).Open());
+                writer.Write(content);
+            }
+        }
+
+        return buffer.ToArray();
+    }
+
+    [Fact]
+    public async Task Files_AreSignedWithTheRevision_AndHandedToAgentsOnly()
+    {
+        // Marc, 2026-11-22: a ZIP of files per revision, for example the .bgi file of BGInfo.
+        await using var factory = await CreateAsync();
+        var http = factory.CreateClient();
+        var register = await RegisterFullAsync(factory, http);
+        Assert.False((await WithAsync(factory, s => s.SetDraftFilesAsync(Package, ScriptPhase.BeforeInstall, new MemoryStream(FilesZip(("config.bgi", "x"))), "bginfo.zip", "admin", CancellationToken.None))).Succeeded);
+        Assert.True((await SaveAsync(factory, "Copy-Item (Join-Path $env:SUSYPHOS_FILES config.bgi) C:\\ProgramData\\BGInfo\nexit 0")).Succeeded);
+        var id = await ScriptIdAsync(factory);
+
+        // A path out of the folder or a finding of the virus scan is refused.
+        Assert.False((await WithAsync(factory, s => s.SetDraftFilesAsync(Package, ScriptPhase.BeforeInstall, new MemoryStream(FilesZip(("../evil.ps1", "x"))), "evil.zip", "admin", CancellationToken.None))).Succeeded);
+        factory.ScanResult = new ScanResult(ScanOutcome.Detected, "AMSI result 32768", 32768);
+        Assert.False((await WithAsync(factory, s => s.SetDraftFilesAsync(Package, ScriptPhase.BeforeInstall, new MemoryStream(FilesZip(("config.bgi", "x"))), "bginfo.zip", "admin", CancellationToken.None))).Succeeded);
+        factory.ScanResult = new ScanResult(ScanOutcome.Clean, "No threat found.", 1);
+        Assert.Equal(0, await factory.WithDbAsync(db => db.ScriptFiles.CountAsync(TestContext.Current.CancellationToken)));
+
+        var zip = FilesZip(("config.bgi", "BGINFO"), ("logo.bmp", "BM"));
+        Assert.True((await WithAsync(factory, s => s.SetDraftFilesAsync(Package, ScriptPhase.BeforeInstall, new MemoryStream(zip), "bginfo.zip", "admin", CancellationToken.None))).Succeeded);
+        Assert.True((await WithAsync(factory, s => s.ApproveAsync(id, true, "admin", CancellationToken.None))).Succeeded);
+
+        var package = await WithAsync(factory, s => s.PackageAsync(id, 1, CancellationToken.None));
+        var revision = await factory.WithDbAsync(db => db.PackageScriptRevisions.SingleAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(ScriptSigningFormat.Sha256(zip), package!.FilesSha256);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var anchor = scope.ServiceProvider.GetRequiredService<TrustAnchor>().PublicKey;
+            var reference = new ScriptReference(ScriptPhase.BeforeInstall, id, 1, revision.ContentSha256, revision.ParametersSha256);
+            Assert.Null(ScriptSigningFormat.Verify(package, anchor, reference, Package));
+            // Other files under the same signature (or none, as an agent before rc.8 would read it) do not verify.
+            Assert.NotNull(ScriptSigningFormat.Verify(package with { FilesSha256 = new string('A', 64) }, anchor, reference, Package));
+            Assert.NotNull(ScriptSigningFormat.Verify(package with { FilesSha256 = null }, anchor, reference, Package));
+        }
+
+        // Agents get the ZIP while scripts are on; without credentials nothing.
+        Assert.True((await WithAsync(factory, s => s.SetEnabledAsync(true, "admin", CancellationToken.None))).Succeeded);
+        using (var response = await SendAsync(http, register, HttpMethod.Get, ApiRoutes.ScriptFilesFor(id, 1)))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(zip, await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken));
+        }
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await http.GetAsync(new Uri(ApiRoutes.ScriptFilesFor(id, 1), UriKind.Relative), TestContext.Current.CancellationToken)).StatusCode);
+
+        // Removing the files from the draft keeps those of the approved revision until the next approval.
+        Assert.True((await WithAsync(factory, s => s.RemoveDraftFilesAsync(Package, ScriptPhase.BeforeInstall, "admin", CancellationToken.None))).Succeeded);
+        Assert.Equal(1, await factory.WithDbAsync(db => db.ScriptFiles.CountAsync(TestContext.Current.CancellationToken)));
+        Assert.True((await WithAsync(factory, s => s.DiscardDraftAsync(id, "admin", CancellationToken.None))).Succeeded);
+        Assert.Equal(ScriptSigningFormat.Sha256(zip), await factory.WithDbAsync(db => db.PackageScripts.Select(s => s.DraftFilesSha256).SingleAsync(TestContext.Current.CancellationToken)));
+
+        // The script page lists the files for every role.
+        await factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        var page = await (await reader.GetAsync(ScriptText.Link(Package, ScriptPhase.BeforeInstall))).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("config.bgi", page, StringComparison.Ordinal);
+        Assert.Contains(ScriptEndpoints.FilesDownloadPath(ScriptSigningFormat.Sha256(zip)), page, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"FilesZip\"", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Files_AreUploadedThroughTheScriptPage_ByAdministrators()
+    {
+        await using var factory = await CreateAsync();
+        Assert.True((await SaveAsync(factory, "exit 0")).Succeeded);
+        await factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var admin = new DashboardClient(factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        var path = ScriptText.Link(Package, ScriptPhase.BeforeInstall);
+        var page = await (await admin.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("enctype=\"multipart/form-data\"", page, StringComparison.Ordinal);
+        var token = System.Text.RegularExpressions.Regex.Match(page, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"").Groups[1].Value;
+        if (token.Length == 0)
+        {
+            token = System.Text.RegularExpressions.Regex.Match(page, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
+        }
+
+        using var form = new MultipartFormDataContent
+        {
+            { new StringContent(token), "__RequestVerificationToken" },
+            { new StringContent("script-files"), "_handler" },
+        };
+        var file = new ByteArrayContent(FilesZip(("config.bgi", "BGINFO")));
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
+        form.Add(file, "FilesZip", "bginfo.zip");
+        using var posted = await admin.Http.PostAsync(new Uri(path, UriKind.Relative), form, TestContext.Current.CancellationToken);
+        var result = await posted.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("The files were added to the draft", result, StringComparison.Ordinal);
+        Assert.Equal("bginfo.zip", await factory.WithDbAsync(db => db.ScriptFiles.Select(f => f.FileName).SingleAsync(TestContext.Current.CancellationToken)));
+    }
     [Fact]
     public async Task Agent_GetsTheScriptOnlyWhileSwitchedOn_AndReportsRunsOnce()
     {

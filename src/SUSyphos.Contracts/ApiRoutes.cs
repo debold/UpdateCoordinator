@@ -50,6 +50,12 @@ public static class ApiRoutes
     /// <summary>Script route for a concrete revision.</summary>
     public static string ScriptFor(int id, int revision) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"/api/v1/scripts/{id}/{revision}");
 
+    /// <summary>The ZIP of files of an approved script revision, for approved agents.</summary>
+    public const string ScriptFiles = "/api/v1/scripts/{id:int}/{revision:int}/files";
+
+    /// <summary>Files route for a concrete revision.</summary>
+    public static string ScriptFilesFor(int id, int revision) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"/api/v1/scripts/{id}/{revision}/files");
+
     /// <summary>Result and output of one script run of an approved agent.</summary>
     public const string AgentScriptRuns = "/api/v1/agents/script-runs";
 

@@ -110,6 +110,13 @@ public sealed record ScriptPackage
     /// <summary>Windows PowerShell 5.1 (default; also what agents before 0.9.0-rc.7 run) or PowerShell 7 with fallback.</summary>
     public ScriptPowerShell PowerShell { get; init; }
 
+    /// <summary>
+    /// SHA-256 (upper-case hex) of the ZIP of files the script uses (since 0.9.0-rc.8, Marc 2026-11-22), part of the signed
+    /// revision; null without files. The agent downloads it from <see cref="ApiRoutes.ScriptFilesFor"/> and unpacks it into
+    /// the folder <c>files</c> of the run ($env:SUSYPHOS_FILES).
+    /// </summary>
+    public string? FilesSha256 { get; init; }
+
     /// <summary>The script as signed: UTF-8 with BOM and CRLF line ends, Base64.</summary>
     public required string Content { get; init; }
 
@@ -182,6 +189,15 @@ public static class ScriptLimits
     public const int DefaultTimeoutSeconds = 300;
 
     public const int MaxTimeoutSeconds = 1800;
+
+    /// <summary>Largest ZIP of files of a script revision.</summary>
+    public const long MaxFilesZipBytes = 50L * 1024 * 1024;
+
+    /// <summary>Most bytes the files of one revision may take when unpacked.</summary>
+    public const long MaxFilesUnpackedBytes = 200L * 1024 * 1024;
+
+    /// <summary>Most files (and folders) in the ZIP of one revision.</summary>
+    public const int MaxFiles = 1000;
 
     /// <summary>Exit code Windows uses for a timeout (ERROR_TIMEOUT as HRESULT).</summary>
     public const int TimeoutCode = unchecked((int)0x800705B4);

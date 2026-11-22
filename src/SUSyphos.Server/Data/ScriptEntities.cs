@@ -50,6 +50,9 @@ internal sealed class PackageScriptEntity
 
     public required string DraftChangedBy { get; set; }
 
+    /// <summary>SHA-256 of the ZIP of files the draft brings along (<see cref="ScriptFilesEntity"/>); null without files.</summary>
+    public string? DraftFilesSha256 { get; set; }
+
     /// <summary>The revision agents run; null while none was approved.</summary>
     public int? ApprovedRevision { get; set; }
 }
@@ -86,6 +89,9 @@ internal sealed class PackageScriptRevisionEntity
     public DateTime SignedAtUtc { get; set; }
 
     public required string ApprovedBy { get; set; }
+
+    /// <summary>SHA-256 of the ZIP of files of this revision, part of what was signed; null without files.</summary>
+    public string? FilesSha256 { get; set; }
 
     public InstallerScanState ScanState { get; set; }
 
@@ -146,4 +152,36 @@ internal sealed class ScriptRunEntity
     public int Warnings { get; set; }
 
     public string? Detail { get; set; }
+}
+
+/// <summary>
+/// A ZIP of files scripts bring along (Marc, 2026-11-22, for example the .bgi file of BGInfo), stored once per content
+/// (SHA-256) in the database, so it is in every backup; drafts and revisions refer to it by its hash.
+/// </summary>
+internal sealed class ScriptFilesEntity
+{
+    /// <summary>SHA-256 of <see cref="Content"/>, upper-case hex.</summary>
+    public required string Sha256 { get; set; }
+
+    public required byte[] Content { get; set; }
+
+    public long SizeBytes { get; set; }
+
+    public long UnpackedBytes { get; set; }
+
+    public int FileCount { get; set; }
+
+    /// <summary>The files with size and SHA-256 (JSON array of <see cref="ScriptFileEntry"/>), for the approval page.</summary>
+    public required string FilesJson { get; set; }
+
+    /// <summary>The original name of the uploaded file, shown on the script page.</summary>
+    public required string FileName { get; set; }
+
+    public InstallerScanState ScanState { get; set; }
+
+    public string? ScanDetail { get; set; }
+
+    public DateTime UploadedAtUtc { get; set; }
+
+    public required string UploadedBy { get; set; }
 }

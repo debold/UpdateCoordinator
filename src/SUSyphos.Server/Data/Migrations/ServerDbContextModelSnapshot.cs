@@ -662,6 +662,10 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<DateTime?>("PlannedRestartAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PowerShell7Version")
+                        .HasMaxLength(23)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("PreviousHostName")
                         .HasMaxLength(63)
                         .HasColumnType("TEXT");
@@ -1328,6 +1332,10 @@ namespace SUSyphos.Server.Data.Migrations
                     b.Property<string>("DraftContent")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DraftFilesSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("DraftOnFailure")
                         .HasColumnType("INTEGER");
 
@@ -1354,6 +1362,8 @@ namespace SUSyphos.Server.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DraftFilesSha256");
+
                     b.HasIndex("PackageId", "Phase")
                         .IsUnique();
 
@@ -1379,6 +1389,10 @@ namespace SUSyphos.Server.Data.Migrations
 
                     b.Property<string>("ContentSha256")
                         .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FilesSha256")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
@@ -1423,6 +1437,8 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.HasKey("ScriptId", "Revision");
+
+                    b.HasIndex("FilesSha256");
 
                     b.HasIndex("KeyId");
 
@@ -1675,6 +1691,54 @@ namespace SUSyphos.Server.Data.Migrations
                     b.HasIndex("State");
 
                     b.ToTable("RolloutRings", (string)null);
+                });
+
+            modelBuilder.Entity("SUSyphos.Server.Data.ScriptFilesEntity", b =>
+                {
+                    b.Property<string>("Sha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<int>("FileCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FilesJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ScanDetail")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ScanState")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UnpackedBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UploadedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Sha256");
+
+                    b.ToTable("ScriptFiles", (string)null);
                 });
 
             modelBuilder.Entity("SUSyphos.Server.Data.ScriptKeyEntity", b =>
@@ -2408,6 +2472,11 @@ namespace SUSyphos.Server.Data.Migrations
 
             modelBuilder.Entity("SUSyphos.Server.Data.PackageScriptEntity", b =>
                 {
+                    b.HasOne("SUSyphos.Server.Data.ScriptFilesEntity", null)
+                        .WithMany()
+                        .HasForeignKey("DraftFilesSha256")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SUSyphos.Server.Data.PackageEntity", null)
                         .WithMany()
                         .HasForeignKey("PackageId")
@@ -2417,6 +2486,11 @@ namespace SUSyphos.Server.Data.Migrations
 
             modelBuilder.Entity("SUSyphos.Server.Data.PackageScriptRevisionEntity", b =>
                 {
+                    b.HasOne("SUSyphos.Server.Data.ScriptFilesEntity", null)
+                        .WithMany()
+                        .HasForeignKey("FilesSha256")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("SUSyphos.Server.Data.ScriptKeyEntity", null)
                         .WithMany()
                         .HasForeignKey("KeyId")

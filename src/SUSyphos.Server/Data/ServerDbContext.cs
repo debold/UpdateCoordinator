@@ -86,6 +86,8 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
 
     public DbSet<PackageScriptRevisionEntity> PackageScriptRevisions => Set<PackageScriptRevisionEntity>();
 
+    public DbSet<ScriptFilesEntity> ScriptFiles => Set<ScriptFilesEntity>();
+
     public DbSet<PackageAssignmentScriptValueEntity> PackageAssignmentScriptValues => Set<PackageAssignmentScriptValueEntity>();
 
     public DbSet<ScriptRunEntity> ScriptRuns => Set<ScriptRunEntity>();
@@ -329,6 +331,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         client.Property(c => c.RegisteredFromAddress).HasMaxLength(45);
         client.Property(c => c.OsProductName).HasMaxLength(128);
         client.Property(c => c.OsEditionId).HasMaxLength(64);
+        client.Property(c => c.PowerShell7Version).HasMaxLength(23);
         client.Property(c => c.OsDisplayVersion).HasMaxLength(16);
         client.Property(c => c.WsusServer).HasMaxLength(255);
         client.Property(c => c.TimeZoneId).HasMaxLength(64);
@@ -493,6 +496,19 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         scriptRevision.Property(r => r.ScanDetail).HasMaxLength(512);
         scriptRevision.HasOne<PackageScriptEntity>().WithMany().HasForeignKey(r => r.ScriptId).OnDelete(DeleteBehavior.Cascade);
         scriptRevision.HasOne<ScriptKeyEntity>().WithMany().HasForeignKey(r => r.KeyId).OnDelete(DeleteBehavior.Restrict);
+
+        var scriptFiles = modelBuilder.Entity<ScriptFilesEntity>();
+        scriptFiles.ToTable("ScriptFiles");
+        scriptFiles.HasKey(f => f.Sha256);
+        scriptFiles.Property(f => f.Sha256).HasMaxLength(64);
+        scriptFiles.Property(f => f.FileName).HasMaxLength(260);
+        scriptFiles.Property(f => f.UploadedBy).HasMaxLength(256);
+        scriptFiles.Property(f => f.ScanState).HasConversion<int>();
+        scriptFiles.Property(f => f.ScanDetail).HasMaxLength(512);
+        script.Property(s => s.DraftFilesSha256).HasMaxLength(64);
+        script.HasOne<ScriptFilesEntity>().WithMany().HasForeignKey(s => s.DraftFilesSha256).OnDelete(DeleteBehavior.SetNull);
+        scriptRevision.Property(r => r.FilesSha256).HasMaxLength(64);
+        scriptRevision.HasOne<ScriptFilesEntity>().WithMany().HasForeignKey(r => r.FilesSha256).OnDelete(DeleteBehavior.Restrict);
 
         var scriptValue = modelBuilder.Entity<PackageAssignmentScriptValueEntity>();
         scriptValue.ToTable("PackageAssignmentScriptValues");

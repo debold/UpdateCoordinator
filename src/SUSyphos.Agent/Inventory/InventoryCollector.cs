@@ -41,6 +41,7 @@ internal sealed partial class InventoryCollector(
             ExtendedSecurityUpdates = esu?.Read(),
             InstalledSoftware = programs?.Software,
             Software = programs?.Support,
+            PowerShell7Version = Scripts.PowerShellScriptProcess.PowerShell7Version(),
         };
     }
 

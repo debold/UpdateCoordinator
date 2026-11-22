@@ -9,6 +9,7 @@
 @inject NavigationManager Navigation
 @inject SoftwareFeature Feature
 @inject SoftwareTrust Trust
+@inject ServerDbContext Db
 
 <PageTitle>Software</PageTitle>
 
@@ -40,6 +41,23 @@
         <a class="btn danger" href="@($"{Path}?dialog=off")"><Icon Name="power" Size="16" />Switch off…</a>
     </ActionBand>
 </AuthorizeView>
+
+@* Recommended packages (Marc, 2026-11-22): PowerShell 7, since Microsoft deprecated Windows PowerShell 5.1. *@
+<Box Title="Recommended" Anchor="recommended" Help="software#recommended" Flush="true" Hint="packages SUSyphos itself benefits from">
+    <div class="box-body recommended">
+        <div class="pkg-name"><PackageLogo Name="PowerShell 7" LogoFile="@null" /><div><b>PowerShell 7</b> <span class="note mono">@SUSyphos.Server.Scripts.PowerShell7Coverage.PackageId</span><div class="note">Microsoft deprecated Windows PowerShell 5.1 on 2026-11-17; scripts of software packages run in PowerShell 7 by default and fall back to 5.1 where it is missing. @(_powerShell7Servers.Known == 0 ? "No server reports PowerShell 7 yet." : $"Installed on {_powerShell7Servers.Installed} of {DisplayNumber.Count(_powerShell7Servers.Known, "server", "servers")} that report it.")</div></div></div>
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="recommendAdmin">
+            @if (_known.Contains(SUSyphos.Server.Scripts.PowerShell7Coverage.PackageId))
+            {
+                <a class="btn" href="@($"{PackagePage.Link(SUSyphos.Server.Scripts.PowerShell7Coverage.PackageId)}?dialog=assign")" data-help-term="Assign…">Assign…</a>
+            }
+            else
+            {
+                <form method="post" @formname="software-recommend" @onsubmit="AddRecommendedAsync"><AntiforgeryToken /><input type="hidden" name="Recommended" value="@SUSyphos.Server.Scripts.PowerShell7Coverage.PackageId" /><button type="submit" class="primary" data-help-term="Add and assign…"><Icon Name="plus" Size="16" />Add and assign…</button></form>
+            }
+        </AuthorizeView>
+    </div>
+</Box>
 
 <Box Title="Packages" Help="software#packages" Flush="true" Hint="Newest version from the WinGet community source; installed versions as the servers report them">
     <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search name, ID, publisher or tag" Noun="packages" Empty="No package yet: they appear when servers report software WinGet knows, or when an administrator adds one.">
@@ -129,6 +147,9 @@ else if (_dialog == "add" && _enabled)
     [SupplyParameterFromQuery(Name = "q")] private string? Query { get; set; }
     [SupplyParameterFromForm(FormName = "software-add")] private string? PackageId { get; set; }
     [SupplyParameterFromForm(FormName = "software-switch")] private string? Enabled { get; set; }
+    [SupplyParameterFromForm(FormName = "software-recommend")] private string? Recommended { get; set; }
+
+    private (int Installed, int Known) _powerShell7Servers;
 
     private bool _enabled = true;
 
@@ -183,6 +204,8 @@ else if (_dialog == "add" && _enabled)
         _enabled = await Feature.IsEnabledAsync(CancellationToken.None);
         var rows = await Overview.ListAsync(CancellationToken.None);
         _known = [.. rows.Select(r => r.Package.PackageId)];
+        var reporting = (await Db.Clients.AsNoTracking().Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved).Select(c => new { c.AgentVersion, c.PowerShell7Version }).ToListAsync()).Where(c => SUSyphos.Server.Scripts.PowerShell7Coverage.Reports(c.AgentVersion)).ToList();
+        _powerShell7Servers = (reporting.Count(c => c.PowerShell7Version != null), reporting.Count);
         _table = TableQuery.From(Navigation, "name");
         _page = TablePaging.Apply(rows, _table, Columns, r => $"{r.Package.Name} {r.Package.PackageId} {r.Package.Publisher} {r.Package.Tags}");
         _results = _dialog == "add" && !string.IsNullOrWhiteSpace(Query) && Source.Index is { } index ? index.Search(Query, MaxResults) : null;
@@ -229,6 +252,29 @@ else if (_dialog == "add" && _enabled)
         await LoadAsync();
     }
 
+
+    /// <summary>Adds a recommended package to the catalog and opens its assignment dialog (administrators).</summary>
+    private async Task AddRecommendedAsync()
+    {
+        if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer) || Recommended != SUSyphos.Server.Scripts.PowerShell7Coverage.PackageId)
+        {
+            ShowResult("Only administrators add packages.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        var outcome = await Feature.IsEnabledAsync(CancellationToken.None)
+            ? await Catalog.AddPackageAsync(Recommended, await GetActorAsync(), CancellationToken.None)
+            : new Outcome("Software management is switched off.");
+        if (outcome.Succeeded)
+        {
+            Navigation.NavigateTo($"{PackagePage.Link(Recommended)}?dialog=assign");
+            return;
+        }
+
+        ShowResult(outcome.Error, string.Empty);
+        await LoadAsync();
+    }
     private async Task CheckAsync()
     {
         if (!await IsAuthorizedAsync(AdminRoles.Policies.Administer))

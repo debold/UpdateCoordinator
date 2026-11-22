@@ -39,6 +39,11 @@ public sealed record InventoryRequest
     [RegularExpression(ValidationPatterns.TimeZoneId)]
     public string? TimeZoneId { get; init; }
 
+    /// <summary>Version of PowerShell 7 under Program Files ("7.5.4"); null when it is not installed (and from agents before 0.9.0-rc.8).</summary>
+    [StringLength(23)]
+    [RegularExpression(@"^[0-9]{1,5}(\.[0-9]{1,5}){1,3}$")]
+    public string? PowerShell7Version { get; init; }
+
     /// <summary>Installed updates; null if they could not be read (the central server then keeps the previous list).</summary>
     [MaxLength(MaxInstalledUpdates)]
     public IReadOnlyList<InstalledUpdate>? InstalledUpdates { get; init; }

@@ -554,6 +554,7 @@ else
             <Fact Label="Operating system" Note="@(_client.OsEditionId is { Length: > 0 } edition ? $"edition {edition}" : null)">@OperatingSystems.Name(_client.OsProductName, _client.OsVersion, _client.OsEditionId)</Fact>
             <Fact Label="Build" Mono="true">@OperatingSystems.Build(_client.OsVersion)</Fact>
             <Fact Label="Agent"><a href="@Servers.Link("agent", AgentVersion.ShortForm(_client.AgentVersion))" title="@_client.AgentVersion: show all servers with this agent version" class="mono">@AgentVersion.ShortForm(_client.AgentVersion)</a></Fact>
+            <Fact Label="PowerShell 7" Note="@(SUSyphos.Server.Scripts.PowerShell7Coverage.Reports(_client.AgentVersion) ? "for scripts of software packages" : "reported by agents from 0.9.0-rc.8")">@(_client.PowerShell7Version ?? (SUSyphos.Server.Scripts.PowerShell7Coverage.Reports(_client.AgentVersion) ? "not installed" : "unknown"))</Fact>
             <Fact Label="Domain">@(_client.DomainName ?? "–")</Fact>
             <Fact Label="Roles">@if (_client.Roles.Count > 0) { @foreach (var role in _client.Roles) { <span class="tag">@role</span> } } else { <span>–</span> }</Fact>
             <Fact Label="Update source">@UpdateSourceText</Fact>

@@ -70,3 +70,9 @@ public static class ScriptText
 
     public static string RunLink(Guid clientId, Guid runId) => $"/servers/{clientId:D}/script-runs/{runId:D}";
 }
+
+/// <summary>Request limits of the script page: the ZIP of files plus room for the form around it.</summary>
+internal static class ScriptPageLimits
+{
+    public const long RequestBytes = SUSyphos.Contracts.Scripts.ScriptLimits.MaxFilesZipBytes + 1024 * 1024;
+}

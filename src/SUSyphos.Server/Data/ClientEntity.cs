@@ -50,6 +50,9 @@ internal sealed class ClientEntity
 
     public string? OsEditionId { get; set; }
 
+    /// <summary>Version of PowerShell 7 the agent found with the last inventory; null when not installed or not reported.</summary>
+    public string? PowerShell7Version { get; set; }
+
     public string? OsDisplayVersion { get; set; }
 
     /// <summary>An Extended Security Updates key is installed and licensed (SoftwareLicensingProduct); null before agent 0.7.10.</summary>

@@ -31,6 +31,7 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
         client.TimeZoneId = inventory.TimeZoneId is { } zone && TimeZoneInfo.TryFindSystemTimeZoneById(zone, out _) ? zone : null;
         client.OsProductName = inventory.OperatingSystem.ProductName;
         client.OsEditionId = inventory.OperatingSystem.EditionId;
+        client.PowerShell7Version = inventory.PowerShell7Version;
         if (inventory.ExtendedSecurityUpdates is { } esu)
         {
             // Older agents send nothing; then the last known values stay.

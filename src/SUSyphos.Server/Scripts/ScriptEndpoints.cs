@@ -27,6 +27,11 @@ internal static class ScriptEndpoints
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.Script))
             .WithName("AgentScript");
 
+        endpoints.MapGet(ApiRoutes.ScriptFiles, FilesAsync)
+            .RequireAuthorization()
+            .AddEndpointFilter(new MessagePolicyFilter(MessageType.Script))
+            .WithName("AgentScriptFiles");
+
         endpoints.MapPost(ApiRoutes.AgentScriptRuns, ScriptRunAsync)
             .RequireAuthorization()
             .AddEndpointFilter(new MessagePolicyFilter(MessageType.ScriptRun))
@@ -36,8 +41,20 @@ internal static class ScriptEndpoints
         endpoints.MapGet(DownloadRoute, DownloadAsync)
             .RequireAuthorization(Administration.AdminRoles.Policies.Read)
             .WithName("ScriptDownload");
+
+        endpoints.MapGet(FilesDownloadRoute, async (string sha256, ServerDbContext db, CancellationToken cancellationToken) => sha256.ToUpperInvariant() is var key &&
+                sha256.Length == 64 && sha256.All(Uri.IsHexDigit) && await db.ScriptFiles.AsNoTracking().Where(f => f.Sha256 == key).Select(f => f.Content).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false) is { } zip
+                    ? TypedResults.File(zip, "application/zip", $"files-{sha256[..12].ToLowerInvariant()}.zip")
+                    : Results.NotFound())
+            .RequireAuthorization(Administration.AdminRoles.Policies.Read)
+            .WithName("ScriptFilesDownload");
         return endpoints;
     }
+
+    /// <summary>Download of the ZIP of files of a draft or revision from the script page (every role may read scripts).</summary>
+    public const string FilesDownloadRoute = "/software-script-files/{sha256}";
+
+    public static string FilesDownloadPath(string sha256) => $"/software-script-files/{sha256}";
 
     /// <summary>Download of an approved revision as .ps1 from the script page (every role may read scripts).</summary>
     public const string DownloadRoute = "/software-scripts/{packageId}/{phase}/{revision:int}";
@@ -66,6 +83,12 @@ internal static class ScriptEndpoints
             ? TypedResults.Ok(package)
             : TypedResults.NotFound();
 
+
+    /// <summary>The ZIP of files of an approved revision (0.9.0-rc.8); the agent checks it against the signed SHA-256.</summary>
+    internal static async Task<IResult> FilesAsync(int id, int revision, ScriptAdministration scripts, CancellationToken cancellationToken) =>
+        await scripts.IsEnabledAsync(cancellationToken).ConfigureAwait(false) && await scripts.RevisionFilesAsync(id, revision, cancellationToken).ConfigureAwait(false) is { } zip
+            ? TypedResults.File(zip, "application/zip", string.Create(System.Globalization.CultureInfo.InvariantCulture, $"script-{id}-r{revision}-files.zip"))
+            : TypedResults.NotFound();
     /// <summary>Stores a run once (by its run ID); the output is cut to the limit and masked again for safety.</summary>
     internal static async Task<Results<NoContent, BadRequest<string>>> ScriptRunAsync(ScriptRunReport report, HttpContext httpContext, ServerDbContext db, CancellationToken cancellationToken)
     {

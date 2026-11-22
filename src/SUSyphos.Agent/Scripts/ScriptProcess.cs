@@ -30,6 +30,29 @@ internal sealed class PowerShellScriptProcess : IScriptProcess
     /// <summary>PowerShell 7 as its installer (and the WinGet package Microsoft.PowerShell) puts it.</summary>
     public static string PowerShell7Path => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
 
+    /// <summary>
+    /// The version of PowerShell 7 in <paramref name="path"/> ("7.5.4"), reported with the inventory (Marc, 2026-11-22: the
+    /// dashboard warns about servers that run PowerShell 7 scripts without it); null when it is not installed or unreadable.
+    /// </summary>
+    public static string? PowerShell7Version(string? path = null)
+    {
+        try
+        {
+            var file = path ?? PowerShell7Path;
+            if (!File.Exists(file))
+            {
+                return null;
+            }
+
+            var info = System.Diagnostics.FileVersionInfo.GetVersionInfo(file);
+            return info.FileMajorPart > 0 ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{info.FileMajorPart}.{info.FileMinorPart}.{info.FileBuildPart}") : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
     public const string WindowsPowerShell = "Windows PowerShell 5.1";
 
     public const string PowerShell7 = "PowerShell 7";

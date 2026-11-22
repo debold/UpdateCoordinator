@@ -230,6 +230,14 @@ internal sealed class ScriptAdministration(
             return new Outcome($"The virus scan refused the script: {detail}");
         }
 
+        // The files the revision brings along must have passed their scan too (checked again here, the mode may have changed).
+        if (script.DraftFilesSha256 is { } draftFiles
+            && softwareOptions.Value.ScanMode == ScanMode.Enforce
+            && await db.ScriptFiles.AsNoTracking().Where(f => f.Sha256 == draftFiles).Select(f => (InstallerScanState?)f.ScanState).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false) is not (InstallerScanState.Clean or InstallerScanState.NotScanned))
+        {
+            return new Outcome("The files of the draft did not pass the virus scan; upload them again.");
+        }
+
         var (key, ecdsa) = await signing.ActiveAsync(actor, cancellationToken).ConfigureAwait(false);
         var revision = (await db.PackageScriptRevisions.Where(r => r.ScriptId == script.Id).MaxAsync(r => (int?)r.Revision, cancellationToken).ConfigureAwait(false) ?? 0) + 1;
         var now = timeProvider.GetUtcNow().UtcDateTime;
@@ -237,7 +245,7 @@ internal sealed class ScriptAdministration(
         var parametersJson = script.DraftParametersJson ?? "[]";
         var contentHash = ScriptSigningFormat.Sha256(content);
         var parametersHash = ScriptSigningFormat.ParametersSha256(parametersJson);
-        var signed = ScriptSigningFormat.RevisionBytes(script.Id, revision, script.PackageId, script.Phase, script.DraftRunOn, script.DraftOnFailure, script.DraftTimeoutSeconds, contentHash, parametersHash, new DateTimeOffset(now), script.DraftPowerShell);
+        var signed = ScriptSigningFormat.RevisionBytes(script.Id, revision, script.PackageId, script.Phase, script.DraftRunOn, script.DraftOnFailure, script.DraftTimeoutSeconds, contentHash, parametersHash, new DateTimeOffset(now), script.DraftPowerShell, script.DraftFilesSha256);
         db.PackageScriptRevisions.Add(new PackageScriptRevisionEntity
         {
             ScriptId = script.Id,
@@ -250,6 +258,7 @@ internal sealed class ScriptAdministration(
             OnFailure = script.DraftOnFailure,
             TimeoutSeconds = script.DraftTimeoutSeconds,
             PowerShell = script.DraftPowerShell,
+            FilesSha256 = script.DraftFilesSha256,
             KeyId = key.KeyId,
             Signature = ScriptSigning.Sign(ecdsa, signed),
             SignedAtUtc = now,
@@ -262,7 +271,7 @@ internal sealed class ScriptAdministration(
         script.DraftParametersJson = null;
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await AnnounceAsync(cancellationToken).ConfigureAwait(false);
-        await audit.WriteAsync(actor, "Script.Approved", $"{script.PackageId} {script.Phase} revision {revision}", $"SHA-256 {contentHash}, key {key.KeyId}, scan {state}", cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Script.Approved", $"{script.PackageId} {script.Phase} revision {revision}", $"SHA-256 {contentHash}{(script.DraftFilesSha256 is { } signedFiles ? $", files {signedFiles}" : string.Empty)}, key {key.KeyId}, scan {state}", cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
     }
 
@@ -283,6 +292,174 @@ internal sealed class ScriptAdministration(
         };
     }
 
+
+    /// <summary>
+    /// Sets the ZIP of files of the draft (Marc, 2026-11-22): at most <see cref="ScriptLimits.MaxFilesZipBytes"/>, checked
+    /// like the agent checks it before unpacking (<see cref="ScriptFilesFormat"/>) and every file scanned for malware; a
+    /// draft is created from the approved revision when there is none. The files reach agents only with the next approval.
+    /// </summary>
+    public async Task<Outcome> SetDraftFilesAsync(string packageId, ScriptPhase phase, Stream zip, string fileName, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(zip);
+        var script = await db.PackageScripts.SingleOrDefaultAsync(s => s.PackageId == packageId && s.Phase == phase, cancellationToken).ConfigureAwait(false);
+        if (script is null)
+        {
+            return new Outcome("Save a draft of the script first.");
+        }
+
+        using var buffer = new MemoryStream();
+        await zip.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+        if (buffer.Length == 0 || buffer.Length > ScriptLimits.MaxFilesZipBytes)
+        {
+            return new Outcome($"Choose a ZIP file of at most {ScriptLimits.MaxFilesZipBytes / (1024 * 1024)} MB.");
+        }
+
+        buffer.Position = 0;
+        var (files, error) = ScriptFilesFormat.Inspect(buffer);
+        if (error is not null)
+        {
+            return new Outcome(error);
+        }
+
+        var content = buffer.ToArray();
+        var (state, detail) = ScanFiles(content);
+        if (softwareOptions.Value.ScanMode == ScanMode.Enforce && state is InstallerScanState.Detected or InstallerScanState.Failed)
+        {
+            await audit.WriteAsync(actor, "Script.FilesScanRefused", $"{packageId} {phase}", detail, cancellationToken).ConfigureAwait(false);
+            return new Outcome($"The virus scan refused the files: {detail}");
+        }
+
+        var sha = ScriptSigningFormat.Sha256(content);
+        if (!await db.ScriptFiles.AnyAsync(f => f.Sha256 == sha, cancellationToken).ConfigureAwait(false))
+        {
+            db.ScriptFiles.Add(new ScriptFilesEntity
+            {
+                Sha256 = sha,
+                Content = content,
+                SizeBytes = content.LongLength,
+                UnpackedBytes = files.Sum(f => f.Size),
+                FileCount = files.Count,
+                FilesJson = System.Text.Json.JsonSerializer.Serialize(files),
+                FileName = SafeFileName(fileName),
+                ScanState = state,
+                ScanDetail = detail is { Length: > 512 } longDetail ? longDetail[..512] : detail,
+                UploadedAtUtc = timeProvider.GetUtcNow().UtcDateTime,
+                UploadedBy = actor,
+            });
+        }
+
+        await EnsureDraftAsync(script, cancellationToken).ConfigureAwait(false);
+        script.DraftFilesSha256 = sha;
+        script.DraftChangedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+        script.DraftChangedBy = actor;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await RemoveUnusedFilesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Script.FilesChanged", $"{packageId} {phase}", $"{SafeFileName(fileName)}: {files.Count} files, SHA-256 {sha}, scan {state}", cancellationToken).ConfigureAwait(false);
+        return Outcome.Ok;
+    }
+
+    /// <summary>Removes the files from the draft; the approved revision keeps its own until the next approval.</summary>
+    public async Task<Outcome> RemoveDraftFilesAsync(string packageId, ScriptPhase phase, string actor, CancellationToken cancellationToken)
+    {
+        var script = await db.PackageScripts.SingleOrDefaultAsync(s => s.PackageId == packageId && s.Phase == phase, cancellationToken).ConfigureAwait(false);
+        if (script?.DraftFilesSha256 is null)
+        {
+            return new Outcome("The draft has no files.");
+        }
+
+        await EnsureDraftAsync(script, cancellationToken).ConfigureAwait(false);
+        script.DraftFilesSha256 = null;
+        script.DraftChangedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
+        script.DraftChangedBy = actor;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await RemoveUnusedFilesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Script.FilesRemoved", $"{packageId} {phase}", null, cancellationToken).ConfigureAwait(false);
+        return Outcome.Ok;
+    }
+
+    /// <summary>The files of a ZIP, for the script page; null when unknown.</summary>
+    public async Task<ScriptFilesView?> FilesAsync(string? sha256, CancellationToken cancellationToken)
+    {
+        if (sha256 is null)
+        {
+            return null;
+        }
+
+        var row = await db.ScriptFiles.AsNoTracking().Where(f => f.Sha256 == sha256)
+            .Select(f => new { f.Sha256, f.FileName, f.SizeBytes, f.UnpackedBytes, f.FilesJson, f.ScanState, f.ScanDetail, f.UploadedAtUtc, f.UploadedBy })
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        return row is null ? null : new ScriptFilesView(row.Sha256, row.FileName, row.SizeBytes, row.UnpackedBytes, System.Text.Json.JsonSerializer.Deserialize<ScriptFileEntry[]>(row.FilesJson) ?? [], row.ScanState, row.ScanDetail, row.UploadedAtUtc, row.UploadedBy);
+    }
+
+    /// <summary>The ZIP of an approved revision for an agent; null when the revision has none or is unknown.</summary>
+    public async Task<byte[]?> RevisionFilesAsync(int scriptId, int revision, CancellationToken cancellationToken) =>
+        await (from r in db.PackageScriptRevisions.AsNoTracking()
+               join f in db.ScriptFiles.AsNoTracking() on r.FilesSha256 equals f.Sha256
+               where r.ScriptId == scriptId && r.Revision == revision
+               select f.Content).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+
+    /// <summary>A change of files without a draft starts one from the approved revision.</summary>
+    private async Task EnsureDraftAsync(PackageScriptEntity script, CancellationToken cancellationToken)
+    {
+        if (script.DraftContent is not null)
+        {
+            return;
+        }
+
+        var approved = script.ApprovedRevision is { } revision
+            ? await db.PackageScriptRevisions.AsNoTracking().SingleOrDefaultAsync(r => r.ScriptId == script.Id && r.Revision == revision, cancellationToken).ConfigureAwait(false)
+            : null;
+        script.DraftContent = approved is null ? string.Empty : ScriptSigningFormat.ContentText(approved.Content);
+        script.DraftParametersJson = approved?.ParametersJson ?? "[]";
+        if (approved is not null)
+        {
+            (script.DraftRunOn, script.DraftOnFailure, script.DraftTimeoutSeconds, script.DraftPowerShell) = (approved.RunOn, approved.OnFailure, approved.TimeoutSeconds, approved.PowerShell);
+        }
+    }
+
+    /// <summary>ZIPs no draft and no revision refers to any more go.</summary>
+    private Task<int> RemoveUnusedFilesAsync(CancellationToken cancellationToken) =>
+        db.ScriptFiles
+            .Where(f => !db.PackageScripts.Any(s => s.DraftFilesSha256 == f.Sha256) && !db.PackageScriptRevisions.Any(r => r.FilesSha256 == f.Sha256))
+            .ExecuteDeleteAsync(cancellationToken);
+
+    /// <summary>Scans the ZIP and every file in it; the worst result counts.</summary>
+    private (InstallerScanState State, string? Detail) ScanFiles(byte[] zip)
+    {
+        if (softwareOptions.Value.ScanMode == ScanMode.Off)
+        {
+            return (InstallerScanState.NotScanned, null);
+        }
+
+        var whole = Scan(zip, "files.zip");
+        var results = new List<(string Name, InstallerScanState State, string? Detail)> { ("the ZIP", whole.State, whole.Detail) };
+        using (var archive = new System.IO.Compression.ZipArchive(new MemoryStream(zip), System.IO.Compression.ZipArchiveMode.Read))
+        {
+            foreach (var entry in archive.Entries.Where(e => !e.FullName.EndsWith('/') && !e.FullName.EndsWith('\\')))
+            {
+                using var stream = entry.Open();
+                using var content = new MemoryStream();
+                stream.CopyTo(content);
+                var (state, detail) = Scan(content.ToArray(), Path.GetFileName(entry.FullName));
+                results.Add((entry.FullName, state, detail));
+            }
+        }
+
+        var detected = results.FindIndex(r => r.State == InstallerScanState.Detected);
+        var failed = results.FindIndex(r => r.State == InstallerScanState.Failed);
+        var notScanned = results.FindIndex(r => r.State == InstallerScanState.NotScanned);
+        return detected >= 0 ? (InstallerScanState.Detected, $"{results[detected].Name}: {results[detected].Detail}")
+            : failed >= 0 ? (InstallerScanState.Failed, $"{results[failed].Name}: {results[failed].Detail}")
+            : notScanned >= 0 ? (InstallerScanState.NotScanned, results[notScanned].Detail)
+            : (InstallerScanState.Clean, null);
+    }
+
+    private static string SafeFileName(string? name)
+    {
+        var file = Path.GetFileName(name ?? string.Empty);
+        var safe = new string([.. file.Where(c => !char.IsControl(c)).Take(200)]);
+        return safe.Length == 0 ? "files.zip" : safe;
+    }
     /// <summary>Throws the draft away; with no approved revision the script goes.</summary>
     public async Task<Outcome> DiscardDraftAsync(int scriptId, string actor, CancellationToken cancellationToken)
     {
@@ -300,9 +477,11 @@ internal sealed class ScriptAdministration(
         {
             script.DraftContent = null;
             script.DraftParametersJson = null;
+            script.DraftFilesSha256 = await db.PackageScriptRevisions.AsNoTracking().Where(r => r.ScriptId == script.Id && r.Revision == script.ApprovedRevision).Select(r => r.FilesSha256).SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
         }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await RemoveUnusedFilesAsync(cancellationToken).ConfigureAwait(false);
         await audit.WriteAsync(actor, "Script.DraftDiscarded", $"{script.PackageId} {script.Phase}", null, cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
     }
@@ -320,6 +499,7 @@ internal sealed class ScriptAdministration(
         await db.PackageScriptRevisions.Where(r => r.ScriptId == scriptId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         db.PackageScripts.Remove(script);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await RemoveUnusedFilesAsync(cancellationToken).ConfigureAwait(false);
         await AnnounceAsync(cancellationToken).ConfigureAwait(false);
         await audit.WriteAsync(actor, "Script.Deleted", $"{script.PackageId} {script.Phase}", script.ApprovedRevision is { } revision ? $"last revision {revision}" : "draft only", cancellationToken).ConfigureAwait(false);
         return Outcome.Ok;
@@ -462,6 +642,7 @@ internal sealed class ScriptAdministration(
             OnFailure = row.r.OnFailure,
             TimeoutSeconds = row.r.TimeoutSeconds,
             PowerShell = row.r.PowerShell,
+            FilesSha256 = row.r.FilesSha256,
             Content = Convert.ToBase64String(row.r.Content),
             ParametersJson = row.r.ParametersJson,
             SignedAt = new DateTimeOffset(DateTime.SpecifyKind(row.r.SignedAtUtc, DateTimeKind.Utc)),
@@ -473,3 +654,6 @@ internal sealed class ScriptAdministration(
         };
     }
 }
+
+/// <summary>The ZIP of files of a draft or revision as the script page shows it.</summary>
+internal sealed record ScriptFilesView(string Sha256, string FileName, long SizeBytes, long UnpackedBytes, IReadOnlyList<ScriptFileEntry> Files, InstallerScanState ScanState, string? ScanDetail, DateTime UploadedAtUtc, string UploadedBy);
