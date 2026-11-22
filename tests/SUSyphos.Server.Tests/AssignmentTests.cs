@@ -620,6 +620,12 @@ public sealed class AssignmentPageTests
         Assert.Equal(groupId, rule.TargetId);
         Assert.Equal("SqlServer", rule.Role);
 
+        // The priority opens the rule; the bar above the list opens the deletion of the ticked one (Marc, 2026-11-21).
+        var list = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync("/administration/rules")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains($"href=\"/administration/rules?dialog=edit&id={rule.Id}\"", list, StringComparison.Ordinal);
+        Assert.Contains($"form=\"rules-select\" name=\"id\" value=\"{rule.Id}\"", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("More for rule", list, StringComparison.Ordinal);
+
         // Editing the rule: two roles (any of them matches) and a new priority.
         using (var edited = await browser.PostFormAsync($"/administration/rules?dialog=edit&id={rule.Id}", new Dictionary<string, string>
         {

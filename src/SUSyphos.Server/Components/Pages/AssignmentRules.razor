@@ -16,22 +16,22 @@
 </ActionBand>
 
 <Box Title="Rules" Help="assignment-rules#list" Flush="true" Hint="All conditions of a rule must match; a rule with several roles matches servers with any of them">
+    @* Marc, 2026-11-21: the priority opens the rule, the count shows the matching servers, the bar acts on the ticked rule. *@
+    <form id="rules-select" method="get" action="@Path" class="detached"></form>
+    <div class="selection-bar" data-selection="id">
+        <span class="note" data-selection-count>Select a rule, then</span>
+        <div class="spacer"></div>
+        <button type="submit" form="rules-select" name="dialog" value="delete" class="danger" data-single data-help-term="Delete rule"><Icon Name="trash-2" Size="16" />Delete rule…</button>
+    </div>
     <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search domain or host name pattern" Noun="rules" Empty="No rule yet: servers go to the final ring." ExtraColumns="1">
-        <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+        <Leading><th class="select"><span class="visually-hidden">Select</span></th></Leading>
         <Row Context="rule">
                     <tr>
-                        <td class="n">@rule.Priority</td>
+                        <td class="select"><input type="checkbox" form="rules-select" name="id" value="@rule.Id" aria-label="@($"Select rule {rule.Priority}")" data-help-term="Select" /></td>
+                        <td class="n"><a href="@Path?dialog=edit&id=@rule.Id" title="Edit rule @rule.Priority" data-help-term="Edit">@rule.Priority</a></td>
                         <td class="nowrap"><span class="pill neutral">@(rule.Target == AssignmentTarget.Ring ? "Ring" : "Group")</span> @if (rule.Target == AssignmentTarget.Ring && _rings.FirstOrDefault(r => r.Id == rule.TargetId) is { } ring) { <RingTag Name="@ring.Name" Order="@ring.Order" Href="@TargetLink(rule)" /> } else { <a href="@TargetLink(rule)">@TargetName(rule)[6..]</a> }</td>
                         <td class="wrap">@foreach (var role in AssignmentAdministration.RuleRoles(rule.Role)) { <span class="tag">@role</span> }@if (rule.Domain is { Length: > 0 } domain) { <span class="note"> · domain </span><span>@domain</span> }@if (rule.HostNamePattern is { Length: > 0 } pattern) { <span class="note"> · host </span><span class="mono">@pattern</span> }</td>
                         <td class="n"><a href="/servers?rule=@rule.Id" title="Approved servers whose role, domain and host name match this rule">@_matches.GetValueOrDefault(rule.Id)</a></td>
-                        <td class="n"><span class="row-actions">
-                            <a class="btn icon-button" href="@Path?dialog=edit&id=@rule.Id" title="Edit rule @rule.Priority" aria-label="Edit rule @rule.Priority" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
-                            <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for rule {rule.Priority}")">
-                                <MenuItem Href="@($"/servers?rule={rule.Id}")" Icon="server">Show matching servers</MenuItem>
-                                <MenuSeparator />
-                                <MenuItem Href="@($"{Path}?dialog=delete&id={rule.Id}")" Icon="trash-2" Danger="true">Delete rule…</MenuItem>
-                            </ActionMenu>
-                        </span></td>
                     </tr>
         </Row>
     </ListTable>

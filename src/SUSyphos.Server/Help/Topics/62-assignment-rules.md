@@ -13,8 +13,8 @@ Assignments are recalculated when a server registers, after every inventory, aft
 
 The table shows each rule with **Priority**, what it **Assigns** (a *Ring* or *Group* tag with the ring tag or the group name; the link opens the server list filtered by that ring or group), its **Conditions** (roles as tags, then the domain and the host name pattern), and **Servers**: how many approved servers the conditions of the rule match, linked to the server list with exactly these servers. A matched server can still be in another ring: a manual ring on the server or a ring rule with a lower number decides first. All conditions of a rule must match; empty conditions match every server; a rule with several roles matches servers with any of them.
 
-- **Edit** (the pencil at the end of the row): opens the rule dialog.
-- **More** (⋯): **Show matching servers** opens the server list with the servers the conditions match; **Delete rule…** opens a confirmation, and after **Delete rule** servers assigned by the rule are recalculated at once and may move to another ring or leave the group.
+- **Edit**: the priority of a rule opens the rule dialog; the number of **Matching** servers opens the server list with the servers the conditions match (**Show matching servers**).
+- **Delete rule…** (red, above the list, for the ticked rule): opens a confirmation, and after **Delete rule** servers assigned by the rule are recalculated at once and may move to another ring or leave the group.
 
 ## New rule and edit {#dialog}
 
