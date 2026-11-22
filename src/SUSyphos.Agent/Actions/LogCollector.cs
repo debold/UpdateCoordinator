@@ -23,7 +23,7 @@ internal sealed class LogCollector(string directory, TimeProvider timeProvider, 
     /// <summary>
     /// What goes with the agent logs on a server: the event log extract, the helper's steps and each WinGet installer log,
     /// WinGet's own logs of SYSTEM, logs installers write straight into the temp folder of SYSTEM (for example dd_*.log of
-    /// Burn bundles or MSI*.log), and the msiexec logs of agent updates and uninstallation.
+    /// Burn bundles or MSI*.log), the msiexec logs of agent updates and uninstallation, and the output of every script run.
     /// </summary>
     public static IReadOnlyList<ArchivePart> ServerParts(string agentLogDirectory, TimeProvider timeProvider)
     {
@@ -33,6 +33,8 @@ internal sealed class LogCollector(string directory, TimeProvider timeProvider, 
         [
             new ArchiveText("Events/Application.txt", () => EventLogExtract.Read(timeProvider.GetUtcNow().UtcDateTime.AddDays(-AgentActionList.LogDays))),
             new LogSource(Path.Combine(agentLogDirectory, "WinGet"), "*.log", "WinGet/"),
+            // The full output of every script run (signed scripts of software packages; rc.7 lab, 2026-11-22: missing).
+            new LogSource(Path.Combine(agentData, "Logs", "Scripts"), "*.log", "Scripts/"),
             new LogSource(Path.Combine(windows, "SystemTemp", "WinGet", "defaultState"), "WinGetCOM-*.log", "WinGetCOM/"),
             new LogSource(Path.Combine(windows, "Temp", "WinGet", "defaultState"), "WinGetCOM-*.log", "WinGetCOM/"),
             new LogSource(Path.Combine(agentData, "Update"), "*.log", "AgentUpdate/"),

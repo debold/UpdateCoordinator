@@ -398,7 +398,7 @@ else
                     <td><ClassificationTag Text="@row.Category" /></td>
                     <td><OperationTag Text="@row.Operation" /></td>
                     <td><StatusTag Text="SUSyphos" Kind="ok" /></td>
-                    <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Kind="@UpdateHistoryText.ResultClass((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Detail="@UpdateHistoryText.ResultDetail((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult, row.Installation.InstallerExitCode)" /></td>
+                    <td class="wrap"><StatusTag Text="@UpdateHistoryText.ResultLabel((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Kind="@UpdateHistoryText.ResultClass((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult)" Detail="@UpdateHistoryText.ResultDetail((SUSyphos.Contracts.Agents.InstallResultCode)row.Installation.ResultCode, row.Installation.HResult, row.Installation.InstallerExitCode)" />@foreach (var run in ScriptRunsOf(row)) { <div class="note"><a href="@ScriptText.RunLink(Id, run.Id)" data-help-term="Script output">@ScriptText.Phase(run.Phase) output</a></div> }</td>
                     <td>@{ var reboot = RebootTag(row.Installation); }<StatusTag Text="@reboot.Text" Kind="@reboot.Kind" Detail="@reboot.Detail" /></td>
                     <td class="n"><UninstallRowMenu Show="@(row.PackageId is null && IsUninstallable(row.Installation.UpdateId))" Allowed="@_canAdminister" Href="@UninstallLink(row.Installation.UpdateId)" Title="@row.Title" /></td>
                 </tr>
@@ -1998,6 +1998,7 @@ else
             .OrderByDescending(e => e.State).ThenBy(e => e.EarliestInstallAtUtc)
             .Select(e => (e, Title(e.UpdateId, e.Revision)))];
         _softwareIds = [.. updates.Where(u => u.Kind == UpdateKind.Software).Select(u => u.UpdateId)];
+        _packageOfUpdate = updates.Where(u => u.Kind == UpdateKind.Software && u.PackageId != null).GroupBy(u => u.UpdateId).ToDictionary(g => g.Key, g => g.First().PackageId!);
         _history = [.. installations.Select(i => (Installation: i, Title: Title(i.UpdateId, i.Revision), Category: ClassificationOf(i.UpdateId, i.Revision), Operation: "Installation", PackageId: (string?)null))];
 
         // Uninstallations of software (Marc, 2026-11-14) come from their remote actions: operation Uninstallation,
@@ -2274,6 +2275,18 @@ else
         SUSyphos.Contracts.Agents.AgentActionKind.FullResync,
         SUSyphos.Contracts.Agents.AgentActionKind.SearchNow,
     ];
+
+
+    /// <summary>
+    /// The script runs around an installation of a package by SUSyphos (rc.7 lab, Marc 2026-11-22: the output was hard
+    /// to find): the runs of the same package that finished up to two hours before and ten minutes after it.
+    /// </summary>
+    private IEnumerable<ScriptRunEntity> ScriptRunsOf((InstallationEntity Installation, string Title, string Category, string Operation, string? PackageId) row) => (row.PackageId ?? _packageOfUpdate.GetValueOrDefault(row.Installation.UpdateId)) is not { } package
+        ? []
+        : _scriptRuns.Where(r => string.Equals(r.PackageId, package, StringComparison.OrdinalIgnoreCase)
+            && r.FinishedAtUtc >= row.Installation.FinishedAtUtc.AddHours(-2) && r.FinishedAtUtc <= row.Installation.FinishedAtUtc.AddMinutes(10))
+            .OrderBy(r => r.FinishedAtUtc);
+    private Dictionary<Guid, string> _packageOfUpdate = [];
 
     private const int MaxActivities = 100;
 

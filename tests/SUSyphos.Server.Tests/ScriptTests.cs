@@ -224,6 +224,18 @@ public sealed class ScriptTests
         Assert.DoesNotContain("careful", page, StringComparison.Ordinal);
         using var log = await reader.GetAsync(ScriptRunEndpoints.DownloadPath(register.ClientId, stored.Id));
         Assert.Contains("careful", await log.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+
+        // The history entry of the installation links the output of the script that ran with it (Marc, 2026-11-22).
+        var software = Guid.NewGuid();
+        await factory.WithDbAsync(async db =>
+        {
+            db.Updates.Add(new UpdateEntity { UpdateId = software, Revision = 1, Title = $"{Package} 1.0", Kind = UpdateKind.Software, PackageId = Package, FirstSeenAtUtc = DateTime.UtcNow });
+            db.Installations.Add(new InstallationEntity { ClientId = register.ClientId, RunId = Guid.NewGuid(), UpdateId = software, Revision = 1, ResultCode = (int)SUSyphos.Contracts.Agents.InstallResultCode.Succeeded, StartedAtUtc = run.StartedAt.UtcDateTime, FinishedAtUtc = run.FinishedAt.UtcDateTime.AddMinutes(1), Source = "SUSyphos" });
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            return true;
+        });
+        var history = System.Net.WebUtility.HtmlDecode(await (await reader.GetAsync($"/servers/{register.ClientId}?tab=history")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains($"href=\"{ScriptText.RunLink(register.ClientId, stored.Id)}\" data-help-term=\"Script output\">Before installation output", history, StringComparison.Ordinal);
     }
 
     [Fact]
