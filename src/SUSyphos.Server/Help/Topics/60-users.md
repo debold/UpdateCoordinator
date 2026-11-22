@@ -17,9 +17,8 @@ The roles build on each other:
 The list shows every account with its **Source**, **Role** and **State** (Active, Locked by an administrator, or Locked out after five failed sign-ins for 15 minutes). **Source** tells "Active Directory" accounts (they sign in with Windows; their role comes from their AD groups and is set at every sign-in) from "Local" accounts in two colours. Below the role of an Active Directory account the list names the mapped AD group that gave it, as of its last sign-in ("from LAB\SUSyphos-Admins, at sign-in …"); a change in AD shows after the next sign-in. The list is grouped by source, and while it is, the **Source** column is left out because the group rows name it; **Group** switches grouping off ("No grouping") and brings the column back, and the column filter shows one kind only. **View** offers **All accounts** (default) and **Locked**.
 
 - **Edit**: the name of a local account opens it, to change its role or password. Tick accounts in the first column for the bar above the list:
-- **Edit** (the pencil at the end of the row): change role or password of a local account. The other actions are under **More** (⋯):
-- **Lock**: the account can no longer sign in, and its open sessions end. **Unlock** allows it again and also ends a lockout after failed sign-ins.
-- **Delete account…**: opens a confirmation; **Delete user** ends the account and its sign-in at once. Audit entries keep its name. Your own account and the last active administrator cannot be deleted; the last local administrator is always kept, so Windows sign-in can never lock everyone out.
+- **Lock**: the ticked accounts can no longer sign in, and its open sessions end. **Unlock** allows it again and also ends a lockout after failed sign-ins.
+- **Delete account…** (red, on the right; one account at a time): opens a confirmation; **Delete user** ends the account and its sign-in at once. Audit entries keep its name. Your own account and the last active administrator cannot be deleted; the last local administrator is always kept, so Windows sign-in can never lock everyone out.
 
 All changes are recorded in the [audit log](help/audit-log).
 
