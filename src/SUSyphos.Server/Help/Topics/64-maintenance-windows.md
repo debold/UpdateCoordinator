@@ -46,7 +46,7 @@ A server's own policy wins; otherwise its groups decide, and one group with "Nev
 
 A one-time window lets installations start at a date and time in addition to the weekly windows, for example a patch weekend or a night for one server. It is valid for every released update; a single update outside the windows is planned by hand (select it under Missing updates on the server page and choose **Install now…**).
 
-- The table lists the windows with **Start**, **End**, **For** (all servers, or a ring, group or server), **Reason** and **State** (planned, open, ended); **Remove window** (red, above the list) for the ticked windows deletes one.
+- The table lists the windows with **Start**, **End**, **For** (all servers, or a ring, group or server), **Reason** and **State** (planned, open, ended); **Remove window** (red, above the list) deletes the ticked windows.
 - To add one: choose **For** (all servers, a ring, a group or a server), **Start** and **End** in the time zone of the central server (date as YYYY-MM-DD, typed or chosen in the calendar below the field, and time from the 24-hour list), an optional **Reason**, then **Add one-time window**. A window lasts at most 7 days and must not start in the past.
 
 The servers concerned get the window with their next heartbeat (they fetch a new release list) and use it like a weekly window, also for restarts; the time is converted to the time zone of each server. Blackout periods and the global pause still win. Ended windows disappear from the list 30 days after their end; the audit log keeps every change.

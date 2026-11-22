@@ -393,7 +393,7 @@
         const idle = count?.textContent ?? '';
         const buttons = [...bar.querySelectorAll('button')].filter((button) => !button.disabled);
         const update = () => {
-            const selected = document.querySelectorAll(`input[type="checkbox"][name="${name}"]:checked`).length;
+            const selected = document.querySelectorAll(`input:is([type="checkbox"], [type="radio"])[name="${name}"]:checked`).length;
             bar.classList.toggle('has-selection', selected > 0);
             if (count) {
                 count.textContent = selected > 0 ? `${selected} selected` : idle;

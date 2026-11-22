@@ -127,7 +127,11 @@ public sealed class CertificateAdministrationTests
 
         using (var page = await admin.GetAsync("/administration/certificate"))
         {
-            Assert.Contains(renewed.Thumbprint, await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            var html = await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains(renewed.Thumbprint, html, StringComparison.Ordinal);
+            // One certificate is chosen with an option button; the bar above opens the change (Marc, 2026-11-21).
+            Assert.Contains($"type=\"radio\" form=\"certificate-select\" name=\"thumbprint\" value=\"{renewed.Thumbprint}\"", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("More for", html, StringComparison.Ordinal);
         }
 
         // An unknown thumbprint in the link opens no dialog, so nothing can be switched to a certificate the list does not offer.

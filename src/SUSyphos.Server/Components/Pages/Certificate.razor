@@ -26,19 +26,24 @@
 </Box>
 
 <Box Title="Certificates" Help="certificate#available" Hint="LocalMachine\My: usable certificates first; ▾ shows the details" Flush="true">
-    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search certificate" Noun="certificates" ExtraColumns="1" RowKey="@(c => c.Thumbprint)" Empty="No suitable certificate found.">
-        <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+    @* Marc, 2026-11-21: one certificate is chosen with an option button, the bar above acts on it. *@
+    <form id="certificate-select" method="get" action="/administration/certificate" class="detached"></form>
+    <div class="selection-bar" data-selection="thumbprint">
+        <span class="note" data-selection-count>Choose a certificate, then</span>
+        <button type="submit" form="certificate-select" name="dialog" value="use" class="primary" data-help-term="Use this certificate"><Icon Name="shield-check" Size="16" />Use this certificate…</button>
+    </div>
+    <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search certificate" Noun="certificates" ExtraColumns="2" RowKey="@(c => c.Thumbprint)" Empty="No suitable certificate found.">
+        <Leading><th class="select"><span class="visually-hidden">Choose</span></th></Leading>
+        <ExtraHeader><th class="n"><span class="visually-hidden">Details</span></th></ExtraHeader>
         <Row Context="candidate">
             <tr class="@(candidate.Unusable is null ? null : "unusable") @(_table.Open == candidate.Thumbprint ? "expanded" : null)">
+                <td class="select"><input type="radio" form="certificate-select" name="thumbprint" value="@candidate.Thumbprint" disabled="@(IsInUse(candidate) || candidate.Unusable is not null)" title="@(IsInUse(candidate) ? "The central server presents this certificate already" : candidate.Unusable)" aria-label="@($"Choose {Name(candidate)}")" data-help-term="Choose" /></td>
                 <td class="wrap">@Name(candidate)@if (candidate.SelfGenerated) { <div class="note">created by SUSyphos</div> }</td>
                 <td class="nowrap">@DisplayTime.FormatDate(candidate.NotAfterUtc)</td>
                 <td>@{ var state = State(candidate); }<span class="pill @state.Kind">@state.Text</span></td>
                 <td class="n">
                     <span class="row-actions">
                         <ExpandToggle Table="_table" Key="@candidate.Thumbprint" Label="@Name(candidate)" />
-                        <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {Name(candidate)}")">
-                            <MenuItem Href="@DialogLink(candidate)" Icon="shield-check" Disabled="@(IsInUse(candidate) || candidate.Unusable is not null)" Reason="@(IsInUse(candidate) ? "The central server presents this certificate already" : candidate.Unusable)">Use this certificate…</MenuItem>
-                        </ActionMenu>
                     </span>
                 </td>
             </tr>
