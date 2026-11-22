@@ -104,6 +104,32 @@ public sealed class ActionResultTests
         var page = await (await browser.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Download logs", page, StringComparison.Ordinal);
         Assert.Contains(AgentLogEndpoints.DownloadPath(logs), page, StringComparison.Ordinal);
+        Assert.Contains("class=\"btn primary\" href=\"" + AgentLogEndpoints.DownloadPath(logs), page, StringComparison.Ordinal);
+
+        // Marc, 2026-11-22: green with a check once you downloaded these logs, a dot while newer ones are requested.
+        await scenario.WithServiceAsync<SUSyphos.Server.Administration.AuditLog, bool>(async audit => { await audit.WriteAsync("operator", "Action.LogsDownloaded", "SRV01", logs.ToString("D"), CancellationToken.None); return true; });
+        page = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("class=\"btn done\" href=\"" + AgentLogEndpoints.DownloadPath(logs), page, StringComparison.Ordinal);
+        Assert.Contains("; you downloaded them on", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("pend-dot", page, StringComparison.Ordinal);
+
+        await scenario.Factory.WithDbAsync(db =>
+        {
+            db.AgentActions.Add(new AgentActionEntity { Id = Guid.NewGuid(), ClientId = client.ClientId, Kind = AgentActionKind.UploadLogs, State = AgentActionState.Queued, RequestedAtUtc = DateTime.UtcNow.AddMinutes(1), RequestedBy = "operator" });
+            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        page = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("pend-dot", page, StringComparison.Ordinal);
+        Assert.Contains("; new logs requested", page, StringComparison.Ordinal);
+
+        // Somebody else's download does not count for this user.
+        await scenario.Factory.CreateUserAsync("other", Password, AdminRoles.Operator);
+        using var other = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await other.LoginAsync("other", Password))
+        {
+        }
+
+        Assert.Contains("class=\"btn primary\" href=\"" + AgentLogEndpoints.DownloadPath(logs), await (await other.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
     private static async Task<Guid> FinishedAsync(RolloutScenario scenario, Guid clientId, AgentActionKind kind, AgentActionState state, string detail)

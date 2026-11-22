@@ -1008,3 +1008,7 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 .req-toast.fail { border-left-color: var(--fail); }
 .req-toast .links { display: flex; gap: 0.75rem; align-items: center; }
 .req-toast .close { margin-left: auto; border: 0; background: transparent; font-size: 1.1rem; cursor: pointer; min-height: 0; padding: 0 0.25rem; }
+/* Download logs (Marc, 2026-11-22): green with a check once you downloaded these logs; a dot while newer ones are requested. */
+.btn.done { background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
+.btn.done:hover { background: color-mix(in srgb, var(--ok) 18%, var(--surface)); color: var(--ok); }
+.btn .pend-dot { display: inline-block; width: 0.5rem; height: 0.5rem; margin-left: 0.35rem; border-radius: 50%; background: var(--pend, var(--accent)); box-shadow: 0 0 0 2px var(--surface); }
