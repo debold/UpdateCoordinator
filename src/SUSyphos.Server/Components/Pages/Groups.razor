@@ -17,13 +17,23 @@
 </ActionBand>
 
 <Box Title="Server groups" Help="groups#list" Hint="A new group is empty: add servers in the server list (select, then Add to group) or on a server's page, or let an assignment rule add them" Flush="true">
+    @* Marc, 2026-11-21: the name opens the group, the member count shows its servers, the bar acts on the ticked groups. *@
+    <form id="groups-select" method="post" @formname="groups-select" @onsubmit="SelectAsync" class="detached"><AntiforgeryToken /></form>
+    <div class="selection-bar" data-selection="Selected">
+        <span class="note" data-selection-count>Select groups, then</span>
+        <button type="submit" form="groups-select" name="Action" value="preview" data-single data-help-term="Next 30 days"><Icon Name="calendar-clock" Size="16" />Next @SUSyphos.Server.Assignment.SchedulePreview.Days days…</button>
+        <button type="submit" form="groups-select" name="Action" value="resume" title="Resume the stopped groups among the ticked ones" data-help-term="Resume group"><Icon Name="play" Size="16" />Resume group</button>
+        <div class="spacer"></div>
+        <button type="submit" form="groups-select" name="Action" value="delete" class="danger" data-single data-help-term="Delete group"><Icon Name="trash-2" Size="16" />Delete group…</button>
+    </div>
     <ListTable Table="_table" Page="_page" Columns="Columns" Search="Search name or description" Noun="groups" Empty="No group yet." ExtraColumns="1">
-        <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+        <Leading><th class="select"><input type="checkbox" data-select-all="Selected" data-help="tables#select" data-help-term="Select all" aria-label="Select all groups shown" hidden /></th></Leading>
         <Row Context="group">
                     @{
                         var windows = MaintenanceWindowFormat.FromJson(group.MaintenanceWindowsJson) ?? [];
                     }
                     <tr>
+                        <td class="select"><input type="checkbox" form="groups-select" name="Selected" value="@group.Id" aria-label="@($"Select {group.Name}")" data-help-term="Select" /></td>
                         <td><a href="@GroupPage.Link(group.Id)">@group.Name</a></td>
                         <td>@group.Description</td>
                         <td class="n">@if (_members.GetValueOrDefault(group.Id) is > 0 and var members) { <a href="@Servers.Link("group", group.Name)" title="Show the members in the server list">@members</a> } else { <span class="note">none yet: <a href="/servers">add servers</a> or <a href="@($"/administration/rules?dialog=new&target=group:{group.Id}")">create a rule</a></span> }</td>
@@ -31,19 +41,6 @@
                         <td>@if (group.RebootPolicy is { } policy) { <span class="pill neutral">@RebootPolicyText.Label(policy)</span> } else { <span class="pill neutral inherited">inherited</span> }</td>
                         <td>@if (group.Coordinated) { <span class="pill ok">Coordinated</span><div class="note">@group.LeasePercent %, at most @group.LeaseMaximum at once</div> } else { <span class="pill neutral">Not coordinated</span> }</td>
                         <td>@if (group.LeasesHalted) { <span class="pill fail">Stopped</span> } else if (_holders.GetValueOrDefault(group.Id) is { Count: > 0 } holders) { <span class="pill pend">@holders[0].HostName holds the lease</span><div class="note">until @DisplayTime.Format(holders[0].ExpiresAtUtc)</div> } else { <span class="note">–</span> }</td>
-                        <td class="n"><span class="row-actions">
-                            <a class="btn icon-button" href="@GroupPage.Link(group.Id)" title="Open @group.Name" aria-label="Open @group.Name" data-help-term="Edit"><Icon Name="pencil" Size="16" /></a>
-                            <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {group.Name}")">
-                                <MenuItem Href="@Servers.Link("group", group.Name)" Icon="server">Show members</MenuItem>
-                                <MenuItem Href="@($"{Path}?dialog=preview&id={group.Id}")" Icon="calendar-clock">Next @SUSyphos.Server.Assignment.SchedulePreview.Days days</MenuItem>
-                                @if (group.LeasesHalted)
-                                {
-                                    <MenuItem Name="ResumeGroup" Value="@group.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)" Form="group-resume" Icon="play">Resume group</MenuItem>
-                                }
-                                <MenuSeparator />
-                                <MenuItem Href="@($"{Path}?dialog=delete&id={group.Id}")" Icon="trash-2" Danger="true">Delete group…</MenuItem>
-                            </ActionMenu>
-                        </span></td>
                     </tr>
         </Row>
     </ListTable>
@@ -179,6 +176,50 @@ else if (_dialog == "delete" && Editing is { } doomed)
 
         ShowResult(outcome.Error, success);
         _dialog = outcome.Succeeded ? null : DialogName;
+        await LoadAsync();
+    }
+
+    [SupplyParameterFromForm(FormName = "groups-select")]
+    private int[]? Selected { get; set; }
+
+    [SupplyParameterFromForm(FormName = "groups-select")]
+    private string? Action { get; set; }
+
+    /// <summary>The bar above the list: resume the ticked groups, or open the preview or deletion of the one ticked.</summary>
+    private async Task SelectAsync()
+    {
+        var selected = (Selected ?? []).Distinct().Take(200).ToList();
+        if (selected.Count == 0 || Action is not ("preview" or "resume" or "delete"))
+        {
+            ShowResult(selected.Count == 0 ? "Select at least one group in the list first." : "Invalid request.", string.Empty);
+            await LoadAsync();
+            return;
+        }
+
+        if (Action is "preview" or "delete")
+        {
+            if (selected.Count != 1)
+            {
+                ShowResult("Select exactly one group for this action.", string.Empty);
+                await LoadAsync();
+                return;
+            }
+
+            Navigation.NavigateTo($"{Path}?dialog={Action}&id={selected[0].ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+            return;
+        }
+
+        var halted = await Db.Groups.AsNoTracking().Where(g => selected.Contains(g.Id) && g.LeasesHalted).Select(g => g.Id).ToListAsync();
+        var errors = new List<string>();
+        foreach (var id in halted)
+        {
+            if ((await Leases.ResumeAsync(id, await GetActorAsync(), CancellationToken.None)).Error is { } error)
+            {
+                errors.Add(error);
+            }
+        }
+
+        ShowResult(halted.Count == 0 ? "None of the ticked groups is stopped." : errors.Count > 0 ? string.Join(" ", errors.Distinct()) : null, $"{DisplayNumber.Count(halted.Count, "group was", "groups were")} resumed; their servers get leases again.");
         await LoadAsync();
     }
 

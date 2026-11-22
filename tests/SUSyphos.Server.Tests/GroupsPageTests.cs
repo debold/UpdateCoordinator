@@ -80,6 +80,21 @@ public sealed class GroupsPageTests
         }
 
         var id = await factory.WithDbAsync(db => db.Groups.Select(g => g.Id).SingleAsync(TestContext.Current.CancellationToken));
+
+        // The bar above the list opens the confirmation of the one ticked group (Marc, 2026-11-21).
+        var list = await (await admin.GetAsync("/administration/groups")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains($"name=\"Selected\" value=\"{id}\"", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("More for Web", list, StringComparison.Ordinal);
+        using (var opened = await admin.PostFormAsync("/administration/groups", new Dictionary<string, string> { ["_handler"] = "groups-select", ["Action"] = "delete", ["Selected"] = id.ToString(System.Globalization.CultureInfo.InvariantCulture) }))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, opened.StatusCode);
+            Assert.Contains($"dialog=delete&id={id}", opened.Headers.Location!.ToString(), StringComparison.Ordinal);
+        }
+
+        using (var none = await admin.PostFormAsync("/administration/groups", new Dictionary<string, string> { ["_handler"] = "groups-select", ["Action"] = "resume", ["Selected"] = id.ToString(System.Globalization.CultureInfo.InvariantCulture) }))
+        {
+            Assert.Contains("None of the ticked groups is stopped.", await none.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
         using (await admin.PostFormAsync($"/administration/groups?dialog=delete&id={id}", new Dictionary<string, string> { ["_handler"] = "group-dialog", ["Mode"] = "delete", ["Id"] = id.ToString(System.Globalization.CultureInfo.InvariantCulture) }))
         {
         }
