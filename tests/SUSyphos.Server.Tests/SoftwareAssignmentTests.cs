@@ -182,6 +182,14 @@ public sealed class SoftwareAssignmentTests
             {
             }
 
+
+            // The assignments are chosen by checkbox; the bar above them opens the dialog of the ticked one (Marc, 2026-11-21).
+            var pageHtml = await (await admin.GetAsync(Page)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains($"form=\"assignment-select\" name=\"id\" value=\"{id}\"", pageHtml, StringComparison.Ordinal);
+            Assert.Matches("name=\"dialog\" value=\"unassign\"[^>]*data-single", pageHtml);
+            Assert.DoesNotContain("Title=\"More for", pageHtml, StringComparison.Ordinal);
+            var opHtml = await (await op.GetAsync(Page)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.DoesNotContain("assignment-select", opHtml, StringComparison.Ordinal);
             using var forged = await op.PostFormAsync($"{Page}?dialog=unassign&id={id}", new Dictionary<string, string> { ["_handler"] = "package-unassign", ["AssignmentId"] = id.ToString(System.Globalization.CultureInfo.InvariantCulture) });
             Assert.True(await scenario.Factory.WithDbAsync(db => db.PackageAssignments.AnyAsync(TestContext.Current.CancellationToken)));
 

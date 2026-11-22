@@ -236,7 +236,7 @@ What the agent did and reported, newest first, kept for 90 days: registration, a
 
 ## Remote actions {#remote-actions}
 
-All actions requested for this server: when, which, by whom, the state (Queued: waits for the next heartbeat; Delivered: the agent has it; Succeeded; Failed; Rejected: the agent refused it, for example a restart vetoed locally; Cancelled; Expired: not picked up or not confirmed in time) and details. Log uploads offer a **Download** link. A queued action can be withdrawn with **Cancel** until the agent picks it up. **View** offers **All actions** (default), **Open** (Queued or Delivered) and **Failed** (Failed, Rejected or Expired).
+All actions requested for this server: when, which, by whom, the state (Queued: waits for the next heartbeat; Delivered: the agent has it; Succeeded; Failed; Rejected: the agent refused it, for example a restart vetoed locally; Cancelled; Expired: not picked up or not confirmed in time) and details. Log uploads offer a **Download** link. A queued action can be ticked and cancelled with **Cancel** (red, above the list) until the agent picks it up. **View** offers **All actions** (default), **Open** (Queued or Delivered) and **Failed** (Failed, Rejected or Expired).
 
 ## Install all released now {#install-now}
 

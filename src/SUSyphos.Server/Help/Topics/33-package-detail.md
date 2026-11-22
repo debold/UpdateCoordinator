@@ -53,7 +53,7 @@ New installations (administrators): the servers of an assigned group, or an assi
 - **Version**: "newest released" or the fixed version of the assignment.
 - **On removal**: "keep installed" (default) or "uninstall": what happens on the servers when the assignment is removed.
 - **Assigned**: by whom and when.
-- **Assign package…** opens the [dialog to assign the package](#assign); **More** (⋯) has **Remove assignment…**, which opens a confirmation. **On the servers** offers **Keep installed** (the package stays and keeps getting new versions) or **Uninstall in the next software window**, preselected as chosen when the assignment was created, with the number of servers that would uninstall it and of those that keep it through another assignment. **Remove assignment** ends the assignment and, with uninstall, queues a remote action on each of those servers; **Cancel** keeps the assignment.
+- **Assign package…** opens the [dialog to assign the package](#assign); tick an assignment and press **Remove assignment…** (red, above the list) to open a confirmation. **On the servers** offers **Keep installed** (the package stays and keeps getting new versions) or **Uninstall in the next software window**, preselected as chosen when the assignment was created, with the number of servers that would uninstall it and of those that keep it through another assignment. **Remove assignment** ends the assignment and, with uninstall, queues a remote action on each of those servers; **Cancel** keeps the assignment.
 
 ## Assign the package {#assign}
 
@@ -69,7 +69,7 @@ One row per phase (**Before installation**, **After installation**, **Before uni
 
 ## Script values {#script-values}
 
-**Script values…** in the ⋯ (More) of an assignment (administrators, only when an approved script has parameters) sets the values of the parameters for the servers of that assignment, by phase. A **Value** left empty uses the default. A **Secret** is stored encrypted, never shown again and masked in every output; leave it empty to keep the stored value. **Save values** stores them (audited by name, never with the value) and the servers get them with their next release list; **Cancel** closes the dialog. Servers without an assignment use the defaults.
+**Script values…** above the list, for the ticked assignment (administrators, only when an approved script has parameters) sets the values of the parameters for the servers of that assignment, by phase. A **Value** left empty uses the default. A **Secret** is stored encrypted, never shown again and masked in every output; leave it empty to keep the stored value. **Save values** stores them (audited by name, never with the value) and the servers get them with their next release list; **Cancel** closes the dialog. Servers without an assignment use the defaults.
 
 ## Installed on {#installed}
 

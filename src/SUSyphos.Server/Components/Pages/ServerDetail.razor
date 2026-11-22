@@ -579,10 +579,19 @@ else
     </Box>
 
     <Box Title="Remote actions" Anchor="remote-actions" Help="server-detail#remote-actions" Hint="The agent picks actions up with its next heartbeat; the central server never connects to the agent." Flush="true">
+        @if (_canOperate && _actions.Any(a => a.State == AgentActionState.Queued))
+        {
+            <div class="selection-bar" data-selection="CancelIds">
+                <span class="note" data-selection-count>Select queued actions, then</span>
+                <div class="spacer"></div>
+                <button type="submit" form="actions" name="RemoteAction" value="cancel-selected" class="danger" data-help-term="Cancel"><Icon Name="x" Size="16" />Cancel</button>
+            </div>
+        }
         <ListTable Table="_actionTable" Page="_actionPage" Columns="ActionColumns" Search="Search action, user or detail" Noun="actions" Empty="No action requested yet." ExtraColumns="1">
-            <ExtraHeader><th></th></ExtraHeader>
+            <Leading><th class="select"><span class="visually-hidden">Select</span></th></Leading>
             <Row Context="action">
                         <tr>
+                            <td class="select">@if (action.State == AgentActionState.Queued && _canOperate) { <input type="checkbox" form="actions" name="CancelIds" value="@action.Id" aria-label="@($"Select {SUSyphos.Server.Agents.AgentActionText.Label(action.Kind, action.Scope)}")" data-help-term="Select" /> }</td>
                             <td class="nowrap">@Format(action.RequestedAtUtc)</td>
                             <td>@SUSyphos.Server.Agents.AgentActionText.Label(action.Kind, action.Scope)</td>
                             <td>@action.RequestedBy</td>
@@ -592,12 +601,6 @@ else
                                 @if (action.LogFileSize is { } size && _canOperate)
                                 {
                                     <text> </text><a href="@AgentLogEndpoints.DownloadPath(action.Id)">Download (@(size / 1024) KB)</a>
-                                }
-                            </td>
-                            <td class="n">
-                                @if (action.State == AgentActionState.Queued && _canOperate)
-                                {
-                                    <span class="row-actions"><button type="submit" form="actions" name="RemoteAction" value="cancel:@action.Id">Cancel</button></span>
                                 }
                             </td>
                         </tr>
@@ -1870,6 +1873,10 @@ else
         await LoadAsync();
     }
 
+    /// <summary>The queued actions ticked in the Activity tab, for "cancel-selected".</summary>
+    [SupplyParameterFromForm(FormName = "action")]
+    private Guid[]? CancelIds { get; set; }
+
     /// <summary>Value of the pressed action button: "queue:{kind}" or "cancel:{action id}".</summary>
     [SupplyParameterFromForm(FormName = "action")]
     private string? RemoteAction { get; set; }
@@ -1906,6 +1913,24 @@ else
             {
                 (outcome, success) = (await Actions.QueueAsync(Id, kind, await GetActorAsync(), CancellationToken.None), "The action was queued; the agent picks it up with its next heartbeat.");
             }
+        }
+        else if (RemoteAction == "cancel-selected")
+        {
+            var cancelled = 0;
+            var errors = new List<string>();
+            foreach (var id in (CancelIds ?? []).Distinct().Take(100))
+            {
+                if ((await Actions.CancelAsync(Id, id, await GetActorAsync(), CancellationToken.None)).Error is { } error)
+                {
+                    errors.Add(error);
+                }
+                else
+                {
+                    cancelled++;
+                }
+            }
+
+            (outcome, success) = (cancelled == 0 && errors.Count == 0 ? new Outcome("Select at least one queued action first.") : cancelled == 0 ? new Outcome(string.Join(" ", errors.Distinct())) : Outcome.Ok, $"{DisplayNumber.Count(cancelled, "action was", "actions were")} cancelled.{(errors.Count > 0 ? " " + string.Join(" ", errors.Distinct()) : string.Empty)}");
         }
         else if (RemoteAction?.Split(':', 2) is ["cancel", var idText] && Guid.TryParse(idText, out var actionId))
         {

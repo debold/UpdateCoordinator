@@ -80,6 +80,36 @@ public sealed class AgentActionTests
         Assert.DoesNotContain("http-equiv=\"refresh\"", await ReadAsync(browser, path), StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public async Task QueuedActions_AreCancelledFromTheBar_AboveTheSelection()
+    {
+        // Marc, 2026-11-21: no button per row; the queued actions are ticked and cancelled from the bar.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        using var browser = await LoginAsync(scenario, AdminRoles.Operator);
+        var path = $"/servers/{client.ClientId}";
+        using (await browser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:SearchNow" }))
+        {
+        }
+
+        using (await browser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:UploadLogs" }))
+        {
+        }
+
+        var ids = await scenario.Factory.WithDbAsync(db => db.AgentActions.Select(a => a.Id).ToListAsync(TestContext.Current.CancellationToken));
+        var activity = await ReadAsync(browser, path + "?tab=activity");
+        Assert.Contains($"name=\"CancelIds\" value=\"{ids[0]}\"", activity, StringComparison.Ordinal);
+        Assert.Contains("value=\"cancel-selected\"", activity, StringComparison.Ordinal);
+
+        using (await browser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "cancel-selected", ["CancelIds"] = ids[0].ToString() }))
+        {
+        }
+
+        var states = await scenario.Factory.WithDbAsync(db => db.AgentActions.ToDictionaryAsync(a => a.Id, a => a.State, TestContext.Current.CancellationToken));
+        Assert.Equal(AgentActionState.Cancelled, states[ids[0]]);
+        Assert.Equal(AgentActionState.Queued, states[ids[1]]);
+    }
     private static async Task<string> ReadAsync(DashboardClient browser, string path)
     {
         using var response = await browser.GetAsync(path);

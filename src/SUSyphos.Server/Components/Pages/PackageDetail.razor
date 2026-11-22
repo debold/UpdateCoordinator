@@ -117,34 +117,40 @@ else
     <Box Title="Assignments" Anchor="assignments" Help="package-detail#assignments" Flush="true" Hint="New installations: the package is installed on these servers when its version is released for their ring">
         <AuthorizeView Policy="@AdminRoles.Policies.Administer">
             <div class="box-body"><a class="btn" href="@($"{PackagePage.Link(PackageId)}?dialog=assign")"><Icon Name="plus" Size="16" />Assign package…</a></div>
+            @if (_assignments.Count > 0)
+            {
+                @* Marc, 2026-11-21: actions above the table for the ticked rows; they open their dialog for that assignment. *@
+                <form id="assignment-select" method="get" action="@PackagePage.Link(PackageId)" class="detached"></form>
+                <div class="selection-bar" data-selection="id">
+                    <span class="note" data-selection-count>Select an assignment, then</span>
+                    @if (_scriptParameters.Count > 0)
+                    {
+                        <button type="submit" form="assignment-select" name="dialog" value="script-values" data-single data-help-term="Script values"><Icon Name="sliders-horizontal" Size="16" />Script values…</button>
+                    }
+                    <div class="spacer"></div>
+                    <button type="submit" form="assignment-select" name="dialog" value="unassign" class="danger" data-single data-help-term="Remove assignment"><Icon Name="trash-2" Size="16" />Remove assignment…</button>
+                </div>
+            }
         </AuthorizeView>
         <div class="scroll">
             <table>
-                <thead><tr><th>Target</th><th>Version</th><th>On removal</th><th>Assigned</th><th class="n">Actions</th></tr></thead>
+                <thead><tr>@if (_canAdminister && _assignments.Count > 0) { <th class="select"><span class="visually-hidden">Select</span></th> }<th>Target</th><th>Version</th><th>On removal</th><th>Assigned</th></tr></thead>
                 <tbody>
                     @if (_assignments.Count == 0)
                     {
-                        <tr><td colspan="5" class="note">Not assigned: only servers that have the package installed get its new versions.</td></tr>
+                        <tr><td colspan="4" class="note">Not assigned: only servers that have the package installed get its new versions.</td></tr>
                     }
                     @foreach (var assignment in _assignments)
                     {
                         <tr>
+                            @if (_canAdminister)
+                            {
+                                <td class="select"><input type="checkbox" form="assignment-select" name="id" value="@assignment.Id" aria-label="@($"Select {TargetName(assignment)}")" data-help-term="Select" /></td>
+                            }
                             <td>@TargetName(assignment)</td>
                             <td class="nowrap">@(assignment.FixedVersion ?? "newest released")</td>
                             <td>@(assignment.UninstallOnRemoval ? "uninstall" : "keep installed")</td>
                             <td class="nowrap">@assignment.CreatedBy, @DisplayTime.Format(assignment.CreatedAtUtc)</td>
-                            <td class="n"><span class="row-actions">
-                                <AuthorizeView Policy="@AdminRoles.Policies.Administer">
-                                    <ActionMenu Label="More" Icon="ellipsis" Compact="true" Align="right" Title="@($"More for {TargetName(assignment)}")">
-                                        @if (_scriptParameters.Count > 0)
-                                        {
-                                            <MenuItem Href="@($"{PackagePage.Link(PackageId)}?dialog=script-values&id={assignment.Id}")" Icon="sliders-horizontal">Script values…</MenuItem>
-                                            <MenuSeparator />
-                                        }
-                                        <MenuItem Href="@($"{PackagePage.Link(PackageId)}?dialog=unassign&id={assignment.Id}")" Icon="trash-2" Danger="true">Remove assignment…</MenuItem>
-                                    </ActionMenu>
-                                </AuthorizeView>
-                            </span></td>
                         </tr>
                     }
                 </tbody>

@@ -399,7 +399,16 @@
                 count.textContent = selected > 0 ? `${selected} selected` : idle;
             }
             for (const button of buttons) {
-                button.disabled = selected === 0;
+                // An action for exactly one row (data-single, e.g. Edit…) is grey with a tooltip while more are selected.
+                const single = button.hasAttribute('data-single');
+                if (single && !button.hasAttribute('data-title')) {
+                    button.setAttribute('data-title', button.title || '');
+                }
+
+                button.disabled = selected === 0 || (single && selected !== 1);
+                if (single) {
+                    button.title = selected > 1 ? 'Select exactly one row for this action' : button.getAttribute('data-title');
+                }
             }
         };
         document.addEventListener('change', (event) => {
