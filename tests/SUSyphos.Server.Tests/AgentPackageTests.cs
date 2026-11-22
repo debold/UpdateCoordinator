@@ -567,6 +567,7 @@ public sealed class AgentPackageTests : IAsyncDisposable
             Assert.Contains("1.3.0", html, StringComparison.Ordinal);
             Assert.Contains("Download installer", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Release to all rings</button>", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("name=\"ChosenVersion\"", html, StringComparison.Ordinal);
             Assert.Contains("Update available", html, StringComparison.Ordinal);
             Assert.Contains("v1.3.0 downloaded, not released yet", html, StringComparison.Ordinal);
         }
@@ -582,7 +583,7 @@ public sealed class AgentPackageTests : IAsyncDisposable
         Assert.DoesNotContain("<script>alert", notes, StringComparison.Ordinal);
         Assert.Contains("releases/tag/release/v1.3.0", notes, StringComparison.Ordinal);
 
-        using (await operatorBrowser.PostFormAsync("/agents", new Dictionary<string, string> { ["_handler"] = "agents-release", ["Action"] = "all:1.3.0" }))
+        using (await operatorBrowser.PostFormAsync("/agents", new Dictionary<string, string> { ["_handler"] = "agents-release", ["Action"] = "all", ["ChosenVersion"] = "1.3.0" }))
         {
         }
 
@@ -594,7 +595,7 @@ public sealed class AgentPackageTests : IAsyncDisposable
         {
         }
 
-        using (var released = await admin.PostFormAsync("/agents", new Dictionary<string, string> { ["_handler"] = "agents-release", ["Action"] = "all:1.3.0" }))
+        using (var released = await admin.PostFormAsync("/agents", new Dictionary<string, string> { ["_handler"] = "agents-release", ["Action"] = "all", ["ChosenVersion"] = "1.3.0" }))
         {
             Assert.Contains("was released", await released.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
@@ -603,8 +604,9 @@ public sealed class AgentPackageTests : IAsyncDisposable
         var current = await (await admin.GetAsync("/administration/susyphos")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Up to date", current, StringComparison.Ordinal);
         Assert.Contains("class=\"ring-tag", current, StringComparison.Ordinal);
+        Assert.Contains("type=\"radio\" form=\"agents-release\" name=\"ChosenVersion\" value=\"1.3.0\"", current, StringComparison.Ordinal);
 
-        using (var bad = await admin.PostFormAsync("/agents", new Dictionary<string, string> { ["_handler"] = "agents-release", ["Action"] = "nonsense" }))
+        using (var bad = await admin.PostFormAsync("/agents", new Dictionary<string, string> { ["_handler"] = "agents-release", ["Action"] = "nonsense", ["ChosenVersion"] = "1.3.0" }))
         {
             Assert.Contains("Unknown action.", await bad.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }

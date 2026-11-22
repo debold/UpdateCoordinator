@@ -33,11 +33,11 @@ Every agent package the central server has:
 - **Status**: Released, Not released, Older, in use (older than the newest released version, still on servers) or Older, unused (on no server).
 - ▾ (**Details**) opens what is new in the version: the notes of its GitHub release and a link to the release.
 
-Actions (administrators):
+Choose a version with the round option button in front of it (**Choose**, administrators); the bar above the list acts on it (Marc, 2026-11-21):
 
-- **Release to** a ring: releases the version to the next ring in order. Agents of the released rings update themselves to the newest version released for their ring, never to an older one.
-- **Release to all rings**: releases it everywhere at once.
-- **Withdraw**: stops further updates to this version; agents that already updated keep it.
+- **Release to the next ring**: releases the chosen version to the next ring in order. Agents of the released rings update themselves to the newest version released for their ring, never to an older one.
+- **Release to all rings**: releases the chosen version everywhere at once.
+- **Withdraw** (red, on the right): stops further updates to this version; agents that already updated keep it.
 
 Versions older than the newest released one cannot be released any more (agents never go back to an older version); they keep only **Withdraw** while released. **View** (see [Working with lists](help/tables#views)) offers **Current versions** (default; hides older versions no server runs), **On servers** and **All versions**.
 

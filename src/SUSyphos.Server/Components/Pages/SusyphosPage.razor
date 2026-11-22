@@ -41,10 +41,22 @@
 <div class="grid-side">
     <Box Title="Agent versions" Anchor="versions" Help="susyphos#versions" Hint="Agents update to the newest version released for their ring; ▾ shows what is new" Flush="true">
         <form id="agents-release" method="post" @formname="agents-release" @onsubmit="ReleaseAsync" class="detached"><AntiforgeryToken /></form>
-        <ListTable Table="_versionTable" Page="_versionPage" Columns="VersionColumns" Search="Search version" Noun="versions" ExtraColumns="1" RowKey="@(p => p.Version)" Empty="No agent package yet. The central server installer ships one; a check finds newer ones.">
-            <ExtraHeader><th class="n">Actions</th></ExtraHeader>
+        @* Marc, 2026-11-21: one version is chosen with an option button, the bar above releases or withdraws it. *@
+        <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="releaseBar">
+            <div class="selection-bar" data-selection="ChosenVersion">
+                <span class="note" data-selection-count>Choose a version, then</span>
+                <button type="submit" form="agents-release" name="Action" value="next" title="Release the chosen version to the next ring after the one it has" data-help-term="Release to the next ring"><Icon Name="play" Size="16" />Release to the next ring</button>
+                <button type="submit" form="agents-release" name="Action" value="all" class="primary" data-help-term="Release to all rings"><Icon Name="layers" Size="16" />Release to all rings</button>
+                <div class="spacer"></div>
+                <button type="submit" form="agents-release" name="Action" value="withdraw" class="danger" title="Agents already on the version stay there" data-help-term="Withdraw"><Icon Name="undo-2" Size="16" />Withdraw</button>
+            </div>
+        </AuthorizeView>
+        <ListTable Table="_versionTable" Page="_versionPage" Columns="VersionColumns" Search="Search version" Noun="versions" ExtraColumns="2" RowKey="@(p => p.Version)" Empty="No agent package yet. The central server installer ships one; a check finds newer ones.">
+            <Leading><th class="select"><span class="visually-hidden">Choose</span></th></Leading>
+            <ExtraHeader><th class="n"><span class="visually-hidden">Release notes</span></th></ExtraHeader>
             <Row Context="package">
                 <tr class="@(_versionTable.Open == package.Version ? "expanded" : null)">
+                    <td class="select">@if (_canAdminister) { <input type="radio" form="agents-release" name="ChosenVersion" value="@package.Version" aria-label="@($"Choose agent {package.Version}")" data-help-term="Choose" /> }</td>
                     <td><span class="mono">@DisplayNumber.Version(package.Version)</span><div class="note">@(package.Source == AgentPackageSource.Bundled ? "with central server" : "from GitHub"), added @DisplayTime.FormatDate(package.AddedAtUtc)</div></td>
                     <td>
                         @if (package.ReleasedThroughRingOrder is null)
@@ -63,20 +75,6 @@
                     <td>@{ var status = Status(package); }<StatusTag Text="@status.Text" Kind="@status.Class" /></td>
                     <td class="n">
                         <span class="row-actions">
-                            <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
-                                @if (package.ReleasedThroughRingOrder != AgentPackageEntity.AllRings && !IsOlderThanReleased(package))
-                                {
-                                    @if (NextRing(package) is { } next)
-                                    {
-                                        <button type="submit" form="agents-release" name="Action" value="next:@package.Version" data-help-term="Release to">Release to @next</button>
-                                    }
-                                    <button type="submit" form="agents-release" name="Action" value="all:@package.Version" class="primary">Release to all rings</button>
-                                }
-                                @if (package.ReleasedThroughRingOrder is not null)
-                                {
-                                    <button type="submit" form="agents-release" name="Action" value="withdraw:@package.Version" class="danger">Withdraw</button>
-                                }
-                            </AuthorizeView>
                             <ExpandToggle Table="_versionTable" Key="@package.Version" Label="@($"agent {package.Version}")" />
                         </span>
                     </td>
@@ -177,6 +175,10 @@
     /// <summary>"next:&lt;version&gt;", "all:&lt;version&gt;" or "withdraw:&lt;version&gt;" from the pressed button.</summary>
     [SupplyParameterFromForm(FormName = "agents-release")]
     private string? Action { get; set; }
+
+    /// <summary>The agent version chosen in the list.</summary>
+    [SupplyParameterFromForm(FormName = "agents-release")]
+    private string? ChosenVersion { get; set; }
 
     private List<AgentPackageEntity> _packages = [];
 
@@ -304,7 +306,14 @@
         }
 
         var actor = await GetActorAsync();
-        var (scope, version) = Action?.Split(':', 2) is [var s, var v] ? (s, v) : (null, null);
+        // The bar above the list names the action, the option button the version (Marc, 2026-11-21).
+        var (scope, version) = (Action, ChosenVersion);
+        if (string.IsNullOrEmpty(version))
+        {
+            ShowResult("Choose an agent version in the list first.", string.Empty);
+            await LoadAsync();
+            return;
+        }
         var outcome = scope switch
         {
             "next" => await Administration.ReleaseAsync(version, AgentPackageAdministration.ReleaseScope.NextRing, actor, CancellationToken.None),
