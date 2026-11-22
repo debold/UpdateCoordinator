@@ -12,6 +12,7 @@
 @inject TimeProvider Time
 @inject SUSyphos.Server.Agents.AgentActionService Actions
 @inject SUSyphos.Server.Rollouts.ServerUpdateSelection Selection
+@inject SUSyphos.Server.Software.SoftwareCacheService ScanCache
 
 <PageTitle>@(_update is null ? "Update" : UpdateText.Title(_update, UpdateId))</PageTitle>
 
@@ -48,7 +49,7 @@ else
     {
         <Banner Label="Not in the WinGet source" Severity="@(notOffered.ScanState is InstallerScanState.Failed or InstallerScanState.Detected ? "fail" : "queue")" Help="update-detail#source">
             <ChildContent>@SUSyphos.Server.Software.SoftwareSource.Explain(notOffered)@if (notOffered.ScannedAtUtc is { } scannedAt) { <text> Last attempt @Format(scannedAt).</text> }</ChildContent>
-            <Action>@if (_update.PackageId is { } sourcePackage) { <a class="btn" href="@PackagePage.Link(sourcePackage)">Open package</a> }</Action>
+            <Action>@if (_canAdminister && notOffered.ScanState is InstallerScanState.Failed or InstallerScanState.Detected) { <button type="submit" form="update-actions" name="Action" value="scan-again" data-help-term="Scan again">Scan again</button> }@if (_update.PackageId is { } sourcePackage) { <a class="btn" href="@PackagePage.Link(sourcePackage)">Open package</a> }</Action>
         </Banner>
     }
     @if (_unsupported.Count > 0)
@@ -812,6 +813,16 @@ else
                 ? await Holds.ResumeAsync(UpdateId, Revision, holdId, await GetActorAsync(), CancellationToken.None)
                 : new Outcome("Invalid request.");
             ShowResult(resumed.Error, "The hold was lifted; the servers get the update again.");
+            await LoadAsync();
+            return;
+        }
+
+        if (parts is ["scan-again"])
+        {
+            // Marc, 2026-11-22: an administrator discards a scan result that was wrong (WebView2 158, rc.7 lab).
+            var rescanned = await IsAuthorizedAsync(AdminRoles.Policies.Administer)
+                && await ScanCache.ScanAgainAsync(UpdateId, await GetActorAsync(), CancellationToken.None);
+            ShowResult(rescanned ? null : "Only administrators can scan again, and only a version that was found infected or could not be scanned.", "The scan result was discarded; the central server downloads and scans the installer again with the next run of its cache (every few minutes).");
             await LoadAsync();
             return;
         }

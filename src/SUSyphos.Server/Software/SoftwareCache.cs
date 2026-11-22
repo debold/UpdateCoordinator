@@ -47,12 +47,8 @@ internal sealed class AmsiInstallerScanner : IInstallerScanner, IDisposable
 {
     private readonly Lazy<AmsiScanner> _scanner = new(() => new AmsiScanner("SUSyphos"));
 
-    /// <summary>AMSI up to the limit; a larger installer goes through the Windows check for downloaded files instead.</summary>
-    public ScanResult Scan(string path, long maxBytes)
-    {
-        var result = _scanner.Value.ScanFile(path, maxBytes);
-        return result.Outcome == ScanOutcome.TooLarge ? AttachmentScanner.ScanFile(path) : result;
-    }
+    /// <summary>AMSI over the whole file up to the limit (the Windows check for downloaded files is gone since 0.9.0-rc.8: it took a vanished file for a threat).</summary>
+    public ScanResult Scan(string path, long maxBytes) => _scanner.Value.ScanFile(path, maxBytes);
 
     /// <summary>AMSI scans the script as content, the way PowerShell itself hands scripts to it.</summary>
     public ScanResult ScanBuffer(byte[] data, string contentName) => _scanner.Value.ScanBuffer(data, contentName);
@@ -161,6 +157,28 @@ internal sealed partial class SoftwareCacheService(
     TimeProvider timeProvider,
     ILogger<SoftwareCacheService> logger)
 {
+    /// <summary>
+    /// "Scan again" on the package page (administrators, Marc 2026-11-22): forgets the scan result of a version that was
+    /// found infected or could not be scanned, so the next run of the cache downloads and scans it anew. False when the
+    /// version is unknown or its scan passed.
+    /// </summary>
+    public async Task<bool> ScanAgainAsync(Guid updateId, string actor, CancellationToken cancellationToken)
+    {
+        var version = await db.PackageVersions.FirstOrDefaultAsync(v => v.UpdateId == updateId, cancellationToken).ConfigureAwait(false);
+        if (version is null || version.ScanState is not (InstallerScanState.Detected or InstallerScanState.Failed))
+        {
+            return false;
+        }
+
+        var before = version.ScanState;
+        version.ScanState = InstallerScanState.NotScanned;
+        version.ScanDetail = null;
+        version.ScannedAtUtc = null;
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await audit.WriteAsync(actor, "Package.ScanAgain", $"{version.PackageId} {version.Version}", $"Scan result {before} discarded; scanned again with the next run of the cache.", cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     /// <summary>Caches every version with a running rollout that is not offered yet; returns how many became available.</summary>
     public async Task<int> CacheReleasedAsync(CancellationToken cancellationToken)
     {
@@ -293,6 +311,11 @@ internal sealed partial class SoftwareCacheService(
     {
         var maxBytes = (long)options.Value.MaxScanMegabytes * 1024 * 1024;
         var results = paths.Select(path => (Path.GetFileName(path), scanner.Scan(path, maxBytes))).ToList();
+        foreach (var (file, result) in results)
+        {
+            LogScanned(file, result.Outcome, result.Detail);
+        }
+
         if (results.FirstOrDefault(r => r.Item2.Outcome == ScanOutcome.Detected) is { Item2: not null } detected)
         {
             return (InstallerScanState.Detected, $"{detected.Item1}: {detected.Item2.Detail}");
@@ -333,6 +356,9 @@ internal sealed partial class SoftwareCacheService(
 
     [LoggerMessage(Level = LogLevel.Information, Message = "WinGet source: {PackageId} {Version} cached ({Files} installer files, scan {State}) and offered.")]
     private partial void LogCached(string packageId, string version, int files, InstallerScanState state);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Virus scan of {File}: {Outcome} ({Detail}).")]
+    private partial void LogScanned(string file, ScanOutcome outcome, string detail);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "WinGet source: the virus scan found a threat in {PackageId} {Version} ({Detail}); the version is not offered and its files were deleted.")]
     private partial void LogDetected(string packageId, string version, string detail);

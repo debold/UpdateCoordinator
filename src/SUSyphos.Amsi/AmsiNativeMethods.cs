@@ -71,4 +71,9 @@ internal static class AmsiNativeMethods
     [DllImport(AmsiDll, CharSet = CharSet.Unicode)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static extern int AmsiScanBuffer(AmsiContextHandle amsiContext, [In] byte[] buffer, uint length, string contentName, IntPtr amsiSession, out uint result);
+
+    /// <summary>The same scan over unmanaged memory, here the read-only view of a memory-mapped installer file.</summary>
+    [DllImport(AmsiDll, CharSet = CharSet.Unicode, EntryPoint = "AmsiScanBuffer")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    internal static extern int AmsiScanMemory(AmsiContextHandle amsiContext, IntPtr buffer, uint length, string contentName, IntPtr amsiSession, out uint result);
 }

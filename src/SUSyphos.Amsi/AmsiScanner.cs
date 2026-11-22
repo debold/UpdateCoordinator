@@ -1,3 +1,5 @@
+using System.IO.MemoryMappedFiles;
+
 using Microsoft.Win32;
 
 namespace SUSyphos.Amsi;
@@ -46,8 +48,8 @@ public sealed record ScanResult(ScanOutcome Outcome, string Detail, uint? Result
 /// </summary>
 public sealed class AmsiScanner : IDisposable
 {
-    /// <summary>Installers are read into memory for the scan; larger files are not scanned (concept: up to 256 MB).</summary>
-    public const long DefaultMaxBytes = 256L * 1024 * 1024;
+    /// <summary>Files up to this size are scanned (through a memory-mapped view, no copy in memory); larger ones are not.</summary>
+    public const long DefaultMaxBytes = 2048L * 1024 * 1024;
 
     internal const string ProvidersKeyPath = @"SOFTWARE\Microsoft\AMSI\Providers";
 
@@ -86,7 +88,11 @@ public sealed class AmsiScanner : IDisposable
     /// <summary>The registered providers.</summary>
     public IReadOnlyList<AmsiProvider> Providers { get; }
 
-    /// <summary>Scans a file up to <paramref name="maxBytes"/>; the file name is passed to the providers as a hint.</summary>
+    /// <summary>
+    /// Scans a file up to <paramref name="maxBytes"/> as a whole through a read-only memory-mapped view, so even a large
+    /// installer needs no copy in memory and every registered product (Defender or another vendor) sees the complete file
+    /// (Marc, 2026-11-22: vendor-neutral, no product tool). The file name is passed to the providers as a hint.
+    /// </summary>
     public ScanResult ScanFile(string path, long maxBytes = DefaultMaxBytes)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
@@ -95,35 +101,64 @@ public sealed class AmsiScanner : IDisposable
             return new ScanResult(ScanOutcome.Unavailable, Problem!);
         }
 
-        byte[] data;
         try
         {
-            var length = new FileInfo(path).Length;
-            if (length > maxBytes || length > int.MaxValue)
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var length = stream.Length;
+            if (length > maxBytes || length > MaxScanLength)
             {
-                return new ScanResult(ScanOutcome.TooLarge, $"The file has {length / (1024 * 1024)} MB; files above {maxBytes / (1024 * 1024)} MB are not scanned.");
+                return new ScanResult(ScanOutcome.TooLarge, $"The file has {length / (1024 * 1024)} MB; files above {Math.Min(maxBytes, MaxScanLength) / (1024 * 1024)} MB are not scanned.");
             }
 
-            data = File.ReadAllBytes(path);
+            if (length == 0)
+            {
+                return ScanBuffer([], Path.GetFileName(path));
+            }
+
+            using var map = MemoryMappedFile.CreateFromFile(stream, mapName: null, capacity: 0, MemoryMappedFileAccess.Read, HandleInheritability.None, leaveOpen: true);
+            using var view = map.CreateViewAccessor(0, length, MemoryMappedFileAccess.Read);
+            var handle = view.SafeMemoryMappedViewHandle;
+            unsafe
+            {
+                byte* pointer = null;
+                handle.AcquirePointer(ref pointer);
+                try
+                {
+                    var start = (IntPtr)(pointer + view.PointerOffset);
+                    return Scan(Path.GetFileName(path), (context, session) => (AmsiNativeMethods.AmsiScanMemory(context, start, (uint)length, Path.GetFileName(path), session, out var result), result));
+                }
+                finally
+                {
+                    handle.ReleasePointer();
+                }
+            }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             return new ScanResult(ScanOutcome.Failed, $"The file could not be read: {exception.Message}");
         }
-
-        return ScanBuffer(data, Path.GetFileName(path));
     }
+
+    /// <summary>The largest file one AMSI call takes (its length is a 32-bit number).</summary>
+    public const long MaxScanLength = uint.MaxValue;
 
     /// <summary>Scans a buffer under a content name (e.g. a file name).</summary>
     public ScanResult ScanBuffer(byte[] data, string contentName)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentException.ThrowIfNullOrEmpty(contentName);
-        if (!IsAvailable)
-        {
-            return new ScanResult(ScanOutcome.Unavailable, Problem!);
-        }
+        return !IsAvailable
+            ? new ScanResult(ScanOutcome.Unavailable, Problem!)
+            : Scan(contentName, (context, session) => (AmsiNativeMethods.AmsiScanBuffer(context, data, (uint)data.Length, contentName, session, out var result), result));
+    }
 
+    /// <summary>
+    /// One scan in its own session. Only an AMSI result in the malware range counts as a finding; every other answer is
+    /// clean or failed, and the detail always names the AMSI result or HRESULT (rc.7 lab, 2026-11-22: a vanished file was
+    /// taken for a threat without any finding of the product).
+    /// </summary>
+    private ScanResult Scan(string contentName, Func<AmsiContextHandle, IntPtr, (int HResult, uint Result)> scan)
+    {
         lock (_gate)
         {
             var opened = AmsiNativeMethods.AmsiOpenSession(_context!, out var session);
@@ -134,15 +169,15 @@ public sealed class AmsiScanner : IDisposable
 
             try
             {
-                var scanned = AmsiNativeMethods.AmsiScanBuffer(_context!, data, (uint)data.Length, contentName, session, out var result);
+                var (scanned, result) = scan(_context!, session);
                 if (scanned != AmsiNativeMethods.Ok)
                 {
-                    return new ScanResult(ScanOutcome.Failed, $"The AMSI scan failed (HRESULT 0x{scanned:X8}).");
+                    return new ScanResult(ScanOutcome.Failed, $"The AMSI scan of {contentName} failed (HRESULT 0x{scanned:X8}).");
                 }
 
                 return AmsiResult.IsMalware(result)
                     ? new ScanResult(ScanOutcome.Detected, Describe(result), result)
-                    : new ScanResult(ScanOutcome.Clean, "No threat found.", result);
+                    : new ScanResult(ScanOutcome.Clean, $"No threat found (AMSI result {result}).", result);
             }
             finally
             {

@@ -5,6 +5,11 @@
     (Microsoft Defender or another vendor) answers. Taken over from GraphMailer.NET (same author) as a shared library,
     so the central server scans the installers of its software cache with it.
   -->
+  <PropertyGroup>
+    <!-- The memory-mapped view of an installer is handed to AMSI as a pointer. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="SUSyphos.Amsi.Tests" />
     <InternalsVisibleTo Include="SUSyphos.Server.Tests" />

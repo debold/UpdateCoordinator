@@ -121,6 +121,46 @@ public sealed class SoftwareReleaseTests
         Assert.DoesNotContain("Not in the WinGet source", cached, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public async Task ScanAgain_DiscardsAWrongFinding_ForAdministratorsOnly()
+    {
+        // rc.7 lab, Marc 2026-11-22: WebView2 158 stood on "Threat found" without any finding of Defender.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await AddServerWithZipAsync(scenario, "OLD01", "26.05");
+        await StartRolloutAsync(scenario);
+        await scenario.Factory.WithDbAsync(db => db.PackageVersions.Where(v => v.UpdateId == NewZip).ExecuteUpdateAsync(s => s
+            .SetProperty(v => v.CachedAtUtc, (DateTime?)null)
+            .SetProperty(v => v.ScanState, InstallerScanState.Detected)
+            .SetProperty(v => v.ScanDetail, "setup.exe: The antivirus product removed the file while scanning it"), TestContext.Current.CancellationToken));
+        await scenario.Factory.CreateUserAsync("operator", "correct horse battery", SUSyphos.Server.Administration.AdminRoles.Operator);
+        await scenario.Factory.CreateUserAsync("admin", "correct horse battery", SUSyphos.Server.Administration.AdminRoles.Admin);
+        var path = $"/updates/{NewZip:D}/1";
+        using var operatorBrowser = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await operatorBrowser.LoginAsync("operator", "correct horse battery"))
+        {
+        }
+
+        Assert.DoesNotContain("value=\"scan-again\"", await (await operatorBrowser.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        using (await operatorBrowser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "update", ["Action"] = "scan-again" }))
+        {
+        }
+
+        Assert.Equal(InstallerScanState.Detected, await scenario.Factory.WithDbAsync(db => db.PackageVersions.Where(v => v.UpdateId == NewZip).Select(v => v.ScanState).SingleAsync(TestContext.Current.CancellationToken)));
+
+        using var admin = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await admin.LoginAsync("admin", "correct horse battery"))
+        {
+        }
+
+        Assert.Contains("value=\"scan-again\"", await (await admin.GetAsync(path)).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        using (await admin.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "update", ["Action"] = "scan-again" }))
+        {
+        }
+
+        Assert.Equal(InstallerScanState.NotScanned, await scenario.Factory.WithDbAsync(db => db.PackageVersions.Where(v => v.UpdateId == NewZip).Select(v => v.ScanState).SingleAsync(TestContext.Current.CancellationToken)));
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(a => a.Action == "Package.ScanAgain", TestContext.Current.CancellationToken)));
+    }
     [Fact]
     public async Task ResultOfARunWhoseReleaseEnded_IsStillAccepted()
     {

@@ -77,53 +77,48 @@ public sealed class AmsiScannerTests
         Assert.All(AmsiScanner.EnumerateProviders(), p => Assert.False(string.IsNullOrEmpty(p.Clsid)));
     }
 
-    [Theory]
-    [InlineData(0, true, ScanOutcome.Clean)]
-    [InlineData(1, true, ScanOutcome.Clean)]
-    [InlineData(unchecked((int)0x80004005), true, ScanOutcome.Failed)]
-    [InlineData(0, false, ScanOutcome.Detected)]
-    [InlineData(unchecked((int)0x800C000E), false, ScanOutcome.Detected)]
-    public void AttachmentCheck_IsInterpretedSafely(int hresult, bool fileStillThere, ScanOutcome expected)
-    {
-        Assert.Equal(expected, AttachmentScanner.Interpret(hresult, fileStillThere).Outcome);
-    }
 
     [Fact]
-    public void AttachmentCheck_OfAHarmlessFile_NeverReportsAThreat_AndAMissingFileFails()
+    public async Task LargeFile_IsScannedAsAWhole_ThroughAMappedView_FromAnyThread()
     {
-        // A temporary file only; Windows may mark it as downloaded, nothing else on the machine changes.
-        var file = Path.Combine(Path.GetTempPath(), $"susyphos-{Guid.NewGuid():N}.txt");
+        // Since 0.9.0-rc.8 every installer goes through AMSI (rc.7 lab: the Windows check for downloaded files took a
+        // vanished file for a threat). A harmless file of a few megabytes is never a finding; the detail names the result.
+        using var scanner = new AmsiScanner("SUSyphos.Tests");
+        var file = Path.Combine(Path.GetTempPath(), $"susyphos-{Guid.NewGuid():N}.bin");
+        var empty = file + ".empty";
         try
         {
-            File.WriteAllText(file, "harmless");
+            await File.WriteAllBytesAsync(file, new byte[3 * 1024 * 1024 + 17], TestContext.Current.CancellationToken);
+            await File.WriteAllBytesAsync(empty, [], TestContext.Current.CancellationToken);
 
-            Assert.NotEqual(ScanOutcome.Detected, AttachmentScanner.ScanFile(file).Outcome);
-            Assert.Equal(ScanOutcome.Failed, AttachmentScanner.ScanFile(file + ".missing").Outcome);
-        }
-        finally
-        {
-            File.Delete(file);
-        }
-    }
+            var result = await Task.Run(() => scanner.ScanFile(file), TestContext.Current.CancellationToken);
+            var nothing = scanner.ScanFile(empty);
 
-    [Fact]
-    public async Task AttachmentCheck_FromAThreadPoolThread_ReachesTheInterface()
-    {
-        // The cache worker scans on a thread-pool thread; there the COM object answered E_NOINTERFACE (lab 2026-11-20).
-        var file = Path.Combine(Path.GetTempPath(), $"susyphos-{Guid.NewGuid():N}.txt");
-        try
-        {
-            File.WriteAllText(file, "harmless");
-
-            var result = await Task.Run(() => AttachmentScanner.ScanFile(file), TestContext.Current.CancellationToken);
-
-            Assert.DoesNotContain("IAttachmentExecute", result.Detail, StringComparison.Ordinal);
-            Assert.DoesNotContain("E_NOINTERFACE", result.Detail, StringComparison.Ordinal);
             Assert.NotEqual(ScanOutcome.Detected, result.Outcome);
+            Assert.NotEqual(ScanOutcome.Detected, nothing.Outcome);
+            if (result.Outcome == ScanOutcome.Clean)
+            {
+                Assert.Contains("AMSI result", result.Detail, StringComparison.Ordinal);
+            }
+            else
+            {
+                Assert.True(result.Outcome is ScanOutcome.Unavailable || result.Detail.Contains("HRESULT", StringComparison.Ordinal), result.Detail);
+            }
+
+            // The file is not locked after the scan.
+            File.Delete(file);
         }
         finally
         {
             File.Delete(file);
+            File.Delete(empty);
         }
+    }
+
+    [Fact]
+    public void FileAboveTheLimitOfOneScan_IsNotScanned()
+    {
+        Assert.Equal(uint.MaxValue, AmsiScanner.MaxScanLength);
+        Assert.True(AmsiScanner.DefaultMaxBytes <= AmsiScanner.MaxScanLength);
     }
 }

@@ -33,9 +33,9 @@ internal sealed class SoftwareOptions
     /// <summary>Virus scan of the installers (Marc, 2026-11-08: Enforce by default).</summary>
     public ScanMode ScanMode { get; set; } = ScanMode.Enforce;
 
-    /// <summary>Installers up to this size are scanned; larger ones count as not scanned (Enforce keeps them out).</summary>
-    [Range(1, 2047)]
-    public int MaxScanMegabytes { get; set; } = 256;
+    /// <summary>Installers up to this size are scanned through AMSI as a whole (memory-mapped, no copy in memory); larger ones count as not scanned (Enforce keeps them out).</summary>
+    [Range(1, 4095)]
+    public int MaxScanMegabytes { get; set; } = 2048;
 
     /// <summary>Fetch the logos of the packages (manifest icon or website symbol); off keeps the central server off vendor sites.</summary>
     public bool Logos { get; set; } = true;
