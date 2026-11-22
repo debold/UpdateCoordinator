@@ -1161,9 +1161,12 @@ else
         await LoadSoftwareChoicesAsync(programs);
         _uninstallingPackages = new((await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id && a.PackageId != null && (a.State == AgentActionState.Queued || a.State == AgentActionState.Delivered)).Select(a => a.PackageId!).ToListAsync()), StringComparer.OrdinalIgnoreCase);
         var packageIds = programs.Where(p => p.PackageId != null).Select(p => p.PackageId!).Distinct().ToList();
-        var newest = (await Db.PackageVersions.AsNoTracking().Where(v => packageIds.Contains(v.PackageId)).Select(v => new { v.PackageId, v.Version }).ToListAsync())
+        var versions = await Db.PackageVersions.AsNoTracking().Where(v => packageIds.Contains(v.PackageId)).Select(v => new { v.PackageId, v.Version, v.UpdateId, v.ScanState, v.ScanDetail, v.CachedAtUtc }).ToListAsync();
+        var rolling = (await Db.Rollouts.AsNoTracking().Where(r => r.State == SUSyphos.Server.Data.RolloutState.Active).Select(r => r.UpdateId).ToListAsync()).ToHashSet();
+        var newestVersion = versions
             .GroupBy(v => v.PackageId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Select(v => v.Version).Max(SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(g => g.Key, g => g.MaxBy(v => v.Version, SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance)!, StringComparer.OrdinalIgnoreCase);
+        var newest = newestVersion.ToDictionary(v => v.Key, v => v.Value.Version, StringComparer.OrdinalIgnoreCase);
         // Newer versions this server cannot install (minimum Windows, portable below 18362, ...) say why instead of waiting.
         var unsupported = (await SUSyphos.Server.Software.SoftwareNeeds.UnsupportedAsync(Db, [Id], CancellationToken.None)).Select(u => (u.Need.UpdateId, u.Reason)).ToList();
         var unsupportedIds = unsupported.Select(u => u.UpdateId).ToList();
@@ -1175,15 +1178,28 @@ else
         {
             var latest = p.PackageId is { } id ? newest.GetValueOrDefault(id) : null;
             var installed = p.InstalledVersion ?? p.DisplayVersion;
+            // The same rule as the Updates tab (SoftwareNeeds): a newer version the virus scan blocked is never offered, and
+            // the row says so instead of "Newer version available" (rc.7 lab, 2026-11-22: WebView2 158 on LABVMD04).
+            var top = p.PackageId is { } topId ? newestVersion.GetValueOrDefault(topId) : null;
+            var blocked = top is { ScanState: InstallerScanState.Detected } ? top : null;
+            var notInSource = top is { CachedAtUtc: null } && blocked is null && rolling.Contains(top.UpdateId);
             (string, string) state = p.PackageId is null ? ("Not managed", "neutral")
                 : _uninstallingPackages.Contains(p.PackageId) ? ("Uninstalling", "pend")
                 : latest is null || installed is null ? ("Known to WinGet", "neutral")
                 // An older entry next to a higher version of the same package and architecture: left behind by an upgrade.
                 : SUSyphos.Server.Software.EffectiveInstallations.IsSuperseded(p, programs, r => (r.ClientId, r.PackageId ?? string.Empty, r.DisplayName), r => r.PackageId is null ? null : r.InstalledVersion ?? r.DisplayVersion) ? ("Older entry, newer installed", "neutral")
-                : SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, latest) < 0 && unsupportedPackages.ContainsKey(p.PackageId) ? ("Newer version not supported here", "neutral")
+                : SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, latest) < 0 && unsupportedPackages.ContainsKey(p.PackageId) ? ("Newer version not supported here", "queue")
+                : SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, latest) < 0 && blocked is not null ? ("Newer version blocked by the virus scan", "fail")
+                : SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, latest) < 0 && notInSource ? ("Newer version not in the WinGet source yet", "pend")
                 : SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance.Compare(installed, latest) < 0 ? ("Newer version available", "queue")
                 : ("Up to date", "ok");
-            return new SoftwareItem(p, latest, state, state.Item1 == "Newer version not supported here" ? unsupportedPackages.GetValueOrDefault(p.PackageId!) : null);
+            return new SoftwareItem(p, latest, state, state.Item1 switch
+            {
+                "Newer version not supported here" => unsupportedPackages.GetValueOrDefault(p.PackageId!),
+                "Newer version blocked by the virus scan" => $"{blocked!.ScanDetail ?? "the antivirus product reported a threat"}; an administrator can scan it again on the page of the version",
+                "Newer version not in the WinGet source yet" => top!.ScanState == InstallerScanState.Failed ? $"the virus scan of the installer failed ({top.ScanDetail ?? "no reason given"}); the central server tries again every few minutes" : "its rollout runs; the central server downloads and scans the installer first",
+                _ => null,
+            });
         })];
         _softwareTable = TableQuery.From(Navigation, "program", prefix: "sw.", defaultPageSize: 25, views: SoftwareViews);
         _softwarePage = TablePaging.Apply(_software, _softwareTable, SoftwareColumns, r => $"{r.Program.DisplayName} {r.Program.PackageId} {r.Program.Publisher}");
@@ -1197,7 +1213,7 @@ else
         ServerPage.Security when _serverSecurity.Open.Count > 0 => new TabItem(t.Key, t.Label, DisplayNumber.Format(_serverSecurity.Open.Count), _serverSecurity.Exploited > 0 ? "fail" : "queue"),
         ServerPage.System when _client is { } c && (c.AutomaticUpdatesBypass || c.AgentUpdateError is not null || c.ServerMoveError is not null) => new TabItem(t.Key, t.Label, "!", "queue"),
         ServerPage.Activity when _actions.Count(a => a.State is AgentActionState.Queued or AgentActionState.Delivered) is > 0 and var open => new TabItem(t.Key, t.Label, DisplayNumber.Format(open), "neutral"),
-        ServerPage.Software when _softwareEnabled && _software.Count(s => s.State.Class == "queue") is > 0 and var outdated => new TabItem(t.Key, t.Label, DisplayNumber.Format(outdated), "queue"),
+        ServerPage.Software when _softwareEnabled && _software.Count(s => s.State.Label == "Newer version available") is > 0 and var outdated => new TabItem(t.Key, t.Label, DisplayNumber.Format(outdated), "queue"),
         _ => new TabItem(t.Key, t.Label),
     })];
 

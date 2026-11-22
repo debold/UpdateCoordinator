@@ -255,6 +255,38 @@ public sealed class SoftwarePageTests : IAsyncDisposable
         }
     }
 
+
+    [Fact]
+    public async Task ServerSoftwareTab_NamesWhyANewerVersionIsNotOffered()
+    {
+        // rc.7 lab, 2026-11-22: WebView2 158 stood on "Newer version available" while the Updates tab said nothing was
+        // missing; the version was blocked by the virus scan. The tab follows the rule of the Updates tab and says why.
+        var (browser, server) = await SeedAsync(AdminRoles.Reader);
+        using (browser)
+        {
+            var before = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/servers/{server}?tab=software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Contains("pill queue\">Newer version available<", before, StringComparison.Ordinal);
+
+            await _factory.WithDbAsync(async db =>
+            {
+                var packageIds = await db.ClientSoftware.Where(s => s.ClientId == server && s.PackageId != null).Select(s => s.PackageId!).Distinct().ToListAsync(TestContext.Current.CancellationToken);
+                foreach (var versions in (await db.PackageVersions.Where(v => packageIds.Contains(v.PackageId)).ToListAsync(TestContext.Current.CancellationToken)).GroupBy(v => v.PackageId))
+                {
+                    var newest = versions.MaxBy(v => v.Version, SUSyphos.WinGet.Catalog.RestSource.VersionComparer.Instance)!;
+                    newest.ScanState = InstallerScanState.Detected;
+                    newest.ScanDetail = "setup.exe: AMSI result 32768";
+                }
+
+                await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+                return true;
+            });
+
+            var after = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/servers/{server}?tab=software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.DoesNotContain("pill queue\">Newer version available<", after, StringComparison.Ordinal);
+            Assert.Contains("Newer version blocked by the virus scan", after, StringComparison.Ordinal);
+            Assert.Contains("setup.exe: AMSI result 32768; an administrator can scan it again", after, StringComparison.Ordinal);
+        }
+    }
     [Fact]
     public async Task Admin_SwitchesSoftwareOff_EverythingStops_AndOnAgain()
     {
