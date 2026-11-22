@@ -135,13 +135,13 @@ public sealed class LogCollectorTests : IDisposable
     }
 
     [Fact]
-    public void ServerParts_CoverEventsWinGetTempFoldersAndAgentUpdates()
+    public void ServerParts_CoverEventsWinGetScriptsTempFoldersAndAgentUpdates()
     {
         var parts = LogCollector.ServerParts(_directory, _time);
 
         Assert.IsType<ArchiveText>(parts[0]);
         var prefixes = parts.OfType<LogSource>().Select(s => s.Prefix).Distinct().ToList();
-        Assert.Equal(["WinGet/", "WinGetCOM/", "AgentUpdate/", "SystemTemp/", "WindowsTemp/"], prefixes);
+        Assert.Equal(["WinGet/", "Scripts/", "WinGetCOM/", "AgentUpdate/", "SystemTemp/", "WindowsTemp/"], prefixes);
         Assert.All(parts.OfType<LogSource>(), s => Assert.EndsWith(".log", s.Pattern, StringComparison.OrdinalIgnoreCase));
     }
 
