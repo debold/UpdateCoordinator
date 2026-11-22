@@ -147,7 +147,7 @@ else
 
     <TabBar Tabs="@TabItems" Current="@_tab" Link="@(tab => "/" + ServerPage.TabPath(Id, tab))">
 
-    @if (IsBusy && Dialog is null && _tab is ServerPage.Overview or ServerPage.Activity && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
+    @if (IsBusy && Dialog is null && _tab is ServerPage.Overview or ServerPage.Activity or ServerPage.History && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
     {
         @* Reload while the agent works or an action waits for it, only on the tabs with live state; not after a form post,
            so unsaved input is never lost. *@
@@ -2235,8 +2235,29 @@ else
     /// <summary>Reload interval of the page while the agent reports an activity.</summary>
     private const int LiveRefreshSeconds = 10;
 
-    /// <summary>The agent works, or a remote action waits to be picked up or for its result.</summary>
-    private bool IsBusy => _livePhase is not null || _actions.Any(a => a.State is AgentActionState.Queued or AgentActionState.Delivered);
+    /// <summary>
+    /// The agent works, a remote action waits to be picked up or for its result, or an action that installs, removes or
+    /// searches finished only a moment ago: its installation report and inventory follow with the next cycles, and the
+    /// tiles, tab counters and tasks should show them without a click (rc.7 lab, 2026-11-22: after "Install now" the page
+    /// stood on "planned for now" until another tab was opened).
+    /// </summary>
+    private bool IsBusy => _livePhase is not null
+        || _actions.Any(a => a.State is AgentActionState.Queued or AgentActionState.Delivered)
+        || _actions.Any(a => SettlingKinds.Contains(a.Kind) && a.CompletedAtUtc is { } done && Time.GetUtcNow().UtcDateTime - done < SettleTime);
+
+    /// <summary>How long the page keeps refreshing after such an action finished.</summary>
+    private static readonly TimeSpan SettleTime = TimeSpan.FromMinutes(3);
+
+    private static readonly HashSet<SUSyphos.Contracts.Agents.AgentActionKind> SettlingKinds =
+    [
+        SUSyphos.Contracts.Agents.AgentActionKind.InstallNow,
+        SUSyphos.Contracts.Agents.AgentActionKind.InstallNowRestartInWindow,
+        SUSyphos.Contracts.Agents.AgentActionKind.Uninstall,
+        SUSyphos.Contracts.Agents.AgentActionKind.UninstallInWindow,
+        SUSyphos.Contracts.Agents.AgentActionKind.UninstallRestartInWindow,
+        SUSyphos.Contracts.Agents.AgentActionKind.FullResync,
+        SUSyphos.Contracts.Agents.AgentActionKind.SearchNow,
+    ];
 
     private const int MaxActivities = 100;
 

@@ -57,6 +57,29 @@ public sealed class AgentActionTests
         Assert.Equal(1, await scenario.Factory.WithDbAsync(db => db.AgentActions.CountAsync(TestContext.Current.CancellationToken)));
     }
 
+    [Fact]
+    public async Task FinishedInstallNow_KeepsThePageRefreshing_UntilItsResultsCanHaveArrived()
+    {
+        // rc.7 lab, 2026-11-22: after "Install now" the overview stood on "planned for now" until another tab was opened.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        using var browser = await LoginAsync(scenario, AdminRoles.Operator);
+        var path = $"/servers/{client.ClientId}";
+        using (await browser.PostFormAsync(path, new Dictionary<string, string> { ["_handler"] = "action", ["RemoteAction"] = "queue:SearchNow" }))
+        {
+        }
+
+        await scenario.Factory.WithDbAsync(db => db.AgentActions.ExecuteUpdateAsync(s => s
+            .SetProperty(a => a.Kind, AgentActionKind.InstallNow)
+            .SetProperty(a => a.State, AgentActionState.Succeeded)
+            .SetProperty(a => a.CompletedAtUtc, DateTime.UtcNow.AddSeconds(-20)), TestContext.Current.CancellationToken));
+        Assert.Contains("http-equiv=\"refresh\"", await ReadAsync(browser, path), StringComparison.Ordinal);
+        Assert.Contains("http-equiv=\"refresh\"", await ReadAsync(browser, path + "?tab=history"), StringComparison.Ordinal);
+
+        await scenario.Factory.WithDbAsync(db => db.AgentActions.ExecuteUpdateAsync(s => s.SetProperty(a => a.CompletedAtUtc, DateTime.UtcNow.AddMinutes(-10)), TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("http-equiv=\"refresh\"", await ReadAsync(browser, path), StringComparison.Ordinal);
+    }
+
     private static async Task<string> ReadAsync(DashboardClient browser, string path)
     {
         using var response = await browser.GetAsync(path);
