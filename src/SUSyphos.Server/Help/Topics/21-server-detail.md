@@ -12,6 +12,10 @@ A red banner at the top appears when a restart of the server is queued or planne
 
 **Cancel restart** (administrators) withdraws it. If the agent has not picked up the request yet, it is simply cancelled; otherwise the agent is told to drop the restart it holds or has announced (a "Cancel restart" remote action). An announced Windows restart with its five-minute warning is aborted as well.
 
+## Pending restart {#restart-pending}
+
+An amber banner **Restart pending** appears while the server needs a restart that nobody requested yet (Marc, 2026-11-22): Windows reports one, or an installation by SUSyphos since the last start asked for one (for example an installer with exit code 3010; since 0.9.0-rc.8 the agent counts that too). It names what asked for the restart and when it happens: in the next maintenance window when the policy of the server allows the agent to restart there, otherwise not by itself. **Restart now…** (administrators) opens the [restart dialog](#actions), now or in the next window. The Tasks box lists the planned restart as well. Once a restart is requested or announced, the red banner *Queued restart* takes over.
+
 ## Actions for this server {#actions}
 
 The band below the title groups the actions by topic in drop-down buttons. Operators and administrators can send them; an entry only administrators may use is greyed out for operators, with the reason as tooltip. The agent picks each action up with its next heartbeat; the central server never connects to the server itself. The result appears under [Remote actions](#remote-actions) in the Activity tab.

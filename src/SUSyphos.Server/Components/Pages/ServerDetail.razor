@@ -79,6 +79,18 @@ else
             </Action>
         </Banner>
     }
+    else if (_client is { RebootPending: true } && RestartPendingText is { } pendingText)
+    {
+        @* As present as "Restart announced", in amber (Marc, 2026-11-22): why, when, and the restart now. *@
+        <Banner Label="Restart pending" Severity="queue" Help="server-detail#restart-pending">
+            <ChildContent>@pendingText</ChildContent>
+            <Action>
+                <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="restartPending">
+                    <a class="btn" href="@DialogLink("restart")" data-help-term="Restart now">Restart now…</a>
+                </AuthorizeView>
+            </Action>
+        </Banner>
+    }
 
     <ActionBand>
         @if (_canOperate)
@@ -1651,6 +1663,31 @@ else
     private static readonly SUSyphos.Contracts.Agents.AgentActionKind[] RestartKinds = [SUSyphos.Contracts.Agents.AgentActionKind.RestartServer, SUSyphos.Contracts.Agents.AgentActionKind.RestartServerInWindow];
 
     /// <summary>What is known about a queued restart: requested by whom, and when the agent will restart; null if none is queued.</summary>
+    private List<string> _restartReasons = [];
+
+    /// <summary>
+    /// The pending restart nobody requested yet: what asked for it and when the agent restarts the server (the next
+    /// maintenance window when the policy allows restarts there), or that an administrator has to restart it.
+    /// </summary>
+    private string? RestartPendingText
+    {
+        get
+        {
+            if (_client is not { RebootPending: true } client)
+            {
+                return null;
+            }
+
+            var why = _restartReasons.Count > 0 ? $"{string.Join(", ", _restartReasons)} asked for a restart." : "Windows reports a pending restart.";
+            var when = client.EffectiveRebootPolicy == SUSyphos.Contracts.Agents.RebootPolicy.InsideMaintenanceWindow
+                ? _window is { } window
+                    ? $" The agent restarts the server in the next maintenance window, {Format(window.Start)}, if it stays open at least 30 more minutes{(client.RebootWait is { } wait ? $" ({LiveStatus.RebootWaitText(wait, client.RestartRefusedCode)})" : string.Empty)}."
+                    : " The policy allows restarts in the maintenance window, but this server has none planned."
+                : " The policy of this server allows no restart by the agent; restart it yourself or with Restart now.";
+            return why + when;
+        }
+    }
+
     private string? RestartQueuedText
     {
         get
@@ -2000,6 +2037,8 @@ else
         _softwareIds = [.. updates.Where(u => u.Kind == UpdateKind.Software).Select(u => u.UpdateId)];
         _packageOfUpdate = updates.Where(u => u.Kind == UpdateKind.Software && u.PackageId != null).GroupBy(u => u.UpdateId).ToDictionary(g => g.Key, g => g.First().PackageId!);
         _history = [.. installations.Select(i => (Installation: i, Title: Title(i.UpdateId, i.Revision), Category: ClassificationOf(i.UpdateId, i.Revision), Operation: "Installation", PackageId: (string?)null))];
+        // What asked for the pending restart: installations by SUSyphos since the last start that reported one (Marc, 2026-11-22).
+        _restartReasons = [.. _history.Where(h => h.Installation.RebootRequired && (_client?.LastBootAtUtc is not { } boot || h.Installation.FinishedAtUtc > boot)).Select(h => h.Title).Distinct().Take(5)];
 
         // Uninstallations of software (Marc, 2026-11-14) come from their remote actions: operation Uninstallation,
         // category Software, the result as the agent reported it.

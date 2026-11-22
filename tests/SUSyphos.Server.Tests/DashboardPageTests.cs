@@ -634,6 +634,31 @@ public sealed class UpdateDetailTests
         Assert.True(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(a => a.ClientId == test.ClientId, TestContext.Current.CancellationToken)));
     }
 
+
+    [Fact]
+    public async Task PendingRestart_ShowsABanner_WithItsCauseAndTheRestart()
+    {
+        // Marc, 2026-11-22: "Restart pending" stood only in the history; it is as present as "Restart announced".
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var server = await scenario.AddClientAsync("DC01", RingEntity.PilotId);
+        var update = RolloutScenario.Update("Updates");
+        await scenario.ReportAsync(server, update);
+        using var browser = await LoginAsync(scenario, AdminRoles.Admin);
+        var path = $"/servers/{server.ClientId:D}";
+        Assert.DoesNotContain("Restart pending</span>", await GetHtmlAsync(browser, path), StringComparison.Ordinal);
+
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            await db.Clients.Where(c => c.Id == server.ClientId).ExecuteUpdateAsync(s => s.SetProperty(c => c.RebootPending, true).SetProperty(c => c.LastBootAtUtc, DateTime.UtcNow.AddDays(-1)), TestContext.Current.CancellationToken);
+            db.Installations.Add(new InstallationEntity { ClientId = server.ClientId, RunId = Guid.NewGuid(), UpdateId = update.UpdateId, Revision = update.Revision, ResultCode = (int)InstallResultCode.Succeeded, RebootRequired = true, StartedAtUtc = DateTime.UtcNow.AddMinutes(-5), FinishedAtUtc = DateTime.UtcNow.AddMinutes(-4), Source = "SUSyphos" });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        var page = System.Net.WebUtility.HtmlDecode(await GetHtmlAsync(browser, path));
+        Assert.Contains("<span class=\"pill queue\">Restart pending</span>", page, StringComparison.Ordinal);
+        Assert.Contains("asked for a restart.", page, StringComparison.Ordinal);
+        Assert.Contains("data-help-term=\"Restart now\">Restart now…</a>", page, StringComparison.Ordinal);
+    }
     [Fact]
     public async Task DeploymentByRing_ShowsWhatWaitsForTheRing()
     {
