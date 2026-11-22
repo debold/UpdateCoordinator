@@ -19,25 +19,27 @@ Agents that registered and wait for a decision, with host name and domain, **Reg
 
 Updates that wait at a manual gate (**Awaiting approval**) or stopped on an **Alarm** before a ring, with the ring as its tag, the reason below the state and since when. An alarm clears itself once the rule of the transition is met again.
 
-- **Approve** (gate) or **Release anyway** (alarm): the update is released to the ring.
-- **Stop rollout**: withdraws the update from all servers that have not installed it yet. It can be resumed on the [update details](help/update-detail#actions).
+Tick the transitions in the first column (or all shown in the header, see [Working with lists](help/tables#select)); the bar above the list acts on them:
+
+- **Approve / release anyway**: each selected update is released to its ring, past a manual gate or an alarm.
+- **Stop rollout** (red, on the right): withdraws each selected update from all servers that have not installed it yet. It can be resumed on the [update details](help/update-detail#actions).
 
 ## Stopped coordinated groups {#groups}
 
-Coordinated groups whose installations failed or whose installation slots (leases) expired several times in a row. The central server then gives no member of the group a slot, so nobody in the group installs or restarts. Check the servers of the group (failures, offline servers), then **Resume** it; the count of failed leases in a row starts again at zero.
+Coordinated groups whose installations failed or whose installation slots (leases) expired several times in a row. The central server then gives no member of the group a slot, so nobody in the group installs or restarts. Check the servers of the group (failures, offline servers), then tick it and press **Resume** above the list; the count of failed leases in a row starts again at zero.
 
 ## Clone suspicions {#blocked}
 
 Servers whose credentials were used by two different hosts in turn, typically a virtual machine cloned with the agent installed. Both host names are shown. The server is blocked until someone decides:
 
-- **Unblock** if only one host really uses the credentials (for example after a rename).
+- **Unblock** (tick the servers, then the button above the list) if only one host really uses the credentials (for example after a rename).
 - Otherwise delete the server on its [details page](help/server-detail#remove); the agents then register again, each with its own identity.
 
 ## Remote action results {#actions-results}
 
 Manual remote actions of the last 7 days that need a look or brought a result, so nobody has to open every server page: actions that **Failed**, were **Rejected** by the agent (for example an update it could not remove) or **Expired** without an answer, and actions that **Succeeded** with a result (logs uploaded, updates installed now or uninstalled, a restart). Routine actions such as a search or an inventory are not listed. Each row names the **Server** (it opens its Activity tab), the **Action**, who **Requested** it, when it **Finished**, the **Result** and the agent's **Detail**; uploaded logs have a **Download** link.
 
-- **Acknowledge** (in the row) removes one result from the list, **Acknowledge all** (in the box header) every result shown (operators and administrators; recorded in the audit log).
+- **Acknowledge** (above the list) removes the ticked results from the list, **Acknowledge all** (in the box header) every result shown (operators and administrators; recorded in the audit log).
 
 Failed results that nobody acknowledged count in the number next to **Approvals** in the menu. The events "Remote action failed" and "Remote action finished" on the [Notifications](help/notifications#events) page send them by e-mail or webhook.
 

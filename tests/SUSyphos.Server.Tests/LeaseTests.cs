@@ -115,9 +115,9 @@ public sealed class LeaseTests
             Assert.Contains("leases in a row failed or expired", await page.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
-        using (var resumed = await browser.PostFormAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "halted", ["ResumeGroup"] = groupId.ToString(System.Globalization.CultureInfo.InvariantCulture) }))
+        using (var resumed = await browser.PostFormAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "halted", ["ResumeGroups"] = groupId.ToString(System.Globalization.CultureInfo.InvariantCulture) }))
         {
-            Assert.Contains("The group issues leases again.", await resumed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            Assert.Contains("1 group issues leases again.", await resumed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
         Assert.True((await AcquireAsync(scenario, first)).Granted);

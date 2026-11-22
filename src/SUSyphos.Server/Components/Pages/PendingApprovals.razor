@@ -78,21 +78,24 @@
     }
     else
     {
+        <div class="selection-bar" data-selection="Gates">
+            <span class="note" data-selection-count>Select transitions, then</span>
+            <button type="submit" form="transition" name="Transition" value="approve" class="primary" title="Approve the selected gates; a ring stopped on an alarm is released anyway" data-help-term="Approve"><Icon Name="check" Size="16" />Approve / release anyway</button>
+            <div class="spacer"></div>
+            <button type="submit" form="transition" name="Transition" value="stop" class="danger" title="Stop the rollouts of the selected updates" data-help-term="Stop rollout"><Icon Name="circle-stop" Size="16" />Stop rollout</button>
+        </div>
         <ListTable Table="_gateTable" Page="_gatePage" Columns="GateColumns" Search="Search update" Noun="transitions" ExtraColumns="1">
-            <ExtraHeader><th class="n">Decide</th></ExtraHeader>
+            <Leading><th class="select"><input type="checkbox" data-select-all="Gates" data-help="tables#select" data-help-term="Select all" aria-label="Select all transitions shown" hidden /></th></Leading>
             <Row Context="gate">
                     @{
-                        var key = $"{gate.Ring.UpdateId:D}:{gate.Ring.Revision}";
+                        var key = $"{gate.Ring.UpdateId:D}:{gate.Ring.Revision}:{gate.Ring.RingId}";
                     }
                         <tr>
+                            <td><input type="checkbox" form="transition" name="Gates" value="@key" aria-label="@($"Select {gate.Title} for {gate.RingName}")" data-help-term="Select" /></td>
                             <td class="wrap"><a href="/updates/@gate.Ring.UpdateId/@gate.Ring.Revision">@gate.Title</a></td>
                             <td class="nowrap"><RingTag Name="@gate.RingName" Order="@_ringOrders.GetValueOrDefault(gate.RingName)" /></td>
                             <td>@if (gate.Ring.State == RingRolloutState.Alarm) { <span class="pill fail">Alarm</span><div class="note">@gate.Ring.Reason</div> } else { <span class="pill queue">Awaiting approval</span> }</td>
                             <td class="nowrap">@Format(gate.Ring.StateChangedAtUtc)</td>
-                            <td class="n"><span class="row-actions">
-                                <button type="submit" form="transition" name="Transition" value="approve:@key:@gate.Ring.RingId" class="primary">@(gate.Ring.State == RingRolloutState.Alarm ? "Release anyway" : "Approve")</button>
-                                <button type="submit" form="transition" name="Transition" value="stop:@key:0" class="danger">Stop rollout</button>
-                            </span></td>
                         </tr>
             </Row>
         </ListTable>
@@ -112,15 +115,16 @@
         }
         else
         {
+            <div class="selection-bar" data-selection="ResumeGroups"><span class="note" data-selection-count>Select groups, then</span><button type="submit" class="primary" data-help-term="Resume"><Icon Name="play" Size="16" />Resume</button></div>
             <table>
-                <thead><tr><th>Group</th><th class="n">Failed leases in a row</th><th class="n"></th></tr></thead>
+                <thead><tr><th class="select"><input type="checkbox" data-select-all="ResumeGroups" data-help="tables#select" data-help-term="Select all" aria-label="Select all groups shown" hidden /></th><th>Group</th><th class="n">Failed leases in a row</th></tr></thead>
                 <tbody>
                     @foreach (var group in _halted)
                     {
                         <tr>
+                            <td class="select"><input type="checkbox" name="ResumeGroups" value="@group.Id" aria-label="@($"Select {group.Name}")" data-help-term="Select" /></td>
                             <td>@group.Name</td>
                             <td class="n">@group.ConsecutiveLeaseFailures</td>
-                            <td class="n"><span class="row-actions"><button type="submit" name="ResumeGroup" value="@group.Id">Resume</button></span></td>
                         </tr>
                     }
                 </tbody>
@@ -140,16 +144,17 @@
         }
         else
         {
+            <div class="selection-bar" data-selection="UnblockClients"><span class="note" data-selection-count>Select servers, then</span><button type="submit" data-help-term="Unblock"><Icon Name="user-check" Size="16" />Unblock</button></div>
             <table>
-                <thead><tr><th>Server</th><th>Host names seen</th><th>Last heartbeat</th><th class="n"></th></tr></thead>
+                <thead><tr><th class="select"><input type="checkbox" data-select-all="UnblockClients" data-help="tables#select" data-help-term="Select all" aria-label="Select all servers shown" hidden /></th><th>Server</th><th>Host names seen</th><th>Last heartbeat</th></tr></thead>
                 <tbody>
                     @foreach (var client in _blocked)
                     {
                         <tr>
+                            <td class="select"><input type="checkbox" name="UnblockClients" value="@client.Id" aria-label="@($"Select {client.HostName}")" data-help-term="Select" /></td>
                             <td><a href="/servers/@client.Id">@client.HostName</a></td>
                             <td>@client.LastHeartbeatHostName, @client.PreviousHostName</td>
                             <td class="nowrap">@Format(client.LastHeartbeatAtUtc)</td>
-                            <td class="n"><span class="row-actions"><button type="submit" name="UnblockClient" value="@client.Id">Unblock</button></span></td>
                         </tr>
                     }
                 </tbody>
@@ -176,24 +181,21 @@
     }
     else
     {
+        <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="acknowledgeSelected"><div class="selection-bar" data-selection="AcknowledgeIds"><span class="note" data-selection-count>Select results, then</span><button type="submit" name="Acknowledge" value="selected" data-help-term="Acknowledge"><Icon Name="check" Size="16" />Acknowledge</button></div></AuthorizeView>
         <div class="scroll">
             <table>
-                <thead><tr><th>Server</th><th>Action</th><th>Requested by</th><th>Finished</th><th>Result</th><th>Detail</th><th class="n"><span class="visually-hidden">Actions</span></th></tr></thead>
+                <thead><tr><th class="select"><input type="checkbox" data-select-all="AcknowledgeIds" data-help="tables#select" data-help-term="Select all" aria-label="Select all results shown" hidden /></th><th>Server</th><th>Action</th><th>Requested by</th><th>Finished</th><th>Result</th><th>Detail</th></tr></thead>
                 <tbody>
                     @foreach (var result in _results)
                     {
                         <tr>
+                            <td class="select"><input type="checkbox" name="AcknowledgeIds" value="@result.ActionId" aria-label="@($"Select {result.HostName}")" data-help-term="Select" /></td>
                             <td class="nowrap"><a href="@SUSyphos.Server.Components.ServerPage.Path(result.ClientId, "activity")">@result.HostName</a></td>
                             <td>@SUSyphos.Server.Agents.AgentActionText.Label(result.Kind)</td>
                             <td>@result.RequestedBy</td>
                             <td class="nowrap">@Format(result.FinishedAtUtc)</td>
                             <td><span class="pill @SUSyphos.Server.Agents.AgentActionText.StateClass(result.State)">@result.State</span></td>
                             <td class="wrap">@(result.Detail ?? (result.State == AgentActionState.Expired ? "The agent did not answer in time." : null))@if (result.Kind == SUSyphos.Contracts.Agents.AgentActionKind.UploadLogs && !result.Failed) { <text> </text><a href="@SUSyphos.Server.Administration.AgentLogEndpoints.DownloadPath(result.ActionId)">Download</a> }</td>
-                            <td class="n">
-                                <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="acknowledgeOne">
-                                    <span class="row-actions"><button type="submit" name="Acknowledge" value="@result.ActionId" data-help-term="Acknowledge">Acknowledge</button></span>
-                                </AuthorizeView>
-                            </td>
                         </tr>
                     }
                 </tbody>
@@ -246,9 +248,13 @@
     [SupplyParameterFromForm(FormName = "decision")]
     private string? Action { get; set; }
 
-    /// <summary>Value of the pressed transition button: "{approve|stop}:{update id}:{revision}:{ring id}".</summary>
+    /// <summary>The pressed button of the bar above the transitions: "approve" or "stop".</summary>
     [SupplyParameterFromForm(FormName = "transition")]
     private string? Transition { get; set; }
+
+    /// <summary>The selected transitions, each "{update id}:{revision}:{ring id}".</summary>
+    [SupplyParameterFromForm(FormName = "transition")]
+    private string[]? Gates { get; set; }
 
     private List<ClientEntity> _pending = [];
     private List<(RolloutRingEntity Ring, string Title, string RingName)> _gates = [];
@@ -279,13 +285,16 @@
     private List<ClientEntity> _blocked = [];
 
     [SupplyParameterFromForm(FormName = "blocked")]
-    private string? UnblockClient { get; set; }
+    private Guid[]? UnblockClients { get; set; }
 
     [SupplyParameterFromForm(FormName = "halted")]
-    private string? ResumeGroup { get; set; }
+    private int[]? ResumeGroups { get; set; }
 
     [SupplyParameterFromForm(FormName = "action-results")]
     private string? Acknowledge { get; set; }
+
+    [SupplyParameterFromForm(FormName = "action-results")]
+    private Guid[]? AcknowledgeIds { get; set; }
 
     private List<SUSyphos.Server.Agents.ActionResult> _results = [];
 
@@ -296,7 +305,8 @@
         var allowed = AuthenticationState is not null && (await Authorization.AuthorizeAsync((await AuthenticationState).User, AdminRoles.Policies.Operate)).Succeeded;
         var outcome = !allowed ? new Outcome("Only operators and administrators can acknowledge results.")
             : Acknowledge == "all" ? await ActionResults.AcknowledgeAsync([], actor, CancellationToken.None)
-            : Guid.TryParse(Acknowledge, out var actionId) ? await ActionResults.AcknowledgeAsync([actionId], actor, CancellationToken.None)
+            : Acknowledge == "selected" && AcknowledgeIds is { Length: > 0 } ids ? await ActionResults.AcknowledgeAsync([.. ids.Distinct().Take(500)], actor, CancellationToken.None)
+            : Acknowledge == "selected" ? new Outcome("Select at least one result in the list first.")
             : new Outcome("Invalid request.");
         _message = outcome.Error ?? "Acknowledged.";
         await LoadAsync();
@@ -431,41 +441,83 @@
     private async Task UnblockAsync()
     {
         var actor = AuthenticationState is null ? "unknown" : (await AuthenticationState).User.Identity?.Name ?? "unknown";
-        var outcome = Guid.TryParse(UnblockClient, out var clientId)
-            ? await Lifecycle.UnblockAsync(clientId, actor, CancellationToken.None)
-            : new Outcome("Invalid request.");
-        _message = outcome.Error ?? "The server was unblocked.";
+        var selected = (UnblockClients ?? []).Distinct().Take(500).ToList();
+        var errors = new List<string>();
+        foreach (var clientId in selected)
+        {
+            if ((await Lifecycle.UnblockAsync(clientId, actor, CancellationToken.None)).Error is { } error)
+            {
+                errors.Add(error);
+            }
+        }
+
+        _message = selected.Count == 0 ? "Select at least one server in the list first."
+            : errors.Count > 0 ? string.Join(" ", errors.Distinct())
+            : $"{DisplayNumber.Count(selected.Count, "server was", "servers were")} unblocked.";
         await LoadAsync();
     }
 
     private async Task ResumeGroupAsync()
     {
         var actor = AuthenticationState is null ? "unknown" : (await AuthenticationState).User.Identity?.Name ?? "unknown";
-        var outcome = int.TryParse(ResumeGroup, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var groupId)
-            ? await Leases.ResumeAsync(groupId, actor, CancellationToken.None)
-            : new Outcome("Invalid request.");
-        _message = outcome.Error ?? "The group issues leases again.";
+        var selected = (ResumeGroups ?? []).Distinct().Take(500).ToList();
+        var errors = new List<string>();
+        foreach (var groupId in selected)
+        {
+            if ((await Leases.ResumeAsync(groupId, actor, CancellationToken.None)).Error is { } error)
+            {
+                errors.Add(error);
+            }
+        }
+
+        _message = selected.Count == 0 ? "Select at least one group in the list first."
+            : errors.Count > 0 ? string.Join(" ", errors.Distinct())
+            : $"{DisplayNumber.Count(selected.Count, "group issues", "groups issue")} leases again.";
         await LoadAsync();
     }
 
     private async Task DecideTransitionAsync()
     {
-        var parts = Transition?.Split(':');
-        if (parts is not [var action and ("approve" or "stop"), var id, var rev, var ring]
-            || !Guid.TryParse(id, out var updateId)
-            || !int.TryParse(rev, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var revision)
-            || !int.TryParse(ring, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var ringId))
+        // The selected transitions of the bar (Marc, 2026-11-21: actions above the table, rows chosen by checkbox).
+        var selected = new List<(Guid UpdateId, int Revision, int RingId)>();
+        foreach (var value in (Gates ?? []).Distinct(StringComparer.Ordinal).Take(500))
         {
-            _message = "Invalid request.";
+            if (value.Split(':') is [var id, var rev, var ring]
+                && Guid.TryParse(id, out var updateId)
+                && int.TryParse(rev, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var revision)
+                && int.TryParse(ring, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var ringId))
+            {
+                selected.Add((updateId, revision, ringId));
+            }
+        }
+
+        if (Transition is not ("approve" or "stop") || selected.Count == 0)
+        {
+            _message = Transition is "approve" or "stop" ? "Select at least one transition in the list first." : "Invalid request.";
             await LoadAsync();
             return;
         }
 
         var actor = AuthenticationState is null ? "unknown" : (await AuthenticationState).User.Identity?.Name ?? "unknown";
-        var outcome = action == "approve"
-            ? await Rollouts.ApproveRingAsync(updateId, revision, ringId, actor, CancellationToken.None)
-            : await Rollouts.StopAsync(updateId, revision, actor, CancellationToken.None);
-        _message = outcome.Error ?? (action == "approve" ? "The update was released for the ring." : "The rollout was stopped.");
+        var errors = new List<string>();
+        var done = 0;
+        foreach (var (updateId, revision, ringId) in Transition == "approve" ? selected : selected.DistinctBy(s => (s.UpdateId, s.Revision)).ToList())
+        {
+            var outcome = Transition == "approve"
+                ? await Rollouts.ApproveRingAsync(updateId, revision, ringId, actor, CancellationToken.None)
+                : await Rollouts.StopAsync(updateId, revision, actor, CancellationToken.None);
+            if (outcome.Error is { } error)
+            {
+                errors.Add(error);
+            }
+            else
+            {
+                done++;
+            }
+        }
+
+        _message = (Transition == "approve" ? $"{DisplayNumber.Count(done, "update was", "updates were")} released for the ring." : $"{DisplayNumber.Count(done, "rollout was", "rollouts were")} stopped.")
+            + (errors.Count > 0 ? $" Not done: {string.Join(" ", errors.Distinct())}" : string.Empty);
         await LoadAsync();
     }
 

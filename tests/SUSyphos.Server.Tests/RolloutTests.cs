@@ -597,7 +597,7 @@ public sealed class RolloutPageTests
             Assert.Contains("Awaiting approval", await approvals.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
-        using var approved = await browser.PostFormAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "transition", ["Transition"] = $"approve:{update.UpdateId:D}:1:{RingEntity.TestId}" });
+        using var approved = await browser.PostFormAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "transition", ["Transition"] = "approve", ["Gates"] = $"{update.UpdateId:D}:1:{RingEntity.TestId}" });
 
         Assert.Contains("The update was released for the ring.", await approved.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         Assert.Single((await scenario.ReleasesAsync(test)).Releases);

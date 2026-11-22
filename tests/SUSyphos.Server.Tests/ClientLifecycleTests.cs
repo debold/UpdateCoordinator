@@ -95,7 +95,7 @@ public sealed class ClientLifecycleTests
             Assert.Contains("SRV01-COPY", await approvals.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
         }
 
-        using (await browser.PostFormAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "blocked", ["UnblockClient"] = client.ClientId.ToString() }))
+        using (await browser.PostFormAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "blocked", ["UnblockClients"] = client.ClientId.ToString() }))
         {
         }
 

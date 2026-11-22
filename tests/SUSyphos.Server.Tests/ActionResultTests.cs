@@ -36,7 +36,7 @@ public sealed class ActionResultTests
         Assert.Contains("4 log files uploaded (313 KB).", page, StringComparison.Ordinal);
         Assert.DoesNotContain("The update search runs with this cycle.", page, StringComparison.Ordinal);
 
-        using (await browser.PostFormAndFollowAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "action-results", ["Acknowledge"] = failed.ToString() }))
+        using (await browser.PostFormAndFollowAsync("/approvals", new Dictionary<string, string> { ["_handler"] = "action-results", ["Acknowledge"] = "selected", ["AcknowledgeIds"] = failed.ToString() }))
         {
         }
 
