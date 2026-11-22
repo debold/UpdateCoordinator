@@ -54,8 +54,10 @@ else
     }
     @if (_unsupported.Count > 0)
     {
-        <Banner Label="Not supported on some servers" Severity="neutral" Help="update-detail#source">
-            <ChildContent>@DisplayNumber.Count(_unsupported.Sum(u => u.Servers.Count), "server needs", "servers need") this version but cannot install it, so it is not released to them: @foreach (var (reason, servers) in _unsupported) { <span class="note">@reason (@string.Join(", ", servers.Take(5))@(servers.Count > 5 ? $" and {servers.Count - 5} more" : string.Empty))</span> }</ChildContent>
+        @* General text with the count and a link to the servers concerned (Marc, 2026-11-22); the reasons stand in the list. *@
+        <Banner Label="Not supported on some servers" Severity="queue" Help="update-detail#source">
+            <ChildContent>@DisplayNumber.Count(_unsupportedReasons.Count, "server cannot", "servers cannot") install this version, so it is not released to them; the Servers tab lists them with the reason.</ChildContent>
+            <Action><a class="btn" href="@($"{TabLink("servers")}&f.status={Uri.EscapeDataString(StatusLabel(ServerUpdateStatus.NotSupported))}#servers")" data-help-term="Show servers">Show servers</a></Action>
         </Banner>
     }
     @if (_holds.Count > 0)
@@ -319,7 +321,7 @@ else
                                 }
                                 <td><a href="/servers/@row.ClientId">@row.HostName</a><div class="note">@row.Os</div></td>
                                 <td>@if (row.RingOrder > 0) { <RingTag Name="@row.Ring" Order="@row.RingOrder" /> } else { <span class="note">–</span> }@if (row.Groups.Count > 0) { <div>@foreach (var member in row.Groups) { <span class="tag">@member</span> }</div> }</td>
-                                <td><span class="pill @StatusClass(row.Status)">@StatusLabel(row.Status)</span></td>
+                                <td><span class="pill @StatusClass(row.Status)" title="@row.Reason">@StatusLabel(row.Status)</span>@if (row.Reason is { } why) { <div class="note">@why</div> }</td>
                                 <td class="nowrap">@Format(row.Entry?.EarliestInstallAtUtc)</td>
                                 <td class="nowrap">@if (row.InstalledAtUtc is { } installedAt) { <span>@Format(installedAt)</span> }@if (row.InstalledBy is { } by) { <div class="note">@by</div> }</td>
                                 <td>@(row.Entry is { } entry && row.Status != ServerUpdateStatus.Installed ? DeploymentText.Result(entry) : null)</td>
@@ -377,12 +379,13 @@ else
         Planned,
         RestartPending,
         WaitingForRelease,
+        NotSupported,
         Installed,
         NotNeeded,
     }
 
     /// <summary>One server in the server list of the update: where it is, its state for the update and when and by whom it was installed.</summary>
-    private sealed record ServerRow(Guid ClientId, string HostName, string Ring, int RingOrder, IReadOnlyList<string> Groups, string Os, ServerUpdateStatus Status, DeploymentEntry? Entry, DateTime? InstalledAtUtc, string? InstalledBy);
+    private sealed record ServerRow(Guid ClientId, string HostName, string Ring, int RingOrder, IReadOnlyList<string> Groups, string Os, ServerUpdateStatus Status, DeploymentEntry? Entry, DateTime? InstalledAtUtc, string? InstalledBy, string? Reason = null);
 
     private static string StatusLabel(ServerUpdateStatus status) => status switch
     {
@@ -391,6 +394,7 @@ else
         ServerUpdateStatus.Planned => "Planned",
         ServerUpdateStatus.RestartPending => "Restart pending",
         ServerUpdateStatus.WaitingForRelease => "Waiting for release",
+        ServerUpdateStatus.NotSupported => "Not supported",
         ServerUpdateStatus.Installed => "Installed",
         _ => "Not needed",
     };
@@ -428,6 +432,8 @@ else
         ServerUpdateStatus.Failed => "fail",
         ServerUpdateStatus.Pending or ServerUpdateStatus.Planned or ServerUpdateStatus.RestartPending => "pend",
         ServerUpdateStatus.WaitingForRelease => "wait",
+        // Needs the version but cannot install it: attention, neither grey nor red (Marc, 2026-11-22).
+        ServerUpdateStatus.NotSupported => "queue",
         ServerUpdateStatus.Installed => "ok",
         _ => "neutral",
     };
@@ -778,6 +784,9 @@ else
     private PackageVersionEntity? _sourceVersion;
     private IReadOnlyList<(string Reason, IReadOnlyList<string> Servers)> _unsupported = [];
 
+    /// <summary>Per server that needs this version but cannot install it: why (shown in the Servers tab as "Not supported").</summary>
+    private Dictionary<Guid, string> _unsupportedReasons = [];
+
     private UpdateEntity? _update;
     private RolloutEntity? _rollout;
     private NewerUpdate? _supersededBy;
@@ -860,11 +869,13 @@ else
         // A software version reaches servers only once the WinGet source of the central server offers it (lab, 2026-11-20).
         _sourceVersion = _update.Kind == UpdateKind.Software ? await Db.PackageVersions.AsNoTracking().FirstOrDefaultAsync(v => v.UpdateId == UpdateId) : null;
         _unsupported = [];
+        _unsupportedReasons = [];
         if (_update.Kind == UpdateKind.Software)
         {
             var unsupported = (await SUSyphos.Server.Software.SoftwareNeeds.UnsupportedAsync(Db, null, CancellationToken.None)).Where(u => u.Need.UpdateId == UpdateId).ToList();
             var ids = unsupported.Select(u => u.Need.ClientId).ToList();
             var names = await Db.Clients.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.HostName);
+            _unsupportedReasons = unsupported.GroupBy(u => u.Need.ClientId).ToDictionary(g => g.Key, g => g.First().Reason);
             _unsupported = [.. unsupported.GroupBy(u => u.Reason).Select(g => (g.Key, (IReadOnlyList<string>)[.. g.Select(u => names.GetValueOrDefault(u.Need.ClientId) ?? "?").Order(StringComparer.OrdinalIgnoreCase)]))];
         }
 
@@ -954,7 +965,7 @@ else
                 DeploymentState.Failed => ServerUpdateStatus.Failed,
                 DeploymentState.Pending => entry.EarliestInstallAtUtc > now ? ServerUpdateStatus.Planned : ServerUpdateStatus.Pending,
                 DeploymentState.Queued => ServerUpdateStatus.WaitingForRelease,
-                _ => installed.Contains(c.Id) ? ServerUpdateStatus.Installed : ServerUpdateStatus.NotNeeded,
+                _ => installed.Contains(c.Id) ? ServerUpdateStatus.Installed : _unsupportedReasons.ContainsKey(c.Id) ? ServerUpdateStatus.NotSupported : ServerUpdateStatus.NotNeeded,
             };
             // Installed by SUSyphos: the time of its result; otherwise Windows or an administrator (history) or found in the inventory.
             var (installedAt, installedBy) = status != ServerUpdateStatus.Installed ? ((DateTime?)null, (string?)null)
@@ -971,7 +982,8 @@ else
                 status,
                 entry,
                 installedAt,
-                installedBy);
+                installedBy,
+                status == ServerUpdateStatus.NotSupported ? _unsupportedReasons[c.Id] : null);
         })];
         _toDo = servers.Count(s => s.Status is not (ServerUpdateStatus.Installed or ServerUpdateStatus.NotNeeded));
         _failedServers = servers.Count(s => s.Status == ServerUpdateStatus.Failed);

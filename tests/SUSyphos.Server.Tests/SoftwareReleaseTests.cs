@@ -414,6 +414,23 @@ public sealed class SoftwareReleaseTests
         Assert.Empty(needed);
         Assert.Contains("portable", Assert.Single(unsupported).Reason, StringComparison.Ordinal);
 
+        // The version's page counts them in an amber banner with a link, and the Servers tab names the state and the reason.
+        await scenario.Factory.CreateUserAsync("reader", "correct horse battery", SUSyphos.Server.Administration.AdminRoles.Reader);
+        using var browser = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("reader", "correct horse battery"))
+        {
+        }
+
+        var page = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/updates/{updateId:D}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("<div class=\"banner queue help-scope\" role=\"status\"><span class=\"pill queue\">Not supported on some servers</span>", page, StringComparison.Ordinal);
+        Assert.Contains("1 server cannot install this version", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("DC01 (", page, StringComparison.Ordinal);
+        Assert.Contains("f.status=Not%20supported#servers", page, StringComparison.Ordinal);
+        var servers = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/updates/{updateId:D}/1?tab=servers&f.status=Not%20supported")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Matches("<span class=\"pill queue\" title=\"[^\"]*portable[^\"]*\">Not supported</span>", servers);
+        Assert.Contains("DC01", servers, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Not needed<", servers, StringComparison.Ordinal);
+
         // The same server on Windows Server 2022 needs it.
         await scenario.Factory.WithDbAsync(db => db.Clients.Where(c => c.Id == client.ClientId).ExecuteUpdateAsync(s => s.SetProperty(c => c.OsVersion, "10.0.20348.5870"), TestContext.Current.CancellationToken));
         (needed, _) = await scenario.WithServiceAsync<ServerDbContext, (IReadOnlyList<SoftwareNeed>, IReadOnlyList<SoftwareNeed>)>(db => SoftwareNeeds.LoadAsync(db, [client.ClientId], CancellationToken.None));
