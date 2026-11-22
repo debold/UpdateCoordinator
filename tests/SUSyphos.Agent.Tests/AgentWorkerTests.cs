@@ -224,7 +224,7 @@ public sealed class AgentWorkerTests
         Assert.Null(sent?.Activity);
         Assert.Null(sent?.RebootWait);
 
-        _environment.RebootPending = true;
+        _installation.RebootPending = true; // the runner combines the Windows keys and restarts asked for by installers
         using (_activity.Begin(AgentPhase.Installing, [Guid.NewGuid()]))
         {
             await worker.RunCycleAsync(TestContext.Current.CancellationToken);

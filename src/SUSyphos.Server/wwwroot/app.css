@@ -991,17 +991,20 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 .attention details.acknowledged > summary { padding: 0.6rem 1rem; cursor: pointer; color: var(--muted, #5B6675); font-size: 0.85rem; }
 /* My requests in the navigation and the messages when one finishes (Marc, 2026-11-20). */
 .my-requests { position: relative; }
-.my-requests > summary { cursor: pointer; list-style: none; }
+/* The entry looks like the links of the navigation (rc.7 lab: it inherited the dark text colour and was hardly visible). */
+.my-requests > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; border-radius: var(--r-sm); color: var(--nav-text); }
+.my-requests > summary:hover, .my-requests[open] > summary { background: var(--nav-hover); color: #FFFFFF; }
 .my-requests > summary::-webkit-details-marker { display: none; }
 .my-requests .pill.idle { background: transparent; color: inherit; opacity: 0.7; }
-.my-requests .pulse { display: inline-block; width: 0.45rem; height: 0.45rem; margin-right: 0.3rem; border-radius: 50%; background: #fff; animation: pulse 1.4s ease-in-out infinite; }
+.my-requests .pulse { display: inline-block; width: 0.45rem; height: 0.45rem; margin-right: 0.3rem; border-radius: 50%; background: #1B1300; animation: pulse 1.4s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .my-requests .pulse { animation: none; } }
-.my-requests-pop { left: 0; top: auto; bottom: 100%; min-width: 320px; max-width: min(420px, 90vw); max-height: 60vh; overflow: auto; color: var(--text); }
-.my-request { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem; align-items: start; padding: 0.45rem 0; border-bottom: 1px solid var(--line); font-size: 0.85rem; }
+/* Opens beside the navigation (the dashboard script places it); without script below the entry. */
+.my-requests-pop { width: min(380px, calc(100vw - 16px)); max-height: 70vh; overflow: auto; color: var(--text); padding: 0.4rem 0.75rem; }
+.my-request { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem; align-items: start; padding: 0.45rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
 .my-request:last-child { border-bottom: 0; }
-.toasts { position: fixed; right: 1rem; bottom: 1rem; z-index: 50; display: flex; flex-direction: column; gap: 0.5rem; max-width: min(380px, calc(100vw - 2rem)); }
-.toast { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.7rem 0.9rem; border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: var(--r-sm); background: var(--surface); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); font-size: 0.88rem; }
-.toast.fail { border-left-color: var(--fail); }
-.toast .links { display: flex; gap: 0.75rem; align-items: center; }
-.toast .close { margin-left: auto; border: 0; background: transparent; font-size: 1.1rem; cursor: pointer; }
+.req-toasts { position: fixed; right: 1rem; bottom: 1rem; z-index: 70; display: flex; flex-direction: column; gap: 0.5rem; max-width: min(380px, calc(100vw - 2rem)); }
+.req-toast { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.7rem 0.9rem; border: 1px solid var(--border); border-left: 4px solid var(--ok); border-radius: var(--r-sm); background: var(--surface); color: var(--text); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); font-size: 0.88rem; }
+.req-toast.fail { border-left-color: var(--fail); }
+.req-toast .links { display: flex; gap: 0.75rem; align-items: center; }
+.req-toast .close { margin-left: auto; border: 0; background: transparent; font-size: 1.1rem; cursor: pointer; min-height: 0; padding: 0 0.25rem; }

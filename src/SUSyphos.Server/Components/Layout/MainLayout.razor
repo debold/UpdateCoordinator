@@ -37,8 +37,8 @@
                 <NavLink href="/help" Match="NavLinkMatch.Prefix" class="nav-help" target="_blank" rel="noopener"><span class="nav-label"><Icon Name="@PageIcons.Help" />Help</span></NavLink>
                 @* My requests (Marc, 2026-11-20, mockup variants 1 and 2): the user's own remote actions; the dashboard script
                    refreshes the list every 10 seconds and shows a message when one finishes; without script, the state on load. *@
-                <details class="my-requests" data-my-requests="@SUSyphos.Server.Administration.MyRequests.Path" data-menu>
-                    <summary class="nav-label"><Icon Name="@PageIcons.Requests" />My requests <span class="pill@(_myOpen == 0 ? " idle" : null)" data-my-count>@(_myOpen > 0 ? (MarkupString)$"<span class=\"pulse\"></span>{_myOpen}" : (MarkupString)"0")</span></summary>
+                <details class="my-requests beside" data-my-requests="@SUSyphos.Server.Administration.MyRequests.Path" data-menu>
+                    <summary><span class="nav-label"><Icon Name="@PageIcons.Requests" />My requests</span> <span class="pill@(_myOpen == 0 ? " idle" : null)" data-my-count>@(_myOpen > 0 ? (MarkupString)$"<span class=\"pulse\"></span>{_myOpen}" : (MarkupString)"0")</span></summary>
                     <div class="menu-pop my-requests-pop" data-my-list>
                         @if (_myRequests.Count == 0)
                         {

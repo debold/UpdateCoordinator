@@ -455,10 +455,17 @@
         const height = pop.offsetHeight;
         const right = document.documentElement.clientWidth - 8;
         const bottom = window.innerHeight - 8;
-        const left = details.matches('.align-right') || anchor.left + width > right ? anchor.right - width : anchor.left;
+        let left = details.matches('.align-right') || anchor.left + width > right ? anchor.right - width : anchor.left;
         let top = anchor.bottom + 4;
         if (top + height > bottom && anchor.top - 4 - height >= 8) {
             top = anchor.top - 4 - height;
+        }
+
+        // A pop-up of the navigation (My requests) opens beside it, level with its entry, where there is room.
+        const nav = details.closest('.nav');
+        if (details.matches('.beside') && nav && nav.getBoundingClientRect().right + 8 + width <= right) {
+            left = nav.getBoundingClientRect().right + 8;
+            top = Math.min(anchor.top, bottom - height);
         }
 
         pop.style.left = `${Math.round(Math.max(8, Math.min(left, right - width)))}px`;
@@ -765,16 +772,16 @@
             return node;
         };
 
-        let toasts = document.querySelector('.toasts');
+        let toasts = document.querySelector('.req-toasts');
         const toast = (request) => {
             if (!toasts) {
-                toasts = element('div', 'toasts');
+                toasts = element('div', 'req-toasts');
                 toasts.setAttribute('role', 'status');
                 document.body.appendChild(toasts);
             }
 
             const failed = request.stateClass === 'fail';
-            const box = element('div', 'toast ' + (failed ? 'fail' : 'ok'));
+            const box = element('div', 'req-toast ' + (failed ? 'fail' : 'ok'));
             box.appendChild(element('b', null, request.action + ' on ' + request.server + ': ' + request.state));
             if (request.detail) {
                 box.appendChild(element('span', 'note', request.detail));

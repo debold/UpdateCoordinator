@@ -241,6 +241,7 @@ public sealed class InstallationRunnerTests
     [Fact]
     public async Task DueRelease_IsInstalledAndReported()
     {
+        _installer.RebootRequired = true;
         Assert.True(await Create().RunIfDueAsync(Identity, TestContext.Current.CancellationToken));
 
         Assert.Equal([_release], Assert.Single(_installer.Batches));
@@ -287,6 +288,47 @@ public sealed class InstallationRunnerTests
         Assert.Single(_installer.Batches);
         Assert.Empty(_restart.Requests);
         Assert.True(runner.RestartRequested);
+    }
+
+    [Fact]
+    public async Task InstallNow_RestartsAfterAnInstallerAskedForIt_EvenWhenWindowsKeysSayNothing()
+    {
+        // rc.7 lab, LABVDC01, 2026-11-22: VC++ 2013 returned 3010 ("restart required: true"), but no restart followed,
+        // because only the registry keys of Windows Update were checked.
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
+        _environment.RebootPending = false;
+        _installer.RebootRequired = true;
+        var runner = Create();
+
+        runner.RequestInstallNow(restartNow: true);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.True(runner.RebootPending);
+        Assert.Equal([SUSyphos.Agent.Installation.RebootPlanner.WarningPeriod], _restart.Requests);
+        Assert.NotNull(_store.State.InstallerRestartAt);
+    }
+
+    [Fact]
+    public async Task InstallerRestart_EndsWithTheNextStart_AndIsNotRememberedWithoutRequest()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
+        _environment.RebootPending = false;
+        var runner = Create();
+
+        // Without a restart request from the installer nothing is pending and nothing restarts.
+        runner.RequestInstallNow(restartNow: true);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.False(runner.RebootPending);
+        Assert.Empty(_restart.Requests);
+
+        // A remembered request ends once Windows has started after it.
+        _store.State = _store.State with { InstallerRestartAt = _time.GetUtcNow().AddMinutes(-5) };
+        var held = Create();
+        Assert.True(held.RebootPending);
+        _environment.LastBootAt = _time.GetUtcNow();
+        await held.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+        Assert.False(held.RebootPending);
+        Assert.Null(_store.State.InstallerRestartAt);
     }
 
     [Fact]
@@ -1161,11 +1203,13 @@ public sealed class InstallationRunnerTests
 
         public InstallResultCode ResultCode { get; set; } = InstallResultCode.Succeeded;
 
+        public bool RebootRequired { get; set; }
+
         public Task<IReadOnlyList<InstallResult>> InstallAsync(IReadOnlyList<Release> batch, CancellationToken cancellationToken)
         {
             Batches.Add(batch);
             return Task.FromResult<IReadOnlyList<InstallResult>>(
-                [.. batch.Select(r => new InstallResult { UpdateId = r.UpdateId, Revision = r.Revision, ResultCode = ResultCode, RebootRequired = true })]);
+                [.. batch.Select(r => new InstallResult { UpdateId = r.UpdateId, Revision = r.Revision, ResultCode = ResultCode, RebootRequired = RebootRequired })]);
         }
     }
 

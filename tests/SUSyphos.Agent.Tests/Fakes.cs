@@ -260,6 +260,8 @@ internal sealed class FakeInstallationRunner : IInstallationRunner
 
     public bool RestartRequested { get; set; }
 
+    public bool RebootPending { get; set; }
+
     public DateTimeOffset? PlannedRestartAt { get; set; }
 
     public DateTimeOffset? RestartAnnouncedAt { get; set; }

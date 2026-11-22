@@ -614,6 +614,24 @@ public sealed class UpdateDetailTests
         var dialog = await GetHtmlAsync(admin, $"{path}?tab=servers&dialog=install-servers&srv={test.ClientId:D}");
         Assert.Contains("TEST01", dialog, StringComparison.Ordinal);
         Assert.Contains("name=\"ServersRestart\"", dialog, StringComparison.Ordinal);
+
+        // Submit the dialogs as the browser does: the selected servers come only from their hidden fields
+        // (rc.7 lab, 2026-11-22: the fields did not bind, the dialog stayed open with "Select at least one server").
+        var endHold = $"{path}?tab=servers&dialog=end-hold-servers&srv={test.ClientId:D}";
+        using (var ended = await admin.PostFormAsync(endHold, new Dictionary<string, string> { ["_handler"] = "end-hold-servers" }, pageToRead: endHold))
+        {
+            Assert.DoesNotContain("Select at least one server", await ended.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.UpdateHolds.AnyAsync(h => h.UpdateId == update.UpdateId && h.ClientId == test.ClientId, TestContext.Current.CancellationToken)));
+
+        var install = $"{path}?tab=servers&dialog=install-servers&srv={test.ClientId:D}";
+        using (var installed = await admin.PostFormAsync(install, new Dictionary<string, string> { ["_handler"] = "install-servers", ["ServersRestart"] = "window" }, pageToRead: install))
+        {
+            Assert.DoesNotContain("Select at least one server", await installed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        }
+
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AgentActions.AnyAsync(a => a.ClientId == test.ClientId, TestContext.Current.CancellationToken)));
     }
 
     [Fact]

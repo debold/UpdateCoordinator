@@ -114,7 +114,7 @@ else
         <Dialog Title="@($"Install {(_update.KbArticle is null ? "this update" : $"KB{_update.KbArticle}")} now?")" CloseHref="@ServersTabLink" Help="update-detail#servers">
             <form method="post" @formname="install-servers" @onsubmit="InstallServersAsync">
                 <AntiforgeryToken />
-                @foreach (var id in SelectedServerIds) { <input type="hidden" name="srv" value="@id" /> }
+                @foreach (var id in SelectedServerIds) { <input type="hidden" name="InstallServers" value="@id" /> }
                 <div class="dialog-body">
                     @if (SelectedServerIds.Count == 0)
                     {
@@ -139,7 +139,7 @@ else
         <Dialog Title="End the holds?" CloseHref="@ServersTabLink" Help="update-detail#servers">
             <form method="post" @formname="end-hold-servers" @onsubmit="EndHoldServersAsync">
                 <AntiforgeryToken />
-                @foreach (var id in SelectedServerIds) { <input type="hidden" name="srv" value="@id" /> }
+                @foreach (var id in SelectedServerIds) { <input type="hidden" name="EndHoldServers" value="@id" /> }
                 <div class="dialog-body">
                     <p>@(SelectedServerIds.Count == 0 ? "Select at least one server in the list first." : $"The holds of {SelectedServerText} for this update end; holds of their ring or group stay. Servers without a hold of their own are skipped.")</p>
                 </div>

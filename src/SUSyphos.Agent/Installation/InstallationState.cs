@@ -18,7 +18,8 @@ internal sealed record InstallationState(
     InstallNowRequest? InstallNow = null,
     List<UninstallRequest>? Uninstalls = null,
     List<ActionOutcome>? ActionOutbox = null,
-    int? RestartRefusedCode = null)
+    int? RestartRefusedCode = null,
+    DateTimeOffset? InstallerRestartAt = null)
 {
     public static InstallationState Empty => new([], []);
 }

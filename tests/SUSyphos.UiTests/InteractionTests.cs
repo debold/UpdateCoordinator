@@ -522,4 +522,51 @@ public sealed class InteractionTests(UiFixture ui)
         await page.Locator("main h1").ClickAsync();
         await Assertions.Expect(pop).ToBeHiddenAsync();
     }
+
+    /// <summary>
+    /// My requests (rc.7 lab, 2026-11-22): the entry is as visible as the other links of the navigation, opens a list beside
+    /// the navigation, and a request that finishes while the page is open shows a message at the bottom right. The list
+    /// the script polls is answered by the test (open first, then done), so no remote action is queued in the demo lab.
+    /// </summary>
+    [Fact]
+    public async Task MyRequests_IsVisible_OpensBesideTheNavigation_AndAnnouncesAFinishedRequest()
+    {
+        await using var context = await ui.NewContextAsync(1280, 800);
+        var page = await context.NewPageAsync();
+        await page.Clock.InstallAsync();
+        var done = false;
+        await page.RouteAsync("**/dashboard/my-requests", route => route.FulfillAsync(new RouteFulfillOptions
+        {
+            ContentType = "application/json",
+            Body = $$"""[{"id":"0b6f2d1e-7d47-4a8e-9a41-1f0e9d1c0a01","server":"LABTEST01","serverLink":"/servers","action":"Collect logs","state":"{{(done ? "Succeeded" : "Delivered")}}","stateClass":"{{(done ? "ok" : "pend")}}","open":{{(done ? "false" : "true")}},"step":"running","requested":"09:00","detail":null,"download":null}]""",
+        }));
+        await page.GotoAsync("/");
+
+        var entry = page.Locator("nav details.my-requests > summary");
+        await Assertions.Expect(entry).ToBeVisibleAsync();
+        var colours = await entry.EvaluateAsync<string[]>("e => [getComputedStyle(e).color, getComputedStyle(e.closest('nav')).backgroundColor]");
+        Assert.NotEqual(colours[1], colours[0]);
+        Assert.Equal(await page.Locator("nav a[href='/servers']").EvaluateAsync<string>("e => getComputedStyle(e).color"), colours[0]);
+
+        await entry.ClickAsync();
+        var pop = page.Locator("nav details.my-requests .my-requests-pop");
+        await Assertions.Expect(pop).ToBeVisibleAsync();
+        var box = await pop.BoundingBoxAsync();
+        var nav = await page.Locator("nav").BoundingBoxAsync();
+        Assert.NotNull(box);
+        Assert.NotNull(nav);
+        Assert.True(box.Height > 30, $"The list of My requests is only {box.Height}px high.");
+        Assert.True(box.X >= nav.X + nav.Width, "The list of My requests should open beside the navigation.");
+        await entry.ClickAsync();
+
+        await page.Clock.RunForAsync(10_500);
+        await Assertions.Expect(entry.Locator("[data-my-count]")).ToContainTextAsync("1");
+        done = true;
+        await page.Clock.RunForAsync(10_500);
+        var toast = page.Locator(".req-toasts .req-toast");
+        await Assertions.Expect(toast).ToContainTextAsync("Collect logs on LABTEST01: Succeeded");
+        var toastBox = await toast.BoundingBoxAsync();
+        Assert.NotNull(toastBox);
+        Assert.True(toastBox.X + toastBox.Width > 1280 - 40 && toastBox.Y + toastBox.Height > 800 - 40, "The message should sit at the bottom right.");
+    }
 }

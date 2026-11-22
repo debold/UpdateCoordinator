@@ -25,6 +25,13 @@ internal interface IInstallationRunner
     /// <summary>True while an administrator's request to restart in the maintenance window is held.</summary>
     bool RestartRequested { get; }
 
+    /// <summary>
+    /// True when Windows reports a pending reboot or an installation since the last start asked for one (exit code 3010 or
+    /// 1641 of an installer sets none of the keys Windows Update uses; rc.7 lab, LABVDC01, 2026-11-22: VC++ 2013 waited for a
+    /// restart that never came). Reported with the heartbeat.
+    /// </summary>
+    bool RebootPending { get; }
+
     /// <summary>Holds a restart for the next maintenance window that stays open long enough (remote action); returns the planned time.</summary>
     DateTimeOffset? RequestRestart();
 
@@ -185,7 +192,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
                     if (_state.Lease is { } hold)
                     {
-                        Save(_state with { Lease = hold with { InstallationSucceeded = hold.InstallationSucceeded && succeeded, AwaitingReboot = _environment.RebootPending } });
+                        Save(_state with { Lease = hold with { InstallationSucceeded = hold.InstallationSucceeded && succeeded, AwaitingReboot = RebootPending } });
                     }
 
                     if (!await FlushOutboxAsync(identity, cancellationToken).ConfigureAwait(false))
@@ -272,6 +279,19 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
     public bool RestartRequested => _state.RestartRequestedAt is not null;
 
+    /// <inheritdoc />
+    public bool RebootPending => _environment.RebootPending || (_state.InstallerRestartAt is { } asked && _environment.LastBootAt <= asked);
+
+    /// <summary>Remembers that an installation or uninstallation asked for a restart, until the server has started again.</summary>
+    private void RememberInstallerRestart()
+    {
+        Save(_state with { InstallerRestartAt = _timeProvider.GetUtcNow() });
+        LogInstallerRestart();
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "An installation asked for a restart; it counts as pending until the server has started again.")]
+    private partial void LogInstallerRestart();
+
     public DateTimeOffset? RequestRestart()
     {
         // An explicit request is not held back by the cooldown of an earlier, automatic request.
@@ -347,12 +367,17 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         {
             Save(_state with { RestartRefusedCode = null });
         }
+
+        if (_state.InstallerRestartAt is { } installer && _environment.LastBootAt > installer)
+        {
+            Save(_state with { InstallerRestartAt = null });
+        }
     }
 
     /// <summary>A lease kept for a reboot ends once the server has started again and no reboot is pending any more.</summary>
     private void CompleteLeaseAfterReboot()
     {
-        if (_state.Lease is { AwaitingReboot: true } hold && _environment.LastBootAt > hold.AcquiredAt && !_environment.RebootPending)
+        if (_state.Lease is { AwaitingReboot: true } hold && _environment.LastBootAt > hold.AcquiredAt && !RebootPending)
         {
             Save(_state with { Lease = hold with { AwaitingReboot = false } });
         }
@@ -365,7 +390,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     /// </summary>
     private async Task<bool> ReleaseLeaseIfDoneAsync(AgentIdentity identity, CancellationToken cancellationToken)
     {
-        var rebootDue = _environment.RebootPending || _state.RestartRequestedAt is not null || _restart.AnnouncedFor is not null;
+        var rebootDue = RebootPending || _state.RestartRequestedAt is not null || _restart.AnnouncedFor is not null;
         if (_state.Lease is not { } hold || (hold.AwaitingReboot && rebootDue && RebootMayFollow()))
         {
             return true;
@@ -404,7 +429,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             requested ? RebootPolicy.InsideMaintenanceWindow : _releases.Current.RebootPolicy ?? RebootPolicy.Never,
             _options.Value,
             _releases.InstallationsPaused,
-            _environment.RebootPending || requested,
+            RebootPending || requested,
             EffectiveWindows,
             _timeProvider.GetLocalNow().DateTime,
             _state.LastRebootRequestAt,
@@ -487,7 +512,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     private void FinishInstallNow(InstallNowRequest request)
     {
         Save(_state with { InstallNow = null });
-        if (!_environment.RebootPending)
+        if (!RebootPending)
         {
             return;
         }
@@ -579,6 +604,11 @@ internal sealed partial class InstallationRunner : IInstallationRunner
                 : await _softwareUninstaller.UninstallAsync(packageId, request.Scripts, cancellationToken).ConfigureAwait(false)
             : await _uninstaller.UninstallAsync(request.UpdateId, request.KbArticle, cancellationToken).ConfigureAwait(false);
 
+        if (result.RebootRequired)
+        {
+            RememberInstallerRestart();
+        }
+
         // The next inventory and search tell the central server what is installed now.
         _inventory.Reset();
         _updates.RequestRun();
@@ -667,7 +697,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     /// </summary>
     internal IReadOnlySet<(Guid UpdateId, int Revision)>? WithoutAwaitingRestart(IReadOnlySet<(Guid UpdateId, int Revision)>? missing)
     {
-        if (missing is null || !_environment.RebootPending)
+        if (missing is null || !RebootPending)
         {
             return missing;
         }
@@ -721,6 +751,10 @@ internal sealed partial class InstallationRunner : IInstallationRunner
             .Concat(batch.Select(r => new InstallAttempt(r.UpdateId, r.Revision, started, r.Software is null && installed.Contains((r.UpdateId, r.Revision)))))
             .ToList();
         Save(_state with { Outbox = outbox, Attempts = attempts });
+        if (report.RebootRequired)
+        {
+            RememberInstallerRestart();
+        }
 
         // Installed state changed: refresh inventory and search with the next cycles.
         _inventory.Reset();
