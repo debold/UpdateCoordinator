@@ -1,6 +1,6 @@
 # Script output {#top}
 
-The complete output of one run of a [package script](help/script) on a server, as the agent reported it (Marc, 2026-11-13): every stream of PowerShell, one line per record with its time. Values of secret parameters are masked as ********. Reached with **Show output** in the **Script runs** box of the server's History tab. Every role may read it.
+The complete output of one run of a [package script](help/script) on a server, as the agent reported it: every stream of PowerShell, one line per record with its time. Values of secret parameters are masked as ********. Reached with **Show output** in the **Script runs** box of the server's History tab. Every role may read it.
 
 **Download .log** saves the output as a text file; **Open the script** opens the script page of the package.
 

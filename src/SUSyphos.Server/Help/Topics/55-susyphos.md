@@ -33,7 +33,7 @@ Every agent package the central server has:
 - **Status**: Released, Not released, Older, in use (older than the newest released version, still on servers) or Older, unused (on no server).
 - ▾ (**Details**) opens what is new in the version: the notes of its GitHub release and a link to the release.
 
-Choose a version with the round option button in front of it (**Choose**, administrators); the bar above the list acts on it (Marc, 2026-11-21):
+Choose a version with the round option button in front of it (**Choose**, administrators); the bar above the list acts on it:
 
 - **Release to the next ring**: releases the chosen version to the next ring in order. Agents of the released rings update themselves to the newest version released for their ring, never to an older one.
 - **Release to all rings**: releases the chosen version everywhere at once.
@@ -55,7 +55,7 @@ The central server does not install itself. To upgrade: check the package agains
 
 ### Debug mode {#debug}
 
-In the **Central server** box (administrators; Marc, 2026-11-21): for a chosen **Duration** (1, 4, 24 or 72 hours) the central server writes its log at Debug, including every request of WinGet to its WinGet source with the answer status and contract version, and ends by itself at its end time (also after a restart in between). **Turn on** starts it, **Extend** starts a new duration now, **Turn off** ends it at once. While it runs, a band above every page of the dashboard says so; the overview lists it under **Needs attention**. Every change is in the audit log. Collect the logs with "Download central server logs" (see [Central server logs](#logs)).
+In the **Central server** box (administrators): for a chosen **Duration** (1, 4, 24 or 72 hours) the central server writes its log at Debug, including every request of WinGet to its WinGet source with the answer status and contract version, and ends by itself at its end time (also after a restart in between). **Turn on** starts it, **Extend** starts a new duration now, **Turn off** ends it at once. While it runs, a band above every page of the dashboard says so; the overview lists it under **Needs attention**. Every change is in the audit log. Collect the logs with "Download central server logs" (see [Central server logs](#logs)).
 
 ## Install new agents {#install}
 

@@ -35,7 +35,7 @@ The view is part of the address, like search and filters.
 
 ## Filtered to a ring {#ring-filter}
 
-A part of the ring bar on the [overview](help/overview#rings) opens this list filtered to that ring (Marc, 2026-11-17). Two chips above the list say so: **Ring** (for example "Ring: 1 Pilot (2 servers)") and, for a coloured part, the state in that ring ("In Pilot: Failed"). The list then holds the updates that are still open somewhere and have servers in that ring, only those with at least one server of the ring in the chosen state. The **Status** column counts only the servers of the ring, so its red parts add up to the red part of the ring bar: the bar counts each server once per update, the list each update once. The **×** of a chip removes that filter; the view, the search and the other filters stay.
+A part of the ring bar on the [overview](help/overview#rings) opens this list filtered to that ring. Two chips above the list say so: **Ring** (for example "Ring: 1 Pilot (2 servers)") and, for a coloured part, the state in that ring ("In Pilot: Failed"). The list then holds the updates that are still open somewhere and have servers in that ring, only those with at least one server of the ring in the chosen state. The **Status** column counts only the servers of the ring, so its red parts add up to the red part of the ring bar: the bar counts each server once per update, the list each update once. The **×** of a chip removes that filter; the view, the search and the other filters stay.
 
 ## Columns {#columns}
 

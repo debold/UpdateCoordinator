@@ -48,7 +48,7 @@ Tiles and links elsewhere in the dashboard open lists with filters already set; 
 
 ## Selecting rows {#select}
 
-Lists with actions for several rows at once (servers, updates, approvals) have a checkbox in front of each row. **Select** the rows, then use the button above the list; it applies to the selected rows only. **Select all** in the header ticks or clears every row shown on the page (needs the dashboard script). The selection is not kept when you change page, search or filters. Since 0.9.0-rc.8 every list whose rows had their own buttons works this way (Marc, 2026-11-21): the row name or a link opens or edits it, the bar above acts on the ticked rows. An action for exactly one row (for example **Edit…** or **Remove assignment…**) is grey with a tooltip while more than one row is ticked; lists where exactly one row can be chosen (the TLS certificate, the agent packages) have round option buttons instead of checkboxes.
+Lists with actions for several rows at once (servers, updates, approvals) have a checkbox in front of each row. **Select** the rows, then use the button above the list; it applies to the selected rows only. **Select all** in the header ticks or clears every row shown on the page (needs the dashboard script). The selection is not kept when you change page, search or filters. In every list with actions the row name or a link opens or edits it, the bar above acts on the ticked rows. An action for exactly one row (for example **Edit…** or **Remove assignment…**) is grey with a tooltip while more than one row is ticked; lists where exactly one row can be chosen (the TLS certificate, the agent packages) have round option buttons instead of checkboxes.
 
 ## Pages {#pages}
 

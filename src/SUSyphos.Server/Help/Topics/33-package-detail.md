@@ -14,7 +14,7 @@ How new versions of the package reach the servers, at a glance:
 
 ## Uninstall from servers {#uninstall}
 
-**Uninstall from servers…** (administrators, red on the right of the band; greyed while no server with WinGet working has the package) removes the package with WinGet (Marc, 2026-11-14):
+**Uninstall from servers…** (administrators, red on the right of the band; greyed while no server with WinGet working has the package) removes the package with WinGet:
 
 - **Where**: **All servers that have it** (only servers where WinGet works are counted), **Rings** or **Server groups** (with the number of servers that have it), or **One server**.
 - **When**: **In the next software window** (default; a needed restart waits for a maintenance window), **Now, restart in the next window** or **Now, restart right after**. Software takes no lease of a coordinated group.
@@ -57,7 +57,7 @@ New installations (administrators): the servers of an assigned group, or an assi
 
 ## Assign the package {#assign}
 
-- **All servers, a group or a server**: *All servers* (every approved server, also servers approved later; Marc, 2026-11-20), one group or one approved server. Servers on which WinGet cannot run are always left out.
+- **All servers, a group or a server**: *All servers* (every approved server, also servers approved later), one group or one approved server. Servers on which WinGet cannot run are always left out.
 - **Version**: "Newest released version", or a fixed version of the catalog.
 - **Uninstall when the assignment is removed**: off by default; on, removing the assignment later uninstalls the package from the servers it covered.
 

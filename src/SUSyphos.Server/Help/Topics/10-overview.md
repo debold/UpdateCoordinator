@@ -35,7 +35,7 @@ Each tile has a title, the values in the middle and one line of context at the b
 One row per ring, in rollout order. The ring tag (number and name, outlined in the colour of the ring) opens the server list filtered to that ring.
 
 - **Servers**: approved servers in the ring.
-- **Status (server × update)**: one bar segment per installation state, counting each server once per update that is still open somewhere (updates installed everywhere drop out, so the bar shows the work left): *Installed* (green), *Ready to install* (blue), *Waiting for release* (grey-blue) and *Failed* (red); the legend explains each name in its tooltip (see [Deployment states](help/overview#states)). The line below names what is open, with the number of updates where it differs ("2 failed on 1 update, 3 to install"). Every part of the bar and every part of that line is a link (Marc, 2026-11-17): it opens the [update list](help/updates#ring-filter) with the updates of this ring in that state, for example the red part the updates that failed on at least one server of the ring. A ring with servers and nothing open shows a full green bar with *everything up to date*.
+- **Status (server × update)**: one bar segment per installation state, counting each server once per update that is still open somewhere (updates installed everywhere drop out, so the bar shows the work left): *Installed* (green), *Ready to install* (blue), *Waiting for release* (grey-blue) and *Failed* (red); the legend explains each name in its tooltip (see [Deployment states](help/overview#states)). The line below names what is open, with the number of updates where it differs ("2 failed on 1 update, 3 to install"). Every part of the bar and every part of that line is a link: it opens the [update list](help/updates#ring-filter) with the updates of this ring in that state, for example the red part the updates that failed on at least one server of the ring. A ring with servers and nothing open shows a full green bar with *everything up to date*.
 - **State**: *Healthy* (nothing open), *Waiting for release* (updates wait until the rollout reaches this ring), *Rolling out* (installations pending), *Failures* (at least one failed installation), *Awaiting approval* (a release gate waits for a person) or *Alarm* (the rollout stopped before this ring because a threshold was exceeded).
 
 ## Needs attention {#attention}
@@ -54,7 +54,7 @@ Everything that waits for a human decision or points to a problem, each with a b
 
 "Nothing waits for a human decision" means the list is empty.
 
-**Acknowledge** (operators and administrators; Marc, 2026-11-20) hides a topic you know about, for example servers that deliberately run past their end of support. What is acknowledged is the topic, not each server: the entry shows again by itself as soon as it concerns more items than when it was acknowledged, and an acknowledgement ends when the topic is resolved, so it shows again the next time it comes up. The line **N acknowledged topics hidden** below the list opens them with who acknowledged them and when; **Show again** brings one back at once. Every acknowledgement is in the audit log.
+**Acknowledge** (operators and administrators) hides a topic you know about, for example servers that deliberately run past their end of support. What is acknowledged is the topic, not each server: the entry shows again by itself as soon as it concerns more items than when it was acknowledged, and an acknowledgement ends when the topic is resolved, so it shows again the next time it comes up. The line **N acknowledged topics hidden** below the list opens them with who acknowledged them and when; **Show again** brings one back at once. Every acknowledgement is in the audit log.
 
 **Debug mode** entries list servers in debug mode and the central server when it is in debug mode (see [Debug mode](help/server-detail#debug)).
 
@@ -82,7 +82,7 @@ The central server records the daily values (status, fully patched, open updates
 
 ## Deployment states {#states}
 
-The same four names and colours appear in every legend, bar, donut and pill (Marc, 2026-11-20):
+The same four names and colours appear in every legend, bar, donut and pill:
 
 - **Installed** (green): The server reported the update as installed.
 - **Ready to install** (blue): Released for the server; it installs in its next maintenance window, or right now with Install now.
