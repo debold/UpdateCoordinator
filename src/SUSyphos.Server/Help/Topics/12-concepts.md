@@ -38,6 +38,34 @@ Groups give servers common settings and, when **coordinated**, make sure that on
 
 Servers get their ring and groups from [assignment rules](help/assignment-rules) (by role, domain or name), by hand on their [details page](help/server-detail#assignment), or end up in the last ring (Production) when nothing applies.
 
+## The frame of every page {#layout}
+
+Every page of the dashboard has the same frame:
+
+- **Top bar** (dark): the SUSyphos mark opens the overview; **Search** in the middle finds servers, updates, KB numbers, software packages, pages and help topics (see [Search](#search)). On the right:
+  - **My requests** (the list icon): your own remote actions, see [My requests](#my-requests); a red number counts the open ones.
+  - **Notifications** (the bell): what waits for a person, with a red number: decisions in Approvals (operators and administrators), a central server in debug mode, a newer central server; and the way to **Needs attention** on the overview.
+  - **Settings** (the gear, administrators): opens the SUSyphos page.
+  - **Help** (the question mark): opens this help in a new tab.
+  - **Account** (your initials): your name, role and the version of the central server, and **Sign out**.
+- **Rail** (left): the pages you need most, Overview, Servers, Updates, Software and Rollout (administrators). **Hide navigation** folds the navigation away and **Show navigation** brings it back; the choice stays in this browser. Without a choice the navigation folds away by itself in windows narrower than 1400 pixels, so lists keep their room.
+- **Navigation**: the pages grouped as Devices, Updates & software, Rollout, Reports and Administration; a click on a group opens or closes it, and closed groups stay closed in this browser (the group of the current page always opens). **Find a page** narrows the navigation to matching pages while you type; Enter searches everything. Numbers next to a page count what waits there, for example the decisions in Approvals.
+- **Content**: the page on a white surface.
+
+On a narrow screen (a phone or a small window) the rail goes and the menu button at the top left opens the navigation. Everything works without the dashboard script as well; then the navigation is hidden or shown by reloading the page.
+
+## Search {#search}
+
+**Search** in the top bar (and **Search for** on its result page) finds, with a part of the name or number:
+
+- **Pages** of the dashboard by their name in the navigation,
+- **Servers** by host name or domain,
+- **Updates** by title or KB number (with or without "KB"),
+- **Software** packages by name or WinGet ID,
+- **Help** topics by their text.
+
+Each kind shows at most 20 results; a single matching server, update or package opens directly. The search reads only and shows only what your role may see on its pages.
+
 ## My requests {#my-requests}
 
-**My requests** in the navigation lists the remote actions you requested yourself, never those of others: open ones (requested, picked up by the agent, running) and those finished within the last hour, each with its server, its step and, for log requests, **Download logs**. The number shows how many are open, with a pulsing dot while any is. With script the list refreshes every 10 seconds, and when one of your requests finishes a message appears at the bottom right: for 10 seconds when it succeeded, until you close it when it failed. Without script the list shows the state when the page was loaded.
+**My requests** in the top bar lists the remote actions you requested yourself, never those of others: open ones (requested, picked up by the agent, running) and those finished within the last hour, each with its server, its step and, for log requests, **Download logs**. The number shows how many are open, with a pulsing dot while any is. With script the list refreshes every 10 seconds, and when one of your requests finishes a message appears at the bottom right: for 10 seconds when it succeeded, until you close it when it failed. Without script the list shows the state when the page was loaded.

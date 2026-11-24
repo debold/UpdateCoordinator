@@ -1,0 +1,151 @@
+@page "/search"
+@attribute [Authorize(Policy = AdminRoles.Policies.Read)]
+@inherits DashboardPageBase
+@inject ServerDbContext Db
+@inject SUSyphos.Server.Help.HelpCatalog HelpTopics
+@inject NavigationManager Navigation
+
+@* The search of the top bar and of "Find a page" (Marc, 2026-11-24, admin center layout): servers by name, updates by
+   title or KB number, software packages by name or ID, pages of the dashboard and help topics. A single match opens
+   directly. Read only; the query is only compared, never put into SQL text (LINQ parameters). *@
+<PageTitle>Search</PageTitle>
+<PageHeader Title="Search" Icon="search" Subtitle="@(string.IsNullOrWhiteSpace(Query) ? "Servers, updates, KB numbers, software packages, pages and help" : $"Results for \"{Query}\"")" Help="concepts#search" />
+
+<Box Title="Search" Help="concepts#search">
+    <form method="get" action="@Route" class="box-body search-form" role="search">
+        <label class="field"><span>Search for</span><input type="search" name="q" value="@Query" maxlength="200" autofocus data-help-term="Search for" /></label>
+        <button type="submit" class="primary"><Icon Name="search" Size="16" />Search</button>
+    </form>
+</Box>
+
+@if (!string.IsNullOrWhiteSpace(Query))
+{
+    @if (_total == 0)
+    {
+        <Box Title="No results"><p class="empty-state">Nothing matches "@Query". Search for a server name, a KB number such as KB5070881, a package ID such as 7zip.7zip, or a word of the help.</p></Box>
+    }
+    @if (_pages.Count > 0)
+    {
+        <Box Title="Pages" Flush="true">
+            <ul class="search-hits">@foreach (var (title, link) in _pages) { <li><a href="@link">@title</a></li> }</ul>
+        </Box>
+    }
+    @if (_servers.Count > 0)
+    {
+        <Box Title="Servers" Flush="true" Hint="@MoreHint(_servers.Count)">
+            <ul class="search-hits">@foreach (var server in _servers) { <li><a href="/servers/@server.Id">@server.Name</a> <span class="note">@server.Detail</span></li> }</ul>
+        </Box>
+    }
+    @if (_updates.Count > 0)
+    {
+        <Box Title="Updates" Flush="true" Hint="@MoreHint(_updates.Count)">
+            <ul class="search-hits">@foreach (var update in _updates) { <li><a href="/updates/@update.UpdateId/@update.Revision">@update.Title</a></li> }</ul>
+        </Box>
+    }
+    @if (_packages.Count > 0)
+    {
+        <Box Title="Software" Flush="true" Hint="@MoreHint(_packages.Count)">
+            <ul class="search-hits">@foreach (var package in _packages) { <li><a href="@PackagePage.Link(package.PackageId)">@package.Name</a> <span class="note mono">@package.PackageId</span></li> }</ul>
+        </Box>
+    }
+    @if (_help.Count > 0)
+    {
+        <Box Title="Help" Flush="true">
+            <ul class="search-hits">@foreach (var hit in _help) { <li><a href="@($"/help/{hit.Topic.Slug}{(hit.Anchor is null ? null : "#" + hit.Anchor)}")" target="_blank" rel="noopener">@hit.Topic.Title › @hit.Heading</a> <span class="note">@hit.Before<mark>@hit.Match</mark>@hit.After</span></li> }</ul>
+        </Box>
+    }
+}
+
+@code {
+    public const string Route = "/search";
+
+    /// <summary>At most this many hits per kind.</summary>
+    public const int Limit = 20;
+
+    [SupplyParameterFromQuery(Name = "q")]
+    private string? Query { get; set; }
+
+    private List<(Guid Id, string Name, string Detail)> _servers = [];
+    private List<UpdateEntity> _updates = [];
+    private List<PackageEntity> _packages = [];
+    private List<(string Title, string Link)> _pages = [];
+    private IReadOnlyList<SUSyphos.Server.Help.HelpHit> _help = [];
+    private int _total;
+
+    /// <summary>The pages of the dashboard by their navigation names, for "Find a page".</summary>
+    internal static readonly IReadOnlyList<(string Title, string Link, string? Policy)> Pages =
+    [
+        ("Overview", "/", null),
+        ("Servers", "/servers", null),
+        ("Server groups", "/administration/groups", AdminRoles.Policies.Administer),
+        ("Operating systems", "/operating-systems", null),
+        ("Updates", "/updates", null),
+        ("Software", "/software", null),
+        ("Release rules", "/administration/release-rules", AdminRoles.Policies.Administer),
+        ("Maintenance windows", "/administration/maintenance", AdminRoles.Policies.Administer),
+        ("Assignment rules", "/administration/rules", AdminRoles.Policies.Administer),
+        ("Approvals", "/approvals", AdminRoles.Policies.Operate),
+        ("AD coverage", "/coverage", null),
+        ("SUSyphos", SusyphosPage.Route, AdminRoles.Policies.Administer),
+        ("Agent settings", "/administration/agent-settings", AdminRoles.Policies.Administer),
+        ("Identity", "/administration/users", AdminRoles.Policies.Administer),
+        ("Notifications", "/administration/notifications", AdminRoles.Policies.Administer),
+        ("TLS certificate", "/administration/certificate", AdminRoles.Policies.Administer),
+        ("Backup", "/administration/backup", AdminRoles.Policies.Administer),
+        ("Audit log", "/administration/audit", AdminRoles.Policies.Administer),
+        ("Help", "/help", null),
+    ];
+
+    private string? MoreHint(int count) => count >= Limit ? $"the first {Limit}; refine the search for more" : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var query = Query?.Trim();
+        if (string.IsNullOrEmpty(query) || query.Length > 200)
+        {
+            return;
+        }
+
+        foreach (var page in Pages)
+        {
+            if (page.Title.Contains(query, StringComparison.OrdinalIgnoreCase) && (page.Policy is null || await IsAuthorizedAsync(page.Policy)))
+            {
+                _pages.Add((page.Title, page.Link));
+            }
+        }
+
+        // KB numbers are searched without the "KB" prefix too.
+        var kb = query.StartsWith("KB", StringComparison.OrdinalIgnoreCase) ? query[2..] : query;
+        var pattern = $"%{Escape(query)}%";
+        var kbPattern = $"%{Escape(kb)}%";
+        _servers = [.. (await Db.Clients.AsNoTracking()
+                .Where(c => EF.Functions.Like(c.HostName, pattern, "\\") || (c.DomainName != null && EF.Functions.Like(c.DomainName, pattern, "\\")))
+                .OrderBy(c => c.HostName).Take(Limit)
+                .Select(c => new { c.Id, c.HostName, c.DomainName, c.State })
+                .ToListAsync())
+            .Select(c => (c.Id, c.HostName, $"{c.DomainName} {(c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved ? string.Empty : c.State.ToString())}".Trim()))];
+        _updates = await Db.Updates.AsNoTracking()
+            .Where(u => EF.Functions.Like(u.Title, pattern, "\\") || (u.KbArticle != null && EF.Functions.Like(u.KbArticle, kbPattern, "\\")))
+            .OrderByDescending(u => u.FirstSeenAtUtc).Take(Limit)
+            .ToListAsync();
+        _packages = await Db.Packages.AsNoTracking()
+            .Where(p => EF.Functions.Like(p.Name, pattern, "\\") || EF.Functions.Like(p.PackageId, pattern, "\\"))
+            .OrderBy(p => p.Name).Take(Limit)
+            .ToListAsync();
+        _help = HelpTopics.Search(query, 10);
+        _total = _pages.Count + _servers.Count + _updates.Count + _packages.Count + _help.Count;
+
+        // Exactly one match of the data opens it at once.
+        var single = _servers.Count + _updates.Count + _packages.Count == 1 && _pages.Count == 0;
+        if (single && HttpMethods.IsGet(HttpContext?.Request.Method ?? string.Empty))
+        {
+            Navigation.NavigateTo(_servers.Count == 1 ? $"/servers/{_servers[0].Id}" : _updates.Count == 1 ? $"/updates/{_updates[0].UpdateId}/{_updates[0].Revision}" : PackagePage.Link(_packages[0].PackageId));
+        }
+    }
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    /// <summary>Escapes the wildcards of LIKE, so "%" and "_" are searched as they are.</summary>
+    internal static string Escape(string text) => text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
+}

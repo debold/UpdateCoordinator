@@ -5,14 +5,15 @@
 
 ## 1. Navigation (overview)
 
-1. **Overview** (main dashboard)
-2. **Rings** (ring detail)
-3. **Servers** (server detail)
-4. **Pending approvals / overrides** (separate, prominent item)
-5. **Administration**
+Since 0.9.0-rc.9 every page sits in the frame of an admin center (Marc, 2026-11-24, mockup https://claude.ai/artifact/3rdFVJ1KoM9NeKmPREhL2K, `Components/Layout/MainLayout.razor`):
 
-The overview of pending manual approvals and overrides is deliberately a separate navigation item and not hidden under administration, because these are cases actively waiting for a human decision (e.g. ring transitions with a mandatory release such as pilot → production).
+- **Top bar** (dark, `#151B24`): the mark opens the overview; a central **search** (GET `/search`: pages by navigation name, servers by host or domain, updates by title or KB, packages by name or ID, help topics; at most 20 per kind, a single server, update or package opens directly; LIKE with escaped wildcards); icons on the right: **My requests** (count of open own remote actions), **Notifications** (bell: Approvals decisions for operators and administrators, central debug mode, a newer central server, link to Needs attention), **Settings** (administrators: the SUSyphos page), **Help** (new tab), **Account** (initials: name, role, version, sign-out).
+- **Rail**: Overview, Servers, Updates, Software and Rollout (administrators) plus **Hide navigation** / **Show navigation**. The choice is a cookie `susyphos-nav` (`/dashboard/navigation?hidden=1|0&return=…`, local return paths only), so it works without script; the script toggles in place. Without a choice the navigation folds away below 1400 pixels (CSS), so tables keep their room.
+- **Navigation**: Overview, Needs attention, then groups as disclosures: Devices (Servers, Server groups, Operating systems), Updates & software (Updates, Software), Rollout (Release rules, Maintenance windows, Assignment rules, Approvals with its count), Reports (AD coverage), Administration (SUSyphos, Agent settings, Identity, Notifications, TLS certificate, Backup, Audit log). **Find a page** filters the links while typing (script) and searches on Enter; closed groups are remembered in local storage, the group of the current page always opens. Page names stay as before (no renames from the mockup).
+- **Content**: one white surface on the grey ground; boxes and tiles inside it have a thin border and no shadow; action bands are Fluent command bars (flat buttons with blue icons, primary blue, destructive red on the right). Font Segoe UI, else Inter where installed (no web fonts: CSP).
+- On narrow screens (≤ 900 px) the rail goes and a menu button jumps to the navigation (`#main-nav`, `:target`), also without script. The help (open before sign-in) has the same top bar with a help search; signed in, the main navigation folds away there because the help brings its own list of topics.
 
+The overview of pending manual approvals and overrides stays a separate navigation item (in Rollout, with its count) and also shows in the bell, because these are cases actively waiting for a human decision (e.g. ring transitions with a mandatory release such as pilot → production).
 ## 2. Main overview
 
 - **Urgent items at the top** (prioritized): states that require manual intervention and do not resolve themselves, e.g. stuck ring transitions with a poor success rate, expired group leases, repeatedly failing agent self-updates.

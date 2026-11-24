@@ -5,103 +5,248 @@
 @inject SUSyphos.Server.AgentPackages.AgentPackageAdministration ServerUpdates
 @inject SUSyphos.Server.Administration.DebugMode Debug
 @inject SUSyphos.Server.Administration.MyRequests MyRequestList
+@inject NavigationManager Navigation
 
-<div class="shell">
-    <AuthorizeView Policy="@AdminRoles.Policies.Read">
-        <Authorized>
-            <nav class="nav" aria-label="Main">
-                <span class="brand"><img src="susyphos-mark-white.svg" alt="" width="28" height="28" />SUSyphos</span>
-                <NavLink href="/" Match="NavLinkMatch.All"><span class="nav-label"><Icon Name="@PageIcons.Overview" />Overview</span></NavLink>
-
-                <NavLink href="/servers"><span class="nav-label"><Icon Name="@PageIcons.Servers" />Servers</span></NavLink>
-                <NavLink href="/updates"><span class="nav-label"><Icon Name="@PageIcons.Updates" />Updates</span></NavLink>
-                <NavLink href="/software"><span class="nav-label"><Icon Name="@PageIcons.Software" />Software</span></NavLink>
-                <NavLink href="/operating-systems"><span class="nav-label"><Icon Name="@PageIcons.OperatingSystems" />Operating systems</span></NavLink>
-                <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operate">
-                    <NavLink href="/approvals"><span class="nav-label"><Icon Name="@PageIcons.Approvals" />Approvals</span> @if (_waiting > 0) { <span class="pill">@_waiting</span> }</NavLink>
-                </AuthorizeView>
-                <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="admin">
-                    <span class="section">Administration</span>
-                    <NavLink href="/administration/release-rules"><span class="nav-label"><Icon Name="@PageIcons.ReleaseRules" />Release rules</span></NavLink>
-                    <NavLink href="/administration/maintenance"><span class="nav-label"><Icon Name="@PageIcons.MaintenanceWindows" />Maintenance windows</span></NavLink>
-                    <NavLink href="/administration/groups"><span class="nav-label"><Icon Name="@PageIcons.ServerGroups" />Server groups</span></NavLink>
-                    <NavLink href="/administration/rules"><span class="nav-label"><Icon Name="@PageIcons.AssignmentRules" />Assignment rules</span></NavLink>
-                    <NavLink href="/administration/agent-settings"><span class="nav-label"><Icon Name="@PageIcons.AgentSettings" />Agent settings</span></NavLink>
-                    <NavLink href="@SUSyphos.Server.Components.Pages.SusyphosPage.Route"><span class="nav-label"><Icon Name="@PageIcons.Susyphos" />SUSyphos</span></NavLink>
-                    <NavLink href="/administration/users"><span class="nav-label"><Icon Name="@PageIcons.Identity" />Identity</span></NavLink>
-                    <NavLink href="/administration/notifications"><span class="nav-label"><Icon Name="@PageIcons.Notifications" />Notifications</span></NavLink>
-                    <NavLink href="/administration/certificate"><span class="nav-label"><Icon Name="@PageIcons.Certificate" />TLS certificate</span></NavLink>
-                    <NavLink href="/administration/backup"><span class="nav-label"><Icon Name="@PageIcons.Backup" />Backup</span></NavLink>
-                    <NavLink href="/administration/audit"><span class="nav-label"><Icon Name="@PageIcons.AuditLog" />Audit log</span></NavLink>
-                </AuthorizeView>
-                <NavLink href="/help" Match="NavLinkMatch.Prefix" class="nav-help" target="_blank" rel="noopener"><span class="nav-label"><Icon Name="@PageIcons.Help" />Help</span></NavLink>
-                @* My requests (Marc, 2026-11-20, mockup variants 1 and 2): the user's own remote actions; the dashboard script
-                   refreshes the list every 10 seconds and shows a message when one finishes; without script, the state on load. *@
-                <details class="my-requests beside" data-my-requests="@SUSyphos.Server.Administration.MyRequests.Path" data-menu>
-                    <summary><span class="nav-label"><Icon Name="@PageIcons.Requests" />My requests</span> <span class="pill@(_myOpen == 0 ? " idle" : null)" data-my-count>@(_myOpen > 0 ? (MarkupString)$"<span class=\"pulse\"></span>{_myOpen}" : (MarkupString)"0")</span></summary>
-                    <div class="menu-pop my-requests-pop" data-my-list>
-                        @if (_myRequests.Count == 0)
-                        {
-                            <p class="note">No requests of yours in the last hour.</p>
-                        }
-                        @foreach (var request in _myRequests)
-                        {
-                            <div class="my-request" data-id="@request.Id" data-open="@(request.Open ? "1" : "0")">
-                                <span class="pill @request.StateClass">@request.State</span>
-                                <div><a href="@request.ServerLink">@request.Server</a>: @request.Action<div class="note">@request.Step@if (request.Detail is { Length: > 0 } detail) { <text> · @detail</text> }</div>@if (request.Download is { } download) { <a href="@download">Download logs</a> }</div>
-                            </div>
-                        }
-                    </div>
-                </details>
-                <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath" class="account">
-                    <AntiforgeryToken />
-                    <input type="hidden" name="_handler" value="logout" />
-                    Signed in as <span class="user">@context.User.Identity?.Name</span>
-                    <button type="submit">Sign out</button>
-                    <span class="version" title="@ServerVersion.Full">Version @ServerVersion.Display@if (_serverUpdate is { } update) { <a href="@(SUSyphos.Server.Components.Pages.SusyphosPage.Route)#server" class="update">@update.Version available</a> }</span>
+@* The frame of every dashboard page in the style of an admin center (Marc, 2026-11-24, mockup
+   https://claude.ai/artifact/3rdFVJ1KoM9NeKmPREhL2K): dark top bar with brand, search and icons, a slim rail of pinned
+   pages, the grouped navigation that can be hidden, and the content as a white surface on a grey ground. Everything
+   works without the dashboard script: menus are disclosures, hiding the navigation is a link that sets a cookie, the
+   search is a GET form, and on narrow screens the menu button jumps to the navigation. *@
+<AuthorizeView Policy="@AdminRoles.Policies.Read">
+    <Authorized>
+        <div class="app @NavClass" data-app>
+            <header class="top" data-help="concepts#layout">
+                <a class="tbtn menu-toggle" href="#main-nav" aria-label="Menu" title="Menu"><Icon Name="menu" Size="20" /></a>
+                <a class="brand" href="/" aria-label="SUSyphos overview"><img src="susyphos-mark-white.svg" alt="" width="26" height="26" /><span class="bname">SUSyphos</span></a>
+                <form class="top-search" method="get" action="@SUSyphos.Server.Components.Pages.SearchPage.Route" role="search">
+                    <label><Icon Name="search" Size="16" /><input type="search" name="q" placeholder="Search servers, updates, KB numbers, software, help" aria-label="Search" maxlength="200" autocomplete="off" data-help-term="Search" /></label>
                 </form>
-            </nav>
-        </Authorized>
-    </AuthorizeView>
-
-    <main>
-        @if (_centralDebug is { } debug)
+                <div class="ticons">
+                    @* My requests: the user's own remote actions; the dashboard script refreshes the list every 10 seconds and
+                       shows a message when one finishes; without script, the state on load. *@
+                    <details class="top-menu my-requests align-right" data-my-requests="@SUSyphos.Server.Administration.MyRequests.Path" data-menu>
+                        <summary class="tbtn" aria-label="My requests" title="My requests" data-help-term="My requests"><Icon Name="@PageIcons.Requests" Size="20" /><span class="badge@(_myOpen == 0 ? " idle" : null)" data-my-count>@(_myOpen > 0 ? (MarkupString)$"<span class=\"pulse\"></span>{_myOpen}" : (MarkupString)"0")</span></summary>
+                        <div class="menu-pop top-pop my-requests-pop">
+                            <div class="pop-head">My requests</div>
+                            <div data-my-list>
+                                @if (_myRequests.Count == 0)
+                                {
+                                    <p class="note">No requests of yours in the last hour.</p>
+                                }
+                                @foreach (var request in _myRequests)
+                                {
+                                    <div class="my-request" data-id="@request.Id" data-open="@(request.Open ? "1" : "0")">
+                                        <span class="pill @request.StateClass">@request.State</span>
+                                        <div><a href="@request.ServerLink">@request.Server</a>: @request.Action<div class="note">@request.Step@if (request.Detail is { Length: > 0 } detail) { <text> · @detail</text> }</div>@if (request.Download is { } download) { <a href="@download">Download logs</a> }</div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </details>
+                    <details class="top-menu alerts align-right" data-menu>
+                        <summary class="tbtn" aria-label="@($"Notifications, {_alertCount} open")" title="Notifications" data-help-term="Notifications"><Icon Name="bell" Size="20" />@if (_alertCount > 0) { <span class="badge">@_alertCount</span> }</summary>
+                        <div class="menu-pop top-pop">
+                            <div class="pop-head">Notifications</div>
+                            <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operateAlerts">
+                                @if (_waiting > 0)
+                                {
+                                    <a class="pop-item" href="/approvals"><Icon Name="@PageIcons.Approvals" Size="16" /><span>@DisplayNumber.Count(_waiting, "decision waits", "decisions wait") in Approvals</span></a>
+                                }
+                            </AuthorizeView>
+                            @if (_centralDebug is not null)
+                            {
+                                <a class="pop-item" href="@(SUSyphos.Server.Components.Pages.SusyphosPage.Route)#debug"><Icon Name="scroll-text" Size="16" /><span>The central server is in debug mode</span></a>
+                            }
+                            @if (_serverUpdate is { } available)
+                            {
+                                <a class="pop-item" href="@(SUSyphos.Server.Components.Pages.SusyphosPage.Route)#server"><Icon Name="@PageIcons.Susyphos" Size="16" /><span>Central server @available.Version is available</span></a>
+                            }
+                            <a class="pop-item" href="/#needs-attention"><Icon Name="triangle-alert" Size="16" /><span>Needs attention on the overview</span></a>
+                        </div>
+                    </details>
+                    <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="adminSettings">
+                        <a class="tbtn" href="@SUSyphos.Server.Components.Pages.SusyphosPage.Route" aria-label="Settings" title="Settings: the SUSyphos page"><Icon Name="settings" Size="20" /></a>
+                    </AuthorizeView>
+                    <a class="tbtn" href="/help" target="_blank" rel="noopener" aria-label="Help" title="Help (opens in a new tab)"><Icon Name="@PageIcons.Help" Size="20" /></a>
+                    <details class="top-menu account align-right" data-menu>
+                        <summary class="tbtn" aria-label="@($"Account: {context.User.Identity?.Name}")" title="Account" data-help-term="Account"><span class="avatar">@Initials(context.User.Identity?.Name)</span></summary>
+                        <div class="menu-pop top-pop account-pop">
+                            <div class="pop-head">@context.User.Identity?.Name</div>
+                            <p class="note">Role: @RoleOf(context.User)</p>
+                            <p class="note" title="@ServerVersion.Full">Version @ServerVersion.Display@if (_serverUpdate is { } update) { <a href="@(SUSyphos.Server.Components.Pages.SusyphosPage.Route)#server" class="update">@update.Version available</a> }</p>
+                            <form method="post" action="@DashboardServiceCollectionExtensions.LogoutPath">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="_handler" value="logout" />
+                                <button type="submit"><Icon Name="log-out" Size="16" />Sign out</button>
+                            </form>
+                        </div>
+                    </details>
+                </div>
+            </header>
+            <div class="shell">
+                <nav class="rail" aria-label="Pinned" data-help="concepts#layout">
+                    <NavLink href="/" Match="NavLinkMatch.All"><Icon Name="@PageIcons.Overview" Size="22" />Overview</NavLink>
+                    <NavLink href="/servers"><Icon Name="@PageIcons.Servers" Size="22" />Servers</NavLink>
+                    <NavLink href="/updates"><Icon Name="@PageIcons.Updates" Size="22" />Updates</NavLink>
+                    <NavLink href="/software"><Icon Name="@PageIcons.Software" Size="22" />Software</NavLink>
+                    <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="adminRail">
+                        <NavLink href="/administration/release-rules"><Icon Name="route" Size="22" />Rollout</NavLink>
+                    </AuthorizeView>
+                    <span class="sep"></span>
+                    @* With an explicit choice one link; without one the window width decides (the navigation folds away below 1400 pixels), so both links are there and the stylesheet shows the one that fits. *@
+                    <a class="nav-hide" href="@ToggleLink(true)" data-nav-toggle="hide"><Icon Name="panel-left-close" Size="22" /><span>Hide navigation</span></a>
+                    <a class="nav-show" href="@ToggleLink(false)" data-nav-toggle="show"><Icon Name="panel-left-open" Size="22" /><span>Show navigation</span></a>
+                </nav>
+                <nav class="nav" id="main-nav" aria-label="Main">
+                    <form class="find" method="get" action="@SUSyphos.Server.Components.Pages.SearchPage.Route" role="search">
+                        <label><Icon Name="search" Size="16" /><input type="search" name="q" placeholder="Find a page" aria-label="Find a page" autocomplete="off" data-nav-filter data-help-term="Find a page" /></label>
+                    </form>
+                    <NavLink href="/" Match="NavLinkMatch.All"><Icon Name="@PageIcons.Overview" Size="20" />Overview</NavLink>
+                    <a href="/#needs-attention"><Icon Name="triangle-alert" Size="20" />Needs attention</a>
+                    <span class="hr"></span>
+                    <details class="group" open data-nav-group="devices">
+                        <summary><Icon Name="@PageIcons.Servers" Size="20" />Devices<Icon Name="chevron-down" Size="16" Class="chev" /></summary>
+                        <NavLink href="/servers">Servers</NavLink>
+                        <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="adminGroups">
+                            <NavLink href="/administration/groups">Server groups</NavLink>
+                        </AuthorizeView>
+                        <NavLink href="/operating-systems">Operating systems</NavLink>
+                    </details>
+                    <details class="group" open data-nav-group="updates">
+                        <summary><Icon Name="@PageIcons.Updates" Size="20" />Updates &amp; software<Icon Name="chevron-down" Size="16" Class="chev" /></summary>
+                        <NavLink href="/updates">Updates</NavLink>
+                        <NavLink href="/software">Software</NavLink>
+                    </details>
+                    <AuthorizeView Policy="@AdminRoles.Policies.Operate" Context="operateNav">
+                        <details class="group" open data-nav-group="rollout">
+                            <summary><Icon Name="route" Size="20" />Rollout<Icon Name="chevron-down" Size="16" Class="chev" /></summary>
+                            <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="adminRollout">
+                                <NavLink href="/administration/release-rules">Release rules</NavLink>
+                                <NavLink href="/administration/maintenance">Maintenance windows</NavLink>
+                                <NavLink href="/administration/rules">Assignment rules</NavLink>
+                            </AuthorizeView>
+                            <NavLink href="/approvals"><span>Approvals</span>@if (_waiting > 0) { <span class="count">@_waiting</span> }</NavLink>
+                        </details>
+                    </AuthorizeView>
+                    <details class="group" open data-nav-group="reports">
+                        <summary><Icon Name="chart-column" Size="20" />Reports<Icon Name="chevron-down" Size="16" Class="chev" /></summary>
+                        <NavLink href="/coverage">AD coverage</NavLink>
+                    </details>
+                    <AuthorizeView Policy="@AdminRoles.Policies.Administer" Context="adminNav">
+                        <span class="hr"></span>
+                        <details class="group" open data-nav-group="administration">
+                            <summary><Icon Name="settings" Size="20" />Administration<Icon Name="chevron-down" Size="16" Class="chev" /></summary>
+                            <NavLink href="@SUSyphos.Server.Components.Pages.SusyphosPage.Route"><span>SUSyphos</span>@if (_serverUpdate is not null) { <span class="count">1 new</span> }</NavLink>
+                            <NavLink href="/administration/agent-settings">Agent settings</NavLink>
+                            <NavLink href="/administration/users">Identity</NavLink>
+                            <NavLink href="/administration/notifications">Notifications</NavLink>
+                            <NavLink href="/administration/certificate">TLS certificate</NavLink>
+                            <NavLink href="/administration/backup">Backup</NavLink>
+                            <NavLink href="/administration/audit">Audit log</NavLink>
+                        </details>
+                    </AuthorizeView>
+                </nav>
+                <main id="content">
+                    @if (_centralDebug is { } debug)
+                    {
+                        @* Always visible while it runs, on every page: an active debug mode is presented prominently. *@
+                        <div class="debug-band" role="status"><Icon Name="scroll-text" Size="16" /><span>The central server is in <b>debug mode</b> until @DisplayTime.Format(debug.UntilUtc), switched on by @debug.By: it logs at Debug.</span><a href="@(SUSyphos.Server.Components.Pages.SusyphosPage.Route)#debug">Turn off or extend</a></div>
+                    }
+                    <div class="panel">
+                        @Body
+                    </div>
+                </main>
+            </div>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        @if (IsHelp)
         {
-            @* Always visible while it runs, on every page (Marc, 2026-11-21: an active debug mode is presented prominently). *@
-            <div class="debug-band" role="status"><Icon Name="scroll-text" Size="16" /><span>The central server is in <b>debug mode</b> until @DisplayTime.Format(debug.UntilUtc), switched on by @debug.By: it logs at Debug.</span><a href="@(SUSyphos.Server.Components.Pages.SusyphosPage.Route)#debug">Turn off or extend</a></div>
+            @* The help is open before sign-in too (it holds no data of this installation): the same top bar without the
+               icons of a signed-in user, its search searching the help. *@
+            <div class="app nav-hidden on-help" data-app>
+                <header class="top" data-help="concepts#layout">
+                    <a class="brand" href="help" aria-label="SUSyphos help"><img src="susyphos-mark-white.svg" alt="" width="26" height="26" /><span class="bname">SUSyphos</span></a>
+                    <form class="top-search" method="get" action="help" role="search">
+                        <label><Icon Name="search" Size="16" /><input type="search" name="q" placeholder="Search the help" aria-label="Search the help" maxlength="100" autocomplete="off" /></label>
+                    </form>
+                    <div class="ticons">
+                        <a class="tbtn" href="/" aria-label="Open the dashboard" title="Open the dashboard"><Icon Name="@PageIcons.Overview" Size="20" /></a>
+                    </div>
+                </header>
+                <div class="shell">
+                    <main id="content"><div class="panel">@Body</div></main>
+                </div>
+            </div>
         }
-        @Body
-    </main>
-</div>
+        else
+        {
+            <main class="bare">
+                @Body
+            </main>
+        }
+    </NotAuthorized>
+</AuthorizeView>
 
 @code {
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    /// <summary>The cookie that remembers a hidden navigation in this browser.</summary>
+    public const string NavCookie = "susyphos-nav";
 
     private int _waiting;
     private SUSyphos.Server.AgentPackages.ServerUpdate? _serverUpdate;
     private SUSyphos.Server.Administration.DebugState? _centralDebug;
     private IReadOnlyList<SUSyphos.Server.Administration.MyRequest> _myRequests = [];
     private int _myOpen;
+    private int _alertCount;
+
+    /// <summary>"nav-hidden" or "nav-shown" after a choice in this browser, "nav-auto" without one.</summary>
+    private string NavClass => IsHelp ? "nav-hidden on-help" : HttpContext?.Request.Cookies[NavCookie] switch { "hidden" => "nav-hidden", "shown" => "nav-shown", _ => "nav-auto" };
+
+    /// <summary>The help brings its own list of topics, so the main navigation folds away there (the rail stays).</summary>
+    private bool IsHelp => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0] is { } path && (path == "help" || path.StartsWith("help/", StringComparison.Ordinal));
+
+    /// <summary>Hides or shows the navigation and comes back to this page (works without the dashboard script).</summary>
+    private string ToggleLink(bool hide) => $"{NavigationEndpoints.Path}?hidden={(hide ? "1" : "0")}&return={Uri.EscapeDataString(Navigation.ToBaseRelativePath(Navigation.Uri) is { } relative ? "/" + relative : "/")}";
+
+    private static string Initials(string? name)
+    {
+        var account = (name ?? "?").Split('\\').Last().Split('@')[0];
+        var parts = account.Split(['.', ' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries);
+        var initials = parts.Length >= 2 ? $"{parts[0][0]}{parts[1][0]}" : account.Length >= 2 ? account[..2] : account;
+        return initials.ToUpperInvariant();
+    }
+
+    private static string RoleOf(System.Security.Claims.ClaimsPrincipal user) =>
+        user.IsInRole(AdminRoles.Admin) ? AdminRoles.Admin : user.IsInRole(AdminRoles.Operator) ? AdminRoles.Operator : AdminRoles.Reader;
 
     protected override async Task OnInitializedAsync()
     {
-        // Count for the navigation badge: servers, ring transitions and failed remote actions that wait for a human.
+        // Count for the badges: servers, ring transitions and failed remote actions that wait for a human.
         if (AuthenticationState is not null && (await AuthenticationState).User.Identity?.IsAuthenticated == true)
         {
+            var user = (await AuthenticationState).User;
             var servers = await Db.Clients.CountAsync(c => c.State == RegistrationState.Pending);
             var transitions = await Db.RolloutRings
                 .Where(r => r.State == RingRolloutState.AwaitingApproval || r.State == RingRolloutState.Alarm)
                 .CountAsync(r => Db.Rollouts.Any(o => o.UpdateId == r.UpdateId && o.Revision == r.Revision && o.State == RolloutState.Active));
             _serverUpdate = await ServerUpdates.GetServerUpdateAsync(CancellationToken.None);
             _centralDebug = await Debug.CentralAsync(CancellationToken.None);
-            if ((await AuthenticationState).User.Identity?.Name is { Length: > 0 } user)
+            if (user.Identity?.Name is { Length: > 0 } name)
             {
-                _myRequests = await MyRequestList.ListAsync(user, CancellationToken.None);
+                _myRequests = await MyRequestList.ListAsync(name, CancellationToken.None);
                 _myOpen = _myRequests.Count(r => r.Open);
             }
+
             _waiting = servers + transitions + await Db.Groups.CountAsync(g => g.LeasesHalted) + await Db.Clients.CountAsync(c => c.State == RegistrationState.Blocked)
                 + await ActionResults.OpenFailuresAsync(CancellationToken.None);
+            var operates = user.IsInRole(AdminRoles.Admin) || user.IsInRole(AdminRoles.Operator);
+            _alertCount = (operates ? _waiting : 0) + (_centralDebug is null ? 0 : 1) + (_serverUpdate is null ? 0 : 1);
         }
     }
 }

@@ -454,7 +454,7 @@ public sealed class DashboardAuthorizationTests
         var html = await servers.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         var serverIcon = IconData.Elements[PageIcons.Servers];
-        Assert.Contains("<span class=\"nav-label\"><svg class=\"icon \"", html, StringComparison.Ordinal);
+        Assert.Contains("<nav class=\"rail\"", html, StringComparison.Ordinal);
         Assert.Contains("class=\"icon title-icon\"", html, StringComparison.Ordinal);
         Assert.True(html.Split(serverIcon).Length - 1 >= 2, "The server icon should appear in the navigation and before the title.");
         Assert.Contains("aria-hidden=\"true\"", html, StringComparison.Ordinal);
@@ -486,7 +486,11 @@ public sealed class DashboardAuthorizationTests
         var html = await overview.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
         Assert.Contains("<img src=\"susyphos-mark-white.svg\"", html, StringComparison.Ordinal);
-        Assert.Contains($"Version {ServerVersion.Display}</span>", html, StringComparison.Ordinal);
+        Assert.Contains($"Version {ServerVersion.Display}</p>", html, StringComparison.Ordinal);
+        // The frame of the admin center layout: top bar with search, rail and the grouped navigation.
+        Assert.Contains("<header class=\"top\"", html, StringComparison.Ordinal);
+        Assert.Contains("action=\"/search\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-nav-group=\"devices\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("+", ServerVersion.Display, StringComparison.Ordinal);
     }
 

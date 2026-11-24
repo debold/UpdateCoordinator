@@ -60,20 +60,8 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Shell: navigation rail and content. */
-.shell { display: grid; grid-template-columns: 15rem minmax(0, 1fr); min-height: 100vh; }
-.nav { background: var(--nav); padding: 1.25rem 0.65rem; display: flex; flex-direction: column; gap: 2px; }
-.nav .brand { color: #FFFFFF; font-weight: 650; font-size: 1.05rem; padding: 0.25rem 0.8rem 1.25rem; display: flex; align-items: center; gap: 0.6rem; }
-.nav .brand img, .auth-brand img { flex: none; display: block; }
-.nav .account .version { color: #6F7A8A; font-size: 0.75rem; }
-.nav a { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; border-radius: var(--r-sm); color: var(--nav-text); }
-.nav a:hover, .nav a.active { background: var(--nav-hover); color: #FFFFFF; text-decoration: none; }
-.nav .section { color: #8590A0; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 1.1rem 0.8rem 0.4rem; }
-.nav .pill { background: var(--queue); color: #1B1300; }
-.nav .account { margin-top: auto; padding: 1rem 0.8rem 0.25rem; border-top: 1px solid #263142; color: #8F9AAA; font-size: 0.8rem; display: grid; gap: 0.5rem; }
-.nav .account .user { color: #FFFFFF; }
-.nav .account button { justify-self: start; background: transparent; color: var(--nav-text); border-color: #3A4556; }
-.nav .account button:hover { background: var(--nav-hover); color: #FFFFFF; }
-main { min-width: 0; padding: 1.4rem max(1.75rem, env(safe-area-inset-right, 0px)) 3rem max(1.75rem, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 1rem; }
+/* Shell: see the admin center layout at the end of this file. */
+main { min-width: 0; }
 main > * { margin-top: 0; margin-bottom: 0; }
 /* A form whose fields sit in a list further down (form="id"): takes no room and adds no gap. */
 form.detached { display: contents; }
@@ -539,12 +527,6 @@ details.multi .options label:hover { background: var(--surface-2); }
 .baseline-legend .kb-links { margin-left: auto; }
 
 @media (max-width: 56rem) {
-    .shell { grid-template-columns: 1fr; }
-    .nav { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 0.5rem max(0.5rem, env(safe-area-inset-left, 0px)); }
-    .nav .brand { width: 100%; padding: 0.5rem; }
-    .nav .section { display: none; }
-    .nav .account { margin-top: 0; width: 100%; border-top: 0; }
-    main { padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px)); }
     .grid-side { grid-template-columns: 1fr; }
 }
 
@@ -554,7 +536,6 @@ ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem;
 .live-line progress { width: 14rem; height: 0.6rem; accent-color: var(--pend); }
 
 /* Sign-in and first setup: no navigation, the card centred on the whole page. */
-.shell > main:only-child { grid-column: 1 / -1; }
 .auth-page { min-height: calc(100vh - 6rem); display: flex; align-items: center; justify-content: center; }
 .auth-card { width: min(30rem, 100%); }
 .auth-card h1 { font-size: 1.4rem; margin: 0; }
@@ -659,7 +640,6 @@ th:nth-last-child(-n+5) .filter-pop { left: auto; right: 0.5rem; }
 .help-link { display: inline-flex; align-items: center; justify-content: center; width: 1.05rem; height: 1.05rem; margin-left: 0.4rem; border: 1px solid var(--border); border-radius: 50%; color: var(--muted); background: var(--surface); font-size: 0.68rem; font-weight: 700; line-height: 1; vertical-align: 0.15em; text-decoration: none; flex: none; }
 .help-link:hover, .help-link:focus-visible { color: #FFFFFF; background: var(--accent); border-color: var(--accent); text-decoration: none; }
 h1 .help-link { vertical-align: 0.3em; }
-.nav .nav-help { margin-top: 0.75rem; }
 /* Help page: the topics on the left (sticky, current topic with its sections), the article in the rest of the width. */
 /* Help, variant C (Marc, 2026-11-13): areas and topics left, the page at full width, "On this page" right; both side
    lists stay in place while the text scrolls. */
@@ -701,7 +681,6 @@ h1 .help-link { vertical-align: 0.3em; }
 .help-article pre { margin: 0.6rem 0; padding: 0.7rem 0.9rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 0.8rem; line-height: 1.45; overflow-x: auto; white-space: pre; }
 .help-article pre code { background: none; padding: 0; }
 .help-article img { display: block; max-width: 100%; height: auto; margin: 0.7rem 0; border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: 0 1px 3px rgb(20 26 34 / 0.12); }
-.nav .account .version .update { display: block; margin-top: 0.15rem; color: var(--queue); }
 
 /* AD group search under the mapping field (app.js). */
 label.field:has(.suggest) { position: relative; }
@@ -723,9 +702,6 @@ details.week-choice[open] > summary { border-color: var(--accent); }
 
 /* Icons (Lucide, inline SVG) in the navigation and before page titles. */
 .icon { flex: none; display: inline-block; vertical-align: middle; }
-.nav .nav-label { display: inline-flex; align-items: center; gap: 0.6rem; }
-.nav .nav-label .icon { opacity: 0.85; }
-.nav a.active .nav-label .icon, .nav a:hover .nav-label .icon { opacity: 1; }
 h1 .title-icon { margin-right: 0.5rem; vertical-align: -0.2em; color: var(--accent); }
 
 /* Central agent settings of a group or server: collapsed until something is set on that level. */
@@ -991,13 +967,6 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 .attention details.acknowledged > summary { padding: 0.6rem 1rem; cursor: pointer; color: var(--muted, #5B6675); font-size: 0.85rem; }
 /* My requests in the navigation and the messages when one finishes (Marc, 2026-11-20). */
 .my-requests { position: relative; }
-/* The entry looks like the links of the navigation (rc.7 lab: it inherited the dark text colour and was hardly visible). */
-.my-requests > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.8rem; border-radius: var(--r-sm); color: var(--nav-text); }
-.my-requests > summary:hover, .my-requests[open] > summary { background: var(--nav-hover); color: #FFFFFF; }
-.my-requests > summary::-webkit-details-marker { display: none; }
-.my-requests .pill.idle { background: transparent; color: inherit; opacity: 0.7; }
-.my-requests .pulse { display: inline-block; width: 0.45rem; height: 0.45rem; margin-right: 0.3rem; border-radius: 50%; background: #1B1300; animation: pulse 1.4s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .my-requests .pulse { animation: none; } }
 /* Opens beside the navigation (the dashboard script places it); without script below the entry. */
 .my-requests-pop { width: min(380px, calc(100vw - 16px)); max-height: 70vh; overflow: auto; color: var(--text); padding: 0.4rem 0.75rem; }
@@ -1031,3 +1000,203 @@ fieldset.choices legend { font-size: 0.82rem; font-weight: 600; margin-bottom: 0
 .script-wrap .token.namespace { color: #A0522D; }
 .parse-result { margin-top: 0.4rem; font-size: 0.85rem; }
 .parse-result ul { margin: 0.35rem 0 0; padding-left: 1.2rem; }
+
+/* ==========================================================================================================================
+   Admin center layout (Marc, 2026-11-24, mockup https://claude.ai/artifact/3rdFVJ1KoM9NeKmPREhL2K): a dark top bar with
+   brand, search and icons, a slim rail of pinned pages, the grouped navigation that can be hidden, and the content as one
+   white surface on a grey ground. The design patterns stay (tiles, pills, action bands, list views, tabs, facts); only
+   their look follows the Fluent style of the mockup. Fonts: Segoe UI, else Inter where installed (no web fonts: CSP).
+   ========================================================================================================================== */
+:root {
+    --ground: #F3F2F1;
+    --surface: #FFFFFF;
+    --surface-2: #FAFAFA;
+    --border: #E0E0E0;
+    --border-strong: #D1D1D1;
+    --line: #F0F0F0;
+    --text: #242424;
+    --muted: #616161;
+    --accent: #1F5BC4;
+    --accent-dark: #17469A;
+    --accent-soft: #EBF1FB;
+    --top: #151B24;
+    --ok: #107C10;
+    --ok-soft: #DFF6DD;
+    --ok-text: #0E700E;
+    --pend: #1F5BC4;
+    --pend-soft: #DEECF9;
+    --pend-text: #0F548C;
+    --queue: #C19C00;
+    --queue-soft: #FFF4CE;
+    --queue-text: #7A5500;
+    --fail: #C4314B;
+    --fail-soft: #FDE7E9;
+    --fail-text: #A4262C;
+    --idle: #8A8886;
+    --shadow: 0 0 2px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+    --font: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+    --r: 8px;
+    --r-sm: 4px;
+    font-size: 14px;
+    line-height: 20px;
+}
+
+body { background: var(--ground); }
+h1 { font-size: 28px; line-height: 36px; font-weight: 600; }
+h2 { font-size: 16px; line-height: 22px; font-weight: 600; }
+
+/* Top bar. */
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+.top { position: sticky; top: 0; z-index: 40; height: 48px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 8px 0 16px; background: var(--top); color: #FFFFFF; }
+.top .brand { display: flex; align-items: center; gap: 10px; color: #FFFFFF; font-weight: 600; font-size: 16px; white-space: nowrap; }
+.top .brand:hover { color: #FFFFFF; text-decoration: none; }
+.top .brand img { display: block; flex: none; }
+.top-search { flex: 1 1 auto; display: flex; justify-content: center; min-width: 0; margin: 0; }
+.top-search label { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 560px; height: 32px; padding: 0 10px; border-radius: var(--r-sm); background: #FFFFFF; color: var(--muted); }
+.top-search input { border: 0; outline: 0; margin: 0; padding: 0; flex: 1; min-width: 0; height: 30px; background: transparent; color: var(--text); box-shadow: none; }
+.ticons { display: flex; align-items: center; gap: 2px; }
+.tbtn { position: relative; width: 44px; height: 44px; min-height: 0; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: var(--r-sm); background: transparent; color: #FFFFFF; cursor: pointer; list-style: none; }
+.tbtn:hover, .top-menu[open] > .tbtn { background: rgba(255, 255, 255, 0.12); color: #FFFFFF; text-decoration: none; }
+.tbtn::-webkit-details-marker { display: none; }
+.menu-toggle { display: none; }
+.badge { position: absolute; top: 6px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--fail); color: #FFFFFF; font-size: 10px; line-height: 16px; font-weight: 600; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
+.badge.idle { display: none; }
+.badge .pulse { display: inline-block; width: 6px; height: 6px; margin-right: 3px; border-radius: 50%; background: #FFFFFF; animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .badge .pulse { animation: none; } }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: #D6E4FA; color: var(--accent-dark); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.top-menu { position: relative; }
+.top-pop { left: auto; right: 0; width: min(380px, calc(100vw - 16px)); max-height: 70vh; overflow: auto; padding: 8px 12px 12px; color: var(--text); }
+.pop-head { font-weight: 600; padding: 4px 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.pop-item { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-radius: var(--r-sm); color: var(--text); }
+.pop-item:hover { background: var(--surface-2); text-decoration: none; color: var(--text); }
+.pop-item .icon { color: var(--accent); flex: none; }
+.account-pop { width: min(280px, calc(100vw - 16px)); display: grid; gap: 8px; }
+.account-pop .update { display: block; margin-top: 2px; }
+.account-pop form { margin-top: 4px; }
+
+/* Rail, navigation and content. */
+.shell { flex: 1 1 auto; display: flex; align-items: stretch; min-width: 0; }
+.rail { flex: 0 0 64px; display: flex; flex-direction: column; align-items: stretch; padding-top: 8px; background: var(--surface-2); border-right: 1px solid #EDEBE9; }
+.rail a { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 2px; color: #424242; font-size: 11px; line-height: 14px; text-align: center; }
+.rail a:hover { background: var(--line); color: var(--text); text-decoration: none; }
+.rail a.active { color: var(--accent); font-weight: 600; }
+.rail a.active::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--accent); }
+.rail .sep { height: 1px; background: var(--border); margin: 6px 12px; }
+.nav { flex: 0 0 256px; padding: 16px 12px 24px; background: var(--surface-2); display: flex; flex-direction: column; gap: 0; }
+.nav .find { margin: 0 0 12px; }
+.nav .find label { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: #FFFFFF; color: var(--muted); }
+.nav .find input { border: 0; outline: 0; margin: 0; padding: 0; flex: 1; min-width: 0; height: 30px; background: transparent; box-shadow: none; }
+.nav a, .nav summary { position: relative; display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 0 8px; border-radius: var(--r-sm); color: var(--text); cursor: pointer; }
+.nav a:hover, .nav summary:hover { background: var(--line); color: var(--text); text-decoration: none; }
+.nav summary { list-style: none; }
+.nav summary::-webkit-details-marker { display: none; }
+.nav summary .chev { margin-left: auto; transition: transform 0.15s; }
+.nav details[open] > summary .chev { transform: rotate(180deg); }
+.nav details a { padding-left: 42px; }
+.nav a.active { background: var(--accent-soft); font-weight: 600; }
+.nav a.active::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--accent); }
+.nav .hr { height: 1px; background: var(--border); margin: 8px; }
+.nav .count { margin-left: auto; font-size: 12px; color: var(--pend-text); border: 1px solid #9CC3EB; border-radius: 10px; padding: 0 7px; line-height: 18px; font-weight: 400; }
+.nav [hidden] { display: none; }
+.app.nav-hidden .nav { display: none; }
+/* Hide or show: one link after a choice; without a choice the navigation folds away below 1400 pixels (the rail stays). */
+.nav-hidden .nav-hide, .nav-shown .nav-show, .nav-auto .nav-show { display: none; }
+@media (max-width: 1399px) {
+    .nav-auto .nav { display: none; }
+    .nav-auto .nav-show { display: flex; }
+    .nav-auto .nav-hide { display: none; }
+}
+main { flex: 1 1 auto; min-width: 0; padding: 12px 12px 24px; display: flex; flex-direction: column; gap: 16px; }
+main.bare { padding: 24px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px)); }
+.panel { min-width: 0; padding: 24px 24px 32px; background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 16px; container: page / inline-size; }
+.panel > * { margin-top: 0; margin-bottom: 0; }
+.debug-band { margin: 0; }
+
+/* Cards and tiles inside the white surface: a thin border, no shadow. */
+.box, .tile { box-shadow: none; border-color: var(--border); border-radius: var(--r); }
+.box-head { padding: 14px 20px; border-bottom-color: var(--line); }
+.box-body { padding: 14px 20px; }
+.box-foot { background: var(--surface); border-top-color: var(--line); }
+.tile { min-height: 128px; padding: 14px 16px 10px; }
+.tile-title { color: var(--text); font-size: 14px; font-weight: 600; }
+.tile-number { font-size: 32px; line-height: 36px; font-weight: 600; }
+.tile-foot { border-top-color: var(--line); font-size: 12px; }
+
+/* Command bar instead of a boxed band: flat buttons with blue icons, a line below. */
+.band { background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; box-shadow: none; padding: 0 0 8px; gap: 2px; }
+.band > button, .band > .btn, .band > form > button, .band details > summary.btn { border-color: transparent; background: transparent; min-height: 36px; padding: 0 10px; font-weight: 400; }
+.band > button:hover, .band > .btn:hover, .band > form > button:hover, .band details > summary.btn:hover { background: #F5F5F5; }
+.band .icon { color: var(--accent); }
+.band .primary, .band > .btn.primary, .band details > summary.btn.primary { background: var(--accent); border-color: var(--accent); color: #FFFFFF; font-weight: 600; margin-right: 6px; }
+.band .primary .icon { color: #FFFFFF; }
+.band .primary:hover, .band details > summary.btn.primary:hover { background: var(--accent-dark); color: #FFFFFF; }
+.band .danger, .band .danger .icon { color: var(--fail-text); }
+.band .danger { border-color: transparent; }
+.band .menu-pop .icon { color: inherit; }
+
+/* Buttons, fields, tables, pills and tabs in the Fluent style. */
+button, .btn { min-height: 32px; padding: 0 12px; border-radius: var(--r-sm); border-color: var(--border-strong); font-weight: 600; }
+button:hover, .btn:hover { background: #F5F5F5; }
+button.danger, .btn.danger { color: var(--fail-text); border-color: #EBC3C6; }
+input, select, textarea { border-color: var(--border-strong); border-radius: var(--r-sm); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+th { background: var(--surface); color: #424242; font-size: 13px; border-bottom: 1px solid var(--border); }
+td { border-bottom-color: var(--line); }
+tbody tr:hover > td { background: var(--surface-2); }
+tbody tr:has(td.select input:checked) > td { background: var(--accent-soft); }
+.pill { border: 0; height: 22px; padding: 0 10px; border-radius: 11px; font-size: 12px; background: #EDEBE9; color: #484644; }
+.pill::before { width: 6px; height: 6px; }
+.pill.ok { background: var(--ok-soft); color: var(--ok-text); }
+.pill.pend { background: var(--pend-soft); color: var(--pend-text); }
+.pill.queue { background: var(--queue-soft); color: var(--queue-text); }
+.pill.wait { background: #EEF2F7; color: var(--wait-text); }
+.pill.fail { background: var(--fail-soft); color: var(--fail-text); }
+.pill.neutral { background: #EDEBE9; color: #484644; }
+.pill.esu { background: #EEEDFB; color: #4F46C8; }
+.pill.sw { background: #EFE9F8; color: #5C2E91; }
+.tabs { gap: 4px; padding: 0; border-bottom: 1px solid var(--border); }
+.tabs a { background: transparent; border: 0; border-radius: 0; padding: 10px 12px; color: var(--muted); }
+.tabs a:hover { background: transparent; color: var(--text); }
+.tabs a.current { margin-bottom: -1px; padding-bottom: 10px; background: transparent; color: var(--text); box-shadow: inset 0 -3px 0 var(--accent); }
+.tab-panel { padding: 16px 0 0; background: transparent; border: 0; border-radius: 0; }
+.chip { background: #F0F0F0; color: var(--text); }
+.chip.from-view { background: var(--surface); border: 1px dashed #A19F9D; }
+.chip a { color: var(--muted); }
+
+/* Search page. */
+.search-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.search-form .field { flex: 1 1 20rem; }
+ul.search-hits { list-style: none; margin: 0; padding: 0; }
+ul.search-hits li { padding: 10px 20px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+ul.search-hits li:first-child { border-top: 0; }
+ul.search-hits mark { background: var(--queue-soft); color: inherit; }
+
+/* Narrow windows: the rail goes, the navigation opens with the menu button (a jump to it, also without script). */
+@media (max-width: 900px) {
+    .rail { display: none; }
+    .menu-toggle { display: inline-flex; }
+    .top .bname { display: none; }
+    .shell { flex-direction: column; }
+    .nav { display: none; flex: none; }
+    .nav:target, .app.nav-open .nav { display: flex; }
+    .panel { padding: 20px 16px; }
+}
+@media (max-width: 600px) {
+    .top { gap: 4px; padding: 0 4px; }
+    .ticons .tbtn { width: 36px; }
+    main { padding: 8px 8px 16px; }
+}
+
+/* Help in the admin center layout: its list of topics looks like the navigation; the main navigation folds away. */
+.on-help .nav-show, .on-help .nav-hide { display: none; }
+.help-nav { padding: 0 4px 0 0; font-size: 14px; }
+.help-nav li a, .help-home { position: relative; min-height: 32px; display: flex; align-items: center; padding: 0 8px 0 12px; border-radius: var(--r-sm); }
+.help-nav li a:hover, .help-home:hover { background: var(--line); }
+.help-nav li.current > a, .help-home.current { color: var(--text); background: var(--accent-soft); }
+.help-nav li.current > a::before, .help-home.current::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 2px; background: var(--accent); }
+.help-nav .help-area, .help-toc .help-area { padding: 14px 8px 4px; font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--muted); font-weight: 600; }
+.help-search input { height: 32px; border-color: var(--border-strong); }
+.help-nav, .help-toc { top: 64px; }
+.panel .help-article { border: 0; }
+.panel .help-article > .box-body { padding: 0; }

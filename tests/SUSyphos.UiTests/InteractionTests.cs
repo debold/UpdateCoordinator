@@ -529,7 +529,7 @@ public sealed class InteractionTests(UiFixture ui)
     /// the script polls is answered by the test (open first, then done), so no remote action is queued in the demo lab.
     /// </summary>
     [Fact]
-    public async Task MyRequests_IsVisible_OpensBesideTheNavigation_AndAnnouncesAFinishedRequest()
+    public async Task MyRequests_IsVisible_OpensBelowTheTopBar_AndAnnouncesAFinishedRequest()
     {
         await using var context = await ui.NewContextAsync(1280, 800);
         var page = await context.NewPageAsync();
@@ -542,21 +542,20 @@ public sealed class InteractionTests(UiFixture ui)
         }));
         await page.GotoAsync("/");
 
-        var entry = page.Locator("nav details.my-requests > summary");
+        var entry = page.Locator("header details.my-requests > summary");
         await Assertions.Expect(entry).ToBeVisibleAsync();
-        var colours = await entry.EvaluateAsync<string[]>("e => [getComputedStyle(e).color, getComputedStyle(e.closest('nav')).backgroundColor]");
-        Assert.NotEqual(colours[1], colours[0]);
-        Assert.Equal(await page.Locator("nav a[href='/servers']").EvaluateAsync<string>("e => getComputedStyle(e).color"), colours[0]);
 
         await entry.ClickAsync();
-        var pop = page.Locator("nav details.my-requests .my-requests-pop");
+        var pop = page.Locator("header details.my-requests .my-requests-pop");
         await Assertions.Expect(pop).ToBeVisibleAsync();
         var box = await pop.BoundingBoxAsync();
-        var nav = await page.Locator("nav").BoundingBoxAsync();
+        var bar = await page.Locator("header.top").BoundingBoxAsync();
         Assert.NotNull(box);
-        Assert.NotNull(nav);
+        Assert.NotNull(bar);
         Assert.True(box.Height > 30, $"The list of My requests is only {box.Height}px high.");
-        Assert.True(box.X >= nav.X + nav.Width, "The list of My requests should open beside the navigation.");
+        Assert.True(box.Y >= bar.Y + bar.Height - 1 && box.X + box.Width <= 1280 + 1, "The list of My requests should open below the top bar, inside the window.");
+        // The pills and links of the list keep their own colours (rc.8 lab: they took those of the navigation).
+        Assert.NotEqual("rgb(255, 255, 255)", await pop.EvaluateAsync<string>("p => getComputedStyle(p).color"));
         await entry.ClickAsync();
 
         await page.Clock.RunForAsync(10_500);

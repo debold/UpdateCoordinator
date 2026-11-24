@@ -470,13 +470,6 @@
             top = anchor.top - 4 - height;
         }
 
-        // A pop-up of the navigation (My requests) opens beside it, level with its entry, where there is room.
-        const nav = details.closest('.nav');
-        if (details.matches('.beside') && nav && nav.getBoundingClientRect().right + 8 + width <= right) {
-            left = nav.getBoundingClientRect().right + 8;
-            top = Math.min(anchor.top, bottom - height);
-        }
-
         pop.style.left = `${Math.round(Math.max(8, Math.min(left, right - width)))}px`;
         pop.style.top = `${Math.round(Math.max(8, Math.min(top, bottom - height)))}px`;
     };
@@ -972,6 +965,77 @@
             }
         }
     });
+
+    // Admin center layout (Marc, 2026-11-24): "Hide navigation" toggles in place and keeps the cookie the link would set,
+    // "Find a page" filters the navigation while typing (Enter searches everything), and closed groups stay closed in
+    // this browser. Without script the link reloads the page and the groups open as rendered.
+    const app = document.querySelector('[data-app]');
+    for (const toggle of document.querySelectorAll('[data-nav-toggle]')) {
+        if (!app) {
+            break;
+        }
+
+        toggle.addEventListener('click', (event) => {
+            event.preventDefault();
+            const hide = toggle.dataset.navToggle === 'hide';
+            app.classList.remove('nav-auto', 'nav-hidden', 'nav-shown');
+            app.classList.add(hide ? 'nav-hidden' : 'nav-shown');
+            document.cookie = `susyphos-nav=${hide ? 'hidden' : 'shown'}; path=/; max-age=31536000; samesite=strict; secure`;
+        });
+    }
+
+    const filter = document.querySelector('[data-nav-filter]');
+    if (filter) {
+        const nav = filter.closest('nav');
+        filter.addEventListener('input', () => {
+            const text = filter.value.trim().toLowerCase();
+            for (const link of nav.querySelectorAll('a')) {
+                link.hidden = text.length > 0 && !link.textContent.toLowerCase().includes(text);
+            }
+
+            for (const group of nav.querySelectorAll('details.group')) {
+                const any = [...group.querySelectorAll('a')].some((link) => !link.hidden);
+                group.hidden = text.length > 0 && !any;
+                if (text.length > 0 && any) {
+                    group.open = true;
+                }
+            }
+
+            for (const line of nav.querySelectorAll('.hr')) {
+                line.hidden = text.length > 0;
+            }
+        });
+    }
+
+    const groupsKey = 'susyphos.nav.closed';
+    let closed = [];
+    try {
+        closed = JSON.parse(window.localStorage.getItem(groupsKey) || '[]');
+    } catch {
+        closed = [];
+    }
+
+    for (const group of document.querySelectorAll('details[data-nav-group]')) {
+        // A group stays open while it holds the current page.
+        if (closed.includes(group.dataset.navGroup) && !group.querySelector('a.active')) {
+            group.open = false;
+        }
+
+        group.addEventListener('toggle', () => {
+            const name = group.dataset.navGroup;
+            closed = closed.filter((n) => n !== name);
+            if (!group.open) {
+                closed.push(name);
+            }
+
+            try {
+                window.localStorage.setItem(groupsKey, JSON.stringify(closed));
+            } catch {
+                // Storage blocked: the groups open as rendered next time.
+            }
+        });
+    }
+
     applyGates();
     fillFromAddress();
     markHelpSection();

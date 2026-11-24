@@ -4,6 +4,12 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Central server
+
+- New look in the style of an admin center (Marc, 2026-11-24, mockup https://claude.ai/artifact/3rdFVJ1KoM9NeKmPREhL2K) on every page, the help included: a dark top bar with the mark, a search and icons (**My requests**, **Notifications**, **Settings**, **Help**, **Account** with sign-out), a slim rail of pinned pages with **Hide navigation**, the grouped navigation (Devices, Updates & software, Rollout, Reports, Administration) with **Find a page**, and the content as a white surface on a grey ground. Tiles, pills, action bands (now command bars), lists, tabs and facts keep their behaviour in the new style; everything works without the dashboard script, and the navigation folds away by itself below 1400 pixels.
+- **Search** (`/search`): pages, servers by name or domain, updates by title or KB number, software packages by name or ID, and help topics; a single matching server, update or package opens directly.
+- The help has the same top bar, also before sign-in, with a search of the help.
+
 ## [0.9.0-rc.8] - 2026-11-22
 
 ### Agent

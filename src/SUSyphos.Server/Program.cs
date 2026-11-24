@@ -6,6 +6,7 @@ using SUSyphos.Server.Administration;
 using SUSyphos.Server.AgentPackages;
 using SUSyphos.Server.Agents;
 using SUSyphos.Server.Components;
+using SUSyphos.Server.Components.Layout;
 using SUSyphos.Server.Software;
 using SUSyphos.Server.Trust;
 
@@ -44,6 +45,7 @@ app.MapAgentEndpoints();
 app.MapTrustEndpoints();
 app.MapAgentLogEndpoints();
 app.MapMyRequestsEndpoint();
+app.MapNavigationEndpoint();
 app.MapServerLogEndpoints();
 SUSyphos.Server.Scripts.ScriptEndpoints.MapScriptEndpoints(app);
 SUSyphos.Server.Scripts.ScriptRunEndpoints.MapScriptRunEndpoints(app);
