@@ -58,6 +58,10 @@ Everything that waits for a human decision or points to a problem, each with a b
 
 **Debug mode** entries list servers in debug mode and the central server when it is in debug mode (see [Debug mode](help/server-detail#debug)).
 
+## Running now {#running}
+
+Shown only while one runs: the servers that download, install or uninstall updates or software right now, with the step (and its progress where Windows reports one), since when, and the updates and software versions they work on. The page updates itself every 15 seconds meanwhile, so a running **Install now** can be followed here without opening the server.
+
 ## Next installations {#next}
 
 Released updates that are not installed everywhere yet, ordered by the earliest time one of the servers will install them. **Earliest installation** is the start of the next maintenance window of the first server that still needs the update, or "due now" when a window is already open. **Servers** counts the servers that still need it, **Rings** the rings they are in.

@@ -152,19 +152,10 @@ internal sealed partial class ActionRunner(
                 }
 
                 IReadOnlyList<Guid>? chosen = action.UpdateIds is { } ids ? [.. ids.Distinct()] : null;
-                installationRunner.RequestInstallNow(restartNow, scope, chosen);
-                var restartText = !installation.Value.AllowReboot
-                    ? "Reboots are forbidden on this server (AllowReboot), so a needed restart is left to an administrator."
-                    : restartNow ? "A needed restart follows right after, with a five minute warning." : "A needed restart waits for the next maintenance window.";
-                var installText = chosen is { Count: var selected }
-                    ? selected == 1 ? "The selected update installs" : $"The {selected} selected updates install"
-                    : scope switch
-                    {
-                        InstallScope.WindowsUpdates => "The released Windows updates install",
-                        InstallScope.Software => "The released software installs",
-                        _ => "The released updates install",
-                    };
-                return (Succeeded($"{installText} with this cycle, also outside the maintenance window. {restartText}"), false, true);
+                // Answered by the installation step with the outcome once the installation is done (Marc, 2026-11-23: it
+                // showed as succeeded the moment the agent accepted it), also outside the maintenance window.
+                installationRunner.RequestInstallNow(restartNow, scope, chosen, action.Id);
+                return (null, false, true);
             case AgentActionKind.Uninstall or AgentActionKind.UninstallRestartInWindow or AgentActionKind.UninstallInWindow:
                 // In a coordinated group an uninstallation needs the lease like an installation, so the installation step
                 // runs it (now, or in the next window) and reports the result.

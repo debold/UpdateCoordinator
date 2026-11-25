@@ -42,15 +42,16 @@ internal static class ServerHealth
             return ServerHealthState.Offline;
         }
 
+        // A running installation explains a pending reboot better than the flag left by an earlier update, and it is what
+        // an administrator waits for after "Install now", also when an earlier installation failed (Marc, 2026-11-23).
+        if (Agents.LiveStatus.CurrentPhase(client, nowUtc) is AgentPhase.Downloading or AgentPhase.Installing or AgentPhase.Uninstalling)
+        {
+            return ServerHealthState.Updating;
+        }
+
         if (hasFailedInstallation || client.HealthChecks.Any(c => c.Status == (int)HealthStatus.Failed))
         {
             return ServerHealthState.Failed;
-        }
-
-        // A running installation explains a pending reboot better than the flag left by an earlier update.
-        if (Agents.LiveStatus.CurrentPhase(client, nowUtc) is AgentPhase.Downloading or AgentPhase.Installing)
-        {
-            return ServerHealthState.Updating;
         }
 
         if (client.RebootPending)

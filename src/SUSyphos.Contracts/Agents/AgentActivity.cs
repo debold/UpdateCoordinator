@@ -44,6 +44,9 @@ public enum AgentPhase
 
     /// <summary>Collecting the inventory.</summary>
     Inventory = 3,
+
+    /// <summary>Uninstalling an update or a software package (agents from 0.9.0-rc.9).</summary>
+    Uninstalling = 4,
 }
 
 /// <summary>

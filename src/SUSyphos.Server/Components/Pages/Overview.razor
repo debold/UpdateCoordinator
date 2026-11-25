@@ -154,6 +154,31 @@
     </Box>
 </div>
 
+@* Running now (Marc, 2026-11-23): installations and uninstallations the agents report live, so a running "Install now"
+   is visible without opening the server; the page refreshes while something runs. *@
+@if (_running.Count > 0)
+{
+    <LiveRefresh Seconds="15" />
+    <Box Title="Running now" Anchor="running" Help="overview#running" Hint="installations and uninstallations the agents report right now; the page updates every 15 seconds while one runs" Flush="true">
+        <div class="scroll">
+            <table>
+                <thead><tr><th>Server</th><th>Step</th><th>Since</th><th>Updates and software</th></tr></thead>
+                <tbody>
+                    @foreach (var run in _running)
+                    {
+                        <tr>
+                            <td><a href="/servers/@run.ClientId">@run.HostName</a></td>
+                            <td class="nowrap"><span class="pill pend">@run.Step</span></td>
+                            <td class="nowrap">@Format(run.SinceUtc)</td>
+                            <td class="wrap">@(run.Items.Count == 0 ? "–" : string.Join(", ", run.Items))</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </Box>
+}
+
 <Box Title="Next installations" Help="overview#next" Hint="Released updates not installed yet, by earliest installation; each server installs within its maintenance window" Flush="true">
     <ListTable Table="_nextTable" Page="_nextPage" Columns="NextColumns" Search="Search update" Noun="updates" Empty="No released update is waiting for installation.">
         <Row Context="next">
@@ -392,6 +417,7 @@
         var entries = await Deployment.GetAsync(null, null, null, CancellationToken.None);
         var failedClients = entries.Where(e => e.State == DeploymentState.Failed).Select(e => e.ClientId).ToHashSet();
         var health = clients.ToDictionary(c => c.Id, c => ServerHealth.Evaluate(c, failedClients.Contains(c.Id), _now));
+        await LoadRunningAsync(clients);
 
         _approved = clients.Count;
         _reporting = health.Values.Count(h => h != ServerHealthState.Offline);
@@ -589,6 +615,28 @@
                 : ("Healthy", "ok");
             return new RingRow(ring.Id, ring.Order, ring.Name, clients.Count(c => c.RingId == ring.Id), mine.Count(s => s.State == RingRolloutState.Released), counts, label, cls, updates);
         })];
+    }
+
+    /// <summary>A server that installs or uninstalls right now, with what it works on.</summary>
+    private sealed record RunningRow(Guid ClientId, string HostName, string Step, DateTime SinceUtc, IReadOnlyList<string> Items);
+
+    private List<RunningRow> _running = [];
+
+    private async Task LoadRunningAsync(List<ClientEntity> clients)
+    {
+        var active = clients
+            .Where(c => SUSyphos.Server.Agents.LiveStatus.CurrentPhase(c, _now) is SUSyphos.Contracts.Agents.AgentPhase.Downloading or SUSyphos.Contracts.Agents.AgentPhase.Installing or SUSyphos.Contracts.Agents.AgentPhase.Uninstalling)
+            .OrderBy(c => c.HostName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var ids = active.SelectMany(c => c.ActivityUpdateIds).Distinct().ToList();
+        var titles = ids.Count == 0 ? [] : (await Db.Updates.AsNoTracking().Where(u => ids.Contains(u.UpdateId)).ToListAsync())
+            .GroupBy(u => u.UpdateId).ToDictionary(g => g.Key, g => UpdateText.Title(g.MaxBy(u => u.Revision), g.Key));
+        _running = [.. active.Select(c => new RunningRow(
+            c.Id,
+            c.HostName,
+            SUSyphos.Server.Agents.LiveStatus.Describe(c, _now),
+            c.ActivityStartedAtUtc ?? _now,
+            [.. c.ActivityUpdateIds.Select(id => titles.GetValueOrDefault(id)).OfType<string>().Take(5)]))];
     }
 
     private static string Format(DateTime value) => DisplayTime.Format(value);

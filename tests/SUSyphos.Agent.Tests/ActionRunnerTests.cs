@@ -111,9 +111,9 @@ public sealed class ActionRunnerTests
     }
 
     [Theory]
-    [InlineData(InstallScope.Software, "software")]
-    [InlineData(InstallScope.WindowsUpdates, "Windows updates")]
-    public async Task InstallNow_PassesWhatToInstall(InstallScope scope, string detail)
+    [InlineData(InstallScope.Software)]
+    [InlineData(InstallScope.WindowsUpdates)]
+    public async Task InstallNow_PassesWhatToInstall(InstallScope scope)
     {
         var request = Action(AgentActionKind.InstallNow) with { Scope = scope };
         _client.ActionList = new AgentActionList([request]);
@@ -121,7 +121,7 @@ public sealed class ActionRunnerTests
         await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
 
         Assert.Equal(scope, _runner.InstallNowScope);
-        Assert.Contains(detail, _client.ActionResults[request.Id].Detail, StringComparison.Ordinal);
+        Assert.Equal(request.Id, _runner.InstallNowActionId);
     }
 
     [Fact]
@@ -135,7 +135,6 @@ public sealed class ActionRunnerTests
         await Create().RunAnnouncedAsync(Identity, Announced, TestContext.Current.CancellationToken);
 
         Assert.Equal([first, second], _runner.InstallNowUpdateIds);
-        Assert.Contains("The 2 selected updates install", _client.ActionResults[request.Id].Detail, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -165,10 +164,10 @@ public sealed class ActionRunnerTests
     }
 
     [Theory]
-    [InlineData(AgentActionKind.InstallNow, true, true, "right after")]
-    [InlineData(AgentActionKind.InstallNowRestartInWindow, true, false, "next maintenance window")]
-    [InlineData(AgentActionKind.InstallNow, false, true, "forbidden")]
-    public async Task InstallNow_IsHandedToTheInstallation(AgentActionKind kind, bool allowReboot, bool restartNow, string detail)
+    [InlineData(AgentActionKind.InstallNow, true, true)]
+    [InlineData(AgentActionKind.InstallNowRestartInWindow, true, false)]
+    [InlineData(AgentActionKind.InstallNow, false, true)]
+    public async Task InstallNow_IsHandedToTheInstallation_WhichAnswersWhenItIsDone(AgentActionKind kind, bool allowReboot, bool restartNow)
     {
         _installation = new InstallationOptions { AllowReboot = allowReboot };
         var request = Action(kind);
@@ -178,8 +177,8 @@ public sealed class ActionRunnerTests
 
         Assert.Equal(restartNow, _runner.InstallNowRestartNow);
         Assert.Equal(InstallScope.All, _runner.InstallNowScope);
-        Assert.Equal(AgentActionStatus.Succeeded, _client.ActionResults[request.Id].Status);
-        Assert.Contains(detail, _client.ActionResults[request.Id].Detail, StringComparison.Ordinal);
+        Assert.False(_client.ActionResults.ContainsKey(request.Id));
+        Assert.Equal(request.Id, _runner.InstallNowActionId);
         Assert.Empty(_systemRestart.Requests);
     }
 

@@ -94,6 +94,7 @@ All approved servers by their state for this update: successful, pending (releas
 
 Every approved server, with the **Server** and its operating system below (the funnel filters by operating system), **Ring and groups**, **Status**, **Earliest installation**, **Installed** (when, and below it by whom: by SUSyphos, by Windows Update or another tool from the Windows Update history, or found in the inventory) and **Result** (for a failed installation the error code and an explanation). The tab names the work left: "1 failed" in red when an installation failed, else "3 to do" for the servers that still have to install it. **Show ›** on the box "All servers" and **Show all servers ›** below "Progress by ring" open it. The status:
 
+- **Installing** / **Uninstalling**: the agent works on this update on the server right now (its live status); the page updates itself every 15 seconds meanwhile.
 - **Failed**: the last installation failed (the result shows the error code and an explanation).
 - **Ready to install**: released and due; installs in the current or next maintenance window, or right now with **Install now**.
 - **Planned**: released, but the earliest installation is still ahead (a start delay or the spread of the ring).

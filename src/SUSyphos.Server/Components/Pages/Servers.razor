@@ -107,7 +107,15 @@
     <Pager Table="_table" Page="PageInfo.Of(_page)" Noun="servers" />
 </Box>
 
+@if (_updating)
+{
+    @* A server installs right now: the list follows it (the pill "Updating"). *@
+    <LiveRefresh Seconds="15" />
+}
+
 @code {
+    private bool _updating;
+
     private static readonly IReadOnlyList<(string Key, string Label)> GroupOptions = [("os", "Operating system"), ("ring", "Ring"), ("group", "Group"), ("agent", "Agent version"), ("status", "Status"), ("security", "Security baseline"), ("domain", "Domain")];
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string> { ["domain"] = "Domain", ["os"] = "Operating system", ["ring"] = "Ring", ["group"] = "Group", ["agent"] = "Agent", ["status"] = "Status", ["pending"] = "Updates", ["support"] = "Support", ["security"] = "Security" };
 
@@ -389,6 +397,7 @@
                 missing.GetValueOrDefault(c.Id));
         })];
 
+        _updating = rows.Any(r => r.Health == ServerHealthState.Updating);
         _ringCounts = [.. _rings.Select(r => (r.Id, r.Order, r.Name, clients.Count(c => c.State == RegistrationState.Approved && c.RingId == r.Id)))];
         _page = TablePaging.Apply(rows, _table, Columns, r => $"{r.HostName} {r.Domain}");
     }

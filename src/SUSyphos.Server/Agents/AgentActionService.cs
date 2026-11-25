@@ -68,7 +68,7 @@ internal sealed partial class AgentActionService(
 
     /// <summary>
     /// A fetched uninstallation may wait for its maintenance window or the lease of a coordinated group before the agent
-    /// runs it and reports the result, so it expires only after a week.
+    /// runs it and reports the result, and "Install now" for the lease, so they expire only after a week.
     /// </summary>
     public static readonly TimeSpan HeldLifetime = TimeSpan.FromDays(7);
 
@@ -83,6 +83,12 @@ internal sealed partial class AgentActionService(
 
     /// <summary>The actions the agent holds until they may run (uninstallations).</summary>
     public static bool IsHeld(AgentActionKind kind) => kind is AgentActionKind.Uninstall or AgentActionKind.UninstallRestartInWindow or AgentActionKind.UninstallInWindow;
+
+    /// <summary>
+    /// The actions whose result comes only when the work is done: the held ones, and "Install now" from agents of
+    /// 0.9.0-rc.9 on, which answer with the outcome of the installation (it may wait for the lease of a coordinated group).
+    /// </summary>
+    public static bool IsAnsweredWhenDone(AgentActionKind kind) => IsHeld(kind) || kind is AgentActionKind.InstallNow or AgentActionKind.InstallNowRestartInWindow;
 
     public Task<Outcome> QueueAsync(Guid clientId, AgentActionKind kind, string actor, CancellationToken cancellationToken) =>
         IsHeld(kind) ? Task.FromResult(new Outcome("Choose the update to uninstall."))
@@ -443,7 +449,7 @@ internal sealed partial class AgentActionService(
         var queuedBefore = now - QueuedLifetime;
         var deliveredBefore = now - DeliveredLifetime;
         var heldBefore = now - HeldLifetime;
-        AgentActionKind[] held = [AgentActionKind.Uninstall, AgentActionKind.UninstallRestartInWindow, AgentActionKind.UninstallInWindow];
+        AgentActionKind[] held = [AgentActionKind.Uninstall, AgentActionKind.UninstallRestartInWindow, AgentActionKind.UninstallInWindow, AgentActionKind.InstallNow, AgentActionKind.InstallNowRestartInWindow];
         return await db.AgentActions
             .Where(a => (a.State == AgentActionState.Queued && a.RequestedAtUtc < queuedBefore)
                 || (a.State == AgentActionState.Delivered && !held.Contains(a.Kind) && a.DeliveredAtUtc < deliveredBefore)

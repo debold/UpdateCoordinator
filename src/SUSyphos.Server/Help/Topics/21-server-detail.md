@@ -59,7 +59,7 @@ The boxes are split into tabs below the tiles, shown as folder tabs on a surface
 
 ## Tasks {#tasks}
 
-What the agent is doing right now and what comes next, in time order. While the agent searches, downloads, installs or collects the inventory, a line marked **Running** shows the step, the progress in percent (download and installation) and the updates concerned; the page then reloads every few seconds by itself until the step ends.
+What the agent is doing right now and what comes next, in time order. While the agent searches, downloads, installs (Windows updates and software), uninstalls or collects the inventory, a line marked **Running** shows the step, the progress in percent (download and installation) and the updates concerned; the page then reloads every few seconds by itself until the step ends.
 
 The tags in the table:
 
@@ -238,7 +238,7 @@ What the agent did and reported, newest first, kept for 90 days: registration, a
 
 ## Remote actions {#remote-actions}
 
-All actions requested for this server: when, which, by whom, the state (Queued: waits for the next heartbeat; Delivered: the agent has it; Succeeded; Failed; Rejected: the agent refused it, for example a restart vetoed locally; Cancelled; Expired: not picked up or not confirmed in time) and details. Log uploads offer a **Download** link. A queued action can be selected with its checkbox (**Select**) and cancelled with **Cancel** (red, above the list) until the agent picks it up. **View** offers **All actions** (default), **Open** (Queued or Delivered) and **Failed** (Failed, Rejected or Expired).
+All actions requested for this server: when, which, by whom, the state (Queued: waits for the next heartbeat; Delivered: the agent has it; Running: **Install now** while it installs, since its result comes with the outcome, for example "2 succeeded, 0 failed" (agents from 0.9.0-rc.9); Waiting (window or lease): an uninstallation waits for its window or the lease of its group; Succeeded; Failed; Rejected: the agent refused it, for example a restart vetoed locally; Cancelled; Expired: not picked up or not confirmed in time) and details. Log uploads offer a **Download** link. A queued action can be selected with its checkbox (**Select**) and cancelled with **Cancel** (red, above the list) until the agent picks it up. **View** offers **All actions** (default), **Open** (Queued or Delivered) and **Failed** (Failed, Rejected or Expired).
 
 ## Install all released now {#install-now}
 

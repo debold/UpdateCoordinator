@@ -283,7 +283,10 @@ internal sealed class FakeInstallationRunner : IInstallationRunner
     /// <summary>The last "install now" request: true for the restart right after, false for the window.</summary>
     public bool? InstallNowRestartNow { get; private set; }
 
-    public void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All, IReadOnlyList<Guid>? updateIds = null) => (InstallNowRestartNow, InstallNowScope, InstallNowUpdateIds) = (restartNow, scope, updateIds);
+    public void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All, IReadOnlyList<Guid>? updateIds = null, Guid? actionId = null) => (InstallNowRestartNow, InstallNowScope, InstallNowUpdateIds, InstallNowActionId) = (restartNow, scope, updateIds, actionId);
+
+    /// <summary>The action the last "install now" request answers when it is done.</summary>
+    public Guid? InstallNowActionId { get; private set; }
 
     public IReadOnlyList<Guid>? InstallNowUpdateIds { get; private set; }
 

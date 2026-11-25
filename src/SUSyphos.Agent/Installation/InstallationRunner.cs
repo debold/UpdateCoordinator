@@ -48,7 +48,7 @@ internal interface IInstallationRunner
     int? RestartRefusedCode { get; }
 
     /// <summary>Installs every released update the server misses with the next cycle (remote action); a needed restart follows at once or in the next window.</summary>
-    void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All, IReadOnlyList<Guid>? updateIds = null);
+    void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All, IReadOnlyList<Guid>? updateIds = null, Guid? actionId = null);
 
     /// <summary>
     /// Holds an uninstallation (remote action) until it may run: in a coordinated group with the lease, for
@@ -76,6 +76,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<InstallationRunner> _logger;
     private readonly ISoftwareUninstaller? _softwareUninstaller;
+    private readonly Status.ActivityTracker? _activity;
     private InstallationState _state;
 
     public InstallationRunner(
@@ -92,9 +93,11 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         IOptions<InstallationOptions> options,
         TimeProvider timeProvider,
         ILogger<InstallationRunner> logger,
-        ISoftwareUninstaller? softwareUninstaller = null)
+        ISoftwareUninstaller? softwareUninstaller = null,
+        Status.ActivityTracker? activity = null)
     {
         _softwareUninstaller = softwareUninstaller;
+        _activity = activity;
         _releases = releases;
         _updates = updates;
         _inventory = inventory;
@@ -134,11 +137,13 @@ internal sealed partial class InstallationRunner : IInstallationRunner
 
         var batch = installNow is null ? PlanBatch() : PlanInstallNow(installNow);
         var waitingForLease = false;
+        var unhealthy = false;
         if (batch.Count > 0)
         {
             // Never install on a server that fails its health check.
             if (_preFlight.Run().Any(check => check.Status == HealthStatus.Failed))
             {
+                unhealthy = true;
                 LogSkippedUnhealthy();
             }
             else
@@ -177,7 +182,7 @@ internal sealed partial class InstallationRunner : IInstallationRunner
                     waitingForLease = true;
                     if (installNow is not null && software.Count > 0)
                     {
-                        Save(_state with { InstallNow = installNow with { Scope = InstallScope.WindowsUpdates } });
+                        Save(_state with { InstallNow = (_state.InstallNow ?? installNow) with { Scope = InstallScope.WindowsUpdates } });
                     }
                 }
 
@@ -206,10 +211,11 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         // Nothing to install or the server failed its health check: the request is answered with what is there.
         if (installNow is not null && !waitingForLease && (batch.Count == 0 || _state.InstallNow is not null))
         {
-            FinishInstallNow(installNow);
+            FinishInstallNow(installNow, unhealthy ? "Nothing was installed: the server failed its health check. " : batch.Count == 0 ? "No released update was missing. " : null);
         }
 
-        return await RebootIfAllowedAsync(identity, cancellationToken).ConfigureAwait(false) is not null
+        return await FlushActionOutboxAsync(identity, cancellationToken).ConfigureAwait(false)
+            && await RebootIfAllowedAsync(identity, cancellationToken).ConfigureAwait(false) is not null
             && await ReleaseLeaseIfDoneAsync(identity, cancellationToken).ConfigureAwait(false);
     }
 
@@ -485,9 +491,21 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         _ => null,
     };
 
-    public void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All, IReadOnlyList<Guid>? updateIds = null)
+    public void RequestInstallNow(bool restartNow, InstallScope scope = InstallScope.All, IReadOnlyList<Guid>? updateIds = null, Guid? actionId = null)
     {
-        Save(_state with { InstallNow = new InstallNowRequest(_timeProvider.GetUtcNow(), restartNow, scope, updateIds) });
+        // A newer request replaces an open one; the open one is answered with what it installed so far.
+        if (_state.InstallNow is { ActionId: { } open } previous)
+        {
+            if (open == actionId)
+            {
+                // The same action delivered again (the agent restarted before it answered): it keeps running.
+                return;
+            }
+
+            Save(_state with { ActionOutbox = [.. _state.ActionOutbox ?? [], new ActionOutcome(open, InstallNowOutcome(previous, "Replaced by a newer \"Install now\". "))] });
+        }
+
+        Save(_state with { InstallNow = new InstallNowRequest(_timeProvider.GetUtcNow(), restartNow, scope, updateIds, actionId) });
         _updates.RequestRun();
     }
 
@@ -509,9 +527,36 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     }
 
     /// <summary>Clears the request and, if Windows wants a restart, restarts now (5-minute warning) or holds it for the next window; never against the local veto.</summary>
-    private void FinishInstallNow(InstallNowRequest request)
+    /// <summary>
+    /// The answer to "Install now": how many installations succeeded and failed, and what happens with a needed restart.
+    /// Failed when one installation failed, so the dashboard shows it like any failed action.
+    /// </summary>
+    internal AgentActionResult InstallNowOutcome(InstallNowRequest request, string? note)
     {
+        var counts = request.Succeeded + request.Failed == 0
+            ? note ?? "Nothing was installed. "
+            : $"{note}{request.Succeeded} succeeded, {request.Failed} failed. ";
+        var restart = !RebootPending ? string.Empty
+            : !_options.Value.AllowReboot ? "Reboots are forbidden on this server (AllowReboot), so the needed restart is left to an administrator."
+            : request.RestartNow ? "The needed restart follows right after, with a five minute warning."
+            : "The needed restart waits for the next maintenance window.";
+        return new AgentActionResult
+        {
+            Status = request.Failed > 0 ? AgentActionStatus.Failed : AgentActionStatus.Succeeded,
+            Detail = (counts + restart).Trim(),
+        };
+    }
+
+    private void FinishInstallNow(InstallNowRequest request, string? note = null)
+    {
+        // The counts of the installations are in the saved request, the one passed may be older.
+        var done = _state.InstallNow ?? request;
         Save(_state with { InstallNow = null });
+        if (done.ActionId is { } actionId)
+        {
+            Save(_state with { ActionOutbox = [.. _state.ActionOutbox ?? [], new ActionOutcome(actionId, InstallNowOutcome(done, note))] });
+        }
+
         if (!RebootPending)
         {
             return;
@@ -597,12 +642,17 @@ internal sealed partial class InstallationRunner : IInstallationRunner
     /// <summary>Removes the update, then restarts at once or in the next window if Windows needs it; never against the local veto.</summary>
     private async Task<AgentActionResult> UninstallAsync(UninstallRequest request, CancellationToken cancellationToken)
     {
-        // Software (removed assignment) goes to WinGet, an update to Windows Update or DISM.
-        var result = request.PackageId is { } packageId
-            ? _softwareUninstaller is null
-                ? new UninstallResult(UninstallStatus.Failed, false, "This agent cannot uninstall software.")
-                : await _softwareUninstaller.UninstallAsync(packageId, request.Scripts, cancellationToken).ConfigureAwait(false)
-            : await _uninstaller.UninstallAsync(request.UpdateId, request.KbArticle, cancellationToken).ConfigureAwait(false);
+        // The live status shows the uninstallation while it runs (rc.8 lab: nothing showed that it was busy).
+        UninstallResult result;
+        using (_activity?.Begin(AgentPhase.Uninstalling, request.UpdateId == Guid.Empty ? null : [request.UpdateId]))
+        {
+            // Software (removed assignment) goes to WinGet, an update to Windows Update or DISM.
+            result = request.PackageId is { } packageId
+                ? _softwareUninstaller is null
+                    ? new UninstallResult(UninstallStatus.Failed, false, "This agent cannot uninstall software.")
+                    : await _softwareUninstaller.UninstallAsync(packageId, request.Scripts, cancellationToken).ConfigureAwait(false)
+                : await _uninstaller.UninstallAsync(request.UpdateId, request.KbArticle, cancellationToken).ConfigureAwait(false);
+        }
 
         if (result.RebootRequired)
         {
@@ -761,6 +811,11 @@ internal sealed partial class InstallationRunner : IInstallationRunner
         _updates.RequestRun();
 
         var failed = results.Count(r => r.ResultCode is not (InstallResultCode.Succeeded or InstallResultCode.SucceededWithErrors));
+        if (_state.InstallNow is { } now)
+        {
+            Save(_state with { InstallNow = now with { Succeeded = now.Succeeded + results.Count - failed, Failed = now.Failed + failed } });
+        }
+
         LogInstalled(results.Count - failed, failed, report.RebootRequired);
         return failed == 0 && report.PostInstallChecks.All(check => check.Status != HealthStatus.Failed);
     }

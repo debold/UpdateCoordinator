@@ -1945,9 +1945,12 @@ else
         await LoadAsync();
     }
 
-    /// <summary>The state of a remote action; an uninstallation the agent fetched waits for its window or the lease of its group.</summary>
+    /// <summary>The state of a remote action; an uninstallation the agent fetched waits for its window or the lease of its group, "Install now" runs until its result comes.</summary>
     private static string ActionStateLabel(AgentActionEntity action) =>
-        action.State == AgentActionState.Delivered && SUSyphos.Server.Agents.AgentActionService.IsHeld(action.Kind) ? "Waiting (window or lease)" : action.State.ToString();
+        action.State != AgentActionState.Delivered ? action.State.ToString()
+        : SUSyphos.Server.Agents.AgentActionService.IsHeld(action.Kind) ? "Waiting (window or lease)"
+        : SUSyphos.Server.Agents.AgentActionService.IsAnsweredWhenDone(action.Kind) ? "Running"
+        : action.State.ToString();
 
     [SupplyParameterFromForm(FormName = "remove")]
     private string? Remove { get; set; }

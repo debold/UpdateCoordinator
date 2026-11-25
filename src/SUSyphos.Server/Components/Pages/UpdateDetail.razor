@@ -364,7 +364,15 @@ else
     </TabBar>
 }
 
+@if (_running)
+{
+    @* A server works on this update right now: the page follows it without a click. *@
+    <LiveRefresh Seconds="15" />
+}
+
 @code {
+    private bool _running;
+
     private sealed record OutsideInstallation(Guid ClientId, string HostName, DateTime DateUtc, string? ClientApplicationId);
 
     private List<OutsideInstallation> _outside = [];
@@ -374,6 +382,8 @@ else
     /// <summary>State of the update on one server, as the server table shows it.</summary>
     private enum ServerUpdateStatus
     {
+        Installing,
+        Uninstalling,
         Failed,
         Pending,
         Planned,
@@ -389,6 +399,8 @@ else
 
     private static string StatusLabel(ServerUpdateStatus status) => status switch
     {
+        ServerUpdateStatus.Installing => "Installing",
+        ServerUpdateStatus.Uninstalling => "Uninstalling",
         ServerUpdateStatus.Failed => "Failed",
         ServerUpdateStatus.Pending => "Ready to install",
         ServerUpdateStatus.Planned => "Planned",
@@ -409,7 +421,7 @@ else
         string[]? labels = RingLink.StateOfClass(segmentClass) switch
         {
             DeploymentState.Successful => [StatusLabel(ServerUpdateStatus.Installed), StatusLabel(ServerUpdateStatus.RestartPending)],
-            DeploymentState.Pending => [StatusLabel(ServerUpdateStatus.Pending), StatusLabel(ServerUpdateStatus.Planned)],
+            DeploymentState.Pending => [StatusLabel(ServerUpdateStatus.Pending), StatusLabel(ServerUpdateStatus.Planned), StatusLabel(ServerUpdateStatus.Installing)],
             DeploymentState.Queued => [StatusLabel(ServerUpdateStatus.WaitingForRelease)],
             DeploymentState.Failed => [StatusLabel(ServerUpdateStatus.Failed)],
             _ => null,
@@ -430,7 +442,7 @@ else
     private static string StatusClass(ServerUpdateStatus status) => status switch
     {
         ServerUpdateStatus.Failed => "fail",
-        ServerUpdateStatus.Pending or ServerUpdateStatus.Planned or ServerUpdateStatus.RestartPending => "pend",
+        ServerUpdateStatus.Installing or ServerUpdateStatus.Uninstalling or ServerUpdateStatus.Pending or ServerUpdateStatus.Planned or ServerUpdateStatus.RestartPending => "pend",
         ServerUpdateStatus.WaitingForRelease => "wait",
         // Needs the version but cannot install it: attention, neither grey nor red (Marc, 2026-11-22).
         ServerUpdateStatus.NotSupported => "queue",
@@ -944,7 +956,7 @@ else
         // Every approved server gets a row: from its deployment entry, else installed per inventory, else not needed.
         var clients = await Db.Clients.AsNoTracking()
             .Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved)
-            .Select(c => new { c.Id, c.HostName, c.RingId, c.OsProductName, c.OsVersion, c.OsEditionId })
+            .Select(c => new { c.Id, c.HostName, c.RingId, c.OsProductName, c.OsVersion, c.OsEditionId, c.ActivityPhase, c.ActivityReportedAtUtc, c.ActivityUpdateIds })
             .ToListAsync();
         var groupNames = await Db.Groups.AsNoTracking().ToDictionaryAsync(g => g.Id, g => g.Name);
         var memberships = (await Db.ClientGroups.AsNoTracking().ToListAsync()).ToLookup(m => m.ClientId, m => m.GroupId);
@@ -967,6 +979,18 @@ else
                 DeploymentState.Queued => ServerUpdateStatus.WaitingForRelease,
                 _ => installed.Contains(c.Id) ? ServerUpdateStatus.Installed : _unsupportedReasons.ContainsKey(c.Id) ? ServerUpdateStatus.NotSupported : ServerUpdateStatus.NotNeeded,
             };
+
+            // The agent works on this update right now (live status; Marc, 2026-11-23).
+            if (c.ActivityReportedAtUtc is { } reportedAt && now - reportedAt <= SUSyphos.Server.Agents.LiveStatus.StaleAfter && c.ActivityUpdateIds.Contains(UpdateId))
+            {
+                status = c.ActivityPhase switch
+                {
+                    SUSyphos.Contracts.Agents.AgentPhase.Downloading or SUSyphos.Contracts.Agents.AgentPhase.Installing when status != ServerUpdateStatus.Installed => ServerUpdateStatus.Installing,
+                    SUSyphos.Contracts.Agents.AgentPhase.Uninstalling => ServerUpdateStatus.Uninstalling,
+                    _ => status,
+                };
+            }
+
             // Installed by SUSyphos: the time of its result; otherwise Windows or an administrator (history) or found in the inventory.
             var (installedAt, installedBy) = status != ServerUpdateStatus.Installed ? ((DateTime?)null, (string?)null)
                 : entry is { State: DeploymentState.Successful } ? (entry.LastResultAtUtc, "by SUSyphos")
@@ -987,6 +1011,7 @@ else
         })];
         _toDo = servers.Count(s => s.Status is not (ServerUpdateStatus.Installed or ServerUpdateStatus.NotNeeded));
         _failedServers = servers.Count(s => s.Status == ServerUpdateStatus.Failed);
+        _running = servers.Any(s => s.Status is ServerUpdateStatus.Installing or ServerUpdateStatus.Uninstalling);
         _serverPage = TablePaging.Apply(servers, _table, ServerColumns, s => s.HostName);
 
         _startRule = RolloutService.FindStartRule(await Db.StartRules.AsNoTracking().ToListAsync(), _update);

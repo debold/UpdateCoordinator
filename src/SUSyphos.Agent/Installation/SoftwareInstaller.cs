@@ -39,7 +39,7 @@ internal sealed class RoutingUpdateInstaller(WuaUpdateInstaller windows, Softwar
 /// WinGet source of the central server, silently for the machine. Of several released versions of one package only the
 /// newest is installed; the older ones are answered as superseded, since the newest replaces them. Never restarts.
 /// </summary>
-internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOptions<CentralServerOptions> central, ILogger<SoftwareInstaller> logger, SUSyphos.Agent.Scripts.IScriptRunner? scripts = null) : ISoftwareUninstaller
+internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOptions<CentralServerOptions> central, ILogger<SoftwareInstaller> logger, SUSyphos.Agent.Scripts.IScriptRunner? scripts = null, Status.ActivityTracker? activity = null) : ISoftwareUninstaller
 {
     /// <summary>An installer may take its time; WinGet downloads it from the central server first.</summary>
     internal static readonly TimeSpan Timeout = TimeSpan.FromMinutes(30);
@@ -49,6 +49,8 @@ internal sealed partial class SoftwareInstaller(IWinGetHelperRunner runner, IOpt
 
     public async Task<IReadOnlyList<InstallResult>> InstallAsync(IReadOnlyList<Release> batch, CancellationToken cancellationToken)
     {
+        // The live status names the packages while WinGet works (rc.8 lab: the dashboard showed nothing).
+        using var phase = activity?.Begin(AgentPhase.Installing, [.. batch.Where(r => r.Software is not null).Select(r => r.UpdateId)]);
         var results = new List<InstallResult>();
         foreach (var package in batch.Where(r => r.Software is not null).GroupBy(r => r.Software!.PackageId, StringComparer.OrdinalIgnoreCase))
         {

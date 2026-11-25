@@ -66,6 +66,7 @@ internal static class LiveStatus
         AgentPhase.Downloading => "Downloading",
         AgentPhase.Installing => "Installing",
         AgentPhase.Inventory => "Collecting inventory",
+        AgentPhase.Uninstalling => "Uninstalling",
         _ => phase.ToString(),
     };
 

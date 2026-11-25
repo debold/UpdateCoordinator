@@ -228,6 +228,64 @@ public sealed class LiveStatusTests
     }
 
     [Fact]
+    public async Task RunningInstallation_ShowsOnTheOverview_TheServerList_AndTheUpdatePage()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var client = await scenario.AddClientAsync("SRV-RUN", RingEntity.PilotId);
+        await scenario.ReportAsync(client, RolloutScenario.Update("Security Updates"));
+        var update = await scenario.Factory.WithDbAsync(db => db.Updates.SingleAsync(TestContext.Current.CancellationToken));
+        await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        var idle = WebUtility.HtmlDecode(await (await reader.GetAsync("/")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("Running now", idle, StringComparison.Ordinal);
+
+        using (await SendActivityAsync(scenario, client, new AgentActivity { Phase = AgentPhase.Installing, Percent = 30, UpdateIds = [update.UpdateId], StartedAt = DateTimeOffset.UtcNow }))
+        {
+        }
+
+        var overview = WebUtility.HtmlDecode(await (await reader.GetAsync("/")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        var box = overview.IndexOf("Running now", StringComparison.Ordinal);
+        Assert.True(box >= 0);
+        Assert.Contains(">SRV-RUN</a>", overview[box..], StringComparison.Ordinal);
+        Assert.Contains("Installing 30 %", overview[box..], StringComparison.Ordinal);
+        Assert.Contains("susyphos-refresh", overview, StringComparison.Ordinal);
+
+        var servers = await (await reader.GetAsync("/servers")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains(">Updating</span>", servers, StringComparison.Ordinal);
+        Assert.Contains("susyphos-refresh", servers, StringComparison.Ordinal);
+
+        var detail = await (await reader.GetAsync($"/updates/{update.UpdateId}/{update.Revision}?tab=servers&view=all")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains(">Installing</span>", detail, StringComparison.Ordinal);
+        Assert.Contains("susyphos-refresh", detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RunningInstallation_WinsOverAnEarlierFailure_AndUninstallingCountsAsUpdating()
+    {
+        var now = DateTime.UtcNow;
+        var client = new ClientEntity
+        {
+            SecretHash = [],
+            HostName = "SRV01",
+            OsVersion = "10.0.20348.1",
+            AgentVersion = "0.9.0",
+            State = RegistrationState.Approved,
+            LastHeartbeatAtUtc = now,
+            ActivityPhase = AgentPhase.Uninstalling,
+            ActivityReportedAtUtc = now,
+        };
+
+        Assert.Equal(ServerHealthState.Updating, ServerHealth.Evaluate(client, true, now));
+        Assert.Equal("Uninstalling", LiveStatus.Describe(client, now));
+        client.ActivityPhase = null;
+        Assert.Equal(ServerHealthState.Failed, ServerHealth.Evaluate(client, true, now));
+    }
+
+    [Fact]
     public void EveryRebootWait_HasAText()
     {
         Assert.All(Enum.GetValues<RebootWait>(), wait => Assert.NotEqual(wait.ToString(), LiveStatus.RebootWaitText(wait)));

@@ -309,6 +309,74 @@ public sealed class InstallationRunnerTests
     }
 
     [Fact]
+    public async Task InstallNow_AnswersItsActionWithTheOutcome_OnceTheInstallationIsDone()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
+        _environment.RebootPending = true;
+        var actionId = Guid.NewGuid();
+        var runner = Create();
+
+        runner.RequestInstallNow(restartNow: false, actionId: actionId);
+        Assert.Empty(_client.ActionResults);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        var result = _client.ActionResults[actionId];
+        Assert.Equal(AgentActionStatus.Succeeded, result.Status);
+        Assert.Equal("1 succeeded, 0 failed. The needed restart waits for the next maintenance window.", result.Detail);
+        Assert.Empty(_store.State.ActionOutbox ?? []);
+    }
+
+    [Fact]
+    public async Task InstallNow_WithAFailedInstallation_IsAnsweredAsFailed()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
+        _environment.RebootPending = false;
+        _installer.ResultCode = InstallResultCode.Failed;
+        var actionId = Guid.NewGuid();
+        var runner = Create();
+
+        runner.RequestInstallNow(restartNow: true, actionId: actionId);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Equal(AgentActionStatus.Failed, _client.ActionResults[actionId].Status);
+        Assert.Equal("0 succeeded, 1 failed.", _client.ActionResults[actionId].Detail);
+    }
+
+    [Fact]
+    public async Task InstallNow_WithNothingMissing_SaysSo()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
+        _environment.RebootPending = false;
+        _releases.Current = new ReleaseList(1, []);
+        var actionId = Guid.NewGuid();
+        var runner = Create();
+
+        runner.RequestInstallNow(restartNow: true, actionId: actionId);
+        await runner.RunIfDueAsync(Identity, TestContext.Current.CancellationToken);
+
+        Assert.Empty(_installer.Batches);
+        Assert.Equal((AgentActionStatus.Succeeded, "No released update was missing."), (_client.ActionResults[actionId].Status, _client.ActionResults[actionId].Detail));
+    }
+
+    [Fact]
+    public async Task InstallNow_ReplacedByANewerOne_AnswersTheOlder_AndTheSameActionAgainChangesNothing()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var runner = Create();
+
+        runner.RequestInstallNow(restartNow: true, actionId: first);
+        runner.RequestInstallNow(restartNow: true, actionId: first);
+        Assert.Empty(_store.State.ActionOutbox ?? []);
+        runner.RequestInstallNow(restartNow: false, actionId: second);
+
+        var outcome = Assert.Single(_store.State.ActionOutbox ?? []);
+        Assert.Equal(first, outcome.ActionId);
+        Assert.StartsWith("Replaced by a newer \"Install now\".", outcome.Result.Detail, StringComparison.Ordinal);
+        Assert.Equal(second, _store.State.InstallNow!.ActionId);
+    }
+
+    [Fact]
     public async Task InstallerRestart_EndsWithTheNextStart_AndIsNotRememberedWithoutRequest()
     {
         _time.SetUtcNow(new DateTimeOffset(2026, 10, 28, 12, 0, 0, TimeSpan.Zero));
