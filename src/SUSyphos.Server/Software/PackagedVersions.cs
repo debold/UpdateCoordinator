@@ -1,10 +1,9 @@
 using System.IO.Compression;
-using System.Xml;
-using System.Xml.Linq;
 
 using Microsoft.EntityFrameworkCore;
 
 using SUSyphos.Contracts.Agents;
+using SUSyphos.Contracts.Software;
 using SUSyphos.Server.Data;
 using SUSyphos.WinGet.Catalog.RestSource;
 
@@ -20,8 +19,6 @@ internal static class PackagedVersions
 {
     /// <summary>Longest list stored per version (column length).</summary>
     public const int MaxLength = 256;
-
-    private const long MaxManifestBytes = 1024 * 1024;
 
     /// <summary>
     /// True when the manifest of a version has MSIX or APPX installers. Only these are read: the cache keeps no telling
@@ -45,17 +42,10 @@ internal static class PackagedVersions
         try
         {
             using var archive = ZipFile.OpenRead(path);
-            if (Document(archive, "AppxMetadata/AppxBundleManifest.xml") is { } bundle)
-            {
-                return Versions(bundle.Root?.Elements().Where(e => e.Name.LocalName == "Identity")
-                    .Concat(bundle.Descendants().Where(e => e.Name.LocalName == "Package" && e.Parent?.Name.LocalName == "Packages")));
-            }
-
-            return Document(archive, "AppxManifest.xml") is { } package
-                ? Versions(package.Root?.Elements().Where(e => e.Name.LocalName == "Identity"))
-                : [];
+            var identity = Identity(archive, MsixManifest.BundleManifestPath) ?? Identity(archive, MsixManifest.PackageManifestPath);
+            return identity is null ? [] : [.. new[] { identity.Version }.Concat(identity.Packages.Select(p => p.Version)).Distinct(StringComparer.OrdinalIgnoreCase)];
         }
-        catch (Exception exception) when (exception is InvalidDataException or IOException or XmlException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException)
         {
             return [];
         }
@@ -137,19 +127,15 @@ internal static class PackagedVersions
         return (packageId, reported) => ToPackageVersion(byPackage[packageId].OrderByDescending(v => v.Version, VersionComparer.Instance), reported);
     }
 
-    private static XDocument? Document(ZipArchive archive, string name)
+    private static MsixIdentity? Identity(ZipArchive archive, string name)
     {
         var entry = archive.GetEntry(name);
-        if (entry is null || entry.Length > MaxManifestBytes)
+        if (entry is null || entry.Length > MsixManifest.MaxBytes)
         {
             return null;
         }
 
         using var stream = entry.Open();
-        using var reader = XmlReader.Create(stream, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = MaxManifestBytes });
-        return XDocument.Load(reader);
+        return MsixManifest.Parse(stream);
     }
-
-    private static string[] Versions(IEnumerable<XElement>? elements) =>
-        [.. (elements ?? []).Select(e => (string?)e.Attribute("Version")).OfType<string>().Where(v => System.Version.TryParse(v, out _)).Distinct(StringComparer.OrdinalIgnoreCase)];
 }

@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
+using SUSyphos.Contracts.Software;
+
 using Windows.Management.Deployment;
 
 namespace SUSyphos.WinGet;
@@ -39,10 +41,11 @@ public static class ProvisionedPackages
 
                 var id = package.Id;
                 var version = id.Version;
+                var reported = $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}";
                 found.Add(new ProvisionedPackage(
                     id.FamilyName,
                     Readable(() => package.DisplayName) ?? id.Name,
-                    $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}",
+                    package.IsBundle ? ApplicationVersion(reported, Readable(() => package.InstalledLocation.Path), MsixManifest.MachineArchitecture()) : reported,
                     Readable(() => package.PublisherDisplayName)));
             }
             catch (COMException)
@@ -52,6 +55,37 @@ public static class ProvisionedPackages
         }
 
         return found;
+    }
+
+    /// <summary>
+    /// The version of a provisioned bundle as WinGet and <c>Get-AppxPackage</c> show it: the version of its application
+    /// package for this machine, read from the bundle manifest in its folder. A bundle carries its own version (lab,
+    /// 2026-11-25: PowerShell 7.7 is provisioned as the bundle 2026.1110.418.0, its x64 package is 7.7.0.0). The bundle
+    /// version stays when the manifest cannot be read or lists no fitting package.
+    /// </summary>
+    public static string ApplicationVersion(string bundleVersion, string? folder, string architecture)
+    {
+        if (string.IsNullOrEmpty(folder))
+        {
+            return bundleVersion;
+        }
+
+        try
+        {
+            var path = Path.Combine(folder, MsixManifest.BundleManifestPath);
+            var file = new FileInfo(path);
+            if (!file.Exists || file.Length > MsixManifest.MaxBytes)
+            {
+                return bundleVersion;
+            }
+
+            using var stream = file.OpenRead();
+            return MsixManifest.Parse(stream)?.ApplicationVersion(architecture) ?? bundleVersion;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return bundleVersion;
+        }
     }
 
     /// <summary>

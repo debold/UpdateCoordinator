@@ -6,13 +6,14 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ### Agent
 
+- Fix (rc.9 lab, PowerShell 7.7): a bundle provisioned for all users is reported with the version of its application package for the server (read from the bundle manifest in its folder; PowerShell 7.7: `7.7.0.0` instead of the bundle version `2026.1110.418.0`), the version WinGet and `Get-AppxPackage` show. Before, the central server took the installed PowerShell for newer than the source.
 - Fix (rc.9 lab, LABVMD01): a software installation right after an update of the central server failed with 0x8013153B ("Unknown error"): the agent gave the WinGet source of the central server only 30 seconds to answer. It now waits up to 2 minutes and reports a source that does not answer in time as 0x80072EE2 with a clear explanation.
 
 ### Central server
 
-- Fix (rc.9 lab, PowerShell 7.7): a packaged app (MSIX) provisioned for all users is reported with the version of its bundle, which can differ from the WinGet version (PowerShell 7.7.0.0 is provisioned as the bundle 2026.1110.418.0, its x64 package is 7.7.0.0). Compared directly, the installed app looked *newer than the source*, the version showed *Not needed* and later versions would never have been installed. The central server now reads the package versions from the cached installer (bundle and packages; also for installers cached before) and stores the WinGet version for such installations. The package page tags these installations *Package family* instead of *Product code*.
+- Fix (rc.9 lab, PowerShell 7.7): a packaged app (MSIX) provisioned for all users is reported with the version of its bundle, which can differ from the WinGet version (PowerShell 7.7.0.0 is provisioned as the bundle 2026.1110.418.0, its x64 package is 7.7.0.0). Compared directly, the installed app looked *newer than the source*, the version showed *Not needed* and later versions would never have been installed. Besides the fix of the agent, the central server reads the versions of bundle and packages from the cached installer (also for installers cached before) and translates the bundle version agents of rc.9 report into the WinGet version. The package page tags these installations *Package family* instead of *Product code*.
 - Fix (rc.9 lab): on the page of a software version, a server where WinGet does not run (Windows Server 2016, Server Core) shows *Not supported* with the reason instead of *Not needed*.
-- Fix (rc.9 lab): the WinGet installer cache is opened) and checked (SHA-256 of every cached installer) in the background right after the start, not on the first request of an agent, which had to wait for it. 0x8013153B and 0x80072EE2 are explained on the dashboard.
+- Fix (rc.9 lab): the WinGet installer cache is opened and checked (SHA-256 of every cached installer) in the background right after the start, not on the first request of an agent, which had to wait for it. 0x8013153B and 0x80072EE2 are explained on the dashboard.
 
 ## [0.9.0-rc.9] - 2026-11-25
 
