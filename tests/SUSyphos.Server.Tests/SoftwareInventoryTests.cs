@@ -162,7 +162,7 @@ public sealed class SoftwareInventoryTests(ServerFactory factory) : IClassFixtur
     [Fact]
     public async Task ProvisionedPackagedApp_ReportsItsPackageVersion_AndGetsTheWinGetVersionOfTheCachedInstaller()
     {
-        // Lab, 2026-11-25: PowerShell 7.7.0.0 is the MSIX package 2026.1110.418.0 and looked newer than the source.
+        // Lab, 2026-11-25: PowerShell 7.7.0.0 is provisioned as the bundle 2026.1110.418.0, its x64 package is 7.7.0.0; the bundle version looked newer than the source.
         using var source = new FakeSoftwareSource(Path.Combine(Path.GetTempPath(), "SUSyphos.Tests", "msix-" + Guid.NewGuid().ToString("N")));
         source.SetIndex(new TestIndexPackage("Microsoft.PowerShell", "PowerShell", "7.7.0.0", PackageFamilyNames: ["Microsoft.PowerShell_8wekyb3d8bbwe"]));
         await using var indexed = new IndexedFactory(source);

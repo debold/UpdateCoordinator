@@ -73,7 +73,7 @@ One row per phase (**Before installation**, **After installation**, **Before uni
 
 ## Installed on {#installed}
 
-Approved servers that report the package installed, with the installed version, its **State** against the newest version (*up to date*, *older*, *newer than the source*, or *Uninstalling* while an uninstallation waits) and how it was matched (tag): by **WinGet** on the server, by the **Product code** in the community index, or by the **Package family** name of a packaged app (MSIX). A packaged app reports its own package version, which can differ from the WinGet version; the central server reads the package version from the cached installer and shows the WinGet version instead (until the installer is cached, the reported version stands, and the state can read *newer than the source*). The server name opens its Software tab.
+Approved servers that report the package installed, with the installed version, its **State** against the newest version (*up to date*, *older*, *newer than the source*, or *Uninstalling* while an uninstallation waits) and how it was matched (tag): by **WinGet** on the server, by the **Product code** in the community index, or by the **Package family** name of a packaged app (MSIX). A packaged app is reported with the version of its bundle or package, which can differ from the WinGet version; the central server reads the package version from the cached installer and shows the WinGet version instead (until the installer is cached, the reported version stands, and the state can read *newer than the source*). The server name opens its Software tab.
 
 ## Remove from the catalog {#remove}
 

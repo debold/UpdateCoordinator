@@ -13,7 +13,7 @@ namespace SUSyphos.Server.Software;
 /// <summary>
 /// The versions of the MSIX packages inside a cached installer, and the translation of the version Windows reports for a
 /// packaged app into the WinGet version of the package. A packaged app carries its own version, which can differ from the
-/// WinGet version (lab, 2026-11-25: PowerShell 7.7.0.0 is the package 2026.1110.418.0); compared directly, the installed
+/// WinGet version (lab, 2026-11-25: PowerShell 7.7.0.0 is provisioned as the bundle 2026.1110.418.0, its x64 package is 7.7.0.0); compared directly, the installed
 /// app looked newer than every version of the source and was never updated.
 /// </summary>
 internal static class PackagedVersions

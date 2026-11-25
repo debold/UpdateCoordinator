@@ -152,7 +152,7 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
             })
             .ToList();
 
-        // A packaged app reports its own package version; the WinGet version comes from the cached installer.
+        // A provisioned packaged app reports the version of its bundle or package; the WinGet version comes from the cached installer.
         var packaged = entities.Where(e => e.View == SoftwareView.Msix && e.MatchKind == SoftwareMatch.Catalog && e.PackageId is not null).ToList();
         if (packaged.Count > 0)
         {

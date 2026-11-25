@@ -110,7 +110,7 @@ internal sealed class PackageVersionEntity
     /// <summary>
     /// Versions of the MSIX packages in the cached installer (bundle and packages, space separated); null for other
     /// installers or while not read. Windows reports a packaged app with this version, which can differ from the WinGet
-    /// version (lab, 2026-11-25: PowerShell 7.7.0.0 is the package 2026.1110.418.0).
+    /// version (lab, 2026-11-25: PowerShell 7.7.0.0 is provisioned as the bundle 2026.1110.418.0, its x64 package is 7.7.0.0).
     /// </summary>
     public string? PackagedVersions { get; set; }
 }
