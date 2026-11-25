@@ -92,6 +92,7 @@ internal sealed partial class SoftwareCatalog(
             }
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await PackagedVersions.RemapAsync(db, cancellationToken).ConfigureAwait(false);
         }
 
         var known = (await db.Packages.Select(p => p.PackageId).ToListAsync(cancellationToken).ConfigureAwait(false)).ToHashSet(StringComparer.OrdinalIgnoreCase);

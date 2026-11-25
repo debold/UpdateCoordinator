@@ -106,6 +106,13 @@ internal sealed class PackageVersionEntity
     public string? ScanDetail { get; set; }
 
     public DateTime? ScannedAtUtc { get; set; }
+
+    /// <summary>
+    /// Versions of the MSIX packages in the cached installer (bundle and packages, space separated); null for other
+    /// installers or while not read. Windows reports a packaged app with this version, which can differ from the WinGet
+    /// version (lab, 2026-11-25: PowerShell 7.7.0.0 is the package 2026.1110.418.0).
+    /// </summary>
+    public string? PackagedVersions { get; set; }
 }
 
 /// <summary>How an installed program was matched to a WinGet package.</summary>

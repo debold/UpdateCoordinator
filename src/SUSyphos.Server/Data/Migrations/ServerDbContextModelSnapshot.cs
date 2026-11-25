@@ -1471,6 +1471,10 @@ namespace SUSyphos.Server.Data.Migrations
                         .HasMaxLength(200000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PackagedVersions")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateOnly?>("ReleaseDate")
                         .HasColumnType("TEXT");
 

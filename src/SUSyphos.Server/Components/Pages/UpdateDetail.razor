@@ -911,6 +911,19 @@ else
             var ids = unsupported.Select(u => u.Need.ClientId).ToList();
             var names = await Db.Clients.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.HostName);
             _unsupportedReasons = unsupported.GroupBy(u => u.Need.ClientId).ToDictionary(g => g.Key, g => g.First().Reason);
+
+            // Servers without WinGet get no software at all: "Not supported" with the reason, not "Not needed" (lab, 2026-11-25).
+            // The box of servers that need the version but cannot install it stays for real needs.
+            var noWinGet = await Db.Clients.AsNoTracking()
+                .Where(c => c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved && c.SoftwareState == SUSyphos.Contracts.Agents.SoftwareSupportState.NotSupported)
+                .Select(c => new { c.Id, c.SoftwareDetail })
+                .ToListAsync();
+            foreach (var server in noWinGet)
+            {
+                var reason = string.IsNullOrWhiteSpace(server.SoftwareDetail) ? "WinGet is not supported on this server." : $"WinGet is not supported on this server: {server.SoftwareDetail.TrimEnd('.')}.";
+                _unsupportedReasons.TryAdd(server.Id, reason);
+            }
+
             _unsupported = [.. unsupported.GroupBy(u => u.Reason).Select(g => (g.Key, (IReadOnlyList<string>)[.. g.Select(u => names.GetValueOrDefault(u.Need.ClientId) ?? "?").Order(StringComparer.OrdinalIgnoreCase)]))];
         }
 

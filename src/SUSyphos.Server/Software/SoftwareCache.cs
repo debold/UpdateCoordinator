@@ -229,8 +229,27 @@ internal sealed partial class SoftwareCacheService(
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        await ReadPackagedVersionsAsync(cancellationToken).ConfigureAwait(false);
         await CleanUpAsync(cancellationToken).ConfigureAwait(false);
         return offered;
+    }
+
+    /// <summary>
+    /// Reads the package versions of cached MSIX installers that do not have them yet (cached before the central server
+    /// read them), then translates the versions of the packaged apps the servers report.
+    /// </summary>
+    private async Task ReadPackagedVersionsAsync(CancellationToken cancellationToken)
+    {
+        var missing = (await db.PackageVersions.Where(v => v.CachedAtUtc != null && v.PackagedVersions == null && v.InstallerFile != null).ToListAsync(cancellationToken).ConfigureAwait(false))
+            .Where(v => PackagedVersions.HasPackages(v.Manifest))
+            .ToList();
+        foreach (var version in missing)
+        {
+            version.PackagedVersions = PackagedVersions.Join(PackagedVersions.Read(Path.Combine(served.FilesFolder, version.InstallerFile!)));
+        }
+
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await PackagedVersions.RemapAsync(db, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -309,6 +328,7 @@ internal sealed partial class SoftwareCacheService(
         version.InstallerFile = first["CachedFile"]?.GetValue<string>();
         version.InstallerSha256 = first["InstallerSha256"]?.GetValue<string>()?.ToLowerInvariant();
         version.SizeBytes = files.Sum(f => new FileInfo(Path.Combine(served.FilesFolder, f)).Length);
+        version.PackagedVersions = PackagedVersions.HasPackages(version.Manifest) ? PackagedVersions.Join(files.SelectMany(f => PackagedVersions.Read(Path.Combine(served.FilesFolder, f)))) : null;
         version.CachedAtUtc = now;
         LogCached(version.PackageId, version.Version, files.Count, state);
         return true;

@@ -81,6 +81,23 @@ public sealed class SoftwarePageTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task PackagePage_NamesHowEachInstallationWasMatched()
+    {
+        var (browser, server) = await SeedAsync(AdminRoles.Reader);
+        await _factory.WithDbAsync(db =>
+        {
+            db.ClientSoftware.Add(new ClientSoftwareEntity { ClientId = server, View = SUSyphos.Contracts.Agents.SoftwareView.Msix, KeyName = "Igor.SevenZip_abc", DisplayName = "7-Zip", DisplayVersion = "26.06.0.0", PackageId = "7zip.7zip", InstalledVersion = "26.06", MatchKind = SoftwareMatch.Catalog, ReportedAtUtc = DateTime.UtcNow });
+            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        using (browser)
+        {
+            var html = await (await browser.GetAsync("/software/7zip.7zip")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+            Assert.Contains(">Package family<", html, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task UnknownPackage_SaysSo()
     {
         var (browser, _) = await SeedAsync(AdminRoles.Reader);

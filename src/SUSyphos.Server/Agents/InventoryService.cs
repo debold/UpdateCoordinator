@@ -112,7 +112,7 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
         var previous = (await db.ClientSoftware.AsNoTracking().Where(s => s.ClientId == clientId && s.PackageId != null).ToListAsync(cancellationToken).ConfigureAwait(false))
             .ToDictionary(s => (s.View, s.KeyName.ToUpperInvariant()));
         await db.ClientSoftware.Where(s => s.ClientId == clientId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-        db.ClientSoftware.AddRange(software
+        var entities = software
             .Where(s => Enum.IsDefined(s.View))
             .DistinctBy(s => (s.View, s.KeyName.ToUpperInvariant()))
             .Select(s =>
@@ -149,7 +149,21 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
                 }
 
                 return entity;
-            }));
+            })
+            .ToList();
+
+        // A packaged app reports its own package version; the WinGet version comes from the cached installer.
+        var packaged = entities.Where(e => e.View == SoftwareView.Msix && e.MatchKind == SoftwareMatch.Catalog && e.PackageId is not null).ToList();
+        if (packaged.Count > 0)
+        {
+            var map = await Software.PackagedVersions.LoadAsync(db, packaged.Select(e => e.PackageId!), cancellationToken).ConfigureAwait(false);
+            foreach (var entity in packaged)
+            {
+                entity.InstalledVersion = map(entity.PackageId!, entity.DisplayVersion);
+            }
+        }
+
+        db.ClientSoftware.AddRange(entities);
     }
 
     /// <summary>The package of the community index with this package family name, when exactly one has it.</summary>

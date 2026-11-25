@@ -505,4 +505,39 @@ public sealed class SoftwareReleaseTests
         (needed, _) = await scenario.WithServiceAsync<ServerDbContext, (IReadOnlyList<SoftwareNeed>, IReadOnlyList<SoftwareNeed>)>(db => SoftwareNeeds.LoadAsync(db, [client.ClientId], CancellationToken.None));
         Assert.Equal([updateId], needed.Select(n => n.UpdateId));
     }
+
+    [Fact]
+    public async Task ServerWithoutWinGet_IsNotSupported_OnTheVersionPage_WithoutTheBanner()
+    {
+        // Lab, 2026-11-25: Windows Server 2016 showed "Not needed" for PowerShell 7, although SUSyphos cannot install
+        // software there at all.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var old = await scenario.AddClientAsync("FS01", RingEntity.PilotId);
+        await scenario.AddClientAsync("APP01", RingEntity.PilotId);
+        const string Tool = "Microsoft.PowerShell";
+        var updateId = SoftwarePackages.SoftwareUpdateId(Tool, "7.7.0.0");
+        await scenario.Factory.WithDbAsync(async db =>
+        {
+            await db.Clients.Where(c => c.Id == old.ClientId).ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.SoftwareState, SoftwareSupportState.NotSupported)
+                .SetProperty(c => c.SoftwareDetail, "WinGet needs Windows Server 2019 or later."), TestContext.Current.CancellationToken);
+            db.Packages.Add(new PackageEntity { PackageId = Tool, Name = "PowerShell", AddedBy = "admin" });
+            db.Updates.Add(new UpdateEntity { UpdateId = updateId, Revision = SoftwarePackages.SoftwareRevision, Title = "PowerShell 7.7.0.0", Kind = UpdateKind.Software, PackageId = Tool, PackageVersion = "7.7.0.0" });
+            db.PackageVersions.Add(new PackageVersionEntity { PackageId = Tool, Version = "7.7.0.0", UpdateId = updateId, Manifest = "{\"Installers\":[{\"Architecture\":\"x64\",\"InstallerType\":\"msix\"}]}" });
+            return await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+
+        await scenario.Factory.CreateUserAsync("reader", "correct horse battery", SUSyphos.Server.Administration.AdminRoles.Reader);
+        using var browser = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await browser.LoginAsync("reader", "correct horse battery"))
+        {
+        }
+
+        var page = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/updates/{updateId:D}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("Not supported on some servers", page, StringComparison.Ordinal);
+        var servers = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/updates/{updateId:D}/1?tab=servers&view=all")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("<span class=\"pill queue\" title=\"WinGet is not supported on this server: WinGet needs Windows Server 2019 or later.\">Not supported</span>", servers, StringComparison.Ordinal);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(servers, ">Not supported</span>"));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(servers, ">Not needed</span>"));
+    }
 }

@@ -447,6 +447,7 @@ internal sealed class ServerDbContext(DbContextOptions<ServerDbContext> options)
         packageVersion.Property(v => v.InstallerSha256).HasMaxLength(64);
         packageVersion.Property(v => v.ScanState).HasConversion<int>();
         packageVersion.Property(v => v.ScanDetail).HasMaxLength(512);
+        packageVersion.Property(v => v.PackagedVersions).HasMaxLength(Software.PackagedVersions.MaxLength);
         packageVersion.HasIndex(v => v.UpdateId).IsUnique();
         packageVersion.HasOne<PackageEntity>().WithMany().HasForeignKey(v => v.PackageId).OnDelete(DeleteBehavior.Cascade);
 

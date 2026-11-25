@@ -204,7 +204,7 @@ else
                             <td><a href="@ServerPage.Link(item.ClientId, "software")">@item.HostName</a></td>
                             <td class="nowrap">@(item.Version ?? "–")</td>
                             <td>@{ var installedState = _uninstalling.Contains(item.ClientId) ? ("Uninstalling", "pend") : InstalledState(item.Version); }<span class="pill @installedState.Item2">@installedState.Item1</span></td>
-                            <td>@if (item.Match == SoftwareMatch.WinGet) { <CategoryTag Text="WinGet" Index="8" /> } else { <CategoryTag Text="Product code" Index="0" /> }</td>
+                            <td>@if (item.Match == SoftwareMatch.WinGet) { <CategoryTag Text="WinGet" Index="8" /> } else if (item.View == SUSyphos.Contracts.Agents.SoftwareView.Msix) { <CategoryTag Text="Package family" Index="0" /> } else { <CategoryTag Text="Product code" Index="0" /> }</td>
                         </tr>
                     }
                 </tbody>
@@ -505,7 +505,7 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
     private HashSet<string> _knownDependencies = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<string> _neededBy = [];
     private Dictionary<Guid, RolloutState> _rollouts = [];
-    private List<(Guid ClientId, string HostName, string? Version, SoftwareMatch Match)> _installed = [];
+    private List<(Guid ClientId, string HostName, string? Version, SoftwareMatch Match, SUSyphos.Contracts.Agents.SoftwareView View)> _installed = [];
 
     private StartRuleEntity? _startRule;
 
@@ -617,9 +617,9 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
         _installed = [.. (await (from s in Db.ClientSoftware.AsNoTracking()
                                  join c in Db.Clients.AsNoTracking() on s.ClientId equals c.Id
                                  where s.PackageId == PackageId && c.State == SUSyphos.Contracts.Agents.RegistrationState.Approved
-                                 select new { s.ClientId, c.HostName, s.InstalledVersion, s.MatchKind }).ToListAsync())
+                                 select new { s.ClientId, c.HostName, s.InstalledVersion, s.MatchKind, s.View }).ToListAsync())
             .OrderBy(i => i.HostName, StringComparer.OrdinalIgnoreCase)
-            .Select(i => (i.ClientId, i.HostName, i.InstalledVersion, i.MatchKind))];
+            .Select(i => (i.ClientId, i.HostName, i.InstalledVersion, i.MatchKind, i.View))];
     }
 
     private async Task AcceptAsync()

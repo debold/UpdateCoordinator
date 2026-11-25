@@ -160,6 +160,42 @@ public sealed class SoftwareInventoryTests(ServerFactory factory) : IClassFixtur
     }
 
     [Fact]
+    public async Task ProvisionedPackagedApp_ReportsItsPackageVersion_AndGetsTheWinGetVersionOfTheCachedInstaller()
+    {
+        // Lab, 2026-11-25: PowerShell 7.7.0.0 is the MSIX package 2026.1110.418.0 and looked newer than the source.
+        using var source = new FakeSoftwareSource(Path.Combine(Path.GetTempPath(), "SUSyphos.Tests", "msix-" + Guid.NewGuid().ToString("N")));
+        source.SetIndex(new TestIndexPackage("Microsoft.PowerShell", "PowerShell", "7.7.0.0", PackageFamilyNames: ["Microsoft.PowerShell_8wekyb3d8bbwe"]));
+        await using var indexed = new IndexedFactory(source);
+        using var client = indexed.CreateClient();
+        var credentials = await RegisterTests.RegisterAsync(client);
+        await indexed.WithDbAsync(db =>
+        {
+            db.Packages.Add(new PackageEntity { PackageId = "Microsoft.PowerShell", Name = "PowerShell", AddedBy = "admin" });
+            db.PackageVersions.Add(new PackageVersionEntity { PackageId = "Microsoft.PowerShell", Version = "7.6.9.0", UpdateId = Guid.NewGuid(), PackagedVersions = "2026.1020.100.0" });
+            db.PackageVersions.Add(new PackageVersionEntity { PackageId = "Microsoft.PowerShell", Version = "7.7.0.0", UpdateId = Guid.NewGuid(), PackagedVersions = "2026.1110.418.0 2026.1110.418.1" });
+            return db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        });
+        var pwsh = new InstalledSoftware { View = SoftwareView.Msix, KeyName = "Microsoft.PowerShell_8wekyb3d8bbwe", DisplayName = "PowerShell", DisplayVersion = "2026.1110.418.0" };
+
+        await InventoryTests.SendAsync(client, credentials, WithSoftware(SoftwareSupportState.Supported, null, pwsh));
+        Assert.Equal("7.7.0.0", await InstalledVersionAsync());
+
+        // A package version no cached installer has stays as reported.
+        await InventoryTests.SendAsync(client, credentials, WithSoftware(SoftwareSupportState.Supported, null, pwsh with { DisplayVersion = "2026.1201.1.0" }));
+        Assert.Equal("2026.1201.1.0", await InstalledVersionAsync());
+
+        // Once the installer is read, the next cache run translates the stored row too.
+        await indexed.WithDbAsync(async db =>
+        {
+            await db.PackageVersions.Where(v => v.Version == "7.6.9.0").ExecuteUpdateAsync(s => s.SetProperty(v => v.PackagedVersions, "2026.1201.1.0"), TestContext.Current.CancellationToken);
+            return await SUSyphos.Server.Software.PackagedVersions.RemapAsync(db, TestContext.Current.CancellationToken);
+        });
+        Assert.Equal("7.6.9.0", await InstalledVersionAsync());
+
+        Task<string?> InstalledVersionAsync() => indexed.WithDbAsync(db => db.ClientSoftware.Where(s => s.ClientId == credentials.ClientId).Select(s => s.InstalledVersion).SingleAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task SameKeyTwice_IsStoredOnce()
     {
         using var client = factory.CreateClient();

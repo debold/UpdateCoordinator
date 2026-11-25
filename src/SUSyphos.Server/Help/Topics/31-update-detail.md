@@ -101,7 +101,7 @@ Every approved server, with the **Server** and its operating system below (the f
 - **Restart pending**: installed, but Windows reports it missing until the restart that completes it; the agent does not install it again meanwhile.
 - **Waiting for release**: reported as missing, not released to the server's ring yet.
 - **Installed**: installed, by SUSyphos or outside it (reported by the inventory).
-- **Not supported** (amber): the server needs this software version but cannot install it (for example a portable package on Windows Server 2019); the reason stands below the state and in its tooltip. It counts as still to do.
+- **Not supported** (amber): the server needs this software version but cannot install it (for example a portable package on Windows Server 2019); the reason stands below the state and in its tooltip. A server where WinGet does not run (Windows Server 2016, Server Core) shows *Not supported* for every software version with the reason "WinGet is not supported on this server"; it does not count in the banner above, which names servers that need the version. It counts as still to do.
 - **Not needed**: the server does not need it.
 
 **View** (see [Working with lists](help/tables#views)) offers **Still to do** (default; hides Installed and Not needed), **Failed**, **Installed** and **All servers**; **Group** groups the rows by ring, status, operating system or group.
