@@ -775,7 +775,7 @@ else
             <form method="post" @formname="install-software" @onsubmit="InstallSoftwareAsync">
                 <AntiforgeryToken />
                 <div class="dialog-body">
-                    @if (_catalogChoices.Count == 0)
+                    @if (_catalogPage.Total == 0)
                     {
                         <p class="note">@(string.IsNullOrWhiteSpace(SoftwareQuery) ? "Every package of the catalog is installed or assigned already." : "No package of the catalog matches.") Packages that are not in the catalog yet are added on the <a href="/software?dialog=add">Software page</a>.</p>
                     }
@@ -785,10 +785,11 @@ else
                             <table>
                                 <thead><tr><th class="select"><span class="visually-hidden">Choose</span></th><th>Package</th><th>Newest version</th></tr></thead>
                                 <tbody>
-                                    @foreach (var choice in _catalogChoices)
+                                    @foreach (var choice in _catalogPage.Rows)
                                     {
-                                        <tr>
-                                            <td><input type="checkbox" name="InstallPackage" value="@choice.PackageId" aria-label="@($"Choose {choice.Name}")" data-help-term="Choose" /></td>
+                                        @* A package whose newest version this server cannot install is shown grey with the reason (Marc, 2026-11-23). *@
+                                        <tr class="@(choice.Reason is null ? null : "unavailable")">
+                                            <td><input type="checkbox" name="InstallPackage" value="@choice.PackageId" aria-label="@($"Choose {choice.Name}")" disabled="@(choice.Reason is not null)" title="@(choice.Reason is null ? null : $"Not supported on this server: {choice.Reason}")" data-help-term="Choose" /></td>
                                             <td class="wrap">@choice.Name<div class="note mono">@choice.PackageId</div>@if (choice.Reason is { } reason) { <div class="note">Not supported here: @reason</div> }</td>
                                             <td class="nowrap">@(choice.Newest ?? "–")</td>
                                         </tr>
@@ -796,16 +797,13 @@ else
                                 </tbody>
                             </table>
                         </div>
-                        @if (_catalogMore > 0)
-                        {
-                            <p class="note">@DisplayNumber.Count(_catalogMore, "more package matches", "more packages match"); search to narrow the list.</p>
-                        }
+                        <Pager Table="@_catalogTable" Page="@PageInfo.Of(_catalogPage)" Noun="packages" />
                     }
                     <label class="check"><input type="checkbox" name="InstallUninstallOnRemoval" value="true" data-help-term="Uninstall when the assignment is removed" /> Uninstall when the assignment is removed</label>
                     <label class="check"><input type="checkbox" name="InstallRightAway" value="true" data-help-term="Install now" /> Install now: release the newest version for this server alone and install it at once (restart in the maintenance window)</label>
                     <p class="help">Each chosen package is assigned to this server with its newest released version. Without "Install now" it installs when the version is released for the ring of the server.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@ServerPage.Link(Id, "software")">Close</a><button type="submit" class="primary" disabled="@(_catalogChoices.Count == 0)" data-help-term="Assign to">Assign to @_client.HostName</button></div>
+                <div class="dialog-foot"><a class="btn" href="@ServerPage.Link(Id, "software")">Close</a><button type="submit" class="primary" disabled="@(_catalogPage.Total == 0)" data-help-term="Assign to">Assign to @_client.HostName</button></div>
             </form>
         </Dialog>
     }
@@ -1490,8 +1488,14 @@ else
 
     private const int MaxCatalogChoices = 25;
 
-    private List<CatalogChoice> _catalogChoices = [];
-    private int _catalogMore;
+    /// <summary>The catalog in the install dialog: 10 per page with page numbers, like the dialog that adds packages (Marc, 2026-11-23).</summary>
+    private TableQuery _catalogTable = default!;
+    private TablePage<CatalogChoice> _catalogPage = new([], 0, 0, 1, 1, new Dictionary<string, IReadOnlyList<FilterOption>>());
+
+    private static readonly IReadOnlyList<TableColumn<CatalogChoice>> CatalogColumns =
+    [
+        new("name", "Package", c => c.Name),
+    ];
     private List<AssignedWaiting> _assignedWaiting = [];
 
     /// <summary>
@@ -1589,8 +1593,16 @@ else
             .Where(p => !taken.Contains(p.PackageId) && (string.IsNullOrEmpty(query) || p.PackageId.Contains(query, StringComparison.OrdinalIgnoreCase) || p.Name.Contains(query, StringComparison.OrdinalIgnoreCase)))
             .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        _catalogMore = Math.Max(0, matches.Count - MaxCatalogChoices);
-        _catalogChoices = [.. matches.Take(MaxCatalogChoices).Select(p => new CatalogChoice(p.PackageId, p.Name, newest.GetValueOrDefault(p.PackageId), reasons.GetValueOrDefault(p.PackageId)))];
+        _catalogTable = TableQuery.From(Navigation, "name", prefix: "sw.", defaultPageSize: 10);
+        var page = TablePaging.Apply([.. matches.Select(p => new CatalogChoice(p.PackageId, p.Name, newest.GetValueOrDefault(p.PackageId), reasons.GetValueOrDefault(p.PackageId)))], _catalogTable, CatalogColumns, c => $"{c.Name} {c.PackageId}");
+
+        // Whether this server can install the newest version, read from its manifest, only for the rows shown.
+        var shownIds = page.Rows.Where(c => c.Reason is null && c.Newest is not null).Select(c => c.PackageId).ToList();
+        var manifests = (await Db.PackageVersions.AsNoTracking().Where(v => shownIds.Contains(v.PackageId)).Select(v => new { v.PackageId, v.Version, v.Manifest }).ToListAsync())
+            .Where(v => v.Version == newest.GetValueOrDefault(v.PackageId))
+            .GroupBy(v => v.PackageId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Manifest, StringComparer.OrdinalIgnoreCase);
+        _catalogPage = page with { Rows = [.. page.Rows.Select(c => c.Reason is null && manifests.TryGetValue(c.PackageId, out var manifest) && SUSyphos.Server.Software.SoftwareApplicability.WhyNot(manifest, _client?.OsVersion) is { } why ? c with { Reason = why } : c)] };
     }
 
     [SupplyParameterFromForm(FormName = "debug")]

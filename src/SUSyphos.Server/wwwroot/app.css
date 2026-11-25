@@ -1209,3 +1209,4 @@ ul.search-hits mark { background: var(--queue-soft); color: inherit; }
 .logs-btn .pend-note { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; font-size: 12px; font-weight: 400; opacity: 0.85; }
 .logs-btn .pend-note[hidden], .logs-btn[hidden] { display: none; }
 .logs-btn .pend-note .pend-dot { margin-left: 0; }
+tr.unavailable td { color: var(--muted); }
