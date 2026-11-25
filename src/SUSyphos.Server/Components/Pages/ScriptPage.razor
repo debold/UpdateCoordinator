@@ -218,7 +218,7 @@ else
                     @if (_draftFiles is { } signedFiles) { <p class="note">The revision brings @DisplayNumber.Count(signedFiles.Files.Count, "file", "files") along (@signedFiles.FileName, SHA-256 <HexValue Value="@signedFiles.Sha256" />); their hash is signed with the script, see the box Files.</p> }
                     <label class="check"><input type="checkbox" name="ReadWholeScript" value="true" required data-help-term="I have read the whole script" /> I have read the whole script</label>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="primary">Approve and sign</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">@DismissLabel</a><button type="submit" class="primary">Approve and sign</button></div>
             </form>
         </Dialog>
     }
@@ -228,7 +228,7 @@ else
             <form method="post" @formname="script-delete" @onsubmit="DeleteAsync">
                 <AntiforgeryToken />
                 <div class="dialog-body"><p>The script, all its revisions and the values of its parameters go. From their next release list no server runs it any more. The deletion is recorded in the audit log.</p></div>
-                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="danger">Delete script</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">@DismissLabel</a><button type="submit" class="danger">Delete script</button></div>
             </form>
         </Dialog>
     }

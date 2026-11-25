@@ -242,7 +242,7 @@ else
                     }
                 }
             </div>
-            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="primary">Save values</button></div>
+            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">@DismissLabel</a><button type="submit" class="primary">Save values</button></div>
         </form>
     </Dialog>
 }
@@ -268,7 +268,7 @@ else if (_package is not null && _enabled && Dialog == "uninstall" && UninstallB
                 }
                 <p class="note">The agents uninstall with WinGet as SYSTEM and send their inventory right after; a server counts as done once its inventory no longer lists the package. Software takes no lease of a coordinated group.</p>
             </div>
-            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="danger">Uninstall from servers</button></div>
+            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">@DismissLabel</a><button type="submit" class="danger">Uninstall from servers</button></div>
         </form>
     </Dialog>
 }
@@ -295,7 +295,7 @@ else if (_package is not null && _enabled && Dialog == "assign")
                 <label class="check"><input type="checkbox" name="UninstallOnRemoval" value="true" /> Uninstall when the assignment is removed</label>
                 <p class="help">The servers install the package when the version is released for their ring: start the rollout on the update page of the version, or release it to all rings at once. Servers that have the package installed already keep their version; holds of the version win over assignments.</p>
             </div>
-            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="primary">Assign</button></div>
+            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">@DismissLabel</a><button type="submit" class="primary">Assign</button></div>
         </form>
     </Dialog>
 }
@@ -312,7 +312,7 @@ else if (_package is not null && Dialog == "remove" && RemoveBlocker is null)
                     <label class="check"><input type="checkbox" name="RemoveUninstall" value="true" data-help-term="Also uninstall it" /> Also uninstall it from @DisplayNumber.Count(_targets.Count, "server", "servers") <span class="note">(with WinGet, in their next software window)</span></label>
                 }
             </div>
-            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="danger">Remove from catalog</button></div>
+            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">@DismissLabel</a><button type="submit" class="danger">Remove from catalog</button></div>
         </form>
     </Dialog>
 }
@@ -326,7 +326,7 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
                 <p>@TargetName(doomed) no longer gets @_package.Name as a new installation.</p>
                 <UnassignChoices UninstallOnRemoval="doomed.UninstallOnRemoval" Uninstall="_removalPreview?.Uninstall" KeptByOther="@(_removalPreview?.KeptByOther ?? 0)" />
             </div>
-            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="danger">Remove assignment</button></div>
+            <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">@DismissLabel</a><button type="submit" class="danger">Remove assignment</button></div>
         </form>
     </Dialog>
 }

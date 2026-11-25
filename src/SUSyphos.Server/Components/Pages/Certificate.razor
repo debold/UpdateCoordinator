@@ -74,7 +74,7 @@
                 <p>The central server presents <strong>@selected.Subject</strong> (<span class="mono">@selected.Thumbprint</span>) from now on. The trust anchor signs a binding for it, and every agent accepts it on its next contact.</p>
                 <label class="check"><input type="checkbox" name="ConfirmChange" value="yes" required /> Switch the central server to this certificate now</label>
             </div>
-            <div class="dialog-foot"><a class="btn" href="/administration/certificate">Cancel</a><button type="submit" class="primary">Switch certificate</button></div>
+            <div class="dialog-foot"><a class="btn" href="/administration/certificate">@DismissLabel</a><button type="submit" class="primary">Switch certificate</button></div>
         </form>
     </Dialog>
 }

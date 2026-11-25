@@ -62,7 +62,7 @@
                 <label class="check"><input type="checkbox" name="Coordinated" value="true" checked="@(Coordinated == "true")" /> Coordinated: only part of the group installs and restarts at the same time (25 %, at most 1 at once; changeable on the group page)</label>
                 <p class="help">Windows, reboots and agent settings start as inherited. After creating, the group page opens: add the members and set what differs there.</p>
             </div>
-            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="primary">Create and open</button></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">@DismissLabel</a><button type="submit" class="primary">Create and open</button></div>
         </form>
     </Dialog>
 }
@@ -78,7 +78,7 @@ else if (_dialog == "delete" && Editing is { } doomed)
             <input type="hidden" name="Mode" value="delete" />
             <input type="hidden" name="Id" value="@doomed.Id" />
             <div class="dialog-body"><p>Members leave the group and fall back to the system default; assignment rules pointing to this group are removed too.</p></div>
-            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="danger">Delete group</button></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">@DismissLabel</a><button type="submit" class="danger">Delete group</button></div>
         </form>
     </Dialog>
 }

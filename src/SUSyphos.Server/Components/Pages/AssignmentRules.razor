@@ -117,7 +117,7 @@
                     <p class="help">Saving applies the rule to every approved server at once; a ring set by hand on a server always wins.</p>
                 </details>
             </div>
-            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" name="Preview" value="yes">Preview</button><button type="submit" class="primary">@(rule is null ? "Create rule" : "Save")</button></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">@DismissLabel</a><button type="submit" name="Preview" value="yes">Preview</button><button type="submit" class="primary">@(rule is null ? "Create rule" : "Save")</button></div>
         </form>
     </Dialog>
 }
@@ -129,7 +129,7 @@ else if (_dialog == "delete" && Editing is { } doomed)
             <input type="hidden" name="Mode" value="delete" />
             <input type="hidden" name="Id" value="@doomed.Id" />
             <div class="dialog-body"><p>Servers assigned by this rule (@TargetName(doomed)) are recalculated at once and may move to another ring or leave the group.</p></div>
-            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="danger">Delete rule</button></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">@DismissLabel</a><button type="submit" class="danger">Delete rule</button></div>
         </form>
     </Dialog>
 }

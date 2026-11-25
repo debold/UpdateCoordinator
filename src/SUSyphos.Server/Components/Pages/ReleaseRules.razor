@@ -272,7 +272,7 @@ else
                     <p class="help">Rules are applied when a server reports an update, when a rule is saved and every minute to all waiting updates.</p>
                 </fieldset>
             </div>
-            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" name="Preview" value="yes">Preview matches</button><button type="submit" class="primary">@(rule is null ? "Create start rule" : "Save")</button></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">@DismissLabel</a><button type="submit" name="Preview" value="yes">Preview matches</button><button type="submit" class="primary">@(rule is null ? "Create start rule" : "Save")</button></div>
         </form>
     </Dialog>
 }
@@ -317,7 +317,7 @@ else if (_dialog is "ring-new" or "ring" && (_dialog == "ring-new" || EditingRin
                     <label class="check"><input type="checkbox" data-help-term="Manual gate" name="Gate" value="true" checked="@transition.ManualGate" /> Manual gate: an operator approves the transition under Approvals</label>
                 }
             </div>
-            <div class="dialog-foot"><a class="btn" href="@RingsPath">Cancel</a><button type="submit" class="primary">@(ring is null ? "Create ring" : "Save")</button></div>
+            <div class="dialog-foot"><a class="btn" href="@RingsPath">@DismissLabel</a><button type="submit" class="primary">@(ring is null ? "Create ring" : "Save")</button></div>
         </form>
     </Dialog>
 }
@@ -333,7 +333,7 @@ else if (_dialog == "ring-delete" && EditingRing is { } doomedRing)
             <input type="hidden" name="Mode" value="ring-delete" />
             <input type="hidden" name="Id" value="@doomedRing.Id" />
             <div class="dialog-body"><p>Only a ring without servers and without assignment rules can be deleted. Running rollouts skip it from now on.</p></div>
-            <div class="dialog-foot"><a class="btn" href="@RingsPath">Cancel</a><button type="submit" class="danger">Delete ring</button></div>
+            <div class="dialog-foot"><a class="btn" href="@RingsPath">@DismissLabel</a><button type="submit" class="danger">Delete ring</button></div>
         </form>
     </Dialog>
 }
@@ -345,7 +345,7 @@ else if (_dialog == "rule-delete" && EditingRule is { } doomedRule)
             <input type="hidden" name="Mode" value="rule-delete" />
             <input type="hidden" name="Id" value="@doomedRule.Id" />
             <div class="dialog-body"><p>Updates this rule would start are handled by the next matching rule, or stay queued.</p></div>
-            <div class="dialog-foot"><a class="btn" href="@Path">Cancel</a><button type="submit" class="danger">Delete start rule</button></div>
+            <div class="dialog-foot"><a class="btn" href="@Path">@DismissLabel</a><button type="submit" class="danger">Delete start rule</button></div>
         </form>
     </Dialog>
 }

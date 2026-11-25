@@ -177,7 +177,7 @@ else
                 <AntiforgeryToken />
                 <input type="hidden" name="DeleteConfirmed" value="true" />
                 <div class="dialog-body"><p>Members leave the group and fall back to the system default; assignment rules pointing to this group are removed too.</p></div>
-                <div class="dialog-foot"><a class="btn" href="@GroupPage.Link(Id)">Cancel</a><button type="submit" class="danger">Delete group</button></div>
+                <div class="dialog-foot"><a class="btn" href="@GroupPage.Link(Id)">@DismissLabel</a><button type="submit" class="danger">Delete group</button></div>
             </form>
         </Dialog>
     }

@@ -44,6 +44,12 @@ public abstract class DashboardPageBase : ComponentBase
     /// <summary>True if <see cref="Message"/> reports a refused action.</summary>
     protected bool MessageIsError { get; set; }
 
+    /// <summary>
+    /// The label of the link that leaves a dialog: "Close" once an action of the dialog succeeded and the dialog stays
+    /// open, so there is nothing left to cancel; "Cancel" otherwise (Marc, 2026-11-23, a rule for every dialog).
+    /// </summary>
+    protected string DismissLabel => _message is not null && !MessageIsError ? "Close" : "Cancel";
+
     /// <summary>The current address without the message of a finished action, e.g. for the automatic refresh.</summary>
     protected string AddressWithoutMessage => PageNavigation.GetUriWithQueryParameter(DoneParameter, (string?)null);
 

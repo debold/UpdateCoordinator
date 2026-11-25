@@ -54,6 +54,8 @@ Every page of the dashboard has the same frame:
 
 On a narrow screen (a phone or a small window) the rail goes and the menu button at the top left opens the navigation. Everything works without the dashboard script as well; then the navigation is hidden or shown by reloading the page.
 
+Dialogs open over the page; × or **Cancel** at the bottom left closes them without a change. A dialog that stays open after its action succeeded (for example to assign a package to more targets) shows **Close** there instead, because there is nothing left to cancel.
+
 ## Search {#search}
 
 **Search** in the top bar (and **Search for** on its result page) finds, with a part of the name or number:

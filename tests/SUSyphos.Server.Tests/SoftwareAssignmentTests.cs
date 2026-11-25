@@ -173,8 +173,15 @@ public sealed class SoftwareAssignmentTests
             }
 
             const string Page = "/software/Notepad%2B%2B.Notepad%2B%2B";
+            var before = await (await admin.GetAsync(Page + "?dialog=assign")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains(">Cancel</a><button", before, StringComparison.Ordinal);
             using var assign = await admin.PostFormAsync(Page + "?dialog=assign", new Dictionary<string, string> { ["_handler"] = "package-assign", ["Target"] = $"g:{group}", ["Version"] = string.Empty });
-            Assert.Contains("The package was assigned", await assign.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+            var assigned = await assign.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains("The package was assigned", assigned, StringComparison.Ordinal);
+
+            // The dialog stays open for more assignments; with nothing left to cancel its link reads "Close" (Marc, 2026-11-23).
+            Assert.Contains(">Close</a><button", assigned, StringComparison.Ordinal);
+            Assert.DoesNotContain(">Cancel</a><button", assigned, StringComparison.Ordinal);
             var id = await scenario.Factory.WithDbAsync(db => db.PackageAssignments.Select(a => a.Id).SingleAsync(TestContext.Current.CancellationToken));
 
             using var op = new DashboardClient(scenario.Factory);

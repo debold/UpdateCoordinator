@@ -137,7 +137,7 @@ else
                         </fieldset>
                     }
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@ServersTabLink">Cancel</a><button type="submit" class="primary" disabled="@(SelectedServerIds.Count == 0)">Install now</button></div>
+                <div class="dialog-foot"><a class="btn" href="@ServersTabLink">@DismissLabel</a><button type="submit" class="primary" disabled="@(SelectedServerIds.Count == 0)">Install now</button></div>
             </form>
         </Dialog>
     }
@@ -150,7 +150,7 @@ else
                 <div class="dialog-body">
                     <p>@(SelectedServerIds.Count == 0 ? "Select at least one server in the list first." : $"The holds of {SelectedServerText} for this update end; holds of their ring or group stay. Servers without a hold of their own are skipped.")</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@ServersTabLink">Cancel</a><button type="submit" class="primary" disabled="@(SelectedServerIds.Count == 0)">End holds</button></div>
+                <div class="dialog-foot"><a class="btn" href="@ServersTabLink">@DismissLabel</a><button type="submit" class="primary" disabled="@(SelectedServerIds.Count == 0)">End holds</button></div>
             </form>
         </Dialog>
     }
@@ -178,7 +178,7 @@ else
                     <DateTimeField Label="Hold until" DateName="HoldUntilDate" TimeName="HoldUntilTime" Optional="true" />
                     <p class="help">Time of the central server. Without a date the hold lasts until someone selects Resume.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="/updates/@UpdateId/@Revision">Cancel</a><button type="submit" class="primary">Hold update</button></div>
+                <div class="dialog-foot"><a class="btn" href="/updates/@UpdateId/@Revision">@DismissLabel</a><button type="submit" class="primary">Hold update</button></div>
             </form>
         </Dialog>
     }
@@ -200,7 +200,7 @@ else
                         <p class="note">The agent uninstalls through Windows Update, or with DISM by the KB number where Windows Update cannot; some packages cannot be removed, the remote action on each server then reports why.</p>
                     }
                 </div>
-                <div class="dialog-foot"><a class="btn" href="/updates/@UpdateId/@Revision">Cancel</a><button type="submit" class="danger" disabled="@(_targets.Count == 0)">Uninstall update</button></div>
+                <div class="dialog-foot"><a class="btn" href="/updates/@UpdateId/@Revision">@DismissLabel</a><button type="submit" class="danger" disabled="@(_targets.Count == 0)">Uninstall update</button></div>
             </form>
         </Dialog>
     }

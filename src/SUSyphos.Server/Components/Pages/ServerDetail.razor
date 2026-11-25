@@ -649,7 +649,7 @@ else
                     }
                     <p class="note">Next maintenance window: @NextWindowText. Windows updates are removed through Windows Update, or with DISM by the KB number where Windows Update cannot; programs with WinGet, silently as SYSTEM, "in the next window" meaning their software window. Each becomes a remote action of its own.@if (anySoftware) { <text> Assignments of a package that cover this server install it again: end them on the package page.</text> }</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">Cancel</a><button type="submit" class="danger" disabled="@(applies.Count == 0)">Uninstall</button></div>
+                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">@DismissLabel</a><button type="submit" class="danger" disabled="@(applies.Count == 0)">Uninstall</button></div>
             </form>
         </Dialog>
     }
@@ -678,7 +678,7 @@ else
                     <p>The agent installs them with its next heartbeat, also outside the maintenance window. If Windows then needs a restart, the server restarts <b>right after</b> (five minute warning) or in the <b>next maintenance window</b> (next window: @NextWindowText).</p>
                     <p class="note">A global pause holds the installation until it ends; in a coordinated group the agent waits for a free slot for Windows updates (software takes no lease). A local veto (registry value AllowReboot) prevents the restart.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">Cancel</a><button type="submit" name="SelectionRestart" value="window" disabled="@(applies.Count == 0 || !supported)">Install, restart in the next window</button><button type="submit" name="SelectionRestart" value="now" class="danger" disabled="@(applies.Count == 0 || !supported)">Install and restart right after</button></div>
+                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">@DismissLabel</a><button type="submit" name="SelectionRestart" value="window" disabled="@(applies.Count == 0 || !supported)">Install, restart in the next window</button><button type="submit" name="SelectionRestart" value="now" class="danger" disabled="@(applies.Count == 0 || !supported)">Install and restart right after</button></div>
             </form>
         </Dialog>
     }
@@ -705,7 +705,7 @@ else
                     <p class="help">Time of the central server. Without a date the hold lasts until someone ends it.</p>
                     <p class="note">A held update is not released to this server, also not by "Install now"; it stays missing. Holds of the ring or a group stay as they are and are ended on the update page.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">Cancel</a><button type="submit" class="primary" disabled="@(applies.Count == 0)">Hold</button></div>
+                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">@DismissLabel</a><button type="submit" class="primary" disabled="@(applies.Count == 0)">Hold</button></div>
             </form>
         </Dialog>
     }
@@ -724,7 +724,7 @@ else
                     }
                     <p class="note">The updates are released to this server again as their ring allows; they install in the next maintenance window.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">Cancel</a><button type="submit" class="primary" disabled="@(applies.Count == 0)">End hold</button></div>
+                <div class="dialog-foot"><a class="btn" href="@SelectionCloseHref">@DismissLabel</a><button type="submit" class="primary" disabled="@(applies.Count == 0)">End hold</button></div>
             </form>
         </Dialog>
     }
@@ -774,7 +774,7 @@ else
                     <p>Only updates released for the ring of the server are installed. If Windows then needs a restart, the server restarts <b>right after</b> (five minute warning) or in the <b>next maintenance window</b> (next window: @NextWindowText).</p>
                     <p class="note">A global pause holds the installation until it ends; in a coordinated group the agent waits for a free slot. A local veto (registry value AllowReboot) prevents the restart.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" name="InstallRestart" value="window" disabled="@(released.Count == 0)">Install, restart in the next window</button><button type="submit" name="InstallRestart" value="now" class="danger" disabled="@(released.Count == 0)">Install and restart right after</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">@DismissLabel</a><button type="submit" name="InstallRestart" value="window" disabled="@(released.Count == 0)">Install, restart in the next window</button><button type="submit" name="InstallRestart" value="now" class="danger" disabled="@(released.Count == 0)">Install and restart right after</button></div>
             </form>
         </Dialog>
     }
@@ -855,7 +855,7 @@ else
                         <p class="note">It is on until @Format(running.UntilUtc); a new duration starts now.</p>
                     }
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="primary">@(_debug is null ? "Turn on" : "Extend")</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">@DismissLabel</a><button type="submit" class="primary">@(_debug is null ? "Turn on" : "Extend")</button></div>
             </form>
         </Dialog>
     }
@@ -869,7 +869,7 @@ else
                     <p><b>In the next maintenance window:</b> the agent restarts the server once a window is open for at least 30 more minutes (next window: @NextWindowText), also if its reboot policy is "Never"; in a coordinated group it waits for a free slot. It reports the planned time.</p>
                     <p class="note">A local veto on the server (registry value AllowReboot) applies to both. A queued restart can be cancelled until it happens.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" name="When" value="window">Restart in the next maintenance window</button><button type="submit" name="When" value="now" class="danger">Restart now</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">@DismissLabel</a><button type="submit" name="When" value="window">Restart in the next maintenance window</button><button type="submit" name="When" value="now" class="danger">Restart now</button></div>
             </form>
         </Dialog>
     }
@@ -897,7 +897,7 @@ else
                         ? "The agent uninstalls itself with its next heartbeat and the server is removed once it confirms; if it does not answer within a day, the server is removed anyway. Without this, a running agent registers again."
                         : "Only an approved server can uninstall its agent; uninstall it by hand if it still runs.") A removed server that registers again is never approved by a rule; approve it by hand under Approvals.</p>
                 </div>
-                <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" class="danger">Remove server</button></div>
+                <div class="dialog-foot"><a class="btn" href="@Here">@DismissLabel</a><button type="submit" class="danger">Remove server</button></div>
             </form>
         </Dialog>
     }
