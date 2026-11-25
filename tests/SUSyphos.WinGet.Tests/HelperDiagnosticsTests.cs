@@ -64,6 +64,17 @@ public sealed class HelperDiagnosticsTests : IDisposable
     }
 
     [Fact]
+    public async Task SourceThatDoesNotAnswerInTime_IsReportedAsTimeout()
+    {
+        // Lab, 2026-11-25: the central server checked its installer cache after an update and answered too late.
+        var problem = await SourceCheck.CheckAsync(Source, () => new FakeHandler(_ => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 120 seconds elapsing.")));
+
+        Assert.Equal(SourceCheck.TimedOut, problem?.HResult);
+        Assert.Contains("did not answer within 2 minutes", problem?.Detail, StringComparison.Ordinal);
+        Assert.Equal(TimeSpan.FromMinutes(2), SourceCheck.Timeout);
+    }
+
+    [Fact]
     public async Task UnreachableSource_IsReported()
     {
         var problem = await SourceCheck.CheckAsync(Source, () => new FakeHandler(_ => throw new HttpRequestException("No such host is known.")));

@@ -50,6 +50,8 @@ internal static class HResultCatalog
         [unchecked((int)0xA0050003)] = "The package has scripts and scripts are forbidden on this server (AllowScripts = 0 in HKLM\\SOFTWARE\\Policies\\SUSyphos\\Agent); nothing was installed.",
         [unchecked((int)0xA0050004)] = "A script of the package did not verify (signature, hash or an older revision), so nothing ran; see Script output on the server page.",
         [unchecked((int)0x800705B4)] = "The operation timed out. For software: the agent stopped the WinGet helper after 30 minutes; the last step it reached is in the agent log (\"WinGet helper: …\").",
+        [unchecked((int)0x80072EE2)] = "The operation timed out. For software: the WinGet source of the central server did not answer in time, for example while the central server was starting and checking its installer cache; the next installation run tries again.",
+        [unchecked((int)0x8013153B)] = "The operation was cancelled. For software: the WinGet source of the central server did not answer within 30 seconds (agents before 0.9.0-rc.9), for example while the central server was starting; the next installation run tries again.",
         [unchecked((int)0x80004005)] = "Unspecified error; the agent log names the reason.",
         [unchecked((int)0x800F081F)] = "The source files could not be found (component store corruption, also seen while another installation runs at the same time). If it persists, repair with DISM /Online /Cleanup-Image /RestoreHealth.",
         [unchecked((int)0x800F0922)] = "The update could not be installed (e.g. not enough space in the system reserved partition).",

@@ -4,6 +4,14 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Agent
+
+- Fix (rc.9 lab, LABVMD01): a software installation right after an update of the central server failed with 0x8013153B ("Unknown error"): the agent gave the WinGet source of the central server only 30 seconds to answer. It now waits up to 2 minutes and reports a source that does not answer in time as 0x80072EE2 with a clear explanation.
+
+### Central server
+
+- Fix (rc.9 lab): the WinGet installer cache is opened and checked (SHA-256 of every cached installer) in the background right after the start, not on the first request of an agent, which had to wait for it. 0x8013153B and 0x80072EE2 are explained on the dashboard.
+
 ## [0.9.0-rc.9] - 2026-11-25
 
 ### Agent

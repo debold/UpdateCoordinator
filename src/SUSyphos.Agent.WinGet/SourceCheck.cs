@@ -13,7 +13,14 @@ internal static class SourceCheck
     /// <summary>CERT_E_UNTRUSTEDROOT: reported when Windows does not trust the certificate of the central server.</summary>
     public const int UntrustedCertificate = unchecked((int)0x800B0109);
 
-    internal static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+    /// <summary>
+    /// How long the source may take to answer. Right after the central server started it checks the SHA-256 of every
+    /// cached installer before it serves the source (lab, 2026-11-25: more than 30 seconds with WebView2 in the cache).
+    /// </summary>
+    internal static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
+
+    /// <summary>ERROR_INTERNET_TIMEOUT: the source did not answer in time.</summary>
+    public const int TimedOut = unchecked((int)0x80072EE2);
 
     /// <summary>Null when the source answers over a trusted connection; else the outcome to report.</summary>
     public static async Task<(int HResult, string Detail)?> CheckAsync(Uri source, Func<HttpMessageHandler>? handlerFactory = null)
@@ -48,7 +55,11 @@ internal static class SourceCheck
         {
             return (UntrustedCertificate, Untrusted(subject, errors));
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        catch (TaskCanceledException)
+        {
+            return (TimedOut, $"The WinGet source of the central server did not answer within {Timeout.TotalMinutes:0} minutes; the central server may still be starting. The next installation run tries again.");
+        }
+        catch (HttpRequestException exception)
         {
             return (exception.HResult, $"The WinGet source of the central server cannot be reached: {exception.Message}");
         }

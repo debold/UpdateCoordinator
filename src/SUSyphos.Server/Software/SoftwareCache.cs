@@ -423,3 +423,38 @@ internal sealed partial class SoftwareCacheWorker(
     [LoggerMessage(Level = LogLevel.Error, Message = "Filling the WinGet installer cache failed; it runs again later.")]
     private partial void LogFailed(Exception exception);
 }
+
+/// <summary>
+/// Opens the installer cache right after the central server started, in the background: opening it checks the SHA-256
+/// of every cached installer, which takes a while with large ones (lab, 2026-11-25: the first request of an agent after
+/// an update of the central server waited more than 30 seconds for it and gave up).
+/// </summary>
+internal sealed partial class SoftwareSourceWarmUp(SoftwareSourceCache cache, ILogger<SoftwareSourceWarmUp> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // Leaves the start of the host alone; the check runs on a thread of its own.
+        await Task.Yield();
+        try
+        {
+            var started = System.Diagnostics.Stopwatch.StartNew();
+            var versions = await Task.Run(() => cache.Cache.Versions.Count, stoppingToken).ConfigureAwait(false);
+            LogOpened(versions, started.Elapsed.TotalSeconds);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Shutting down.
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            // The first request opens it again and reports the same problem.
+            LogFailed(exception);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "WinGet installer cache opened: {Versions} versions checked in {Seconds:0.0} s.")]
+    private partial void LogOpened(int versions, double seconds);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The WinGet installer cache could not be opened at start; the first request tries again.")]
+    private partial void LogFailed(Exception exception);
+}

@@ -188,6 +188,7 @@ internal static class DashboardServiceCollectionExtensions
         services.AddHostedService<Software.SoftwareCatalogWorker>();
         services.AddSingleton<Software.IInstallerScanner, Software.AmsiInstallerScanner>();
         services.AddSingleton<Software.SoftwareSourceCache>();
+        services.AddHostedService<Software.SoftwareSourceWarmUp>();
         services.AddScoped<Software.SoftwareCacheService>();
         services.AddSingleton<Software.SoftwareCacheProgress>();
         services.AddHostedService<Software.SoftwareCacheWorker>();
