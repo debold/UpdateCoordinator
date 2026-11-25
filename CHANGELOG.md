@@ -4,6 +4,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.9.0-rc.9] - 2026-11-25
+
 ### Agent
 
 - **MSIX packages** (Marc, 2026-11-25; rc.8 lab on Windows Server 2025: PowerShell 7.7 and later come only as MSIX): WinGet installs MSIX packages for the machine, i.e. provisioned for all users. Under SYSTEM WinGet does not list provisioned packages, so the agent reports them from Windows (`PackageManager.FindProvisionedPackages`, from Windows 10.0.19041 / Windows Server 2022) with their package family name and version, without frameworks, resource packages and the packages of Windows itself. Uninstalling such a package removes the provisioning and the installation of every user, and fails when the package is still there afterwards.

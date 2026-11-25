@@ -540,7 +540,8 @@ public sealed class InteractionTests(UiFixture ui)
             ContentType = "application/json",
             Body = $$"""[{"id":"0b6f2d1e-7d47-4a8e-9a41-1f0e9d1c0a01","server":"LABTEST01","serverLink":"/servers","action":"Collect logs","state":"{{(done ? "Succeeded" : "Delivered")}}","stateClass":"{{(done ? "ok" : "pend")}}","open":{{(done ? "false" : "true")}},"step":"running","requested":"09:00","detail":null,"download":null}]""",
         }));
-        await page.GotoAsync("/");
+        // A page that never reloads itself: the clock of the test runs fast, and the overview reloads while a server installs.
+        await page.GotoAsync("/operating-systems");
 
         var entry = page.Locator("header details.my-requests > summary");
         await Assertions.Expect(entry).ToBeVisibleAsync();
