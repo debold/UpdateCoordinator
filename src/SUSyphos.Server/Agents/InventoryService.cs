@@ -9,7 +9,7 @@ namespace SUSyphos.Server.Agents;
 /// <summary>
 /// Stores an agent inventory: client attributes, the installed updates of the client and new catalog entries.
 /// </summary>
-internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog catalog, AssignmentService assignment, ClientActivityLog activity, TimeProvider timeProvider, ILogger<InventoryService> logger)
+internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog catalog, AssignmentService assignment, ClientActivityLog activity, TimeProvider timeProvider, ILogger<InventoryService> logger, Software.ISoftwareSource? softwareSource = null)
 {
     /// <summary>Returns false if the client no longer exists.</summary>
     public async Task<bool> StoreAsync(Guid clientId, InventoryRequest inventory, CancellationToken cancellationToken)
@@ -139,9 +139,31 @@ internal sealed partial class InventoryService(ServerDbContext db, UpdateCatalog
                     // The version WinGet knew stays only while the program reports the same version as then.
                     entity.InstalledVersion = string.Equals(last.DisplayVersion, s.DisplayVersion, StringComparison.OrdinalIgnoreCase) ? last.InstalledVersion : s.DisplayVersion;
                 }
+                else if (entity.PackageId is null && s.View == SoftwareView.Msix && PackagedApp(s.KeyName) is { } packageId)
+                {
+                    // A packaged app provisioned for the machine, which WinGet does not list under SYSTEM: matched by its
+                    // package family name right away, so an installation shows as done with this inventory.
+                    entity.PackageId = packageId;
+                    entity.InstalledVersion = s.DisplayVersion;
+                    entity.MatchKind = SoftwareMatch.Catalog;
+                }
 
                 return entity;
             }));
+    }
+
+    /// <summary>The package of the community index with this package family name, when exactly one has it.</summary>
+    private string? PackagedApp(string familyName)
+    {
+        try
+        {
+            return softwareSource?.Index?.ByPackageFamilyName(familyName) is [var package] ? package.Id : null;
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException)
+        {
+            // The index is being replaced or unreadable: the catalog check matches it later.
+            return null;
+        }
     }
 
     /// <summary>

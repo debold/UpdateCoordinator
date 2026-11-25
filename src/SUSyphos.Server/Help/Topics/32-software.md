@@ -38,7 +38,7 @@ The catalog, the installed programs and the cache are kept. **Switch on software
 
 ## Recommended {#recommended}
 
-Packages SUSyphos itself benefits from. Today that is **PowerShell 7** (WinGet package `Microsoft.PowerShell`): Microsoft deprecated Windows PowerShell 5.1 on 2026-11-17, and [scripts](help/script#content) of software packages run in PowerShell 7 by default; where it is missing they fall back to 5.1. The box says on how many of the servers that report it (agents from 0.9.0-rc.8) PowerShell 7 is installed. **Add and assign…** (administrators) adds the package to the catalog and opens its assignment dialog, for example for **All servers**; once it is in the catalog the button reads **Assign…**. Like every package it installs only from Windows Server 2019 with desktop experience. The overview names servers that run PowerShell 7 scripts without it.
+Packages SUSyphos itself benefits from. Today that is **PowerShell 7** (WinGet package `Microsoft.PowerShell`): Microsoft deprecated Windows PowerShell 5.1 on 2026-11-17, and [scripts](help/script#content) of software packages run in PowerShell 7 by default; where it is missing they fall back to 5.1. The box says on how many of the servers that report it (agents from 0.9.0-rc.8) PowerShell 7 is installed. **Add and assign…** (administrators) adds the package to the catalog and opens its assignment dialog, for example for **All servers**; once it is in the catalog the button reads **Assign…**. Like every package it installs only from Windows Server 2019 with desktop experience; PowerShell 7.7 and later come only as MSIX package, which SUSyphos installs for all users from Windows Server 2022 on. The overview names servers that run PowerShell 7 scripts without it.
 
 ## Packages {#packages}
 

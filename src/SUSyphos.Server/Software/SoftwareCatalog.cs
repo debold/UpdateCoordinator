@@ -50,8 +50,8 @@ internal sealed partial class SoftwareCatalog(
     }
 
     /// <summary>
-    /// Matches installed programs WinGet did not know by the product code (the uninstall key of an MSI) in the index,
-    /// then adds every package installed somewhere to the catalog.
+    /// Matches installed programs WinGet did not know by the product code (the uninstall key of an MSI) or the package
+    /// family name (MSIX) in the index, then adds every package installed somewhere to the catalog.
     /// </summary>
     public async Task<(int Matched, int Added, int Failures)> MatchInventoryAsync(CancellationToken cancellationToken)
     {
@@ -66,6 +66,23 @@ internal sealed partial class SoftwareCatalog(
             {
                 // Only a unique answer counts: a product code shared by several packages says nothing.
                 if (index.ByProductCode(program.KeyName) is [var package])
+                {
+                    program.PackageId = package.Id;
+                    program.InstalledVersion = program.DisplayVersion;
+                    program.MatchKind = SoftwareMatch.Catalog;
+                    matched++;
+                }
+            }
+
+            // Packaged apps provisioned for the machine: WinGet does not list them under SYSTEM, so the agent reports them
+            // by their package family name, which the index knows from the MSIX installers.
+            var packaged = await db.ClientSoftware
+                .Where(s => s.PackageId == null && s.View == SUSyphos.Contracts.Agents.SoftwareView.Msix)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var program in packaged)
+            {
+                if (index.ByPackageFamilyName(program.KeyName) is [var package])
                 {
                     program.PackageId = package.Id;
                     program.InstalledVersion = program.DisplayVersion;
@@ -468,7 +485,7 @@ internal sealed partial class SoftwareCatalogWorker(
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Software catalog checked: {Matched} programs matched by product code, {Added} packages added, {Versions} new versions, {Failures} failures.")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Software catalog checked: {Matched} programs matched by product code or package family name, {Added} packages added, {Versions} new versions, {Failures} failures.")]
     private partial void LogChecked(int matched, int added, int versions, int failures);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The software catalog check failed; it runs again later.")]

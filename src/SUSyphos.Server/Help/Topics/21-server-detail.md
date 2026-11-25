@@ -165,6 +165,8 @@ The programs the agent reports with its inventory ("Programs and Features" and p
 
 **View** (see [Working with lists](help/tables#views)) offers **Known to WinGet** (default: programs SUSyphos can update and uninstall; the others are hidden), **Newer version available** and **All programs**.
 
+Packaged apps (MSIX) that are installed for all users of the server are listed as well, from Windows Server 2022 on; SUSyphos installs MSIX packages that way, and uninstalling one removes it for every user of the server.
+
 The bar above the list (administrators): **Install software…** opens [Install software](#install-software); select programs with their checkboxes (only programs WinGet knows and SUSyphos may uninstall can be selected), then **Uninstall…** opens [Uninstall](#uninstall) with them.
 
 

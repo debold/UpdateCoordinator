@@ -23,6 +23,30 @@ public sealed class SoftwareInventoryTests
     }
 
     [Fact]
+    public void ProvisionedApps_AreAdded_OncePerFamily_WithTheNewestVersion_UnlessWinGetListedThem()
+    {
+        SoftwareItem[] items =
+        [
+            new(SoftwareSource.Machine64, "7-Zip", "7-Zip 26.06 (x64)", "26.06", "Igor Pavlov", "7zip.7zip", "26.06"),
+            new(SoftwareSource.Msix, "Microsoft.WindowsTerminal_8wekyb3d8bbwe", "Windows Terminal", "1.22.1", null, "Microsoft.WindowsTerminal", "1.22.1"),
+        ];
+        ProvisionedPackage[] provisioned =
+        [
+            new("Microsoft.PowerShell_8wekyb3d8bbwe", "PowerShell", "7.7.0.0", "Microsoft Corporation"),
+            new("microsoft.powershell_8wekyb3d8bbwe", "PowerShell", "7.10.0.0", "Microsoft Corporation"),
+            new("microsoft.windowsterminal_8wekyb3d8bbwe", "Windows Terminal", "1.22.1.0", null),
+        ];
+
+        var result = ProvisionedPackages.AddTo(items, provisioned);
+
+        Assert.Equal(3, result.Count);
+        var pwsh = Assert.Single(result, item => item.DisplayName == "PowerShell");
+        Assert.Equal((SoftwareSource.Msix, "7.10.0.0", null), (pwsh.Source, pwsh.DisplayVersion, pwsh.PackageId));
+        Assert.Equal(SoftwareView.Msix, InventoryCommand.ToContract(pwsh)!.View);
+        Assert.Same(items[1], result[1]);
+    }
+
+    [Fact]
     public void Build_KeepsEveryProgram_AndTakesThePackageOnlyWhereWinGetFoundItInASource()
     {
         WinGetInstalledPackage[] packages =

@@ -227,6 +227,46 @@ public sealed class WinGetClient(WinGetEngine engine)
             result.ExtendedErrorCode?.HResult ?? 0);
     }
 
+    /// <summary>
+    /// The package family names the source lists for a package (from its MSIX installers), empty for other packages. The
+    /// private source of the central server first, the other sources when it does not answer.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> PackageFamilyNamesAsync(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        CatalogPackage package;
+        try
+        {
+            var central = _manager.GetPackageCatalogs().FirstOrDefault(c => !IsInventoryCatalog(c.Info.Name));
+            package = await FindByIdAsync(Composite(central, CompositeSearchBehavior.RemotePackagesFromRemoteCatalogs), id);
+        }
+        catch (WinGetException)
+        {
+            package = await FindByIdAsync(Composite(null, CompositeSearchBehavior.RemotePackagesFromRemoteCatalogs), id);
+        }
+
+        return package.AvailableVersions
+            .Take(5)
+            .SelectMany(version => package.GetPackageVersionInfo(version)?.PackageFamilyNames ?? [])
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>True when WinGet sees the package installed (its installed list; under SYSTEM without provisioned apps).</summary>
+    public async Task<bool> IsInstalledAsync(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        try
+        {
+            return (await FindByIdAsync(Composite(null, CompositeSearchBehavior.LocalCatalogs), id)).InstalledVersion is not null;
+        }
+        catch (WinGetException)
+        {
+            return false;
+        }
+    }
+
     private static string? Metadata(PackageVersionInfo? version, PackageVersionMetadataField field) =>
         version?.GetMetadata(field) is { Length: > 0 } value ? value : null;
 

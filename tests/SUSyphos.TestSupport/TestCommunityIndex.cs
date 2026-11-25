@@ -4,8 +4,8 @@ using Microsoft.Data.Sqlite;
 
 namespace SUSyphos.TestSupport;
 
-/// <summary>A package of a test index: identifier, name, short name, newest version, tags and product codes.</summary>
-public sealed record TestIndexPackage(string Id, string Name, string LatestVersion, string? Moniker = null, string[]? Tags = null, string[]? ProductCodes = null);
+/// <summary>A package of a test index: identifier, name, short name, newest version, tags, product codes and package family names (MSIX).</summary>
+public sealed record TestIndexPackage(string Id, string Name, string LatestVersion, string? Moniker = null, string[]? Tags = null, string[]? ProductCodes = null, string[]? PackageFamilyNames = null);
 
 /// <summary>
 /// Builds a small index of the WinGet community source with the tables of schema version 2 that SUSyphos reads, so no
@@ -27,6 +27,7 @@ public static class TestCommunityIndex
                 CREATE TABLE tags2(rowid INTEGER PRIMARY KEY, tag TEXT NOT NULL);
                 CREATE TABLE tags2_map(tag INT64 NOT NULL, package INT64 NOT NULL, PRIMARY KEY(tag, package)) WITHOUT ROWID;
                 CREATE TABLE productcodes2(productcode TEXT NOT NULL, package INT64 NOT NULL, PRIMARY KEY(productcode, package)) WITHOUT ROWID;
+                CREATE TABLE pfns2(pfn TEXT NOT NULL, package INT64 NOT NULL, PRIMARY KEY(pfn, package)) WITHOUT ROWID;
                 """);
             Execute(connection, "INSERT INTO metadata VALUES ('majorVersion', $v), ('minorVersion', '1'), ('lastwritetime', '1794163375')", ("$v", majorVersion));
             var row = 0L;
@@ -45,6 +46,11 @@ public static class TestCommunityIndex
                 foreach (var code in package.ProductCodes ?? [])
                 {
                     Execute(connection, "INSERT OR IGNORE INTO productcodes2 VALUES ($c, $r)", ("$c", code.ToLowerInvariant()), ("$r", row));
+                }
+
+                foreach (var familyName in package.PackageFamilyNames ?? [])
+                {
+                    Execute(connection, "INSERT OR IGNORE INTO pfns2 VALUES ($f, $r)", ("$f", familyName.ToLowerInvariant()), ("$r", row));
                 }
             }
         }

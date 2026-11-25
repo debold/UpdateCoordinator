@@ -27,31 +27,17 @@ internal sealed class PowerShellScriptProcess : IScriptProcess
     /// <summary>The full path, so a powershell.exe elsewhere on the PATH is never started.</summary>
     public static string PowerShellPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
 
-    /// <summary>PowerShell 7 as its installer (and the WinGet package Microsoft.PowerShell) puts it.</summary>
-    public static string PowerShell7Path => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
+    /// <summary>
+    /// PowerShell 7 as its MSI puts it (Program Files\PowerShell\7) or, from 7.7 on, as WinGet provisions its MSIX package
+    /// (Program Files\WindowsApps); null when it is not there (<see cref="SUSyphos.Contracts.Scripts.PowerShell7Locator"/>).
+    /// </summary>
+    public static string? PowerShell7Path => SUSyphos.Contracts.Scripts.PowerShell7Locator.FindLocal();
 
     /// <summary>
     /// The version of PowerShell 7 in <paramref name="path"/> ("7.5.4"), reported with the inventory (Marc, 2026-11-22: the
     /// dashboard warns about servers that run PowerShell 7 scripts without it); null when it is not installed or unreadable.
     /// </summary>
-    public static string? PowerShell7Version(string? path = null)
-    {
-        try
-        {
-            var file = path ?? PowerShell7Path;
-            if (!File.Exists(file))
-            {
-                return null;
-            }
-
-            var info = System.Diagnostics.FileVersionInfo.GetVersionInfo(file);
-            return info.FileMajorPart > 0 ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{info.FileMajorPart}.{info.FileMinorPart}.{info.FileBuildPart}") : null;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            return null;
-        }
-    }
+    public static string? PowerShell7Version(string? path = null) => SUSyphos.Contracts.Scripts.PowerShell7Locator.FileVersion(path ?? PowerShell7Path);
 
     public const string WindowsPowerShell = "Windows PowerShell 5.1";
 
@@ -60,9 +46,9 @@ internal sealed class PowerShellScriptProcess : IScriptProcess
     public async Task<ScriptProcessResult> RunAsync(string wrapperPath, string scriptPath, string parametersJson, IReadOnlyDictionary<string, string> environment, TimeSpan timeout, CancellationToken cancellationToken, bool powerShell7 = false)
     {
         ArgumentNullException.ThrowIfNull(environment);
-        // PowerShell 7 only from its fixed folder under Program Files (writable only by administrators), never from the PATH;
+        // PowerShell 7 only from its fixed folders under Program Files (writable only by administrators), never from the PATH;
         // without it the script runs in Windows PowerShell 5.1 (Marc, 2026-11-20).
-        var pwsh = powerShell7 && File.Exists(PowerShell7Path) ? PowerShell7Path : null;
+        var pwsh = powerShell7 ? PowerShell7Path : null;
         var start = new ProcessStartInfo(pwsh ?? PowerShellPath)
         {
             RedirectStandardInput = true,

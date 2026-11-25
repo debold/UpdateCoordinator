@@ -38,10 +38,28 @@ public sealed class SoftwareApplicabilityTests
 
     [Theory]
     [InlineData("{\"InstallerType\":\"exe\",\"ElevationRequirement\":\"elevationProhibited\"}", "administrator")]
-    [InlineData("{\"InstallerType\":\"msix\"}", "MSIX")]
-    [InlineData("{\"InstallerType\":\"msstore\"}", "MSIX")]
+    [InlineData("{\"InstallerType\":\"msstore\"}", "Microsoft Store")]
+    [InlineData("{\"InstallerType\":\"exe\",\"Scope\":\"user\"}", "one user")]
     public void InstallersTheAgentCannotRun_AreNotSupported(string installer, string reason) =>
         Assert.Contains(reason, SoftwareApplicability.WhyNot(Manifest(installer), Server2022), StringComparison.Ordinal);
+
+    [Theory]
+    [InlineData(Server2022)]
+    [InlineData(Server2025)]
+    public void MsixFrom19041_Fits_ForTheMachine(string windows)
+    {
+        Assert.Null(SoftwareApplicability.WhyNot(Manifest("{\"InstallerType\":\"msix\"}"), windows));
+        Assert.Null(SoftwareApplicability.WhyNot(Manifest("{\"InstallerType\":\"msix\",\"Scope\":\"machine\"}"), windows));
+        Assert.Contains("one user", SoftwareApplicability.WhyNot(Manifest("{\"InstallerType\":\"msix\",\"Scope\":\"user\"}"), windows), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MsixBelow19041_IsNotSupported() =>
+        Assert.Contains("10.0.19041", SoftwareApplicability.WhyNot(Manifest("{\"InstallerType\":\"msix\"}"), Server2019), StringComparison.Ordinal);
+
+    [Fact]
+    public void ScopeOfTheManifest_CountsForItsInstallers() =>
+        Assert.Contains("one user", SoftwareApplicability.WhyNot("{\"Scope\":\"user\",\"Installers\":[{\"InstallerType\":\"exe\"}]}", Server2022), StringComparison.Ordinal);
 
     [Fact]
     public void OneFittingInstaller_IsEnough() =>

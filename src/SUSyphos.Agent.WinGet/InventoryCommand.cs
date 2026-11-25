@@ -31,13 +31,35 @@ internal static partial class InventoryCommand
             using var engine = WinGetEngine.Load(engineFolder);
             HelperTrace.EnableVerboseWhenAsked(engine, new HelperTrace(log, null));
             var installed = await new WinGetClient(engine).InstalledAsync().ConfigureAwait(false);
-            return Report(SoftwareInventory.Build(entries, installed), SoftwareSupportState.Supported, null);
+            return Report(await WithProvisionedAsync(SoftwareInventory.Build(entries, installed), log).ConfigureAwait(false), SoftwareSupportState.Supported, null);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // The registry part is still worth reporting; the reason goes to the dashboard, the details to the agent log.
             await log.WriteLineAsync($"WinGet failed: {exception}").ConfigureAwait(false);
-            return Report(SoftwareInventory.FromRegistry(entries), SoftwareSupportState.Failed, $"WinGet failed: {exception.Message}");
+            return Report(await WithProvisionedAsync(SoftwareInventory.FromRegistry(entries), log).ConfigureAwait(false), SoftwareSupportState.Failed, $"WinGet failed: {exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// The inventory with the packaged apps provisioned for the machine, which WinGet does not list under SYSTEM. Reading
+    /// them failing loses nothing else.
+    /// </summary>
+    private static async Task<IReadOnlyList<SoftwareItem>> WithProvisionedAsync(IReadOnlyList<SoftwareItem> items, TextWriter log)
+    {
+        if (!ProvisionedPackages.Supported)
+        {
+            return items;
+        }
+
+        try
+        {
+            return ProvisionedPackages.AddTo(items, ProvisionedPackages.Read());
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            await log.WriteLineAsync($"The provisioned packaged apps could not be read: {exception.Message}").ConfigureAwait(false);
+            return items;
         }
     }
 

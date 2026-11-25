@@ -15,6 +15,7 @@ public sealed class CommunityIndexTests : IDisposable
         new("Notepad++.Notepad++", "Notepad++", "8.9.9", "notepad++", ["editor"]),
         new("Vendor.Shared1", "Shared One", "1.0", ProductCodes: ["{11111111-1111-1111-1111-111111111111}"]),
         new("Vendor.Shared2", "Shared Two", "1.0", ProductCodes: ["{11111111-1111-1111-1111-111111111111}"]),
+        new("Microsoft.PowerShell", "PowerShell", "7.7.0", PackageFamilyNames: ["Microsoft.PowerShell_8wekyb3d8bbwe"]),
         new("Odd.Percent", "100% Tool", "1.0"),
     ];
 
@@ -76,6 +77,16 @@ public sealed class CommunityIndexTests : IDisposable
         Assert.Equal("7zip.7zip", Assert.Single(index.ByProductCode("{23170f69-40c1-2702-2600-000001000000}")).Id);
         Assert.Equal(2, index.ByProductCode("{11111111-1111-1111-1111-111111111111}").Count);
         Assert.Empty(index.ByProductCode("{00000000-0000-0000-0000-000000000000}"));
+    }
+
+    [Fact]
+    public void ByPackageFamilyName_IgnoresCase()
+    {
+        var index = Index();
+
+        Assert.Equal("Microsoft.PowerShell", Assert.Single(index.ByPackageFamilyName("microsoft.powershell_8WEKYB3D8BBWE")).Id);
+        Assert.Empty(index.ByPackageFamilyName("Microsoft.PowerShellPreview_8wekyb3d8bbwe"));
+        Assert.Empty(index.ByPackageFamilyName("%"));
     }
 
     [Fact]

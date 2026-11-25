@@ -4,7 +4,15 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Agent
+
+- **MSIX packages** (Marc, 2026-11-25; rc.8 lab on Windows Server 2025: PowerShell 7.7 and later come only as MSIX): WinGet installs MSIX packages for the machine, i.e. provisioned for all users. Under SYSTEM WinGet does not list provisioned packages, so the agent reports them from Windows (`PackageManager.FindProvisionedPackages`, from Windows 10.0.19041 / Windows Server 2022) with their package family name and version, without frameworks, resource packages and the packages of Windows itself. Uninstalling such a package removes the provisioning and the installation of every user, and fails when the package is still there afterwards.
+- PowerShell 7 for scripts and the inventory: `Program Files\PowerShell\7\pwsh.exe` (MSI) first, otherwise the newest x64 package `Microsoft.PowerShell_*_x64__8wekyb3d8bbwe` under `Program Files\WindowsApps` (MSIX, 7.7 and later); never from the PATH.
+
 ### Central server
+
+- MSIX installers are no longer refused (the Microsoft Store still is): from Windows Server 2022 (10.0.19041) a package with only MSIX installers is installable; on Windows Server 2019 it shows "Not supported" with the reason. Installers for one user only (`Scope: user`) also show "Not supported", because the agent installs for the machine. A provisioned app is matched with its package by the package family name in the index of the community source, right when the inventory arrives and again in the catalog check.
+- The script parser of the central server finds PowerShell 7 in the same two places, and reads its answer as UTF-8 (PowerShell 7 wrote localised messages in the console code page, which broke the check).
 
 - New look in the style of an admin center (Marc, 2026-11-24, mockup https://claude.ai/artifact/3rdFVJ1KoM9NeKmPREhL2K) on every page, the help included: a dark top bar with the mark, a search and icons (**My requests**, **Notifications**, **Settings**, **Help**, **Account** with sign-out), a slim rail of pinned pages with **Hide navigation**, the grouped navigation (Devices, Updates & software, Rollout, Reports, Administration) with **Find a page**, and the content as a white surface on a grey ground. Tiles, pills, action bands (now command bars), lists, tabs and facts keep their behaviour in the new style; everything works without the dashboard script, and the navigation folds away by itself below 1400 pixels.
 - **Search** (`/search`): pages, servers by name or domain, updates by title or KB number, software packages by name or ID, and help topics; a single matching server, update or package opens directly.

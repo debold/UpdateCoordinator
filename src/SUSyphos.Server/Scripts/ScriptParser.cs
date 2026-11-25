@@ -45,8 +45,10 @@ internal sealed partial class PowerShellScriptParser(ILogger<PowerShellScriptPar
 {
     private const string PathVariable = "SUSYPHOS_PARSE_PATH";
 
+    // UTF-8 on standard output: otherwise PowerShell 7 writes the code page of the console, which turns the quotation
+    // marks of localised messages („…“) into '"' and breaks the JSON.
     private const string Command =
-        "$ErrorActionPreference = 'Stop'; $tokens = $null; $errors = $null; " +
+        "$ErrorActionPreference = 'Stop'; [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $tokens = $null; $errors = $null; " +
         "[void][System.Management.Automation.Language.Parser]::ParseFile($env:SUSYPHOS_PARSE_PATH, [ref]$tokens, [ref]$errors); " +
         "ConvertTo-Json -Compress -InputObject @($errors | ForEach-Object { [pscustomobject]@{ line = $_.Extent.StartLineNumber; column = $_.Extent.StartColumnNumber; message = $_.Message } })";
 
@@ -59,12 +61,13 @@ internal sealed partial class PowerShellScriptParser(ILogger<PowerShellScriptPar
 
     public static string WindowsPowerShellPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
 
-    public static string PowerShell7Path => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PowerShell", "7", "pwsh.exe");
+    public static string? PowerShell7Path => SUSyphos.Contracts.Scripts.PowerShell7Locator.FindLocal();
 
     public async Task<ScriptParseResult> ParseAsync(string content, ScriptPowerShell powerShell, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
-        var use7 = powerShell == ScriptPowerShell.PowerShell7 && File.Exists(PowerShell7Path);
+        var pwsh = powerShell == ScriptPowerShell.PowerShell7 ? PowerShell7Path : null;
+        var use7 = pwsh is not null;
         var parser = use7 ? "PowerShell 7" : "Windows PowerShell 5.1";
         var bytes = ScriptSigningFormat.NormalizeContent(content);
         if (bytes.Length > ScriptLimits.MaxContentBytes)
@@ -85,7 +88,7 @@ internal sealed partial class PowerShellScriptParser(ILogger<PowerShellScriptPar
         {
             Directory.CreateDirectory(folder);
             await File.WriteAllBytesAsync(path, bytes, cancellationToken).ConfigureAwait(false);
-            var result = await RunAsync(use7 ? PowerShell7Path : WindowsPowerShellPath, parser, path, cancellationToken).ConfigureAwait(false);
+            var result = await RunAsync(pwsh ?? WindowsPowerShellPath, parser, path, cancellationToken).ConfigureAwait(false);
             if (result.Checked)
             {
                 if (_cache.Count > 200)

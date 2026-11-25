@@ -19,6 +19,8 @@ public sealed class SoftwareCatalogTests : IAsyncDisposable
 {
     private const string ZipCode = "{23170F69-40C1-2702-2600-000001000000}";
 
+    private const string ZipFamily = "SevenZip.Packaged_1a2b3c4d5e6f7";
+
     private readonly ServerFactory _factory = new();
     private readonly FakeSoftwareSource _source;
 
@@ -26,7 +28,7 @@ public sealed class SoftwareCatalogTests : IAsyncDisposable
     {
         _source = new FakeSoftwareSource(Path.Combine(Path.GetTempPath(), "SUSyphos.Tests", "catalog-" + Guid.NewGuid().ToString("N")));
         _source.SetIndex(
-            new TestIndexPackage("7zip.7zip", "7-Zip", "26.06", "7zip", ProductCodes: [ZipCode]),
+            new TestIndexPackage("7zip.7zip", "7-Zip", "26.06", "7zip", ProductCodes: [ZipCode], PackageFamilyNames: [ZipFamily]),
             new TestIndexPackage("Vendor.Shared1", "Shared One", "1.0", ProductCodes: ["{11111111-1111-1111-1111-111111111111}"]),
             new TestIndexPackage("Vendor.Shared2", "Shared Two", "1.0", ProductCodes: ["{11111111-1111-1111-1111-111111111111}"]),
             new TestIndexPackage("Vendor.Licensed", "Licensed Tool", "3.1"));
@@ -116,6 +118,24 @@ public sealed class SoftwareCatalogTests : IAsyncDisposable
         var programs = await _factory.WithDbAsync(db => db.ClientSoftware.Where(s => s.ClientId == client).ToListAsync(TestContext.Current.CancellationToken));
         var zip = programs.Single(p => p.PackageId != null);
         Assert.Equal(("7zip.7zip", "26.06", SoftwareMatch.Catalog), (zip.PackageId, zip.InstalledVersion, zip.MatchKind));
+        Assert.Equal(2, programs.Count(p => p.PackageId is null));
+    }
+
+    [Fact]
+    public async Task ProvisionedPackagedApp_IsMatchedByItsPackageFamilyName_OnlyAsPackagedApp()
+    {
+        var packaged = Program(ZipFamily.ToUpperInvariant(), version: "26.6.0.0");
+        packaged.View = SoftwareView.Msix;
+        var unknown = Program("Other.App_8wekyb3d8bbwe", version: "1.0.0.0");
+        unknown.View = SoftwareView.Msix;
+        var client = await AddServerWithSoftwareAsync(packaged, unknown, Program(ZipFamily));
+
+        var (matched, added, _) = await WithCatalogAsync(c => c.MatchInventoryAsync(CancellationToken.None));
+
+        Assert.Equal((1, 1), (matched, added));
+        var programs = await _factory.WithDbAsync(db => db.ClientSoftware.Where(s => s.ClientId == client).ToListAsync(TestContext.Current.CancellationToken));
+        var zip = programs.Single(p => p.PackageId != null);
+        Assert.Equal((SoftwareView.Msix, "7zip.7zip", "26.6.0.0", SoftwareMatch.Catalog), (zip.View, zip.PackageId, zip.InstalledVersion, zip.MatchKind));
         Assert.Equal(2, programs.Count(p => p.PackageId is null));
     }
 

@@ -164,6 +164,19 @@ public sealed class CommunityIndex
             ("$code", productCode.Trim()));
     }
 
+    /// <summary>Packages one of whose MSIX installers has this package family name; usually one.</summary>
+    public IReadOnlyList<IndexPackage> ByPackageFamilyName(string familyName)
+    {
+        ArgumentNullException.ThrowIfNull(familyName);
+        return Query(
+            """
+            SELECT DISTINCT p.id, p.name, p.moniker, p.latest_version FROM pfns2 f JOIN packages p ON p.rowid = f.package
+            WHERE f.pfn = $name COLLATE NOCASE
+            LIMIT 10
+            """,
+            ("$name", familyName.Trim()));
+    }
+
     /// <summary>LIKE wildcards and the escape character itself taken literally.</summary>
     private static string Escape(string value) => value.Replace(@"\", @"\\", StringComparison.Ordinal).Replace("%", @"\%", StringComparison.Ordinal).Replace("_", @"\_", StringComparison.Ordinal);
 

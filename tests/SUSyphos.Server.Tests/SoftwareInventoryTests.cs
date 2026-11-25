@@ -129,6 +129,36 @@ public sealed class SoftwareInventoryTests(ServerFactory factory) : IClassFixtur
         db.ClientSoftware.Where(s => s.ClientId == clientId).ExecuteUpdateAsync(s => s
             .SetProperty(e => e.PackageId, "7zip.7zip").SetProperty(e => e.InstalledVersion, version).SetProperty(e => e.MatchKind, kind), TestContext.Current.CancellationToken));
 
+    /// <summary>A server whose community source has an index with a packaged app.</summary>
+    private sealed class IndexedFactory(FakeSoftwareSource source) : ServerFactory
+    {
+        protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            Microsoft.AspNetCore.TestHost.WebHostBuilderExtensions.ConfigureTestServices(builder, services => Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<SUSyphos.Server.Software.ISoftwareSource>(services, source));
+        }
+    }
+
+    [Fact]
+    public async Task ProvisionedPackagedApp_IsMatchedWithTheInventory_ByItsPackageFamilyName()
+    {
+        using var source = new FakeSoftwareSource(Path.Combine(Path.GetTempPath(), "SUSyphos.Tests", "msix-" + Guid.NewGuid().ToString("N")));
+        source.SetIndex(new TestIndexPackage("Microsoft.PowerShell", "PowerShell", "7.7.0", PackageFamilyNames: ["Microsoft.PowerShell_8wekyb3d8bbwe"]));
+        await using var indexed = new IndexedFactory(source);
+        using var client = indexed.CreateClient();
+        var credentials = await RegisterTests.RegisterAsync(client);
+        var pwsh = new InstalledSoftware { View = SoftwareView.Msix, KeyName = "Microsoft.PowerShell_8wekyb3d8bbwe", DisplayName = "PowerShell", DisplayVersion = "7.7.0.0" };
+
+        await InventoryTests.SendAsync(client, credentials, WithSoftware(SoftwareSupportState.Supported, null,
+            pwsh,
+            pwsh with { KeyName = "Other.App_8wekyb3d8bbwe", DisplayName = "Other" },
+            pwsh with { View = SoftwareView.Machine64, KeyName = "Microsoft.PowerShell_8wekyb3d8bbwe-copy" }));
+
+        var stored = await indexed.WithDbAsync(db => db.ClientSoftware.Where(s => s.ClientId == credentials.ClientId).ToListAsync(TestContext.Current.CancellationToken));
+        var matched = Assert.Single(stored, s => s.PackageId != null);
+        Assert.Equal((SoftwareView.Msix, "Microsoft.PowerShell", "7.7.0.0", SoftwareMatch.Catalog), (matched.View, matched.PackageId, matched.InstalledVersion, matched.MatchKind));
+    }
+
     [Fact]
     public async Task SameKeyTwice_IsStoredOnce()
     {

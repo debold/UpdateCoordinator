@@ -12,7 +12,10 @@ namespace SUSyphos.Server.Software;
 /// "Portable Install" filter; Windows Server 2016 and 2019),</item>
 /// <item><c>ElevationRequirement: elevationProhibited</c>: the installer refuses administrator rights, and the agent
 /// installs as SYSTEM,</item>
-/// <item>only MSIX or Microsoft Store installers, which the agent does not install as SYSTEM.</item>
+/// <item>Microsoft Store installers, which the agent does not install as SYSTEM,</item>
+/// <item>MSIX installers below Windows 10.0.19041: the agent installs them for all users of the machine (provisioned)
+/// and finds them again only with the provisioned list of Windows, which exists from 10.0.19041 on (Windows Server 2022),</item>
+/// <item>installers for one user only (<c>Scope: user</c>): the agent installs for the machine.</item>
 /// </list>
 /// A version fits when one of its installers fits; the reason names the first installer's problem.
 /// </summary>
@@ -20,6 +23,9 @@ public static class SoftwareApplicability
 {
     /// <summary>First Windows build that allows portable packages (WinGet: unvirtualized resources, 10.0.18362).</summary>
     public static readonly Version PortableMinimum = new(10, 0, 18362);
+
+    /// <summary>First Windows build with the provisioned list of packaged apps (PackageManager.FindProvisionedPackages).</summary>
+    public static readonly Version PackagedAppMinimum = new(10, 0, 19041);
 
     /// <summary>
     /// Null when the version can be installed on a server with <paramref name="osVersion"/>, else why not (one sentence).
@@ -32,10 +38,10 @@ public static class SoftwareApplicability
             return null;
         }
 
-        JsonArray? installers;
+        JsonObject? manifest;
         try
         {
-            installers = (JsonNode.Parse(manifestJson) as JsonObject)?["Installers"] as JsonArray;
+            manifest = JsonNode.Parse(manifestJson) as JsonObject;
         }
         catch (System.Text.Json.JsonException)
         {
@@ -43,9 +49,9 @@ public static class SoftwareApplicability
         }
 
         string? first = null;
-        foreach (var installer in installers?.OfType<JsonObject>() ?? [])
+        foreach (var installer in (manifest?["Installers"] as JsonArray)?.OfType<JsonObject>() ?? [])
         {
-            var reason = WhyNot(installer, windows);
+            var reason = WhyNot(installer, manifest!, windows);
             if (reason is null)
             {
                 return null;
@@ -57,7 +63,7 @@ public static class SoftwareApplicability
         return first;
     }
 
-    private static string? WhyNot(JsonObject installer, Version windows)
+    private static string? WhyNot(JsonObject installer, JsonObject manifest, Version windows)
     {
         var type = Text(installer, "InstallerType");
         var effective = type is "zip" ? Text(installer, "NestedInstallerType") ?? type : type;
@@ -76,9 +82,19 @@ public static class SoftwareApplicability
             return "The installer refuses administrator rights, and the agent installs as SYSTEM.";
         }
 
-        if (effective is "msix" or "appx" or "msstore")
+        if (effective is "msstore")
         {
-            return "The package has only MSIX or Microsoft Store installers, which the agent does not install as SYSTEM.";
+            return "The package comes only from the Microsoft Store, which the agent does not install from as SYSTEM.";
+        }
+
+        if (effective is "msix" or "appx" && windows < PackagedAppMinimum)
+        {
+            return $"SUSyphos installs MSIX packages for all users from Windows {Short(PackagedAppMinimum)} on (Windows Server 2022); this server runs {Short(windows)}.";
+        }
+
+        if ((Text(installer, "Scope") ?? Text(manifest, "Scope")) is "user")
+        {
+            return "The installer installs only for one user, and the agent installs for the machine.";
         }
 
         return null;
