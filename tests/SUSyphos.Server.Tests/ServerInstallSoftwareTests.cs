@@ -1,5 +1,7 @@
 using System.Net;
 
+using Microsoft.EntityFrameworkCore;
+
 using SUSyphos.Server.Administration;
 using SUSyphos.Server.Data;
 using SUSyphos.TestSupport;
@@ -49,5 +51,53 @@ public sealed class ServerInstallSoftwareTests
         // The search narrows the catalog before it is paged.
         var search = WebUtility.HtmlDecode(await (await admin.GetAsync($"/servers/{server.ClientId}?tab=software&dialog=install-software&swq=tool%2003")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         Assert.Equal(1, search.Split("name=\"InstallPackage\"").Length - 1);
+    }
+
+    [Fact]
+    public async Task AssignmentToThisServer_IsRemovedFromTheServerPage_OthersOnlyOnThePackagePage()
+    {
+        await using var scenario = await RolloutScenario.CreateAsync();
+        var server = await scenario.AddClientAsync("SRV01", RingEntity.PilotId);
+        var other = await scenario.AddClientAsync("SRV02", RingEntity.PilotId);
+        var (own, foreign) = await scenario.Factory.WithDbAsync(async db =>
+        {
+            db.Packages.Add(new PackageEntity { PackageId = "Vendor.Own", Name = "Own tool", AddedBy = "admin" });
+            db.Packages.Add(new PackageEntity { PackageId = "Vendor.All", Name = "Tool for all", AddedBy = "admin" });
+            var mine = db.PackageAssignments.Add(new PackageAssignmentEntity { PackageId = "Vendor.Own", TargetKind = PackageAssignmentTarget.Server, ClientId = server.ClientId, Mode = PackageAssignmentMode.Install, CreatedBy = "admin" }).Entity;
+            db.PackageAssignments.Add(new PackageAssignmentEntity { PackageId = "Vendor.All", TargetKind = PackageAssignmentTarget.AllServers, Mode = PackageAssignmentMode.Install, CreatedBy = "admin" });
+            var theirs = db.PackageAssignments.Add(new PackageAssignmentEntity { PackageId = "Vendor.Own", TargetKind = PackageAssignmentTarget.Server, ClientId = other.ClientId, Mode = PackageAssignmentMode.Install, CreatedBy = "admin" }).Entity;
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            return (mine.Id, theirs.Id);
+        });
+        await scenario.Factory.CreateUserAsync("admin", Password, AdminRoles.Admin);
+        using var admin = new DashboardClient(scenario.Factory);
+        using (await admin.LoginAsync("admin", Password))
+        {
+        }
+
+        var page = WebUtility.HtmlDecode(await (await admin.GetAsync($"/servers/{server.ClientId}?tab=software")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains($"name=\"assignment\" value=\"{own}\"", page, StringComparison.Ordinal);
+        Assert.Contains("title=\"Assigned to all servers: remove it on the package page\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"unassign\"", page, StringComparison.Ordinal);
+
+        var dialog = WebUtility.HtmlDecode(await (await admin.GetAsync($"/servers/{server.ClientId}?tab=software&dialog=unassign&assignment={own}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("Remove assignment?", dialog, StringComparison.Ordinal);
+        Assert.Contains("SRV01 no longer gets Own tool as a new installation.", dialog, StringComparison.Ordinal);
+        Assert.Contains("Keep installed", dialog, StringComparison.Ordinal);
+
+        // Another server's assignment is neither shown nor removed through this page.
+        Assert.DoesNotContain("Remove assignment?", await (await admin.GetAsync($"/servers/{server.ClientId}?tab=software&dialog=unassign&assignment={foreign}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        using (await admin.PostFormAsync($"/servers/{server.ClientId}?tab=software&dialog=unassign&assignment={own}", new Dictionary<string, string> { ["_handler"] = "server-unassign", ["UnassignId"] = foreign.ToString(System.Globalization.CultureInfo.InvariantCulture), ["UnassignUninstall"] = "keep" }))
+        {
+        }
+
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.PackageAssignments.AnyAsync(a => a.Id == foreign, TestContext.Current.CancellationToken)));
+
+        using (await admin.PostFormAsync($"/servers/{server.ClientId}?tab=software&dialog=unassign&assignment={own}", new Dictionary<string, string> { ["_handler"] = "server-unassign", ["UnassignId"] = own.ToString(System.Globalization.CultureInfo.InvariantCulture), ["UnassignUninstall"] = "keep" }))
+        {
+        }
+
+        Assert.False(await scenario.Factory.WithDbAsync(db => db.PackageAssignments.AnyAsync(a => a.Id == own, TestContext.Current.CancellationToken)));
+        Assert.True(await scenario.Factory.WithDbAsync(db => db.AuditEntries.AnyAsync(a => a.Action == "Package.AssignmentRemoved", TestContext.Current.CancellationToken)));
     }
 }

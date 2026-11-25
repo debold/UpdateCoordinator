@@ -324,12 +324,7 @@ else if (_package is not null && Dialog == "unassign" && _assignments.FirstOrDef
             <input type="hidden" name="AssignmentId" value="@doomed.Id" />
             <div class="dialog-body">
                 <p>@TargetName(doomed) no longer gets @_package.Name as a new installation.</p>
-                <fieldset class="choices">
-                    <legend>On the servers</legend>
-                    <label class="choice"><input type="radio" name="UnassignUninstall" value="keep" checked="@(!doomed.UninstallOnRemoval)" data-help-term="Keep installed" /> <span><b>Keep installed</b><span class="note">Where it is installed it stays and keeps getting new versions.</span></span></label>
-                    <label class="choice"><input type="radio" name="UnassignUninstall" value="uninstall" checked="@doomed.UninstallOnRemoval" data-help-term="Uninstall in the next software window" /> <span><b>Uninstall in the next software window</b><span class="note">@(_removalPreview is { } preview ? $"{DisplayNumber.Count(preview.Uninstall, "server", "servers")} uninstall it{(preview.KeptByOther > 0 ? $"; {DisplayNumber.Count(preview.KeptByOther, "more keeps", "more keep")} it through another assignment" : string.Empty)}." : null)</span></span></label>
-                    <p class="note">Preselected as chosen when the assignment was created (uninstall when removed: @(doomed.UninstallOnRemoval ? "yes" : "no")).</p>
-                </fieldset>
+                <UnassignChoices UninstallOnRemoval="doomed.UninstallOnRemoval" Uninstall="_removalPreview?.Uninstall" KeptByOther="@(_removalPreview?.KeptByOther ?? 0)" />
             </div>
             <div class="dialog-foot"><a class="btn" href="@PackagePage.Link(PackageId)">Cancel</a><button type="submit" class="danger">Remove assignment</button></div>
         </form>

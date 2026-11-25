@@ -1,0 +1,23 @@
+@* The choice of the dialog "Remove assignment?" on the package page and the server page (Marc, 2026-11-23: the same
+   dialog in both places): keep the package installed or uninstall it, preselected as chosen when the assignment was
+   created. The radio buttons post as UnassignUninstall ("keep" or "uninstall"). *@
+<fieldset class="choices">
+    <legend>On the servers</legend>
+    <label class="choice"><input type="radio" name="UnassignUninstall" value="keep" checked="@(!UninstallOnRemoval)" data-help-term="Keep installed" /> <span><b>Keep installed</b><span class="note">Where it is installed it stays and keeps getting new versions.</span></span></label>
+    <label class="choice"><input type="radio" name="UnassignUninstall" value="uninstall" checked="@UninstallOnRemoval" data-help-term="Uninstall in the next software window" /> <span><b>Uninstall in the next software window</b><span class="note">@(Uninstall is { } uninstall ? $"{DisplayNumber.Count(uninstall, "server", "servers")} uninstall it{(KeptByOther > 0 ? $"; {DisplayNumber.Count(KeptByOther, "more keeps", "more keep")} it through another assignment" : string.Empty)}." : null)</span></span></label>
+    <p class="note">Preselected as chosen when the assignment was created (uninstall when removed: @(UninstallOnRemoval ? "yes" : "no")).</p>
+</fieldset>
+
+@code {
+    /// <summary>What the assignment chose when it was created; preselects the choice.</summary>
+    [Parameter]
+    public bool UninstallOnRemoval { get; set; }
+
+    /// <summary>How many servers uninstall the package; null when not known.</summary>
+    [Parameter]
+    public int? Uninstall { get; set; }
+
+    /// <summary>How many servers keep it through another assignment.</summary>
+    [Parameter]
+    public int KeptByOther { get; set; }
+}

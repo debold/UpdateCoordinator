@@ -322,13 +322,28 @@ else
     @if (_assignedWaiting.Count > 0)
     {
         <Box Title="Assigned, not installed yet" Anchor="assigned" Help="server-detail#assigned" Flush="true" Hint="Packages assigned to this server, one of its groups or all servers; installed when the version is released for its ring">
+            @* Remove assignment (Marc, 2026-11-23): the same dialog as on the package page, for assignments to this server;
+               an assignment to a group or all servers is removed on the package page. *@
+            @if (_canAdminister)
+            {
+                <form id="assigned-select" method="get" action="/servers/@Id" class="detached"><input type="hidden" name="tab" value="software" /></form>
+                <div class="selection-bar" data-selection="assignment">
+                    <span class="note" data-selection-count>Select an assignment to this server, then</span>
+                    <div class="spacer"></div>
+                    <button type="submit" form="assigned-select" name="dialog" value="unassign" class="danger" data-single data-help-term="Remove assignment"><Icon Name="trash-2" Size="16" />Remove assignment…</button>
+                </div>
+            }
             <div class="scroll">
                 <table>
-                    <thead><tr><th>Package</th><th>Version</th><th>Assigned to</th><th>State</th></tr></thead>
+                    <thead><tr>@if (_canAdminister) { <th class="select"><span class="visually-hidden">Select</span></th> }<th>Package</th><th>Version</th><th>Assigned to</th><th>State</th></tr></thead>
                     <tbody>
                         @foreach (var waiting in _assignedWaiting)
                         {
                             <tr>
+                                @if (_canAdminister)
+                                {
+                                    <td class="select">@if (waiting.AssignmentId is { } assignmentId) { <input type="checkbox" form="assigned-select" name="assignment" value="@assignmentId" aria-label="@($"Select {waiting.Name}")" data-help-term="Select" /> } else { <input type="checkbox" disabled title="@($"Assigned to {waiting.Via}: remove it on the package page")" aria-label="@($"{waiting.Name} is assigned to {waiting.Via}")" /> }</td>
+                                }
                                 <td class="wrap"><a href="@PackagePage.Link(waiting.PackageId)">@waiting.Name</a><div class="note mono">@waiting.PackageId</div></td>
                                 <td class="nowrap">@(waiting.Version ?? "newest released")</td>
                                 <td>@waiting.Via</td>
@@ -760,6 +775,20 @@ else
                     <p class="note">A global pause holds the installation until it ends; in a coordinated group the agent waits for a free slot. A local veto (registry value AllowReboot) prevents the restart.</p>
                 </div>
                 <div class="dialog-foot"><a class="btn" href="@Here">Cancel</a><button type="submit" name="InstallRestart" value="window" disabled="@(released.Count == 0)">Install, restart in the next window</button><button type="submit" name="InstallRestart" value="now" class="danger" disabled="@(released.Count == 0)">Install and restart right after</button></div>
+            </form>
+        </Dialog>
+    }
+    else if (Dialog == "unassign" && _canAdminister && _unassign is { } doomed)
+    {
+        <Dialog Title="Remove assignment?" CloseHref="@ServerPage.Link(Id, "software")" Help="server-detail#assigned">
+            <form method="post" @formname="server-unassign" @onsubmit="UnassignAsync">
+                <AntiforgeryToken />
+                <input type="hidden" name="UnassignId" value="@doomed.Id" />
+                <div class="dialog-body">
+                    <p>@_client.HostName no longer gets @(_assignedWaiting.FirstOrDefault(w => w.AssignmentId == doomed.Id)?.Name ?? doomed.PackageId) as a new installation.</p>
+                    <UnassignChoices UninstallOnRemoval="doomed.UninstallOnRemoval" Uninstall="_unassignPreview?.Uninstall" KeptByOther="@(_unassignPreview?.KeptByOther ?? 0)" />
+                </div>
+                <div class="dialog-foot"><a class="btn" href="@ServerPage.Link(Id, "software")">Cancel</a><button type="submit" class="danger">Remove assignment</button></div>
             </form>
         </Dialog>
     }
@@ -1471,6 +1500,35 @@ else
     [SupplyParameterFromQuery(Name = "swq")]
     private string? SoftwareQuery { get; set; }
 
+    [SupplyParameterFromQuery(Name = "assignment")]
+    private int? UnassignQuery { get; set; }
+
+    [SupplyParameterFromForm(FormName = "server-unassign")]
+    private int? UnassignId { get; set; }
+
+    [SupplyParameterFromForm(FormName = "server-unassign")]
+    private string? UnassignUninstall { get; set; }
+
+    /// <summary>The assignment of the dialog "Remove assignment?": only one to this server itself.</summary>
+    private PackageAssignmentEntity? _unassign;
+    private SUSyphos.Server.Software.SoftwareAssignments.RemovalPreview? _unassignPreview;
+
+    /// <summary>Loads the assignment the dialog removes; an assignment to a group, all servers or another server is refused.</summary>
+    private async Task<PackageAssignmentEntity?> OwnAssignmentAsync(int? id) => id is { } assignmentId
+        ? await Db.PackageAssignments.AsNoTracking().FirstOrDefaultAsync(a => a.Id == assignmentId && a.ClientId == Id && a.TargetKind == PackageAssignmentTarget.Server)
+        : null;
+
+    /// <summary>Removes an assignment of a package to this server (administrators), keeping or uninstalling the package.</summary>
+    private async Task UnassignAsync()
+    {
+        var outcome = !await IsAuthorizedAsync(AdminRoles.Policies.Administer) ? new Outcome("Only administrators remove assignments.")
+            : await OwnAssignmentAsync(UnassignId) is { } own ? await Assignments.RemoveAsync(own.Id, await GetActorAsync(), CancellationToken.None, UnassignUninstall switch { "uninstall" => true, "keep" => false, _ => null })
+            : new Outcome("Only an assignment to this server can be removed here; remove the others on the package page.");
+        ShowResultAndReload(outcome.Error, "The assignment was removed.");
+        Dialog = null;
+        await LoadAsync();
+    }
+
     [SupplyParameterFromForm(FormName = "install-software")]
     private string[]? InstallPackage { get; set; }
 
@@ -1484,7 +1542,7 @@ else
     private sealed record CatalogChoice(string PackageId, string Name, string? Newest, string? Reason);
 
     /// <summary>An assignment covering this server whose package is not installed yet.</summary>
-    private sealed record AssignedWaiting(string PackageId, string Name, string? Version, string Via, string? Reason);
+    private sealed record AssignedWaiting(string PackageId, string Name, string? Version, string Via, string? Reason, int? AssignmentId = null);
 
     private const int MaxCatalogChoices = 25;
 
@@ -1578,9 +1636,12 @@ else
             {
                 var a = g.OrderBy(x => x.TargetKind == PackageAssignmentTarget.Server ? 0 : x.TargetKind == PackageAssignmentTarget.Group ? 1 : 2).First();
                 var via = a.TargetKind == PackageAssignmentTarget.AllServers ? "all servers" : a.GroupId is { } group ? $"group {_groups.FirstOrDefault(x => x.Id == group)?.Name}" : "this server";
-                return new AssignedWaiting(a.PackageId, names.GetValueOrDefault(a.PackageId) ?? a.PackageId, a.FixedVersion, via, reasons.GetValueOrDefault(a.PackageId));
+                return new AssignedWaiting(a.PackageId, names.GetValueOrDefault(a.PackageId) ?? a.PackageId, a.FixedVersion, via, reasons.GetValueOrDefault(a.PackageId), a.TargetKind == PackageAssignmentTarget.Server && a.ClientId == Id ? a.Id : null);
             })
             .OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase)];
+
+        _unassign = Dialog == "unassign" ? await OwnAssignmentAsync(UnassignQuery) : null;
+        _unassignPreview = _unassign is { } doomed ? await Assignments.PreviewRemovalAsync(doomed.Id, CancellationToken.None) : null;
 
         if (Dialog != "install-software")
         {
