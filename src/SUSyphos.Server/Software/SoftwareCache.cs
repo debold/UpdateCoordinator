@@ -155,7 +155,8 @@ internal sealed partial class SoftwareCacheService(
     AuditLog audit,
     IOptions<SoftwareOptions> options,
     TimeProvider timeProvider,
-    ILogger<SoftwareCacheService> logger)
+    ILogger<SoftwareCacheService> logger,
+    SoftwareCacheProgress? progress = null)
 {
     /// <summary>
     /// "Scan again" on the package page (administrators, Marc 2026-11-22): forgets the scan result of a version that was
@@ -215,9 +216,14 @@ internal sealed partial class SoftwareCacheService(
             }
             catch (Exception exception) when (exception is HttpRequestException or InvalidDataException or IOException or ArgumentException or TaskCanceledException or UnauthorizedAccessException)
             {
-                // Tried again with the next run; nothing is offered.
+                // Tried again with the next run; nothing is offered. The time is the last attempt the update page shows.
                 version.ScanDetail = Truncate($"Download failed: {exception.Message}");
+                version.ScannedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
                 LogDownloadFailed(version.PackageId, version.Version, exception.Message);
+            }
+            finally
+            {
+                progress?.Done(version.PackageId, version.Version);
             }
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -249,7 +255,8 @@ internal sealed partial class SoftwareCacheService(
     private async Task<bool> CacheAsync(PackageVersionEntity version, bool keepX86, CancellationToken cancellationToken)
     {
         var staging = PackageCache.Open(Path.Combine(options.Value.Directory, "staging"), [], verifyFiles: false);
-        var cached = await source.CacheInstallersAsync(staging, version.PackageId, version.Version, keepX86, cancellationToken).ConfigureAwait(false);
+        progress?.Downloading(version.PackageId, version.Version);
+        var cached = await source.CacheInstallersAsync(staging, version.PackageId, version.Version, keepX86, cancellationToken, (bytes, total) => progress?.Received(version.PackageId, version.Version, bytes, total)).ConfigureAwait(false);
         if (keepX86)
         {
             served.X86Checked(version.PackageId, version.Version, set: true);
@@ -261,6 +268,7 @@ internal sealed partial class SoftwareCacheService(
         var (state, detail) = (InstallerScanState.NotScanned, (string?)null);
         if (mode != ScanMode.Off)
         {
+            progress?.Scanning(version.PackageId, version.Version);
             (state, detail) = Scan(files.Select(f => Path.Combine(staging.FilesFolder, f)));
             version.ScannedAtUtc = now;
         }
@@ -377,7 +385,7 @@ internal sealed partial class SoftwareCacheService(
 internal sealed partial class SoftwareCacheWorker(
     IServiceScopeFactory scopes,
     IOptionsMonitor<SoftwareOptions> options,
-    TimeProvider timeProvider,
+    SoftwareCacheProgress progress,
     ILogger<SoftwareCacheWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -386,7 +394,8 @@ internal sealed partial class SoftwareCacheWorker(
         {
             try
             {
-                await Task.Delay(options.CurrentValue.CacheInterval, timeProvider, stoppingToken).ConfigureAwait(false);
+                // "Check now" on the update page ends the wait early.
+                await progress.WaitAsync(options.CurrentValue.CacheInterval, stoppingToken).ConfigureAwait(false);
                 if (options.CurrentValue.CheckEnabled)
                 {
                     await using var scope = scopes.CreateAsyncScope();

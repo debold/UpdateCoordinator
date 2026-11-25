@@ -152,6 +152,12 @@ public sealed partial class CommunityManifests(HttpClient http)
     /// <summary>Interval of the progress lines.</summary>
     public TimeSpan ProgressInterval { get; init; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>Receives the bytes received and the size, when the server names it, of the installer being downloaded, every few seconds.</summary>
+    public Action<long, long?>? Progress { get; init; }
+
+    /// <summary>Interval of <see cref="Progress"/>.</summary>
+    public TimeSpan ProgressReportInterval { get; init; } = TimeSpan.FromSeconds(2);
+
     /// <summary>
     /// Downloads one installer: retries a connection that stalls or a server error (mirrors of download sites hang now
     /// and then), not a refusal (4xx) and not a file with another SHA-256.
@@ -204,12 +210,20 @@ public sealed partial class CommunityManifests(HttpClient http)
                 var buffer = new byte[81920];
                 long received = 0;
                 var lastProgress = DateTime.UtcNow;
+                var lastReport = DateTime.UtcNow;
+                Progress?.Invoke(0, total);
                 int read;
                 while ((read = await body.ReadAsync(buffer, stall.Token)) > 0)
                 {
                     stall.CancelAfter(StallTimeout);
                     await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                     received += read;
+                    if (Progress is not null && DateTime.UtcNow - lastReport >= ProgressReportInterval)
+                    {
+                        lastReport = DateTime.UtcNow;
+                        Progress(received, total);
+                    }
+
                     if (DateTime.UtcNow - lastProgress >= ProgressInterval)
                     {
                         lastProgress = DateTime.UtcNow;

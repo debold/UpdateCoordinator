@@ -62,7 +62,8 @@ internal interface ISoftwareSource
     /// <param name="version">Package version.</param>
     /// <param name="keepX86">Also the x86 installers where x64 ones exist, for servers with the 32-bit program.</param>
     /// <param name="cancellationToken">Stops downloads.</param>
-    Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, bool keepX86, CancellationToken cancellationToken);
+    /// <param name="progress">Receives the bytes received and the size of the installer being downloaded.</param>
+    Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, bool keepX86, CancellationToken cancellationToken, Action<long, long?>? progress = null);
 }
 
 /// <summary>
@@ -152,8 +153,8 @@ internal sealed partial class CommunitySoftwareSource(HttpClient http, IOptions<
     public Task<CachedVersion> ReadManifestAsync(string packageId, string version, CancellationToken cancellationToken) =>
         new CommunityManifests(http).ReadAsync(packageId, version, cancellationToken: cancellationToken);
 
-    public Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, bool keepX86, CancellationToken cancellationToken) =>
-        new CommunityManifests(http).CacheAsync(cache, packageId, version, line => LogDownload(line), keepX86, cancellationToken);
+    public Task<CachedVersion> CacheInstallersAsync(PackageCache cache, string packageId, string version, bool keepX86, CancellationToken cancellationToken, Action<long, long?>? progress = null) =>
+        new CommunityManifests(http) { Progress = progress }.CacheAsync(cache, packageId, version, line => LogDownload(line), keepX86, cancellationToken);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "WinGet source: {Line}")]
     private partial void LogDownload(string line);

@@ -789,6 +789,7 @@ details.menu.align-right .menu-pop { left: auto; right: 0; }
 .banner.queue { background: var(--queue-soft); border-color: var(--queue); }
 .banner.wait { background: var(--wait-soft); border-color: var(--wait); }
 .banner.pend { background: var(--pend-soft); border-color: var(--pend); }
+.banner-text { flex: 1 1 20rem; min-width: 0; }
 .banner-action { margin-left: auto; display: inline-flex; gap: 0.5rem; }
 .banner-action form { display: contents; }
 

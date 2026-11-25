@@ -89,6 +89,75 @@ public sealed class SoftwareReleaseTests
     }
 
     [Fact]
+    public async Task VersionBeingCached_ShowsTheStep_AndAdministratorsCanStartTheCache()
+    {
+        // Marc, 2026-11-23: the banner said nothing about what the cache was doing.
+        await using var scenario = await RolloutScenario.CreateAsync();
+        await AddServerWithZipAsync(scenario, "OLD01", "26.05");
+        await StartRolloutAsync(scenario);
+        await scenario.Factory.WithDbAsync(db => db.PackageVersions.Where(v => v.UpdateId == NewZip).ExecuteUpdateAsync(s => s.SetProperty(v => v.CachedAtUtc, (DateTime?)null).SetProperty(v => v.ScanState, InstallerScanState.NotScanned), TestContext.Current.CancellationToken));
+        var progress = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<SUSyphos.Server.Software.SoftwareCacheProgress>(scenario.Factory.Services);
+        var version = await scenario.Factory.WithDbAsync(db => db.PackageVersions.SingleAsync(v => v.UpdateId == NewZip, TestContext.Current.CancellationToken));
+        await scenario.Factory.CreateUserAsync("admin", "correct horse battery", SUSyphos.Server.Administration.AdminRoles.Admin);
+        await scenario.Factory.CreateUserAsync("reader", "correct horse battery", SUSyphos.Server.Administration.AdminRoles.Reader);
+        using var admin = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await admin.LoginAsync("admin", "correct horse battery"))
+        {
+        }
+
+        using var reader = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", "correct horse battery"))
+        {
+        }
+
+        var waiting = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync($"/updates/{NewZip:D}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains("waits for the next run of the installer cache", waiting, StringComparison.Ordinal);
+        Assert.Contains("value=\"check-now\"", waiting, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open package", waiting, StringComparison.Ordinal);
+        Assert.Contains("susyphos-refresh", waiting, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"check-now\"", await (await reader.GetAsync($"/updates/{NewZip:D}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+
+        progress.Downloading(version.PackageId, version.Version);
+        progress.Received(version.PackageId, version.Version, 1_048_576, 2_097_152);
+        var downloading = System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync($"/updates/{NewZip:D}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Contains(": 1.0 of 2.0 MB", downloading, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"check-now\"", downloading, StringComparison.Ordinal);
+
+        progress.Scanning(version.PackageId, version.Version);
+        Assert.Contains("is being scanned for viruses since", System.Net.WebUtility.HtmlDecode(await (await admin.GetAsync($"/updates/{NewZip:D}/1")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken)), StringComparison.Ordinal);
+        progress.Done(version.PackageId, version.Version);
+    }
+
+    [Fact]
+    public void FailedDownload_IsExplainedWithItsReason()
+    {
+        var version = new PackageVersionEntity { PackageId = "7zip.7zip", Version = "26.06", ScanState = InstallerScanState.NotScanned, ScanDetail = "Download failed: example.com answered 404." };
+
+        Assert.Contains("The last attempt to download the installer failed (Download failed: example.com answered 404.)", SUSyphos.Server.Software.SoftwareSource.Explain(version), StringComparison.Ordinal);
+        Assert.Equal("the download of the installer failed, it is tried again", SUSyphos.Server.Software.SoftwareSource.NotOfferedReason(version));
+    }
+
+    [Fact]
+    public async Task CheckNow_EndsTheWaitOfTheCache()
+    {
+        var time = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(DateTimeOffset.UtcNow);
+        using var progress = new SUSyphos.Server.Software.SoftwareCacheProgress(time);
+        var wait = progress.WaitAsync(TimeSpan.FromMinutes(5), TestContext.Current.CancellationToken);
+        Assert.False(wait.IsCompleted);
+        Assert.Equal(time.GetUtcNow().UtcDateTime.AddMinutes(5), progress.NextRunUtc);
+
+        progress.RequestRun();
+        await wait.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        // Without a new request the next wait lasts its interval.
+        var next = progress.WaitAsync(TimeSpan.FromMinutes(5), TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.False(next.IsCompleted);
+        time.Advance(TimeSpan.FromMinutes(5));
+        await next.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task VersionWithAFailedScan_SaysWhyTheServersWait()
     {
         // Lab, Marc 2026-11-20: released to every ring, the servers stayed "queued" without a word while the scan failed.

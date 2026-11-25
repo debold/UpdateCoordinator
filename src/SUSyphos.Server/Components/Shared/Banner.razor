@@ -3,11 +3,12 @@
    right; at most two per page, the more severe first. *@
 <div class="banner @Severity help-scope" role="status">
     <span class="pill @Severity">@Label</span>
-    <span class="banner-text">@ChildContent</span>
+    @* The "?" next to the label it explains, never on a line of its own below a long text (Marc, 2026-11-23). *@
     @if (Help is not null)
     {
         <HelpLink To="@Help" Label="@Label" />
     }
+    <span class="banner-text">@ChildContent</span>
     @if (Action is not null)
     {
         <span class="banner-action">@Action</span>

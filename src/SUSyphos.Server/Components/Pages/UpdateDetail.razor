@@ -13,6 +13,7 @@
 @inject SUSyphos.Server.Agents.AgentActionService Actions
 @inject SUSyphos.Server.Rollouts.ServerUpdateSelection Selection
 @inject SUSyphos.Server.Software.SoftwareCacheService ScanCache
+@inject SUSyphos.Server.Software.SoftwareCacheProgress CacheProgress
 
 <PageTitle>@(_update is null ? "Update" : UpdateText.Title(_update, UpdateId))</PageTitle>
 
@@ -47,9 +48,12 @@ else
     }
     @if (_sourceVersion is { } notOffered && SUSyphos.Server.Software.SoftwareSource.NotOfferedReason(notOffered) is not null)
     {
+        @* The step of the installer cache (Marc, 2026-11-23): waiting for its next run, downloading with the megabytes,
+           scanning, or the reason of the last failure; the page follows it while it runs. *@
+        var cacheStep = CacheProgress.Get(notOffered.PackageId, notOffered.Version);
         <Banner Label="Not in the WinGet source" Severity="@(notOffered.ScanState is InstallerScanState.Failed or InstallerScanState.Detected ? "fail" : "queue")" Help="update-detail#source">
-            <ChildContent>@SUSyphos.Server.Software.SoftwareSource.Explain(notOffered)@if (notOffered.ScannedAtUtc is { } scannedAt) { <text> Last attempt @Format(scannedAt).</text> }</ChildContent>
-            <Action>@if (_canAdminister && notOffered.ScanState is InstallerScanState.Failed or InstallerScanState.Detected) { <button type="submit" form="update-actions" name="Action" value="scan-again" data-help-term="Scan again">Scan again</button> }@if (_update.PackageId is { } sourcePackage) { <a class="btn" href="@PackagePage.Link(sourcePackage)">Open package</a> }</Action>
+            <ChildContent>@SUSyphos.Server.Software.SoftwareSource.Explain(notOffered, cacheStep, CacheProgress.NextRunUtc)@if (cacheStep is null && notOffered.ScannedAtUtc is { } scannedAt) { <text> Last attempt @Format(scannedAt).</text> }</ChildContent>
+            <Action>@if (_canAdminister && notOffered.ScanState is InstallerScanState.Failed or InstallerScanState.Detected) { <button type="submit" form="update-actions" name="Action" value="scan-again" data-help-term="Scan again">Scan again</button> } else if (_canAdminister && cacheStep is null) { <button type="submit" form="update-actions" name="Action" value="check-now" data-help-term="Check now">Check now</button> }</Action>
         </Banner>
     }
     @if (_unsupported.Count > 0)
@@ -838,12 +842,31 @@ else
             return;
         }
 
+        if (parts is ["check-now"])
+        {
+            // Marc, 2026-11-23: starts the installer cache at once instead of waiting for its next run.
+            var allowed = await IsAuthorizedAsync(AdminRoles.Policies.Administer);
+            if (allowed)
+            {
+                CacheProgress.RequestRun();
+            }
+
+            ShowResult(allowed ? null : "Only administrators can start the installer cache.", "The installer cache runs now; this page shows its progress.");
+            await LoadAsync();
+            return;
+        }
+
         if (parts is ["scan-again"])
         {
             // Marc, 2026-11-22: an administrator discards a scan result that was wrong (WebView2 158, rc.7 lab).
             var rescanned = await IsAuthorizedAsync(AdminRoles.Policies.Administer)
                 && await ScanCache.ScanAgainAsync(UpdateId, await GetActorAsync(), CancellationToken.None);
-            ShowResult(rescanned ? null : "Only administrators can scan again, and only a version that was found infected or could not be scanned.", "The scan result was discarded; the central server downloads and scans the installer again with the next run of its cache (every few minutes).");
+            if (rescanned)
+            {
+                CacheProgress.RequestRun();
+            }
+
+            ShowResult(rescanned ? null : "Only administrators can scan again, and only a version that was found infected or could not be scanned.", "The scan result was discarded; the central server downloads and scans the installer again now.");
             await LoadAsync();
             return;
         }
@@ -1011,7 +1034,8 @@ else
         })];
         _toDo = servers.Count(s => s.Status is not (ServerUpdateStatus.Installed or ServerUpdateStatus.NotNeeded));
         _failedServers = servers.Count(s => s.Status == ServerUpdateStatus.Failed);
-        _running = servers.Any(s => s.Status is ServerUpdateStatus.Installing or ServerUpdateStatus.Uninstalling);
+        _running = servers.Any(s => s.Status is ServerUpdateStatus.Installing or ServerUpdateStatus.Uninstalling)
+            || (_sourceVersion is { } waiting && SUSyphos.Server.Software.SoftwareSource.NotOfferedReason(waiting) is not null && waiting.ScanState is not (InstallerScanState.Failed or InstallerScanState.Detected));
         _serverPage = TablePaging.Apply(servers, _table, ServerColumns, s => s.HostName);
 
         _startRule = RolloutService.FindStartRule(await Db.StartRules.AsNoTracking().ToListAsync(), _update);
