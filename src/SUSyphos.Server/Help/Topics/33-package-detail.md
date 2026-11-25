@@ -58,7 +58,7 @@ New installations (administrators): the servers of an assigned group, or an assi
 ## Assign the package {#assign}
 
 - **All servers, a group or a server**: *All servers* (every approved server, also servers approved later), one group or one approved server. Servers on which WinGet cannot run are always left out.
-- **Version**: "Newest released version", or a fixed version of the catalog.
+- **Version**: "Newest released version", or a fixed version of the catalog. With the newest, each server gets the newest version of the catalog it can install: where the newest one does not fit (for example a package that comes only as MSIX on Windows Server 2019), an older version of the catalog that fits is installed instead; without one, the server shows *Not supported* with the reason.
 - **Uninstall when the assignment is removed**: off by default; on, removing the assignment later uninstalls the package from the servers it covered.
 
 **Assign** stores the assignment (recorded in the audit log); **Cancel** closes the dialog. The installation waits for the rollout of the version: start it on the version's update page, or release it to all rings at once. Holds of the version win over assignments.

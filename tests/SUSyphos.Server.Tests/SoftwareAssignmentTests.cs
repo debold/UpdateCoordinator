@@ -51,6 +51,29 @@ public sealed class SoftwareAssignmentTests
     }
 
     [Fact]
+    public async Task Assignment_NeedsTheNewestVersionTheServerCanInstall_ElseTheNewest()
+    {
+        // Marc, 2026-11-23: PowerShell 7.7 exists only as MSIX; a server that cannot install it gets the newest version it can.
+        var (scenario, server, group) = await SetUpAsync();
+        await using (scenario)
+        {
+            var newest = SoftwarePackages.SoftwareUpdateId("Notepad++.Notepad++", "8.9.9");
+            var older = SoftwarePackages.SoftwareUpdateId("Notepad++.Notepad++", "8.9.8");
+            await scenario.Factory.WithDbAsync(db => db.PackageVersions.Where(v => v.UpdateId == newest).ExecuteUpdateAsync(s => s.SetProperty(v => v.Manifest, "{\"Installers\":[{\"InstallerType\":\"msix\",\"MinimumOSVersion\":\"10.0.99999.0\"}]}"), TestContext.Current.CancellationToken));
+            await scenario.Factory.WithDbAsync(db => db.PackageVersions.Where(v => v.UpdateId == older).ExecuteUpdateAsync(s => s.SetProperty(v => v.Manifest, "{\"Installers\":[{\"InstallerType\":\"msi\"}]}"), TestContext.Current.CancellationToken));
+
+            Assert.True((await AssignAsync(scenario, group, null)).Succeeded);
+            Assert.Equal([older], (await NeedsAsync(scenario, server.ClientId)).Needed.Select(n => n.UpdateId));
+
+            // Without a version that fits, the newest is needed and shows as not supported.
+            await scenario.Factory.WithDbAsync(db => db.PackageVersions.Where(v => v.UpdateId == older).ExecuteUpdateAsync(s => s.SetProperty(v => v.Manifest, "{\"Installers\":[{\"InstallerType\":\"msi\",\"MinimumOSVersion\":\"10.0.99999.0\"}]}"), TestContext.Current.CancellationToken));
+            Assert.Empty((await NeedsAsync(scenario, server.ClientId)).Needed);
+            var unsupported = await scenario.WithServiceAsync<ServerDbContext, IReadOnlyList<(SoftwareNeed Need, string Reason)>>(db => SoftwareNeeds.UnsupportedAsync(db, [server.ClientId], CancellationToken.None));
+            Assert.Equal(newest, Assert.Single(unsupported).Need.UpdateId);
+        }
+    }
+
+    [Fact]
     public async Task ServerAssignment_WithAFixedVersion_NeedsThatVersion_AndRemovingEndsIt()
     {
         var (scenario, server, _) = await SetUpAsync();

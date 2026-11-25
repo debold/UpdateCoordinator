@@ -88,13 +88,18 @@ internal static class SoftwareNeeds
             }
         }
 
-        // Assigned and not installed (new installations): the fixed version, else the newest known one.
+        // Assigned and not installed (new installations): the fixed version, else the newest known one the server can
+        // install (Marc, 2026-11-23: PowerShell 7.7 exists only as MSIX, older versions also as MSI), else the newest, so
+        // the server shows why it cannot install it.
         var present = programs.Select(p => (p.ClientId, p.PackageId!.ToUpperInvariant())).ToHashSet();
-        foreach (var assignment in assigned.Where(a => !present.Contains((a.ClientId, a.PackageId.ToUpperInvariant()))))
+        var waiting = assigned.Where(a => !present.Contains((a.ClientId, a.PackageId.ToUpperInvariant()))).ToList();
+        var fits = await FitsAsync(db, waiting.Where(a => a.FixedVersion is null).Select(a => a.ClientId).Distinct().ToList(), waiting.Where(a => a.FixedVersion is null).Select(a => a.PackageId).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), cancellationToken).ConfigureAwait(false);
+        foreach (var assignment in waiting)
         {
             var target = assignment.FixedVersion is { } fixedVersion
                 ? versions[assignment.PackageId].FirstOrDefault(v => string.Equals(v.Version, fixedVersion, StringComparison.OrdinalIgnoreCase))
-                : versions[assignment.PackageId].MaxBy(v => v.Version, VersionComparer.Instance);
+                : versions[assignment.PackageId].OrderByDescending(v => v.Version, VersionComparer.Instance).FirstOrDefault(v => fits(assignment.ClientId, v.UpdateId))
+                    ?? versions[assignment.PackageId].MaxBy(v => v.Version, VersionComparer.Instance);
             if (target is not null)
             {
                 needed.Add(new SoftwareNeed(assignment.ClientId, target.UpdateId, SoftwarePackages.SoftwareRevision, assignment.CreatedAtUtc));
@@ -103,6 +108,20 @@ internal static class SoftwareNeeds
 
         return (needed.Distinct().ToList(), installed.Distinct().ToList());
     }
+
+    /// <summary>Whether a server can install a version, from the manifests of the packages and the Windows versions of the servers.</summary>
+    private static async Task<Func<Guid, Guid, bool>> FitsAsync(ServerDbContext db, List<Guid> clientIds, List<string> packageIds, CancellationToken cancellationToken)
+    {
+        if (clientIds.Count == 0 || packageIds.Count == 0)
+        {
+            return (_, _) => true;
+        }
+
+        var manifests = await db.PackageVersions.AsNoTracking().Where(v => packageIds.Contains(v.PackageId)).Select(v => new { v.UpdateId, v.Manifest }).ToDictionaryAsync(v => v.UpdateId, v => v.Manifest, cancellationToken).ConfigureAwait(false);
+        var windows = await db.Clients.AsNoTracking().Where(c => clientIds.Contains(c.Id)).Select(c => new { c.Id, c.OsVersion }).ToDictionaryAsync(c => c.Id, c => c.OsVersion, cancellationToken).ConfigureAwait(false);
+        return (clientId, updateId) => SoftwareApplicability.WhyNot(manifests.GetValueOrDefault(updateId), windows.GetValueOrDefault(clientId)) is null;
+    }
+
 
     /// <summary>Splits needed versions into those the server can install and those it cannot (with the reason).</summary>
     private static async Task<(List<SoftwareNeed> Applicable, List<(SoftwareNeed Need, string Reason)> Unsupported)> SplitByApplicabilityAsync(ServerDbContext db, List<SoftwareNeed> needed, CancellationToken cancellationToken)
