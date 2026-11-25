@@ -110,14 +110,12 @@ else
             </ActionMenu>
         }
         <a class="btn" href="@AddressWithoutMessage" title="Load the page again with the latest state"><Icon Name="refresh-cw" Size="16" />Refresh</a>
-        @if (_canOperate && LatestLogs is { } logs)
+        @if (_canOperate && _logsState is { } logs)
         {
-            @* Marc, 2026-11-22: the button tells new logs (blue) from logs you downloaded already (green with a check);
-               the times are in the tooltip, a dot shows that newer logs are requested. *@
-            var downloaded = _logsDownloadedAt is not null;
-            var newer = _actions.FirstOrDefault(a => a.Kind == SUSyphos.Contracts.Agents.AgentActionKind.UploadLogs && a.State is AgentActionState.Queued or AgentActionState.Delivered && a.RequestedAtUtc > (logs.CompletedAtUtc ?? DateTime.MinValue));
-            var tooltip = $"Logs the agent uploaded on {Format(logs.CompletedAtUtc)}" + (_logsDownloadedAt is { } at ? $"; you downloaded them on {Format(at)}" : "; not downloaded by you yet") + (newer is null ? string.Empty : $"; new logs requested {Format(newer.RequestedAtUtc)}");
-            <a class="btn @(downloaded ? "done" : "primary")" href="@AgentLogEndpoints.DownloadPath(logs.Id)" title="@tooltip" data-help-term="Download logs"><Icon Name="@(downloaded ? "check" : "download")" Size="16" /><span>Download logs</span>@if (newer is not null) { <span class="pend-dot" aria-label="New logs requested"></span> }</a>
+            @* The button tells new logs (blue) from logs you downloaded already (green with a check, at once on the click);
+               "new requested" shows while newer logs are on their way, and the dashboard script turns the button blue when
+               they arrive (AgentLogsState). Hidden until the agent uploaded logs once. *@
+            <a class="btn logs-btn @(logs.Downloaded ? "done" : "primary")" href="@logs.Href" title="@logs.Title" hidden="@(logs.Href is null)" data-logs-state="@AgentLogEndpoints.StatePath(Id)" data-help-term="Download logs"><span class="ic-new"><Icon Name="download" Size="16" /></span><span class="ic-done"><Icon Name="check" Size="16" /></span><span>Download logs</span><span class="pend-note" hidden="@(!logs.Requested)"><span class="pend-dot"></span>new requested</span></a>
         }
         @if (_canOperate)
         {
@@ -1963,10 +1961,9 @@ else
 
     private SUSyphos.Server.Approval.PendingRemoval? _pendingRemoval;
 
-    /// <summary>The newest agent logs that can still be downloaded, shown as a button in the action band (Marc, 2026-10-27).</summary>
-    private DateTime? _logsDownloadedAt;
+    /// <summary>The "Download logs" button for the signed-in user: the newest logs, whether they downloaded them, a newer request.</summary>
+    private AgentLogsState? _logsState;
 
-    private AgentActionEntity? LatestLogs => _actions.Where(a => a.Kind == SUSyphos.Contracts.Agents.AgentActionKind.UploadLogs && a.LogFileSize is not null).MaxBy(a => a.CompletedAtUtc);
 
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
@@ -2015,9 +2012,7 @@ else
         _debug = await Debug.ServerAsync(Id, CancellationToken.None);
         await LoadSoftwareAsync();
         _actions = await Db.AgentActions.AsNoTracking().Where(a => a.ClientId == Id).OrderByDescending(a => a.RequestedAtUtc).Take(MaxHistory).ToListAsync();
-        var me = await GetActorAsync();
-        var latestLogs = LatestLogs?.Id.ToString("D");
-        _logsDownloadedAt = latestLogs is null ? null : await Db.AuditEntries.AsNoTracking().Where(a => a.Action == "Action.LogsDownloaded" && a.Actor == me && a.Details == latestLogs).MaxAsync(a => (DateTime?)a.AtUtc);
+        _logsState = await AgentLogsState.LoadAsync(Db, Id, await GetActorAsync(), CancellationToken.None);
         _actionTable = TableQuery.From(Navigation, "requested", defaultDescending: true, prefix: "ra.", defaultPageSize: 10, views: ActionViews);
         _actionPage = TablePaging.Apply(_actions, _actionTable, ActionColumns, a => $"{SUSyphos.Server.Agents.AgentActionText.Label(a.Kind, a.Scope)} {a.RequestedBy} {a.Detail}");
         if (_client is null)

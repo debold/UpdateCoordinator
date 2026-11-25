@@ -1200,3 +1200,11 @@ ul.search-hits mark { background: var(--queue-soft); color: inherit; }
 .help-nav, .help-toc { top: 64px; }
 .panel .help-article { border: 0; }
 .panel .help-article > .box-body { padding: 0; }
+
+/* Download logs (server page): blue while new, green with a check once downloaded; the check shows at once on the click. */
+.logs-btn .ic-new, .logs-btn .ic-done { display: inline-flex; }
+.logs-btn .ic-done, .logs-btn.done .ic-new { display: none; }
+.logs-btn.done .ic-done { display: inline-flex; }
+.logs-btn .pend-note { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; font-size: 12px; font-weight: 400; opacity: 0.85; }
+.logs-btn .pend-note[hidden], .logs-btn[hidden] { display: none; }
+.logs-btn .pend-note .pend-dot { margin-left: 0; }

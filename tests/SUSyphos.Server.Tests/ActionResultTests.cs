@@ -96,7 +96,7 @@ public sealed class ActionResultTests
         {
         }
 
-        Assert.DoesNotContain("Download logs", await (await browser.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains("title=\"No logs uploaded yet\" hidden", await (await browser.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
 
         var logs = await FinishedAsync(scenario, client.ClientId, AgentActionKind.UploadLogs, AgentActionState.Succeeded, "4 log files uploaded (313 KB).");
         await scenario.Factory.WithDbAsync(db => db.AgentActions.Where(a => a.Id == logs).ExecuteUpdateAsync(s => s.SetProperty(a => a.LogFileSize, 320_000L), TestContext.Current.CancellationToken));
@@ -104,14 +104,14 @@ public sealed class ActionResultTests
         var page = await (await browser.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains("Download logs", page, StringComparison.Ordinal);
         Assert.Contains(AgentLogEndpoints.DownloadPath(logs), page, StringComparison.Ordinal);
-        Assert.Contains("class=\"btn primary\" href=\"" + AgentLogEndpoints.DownloadPath(logs), page, StringComparison.Ordinal);
+        Assert.Contains("class=\"btn logs-btn primary\" href=\"" + AgentLogEndpoints.DownloadPath(logs), page, StringComparison.Ordinal);
 
         // Marc, 2026-11-22: green with a check once you downloaded these logs, a dot while newer ones are requested.
         await scenario.WithServiceAsync<SUSyphos.Server.Administration.AuditLog, bool>(async audit => { await audit.WriteAsync("operator", "Action.LogsDownloaded", "SRV01", logs.ToString("D"), CancellationToken.None); return true; });
         page = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("class=\"btn done\" href=\"" + AgentLogEndpoints.DownloadPath(logs), page, StringComparison.Ordinal);
+        Assert.Contains("class=\"btn logs-btn done\" href=\"" + AgentLogEndpoints.DownloadPath(logs), page, StringComparison.Ordinal);
         Assert.Contains("; you downloaded them on", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("pend-dot", page, StringComparison.Ordinal);
+        Assert.Contains("class=\"pend-note\" hidden", page, StringComparison.Ordinal);
 
         await scenario.Factory.WithDbAsync(db =>
         {
@@ -119,8 +119,14 @@ public sealed class ActionResultTests
             return db.SaveChangesAsync(TestContext.Current.CancellationToken);
         });
         page = System.Net.WebUtility.HtmlDecode(await (await browser.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("pend-dot", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"pend-note\" hidden", page, StringComparison.Ordinal);
         Assert.Contains("; new logs requested", page, StringComparison.Ordinal);
+
+        // The dashboard script polls the same state, so the button changes without a reload.
+        var state = await (await browser.GetAsync(AgentLogEndpoints.StatePath(client.ClientId))).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("\"downloaded\":true", state, StringComparison.Ordinal);
+        Assert.Contains("\"requested\":true", state, StringComparison.Ordinal);
+        Assert.Contains(AgentLogEndpoints.DownloadPath(logs), state, StringComparison.Ordinal);
 
         // Somebody else's download does not count for this user.
         await scenario.Factory.CreateUserAsync("other", Password, AdminRoles.Operator);
@@ -129,10 +135,20 @@ public sealed class ActionResultTests
         {
         }
 
-        Assert.Contains("class=\"btn primary\" href=\"" + AgentLogEndpoints.DownloadPath(logs), await (await other.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        Assert.Contains("class=\"btn logs-btn primary\" href=\"" + AgentLogEndpoints.DownloadPath(logs), await (await other.GetAsync($"/servers/{client.ClientId}")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+        // Readers cannot ask for the state of the button.
+        await scenario.Factory.CreateUserAsync("reader", Password, AdminRoles.Reader);
+        using var reader = new SUSyphos.TestSupport.DashboardClient(scenario.Factory);
+        using (await reader.LoginAsync("reader", Password))
+        {
+        }
+
+        using var refused = await reader.GetAsync(AgentLogEndpoints.StatePath(client.ClientId));
+        Assert.NotEqual(System.Net.HttpStatusCode.OK, refused.StatusCode);
     }
 
-    private static async Task<Guid> FinishedAsync(RolloutScenario scenario, Guid clientId, AgentActionKind kind, AgentActionState state, string detail)
+    private static async Task<Guid> FinishedAsync(
+RolloutScenario scenario, Guid clientId, AgentActionKind kind, AgentActionState state, string detail)
     {
         var id = Guid.NewGuid();
         await scenario.Factory.WithDbAsync(db =>

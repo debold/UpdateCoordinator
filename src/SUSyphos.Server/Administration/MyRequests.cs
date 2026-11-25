@@ -53,11 +53,14 @@ internal sealed class MyRequests(ServerDbContext db, TimeProvider timeProvider)
         {
             var a = r.Action;
             var open = a.State is AgentActionState.Queued or AgentActionState.Delivered;
+            // Start (picked up by the agent) and end of each request (Marc, 2026-11-23).
+            var started = Components.DisplayTime.Format(a.DeliveredAtUtc ?? a.RequestedAtUtc);
             var step = a.State switch
             {
-                AgentActionState.Queued => "requested, waits for the next heartbeat",
-                AgentActionState.Delivered => $"picked up {Components.DisplayTime.Format(a.DeliveredAtUtc ?? a.RequestedAtUtc)}, running",
-                _ => $"done {Components.DisplayTime.Format(a.CompletedAtUtc ?? a.RequestedAtUtc)}",
+                AgentActionState.Queued => $"requested {Components.DisplayTime.Format(a.RequestedAtUtc)}, waits for the next heartbeat",
+                AgentActionState.Delivered => $"started {started}, running",
+                _ when a.DeliveredAtUtc is null => $"requested {Components.DisplayTime.Format(a.RequestedAtUtc)}, ended {Components.DisplayTime.Format(a.CompletedAtUtc ?? a.RequestedAtUtc)}",
+                _ => $"started {started}, ended {Components.DisplayTime.Format(a.CompletedAtUtc ?? a.RequestedAtUtc)}",
             };
             return new MyRequest(
                 a.Id,

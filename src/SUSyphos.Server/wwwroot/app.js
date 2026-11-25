@@ -751,6 +751,50 @@
 
     // My requests (Marc, 2026-11-20): the user's own remote actions every 10 seconds; a message at the bottom right when
     // one finishes (success for 10 seconds, failure until closed). Built with textContent only, never as HTML.
+    // Download logs (server page): green with a check right on the click (the download is no page change), and polled
+    // while the page is open, so it turns blue when newly requested logs arrive (Marc, 2026-11-23).
+    const logsButton = document.querySelector('[data-logs-state]');
+    if (logsButton) {
+        const markDownloaded = () => {
+            logsButton.classList.add('done');
+            logsButton.classList.remove('primary');
+        };
+        logsButton.addEventListener('click', () => {
+            if (logsButton.getAttribute('href')) {
+                markDownloaded();
+            }
+        });
+        const note = logsButton.querySelector('.pend-note');
+        const pollLogs = async () => {
+            if (document.hidden) {
+                return;
+            }
+
+            try {
+                const response = await fetch(logsButton.getAttribute('data-logs-state'), { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+                if (!response.ok) {
+                    return;
+                }
+
+                const state = await response.json();
+                if (state.href) {
+                    logsButton.setAttribute('href', state.href);
+                    logsButton.hidden = false;
+                }
+
+                logsButton.classList.toggle('done', state.downloaded);
+                logsButton.classList.toggle('primary', !state.downloaded);
+                logsButton.title = state.title;
+                if (note) {
+                    note.hidden = !state.requested;
+                }
+            } catch {
+                // The next poll tries again.
+            }
+        };
+        window.setInterval(pollLogs, 10000);
+    }
+
     const myRequests = document.querySelector('[data-my-requests]');
     if (myRequests) {
         const source = myRequests.getAttribute('data-my-requests');
